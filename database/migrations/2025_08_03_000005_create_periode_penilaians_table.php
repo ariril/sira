@@ -6,20 +6,19 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('periode_penilaians', function (Blueprint $table) {
             $table->id();
+            $table->string('nama_periode');
+            $table->date('tanggal_mulai');
+            $table->date('tanggal_akhir');
+            $table->string('siklus_penilaian', 20); // Bulanan, Triwulanan, Tahunan, dll.
+            $table->string('status_periode', 20); // Aktif, Selesai, Draft, dll.
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('periode_penilaians');
