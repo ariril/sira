@@ -2,47 +2,101 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+// use Laravel\Sanctum\HasApiTokens; // aktifkan kalau pakai Sanctum
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable; // , HasApiTokens;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
+    /** Role constants (opsional, biar rapi) */
+    public const ROLE_PEGAWAI_MEDIS = 'pegawai_medis';
+    public const ROLE_KEPALA_UNIT = 'kepala_unit';
+    public const ROLE_ADMINISTRASI = 'administrasi';
+    public const ROLE_SUPER_ADMIN = 'super_admin';
+
+    /** Mass assignable fields */
     protected $fillable = [
-        'name',
-        'email',
-        'password',
+        'name', 'email', 'password',
+        // profil pegawai yang sebelumnya ada di Pegawai:
+        'nip', 'tanggal_mulai_kerja', 'jenis_kelamin', 'kewarganegaraan',
+        'nomor_identitas', 'alamat', 'nomor_telepon', 'pendidikan_terakhir',
+        'jabatan', 'unit_kerja_id', 'role',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
+    /** Hidden attrs */
+    protected $hidden = ['password', 'remember_token'];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
+    /** Casts */
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'email_verified_at'  => 'datetime',
+            'tanggal_mulai_kerja'=> 'date',
+            'password'           => 'hashed',
         ];
+    }
+
+    /* =======================
+       Relasi
+       ======================= */
+
+    public function unitKerja(): BelongsTo
+    {
+        return $this->belongsTo(UnitKerja::class);
+    }
+
+    public function penilaianKinerjas(): HasMany
+    {
+        return $this->hasMany(PenilaianKinerja::class, 'user_id');
+    }
+
+    public function kehadirans(): HasMany
+    {
+        return $this->hasMany(Kehadiran::class, 'user_id');
+    }
+
+    public function kontribusiTambahans(): HasMany
+    {
+        return $this->hasMany(KontribusiTambahan::class, 'user_id');
+    }
+
+    public function remunerasis(): HasMany
+    {
+        return $this->hasMany(Remunerasi::class, 'user_id');
+    }
+
+    public function jadwalDokters(): HasMany
+    {
+        return $this->hasMany(JadwalDokter::class, 'user_id');
+    }
+
+    /** Ulasan pasien yang (opsional) terkait user/tenaga medis ini */
+    public function ulasanPasiens(): HasMany
+    {
+        return $this->hasMany(UlasanPasien::class, 'user_id');
+    }
+
+    /** Antrian di mana user ini menjadi dokter bertugas (jika ada) */
+    public function antrianSebagaiDokter(): HasMany
+    {
+        return $this->hasMany(AntrianPasien::class, 'dokter_bertugas_user_id');
+    }
+
+    /* =======================
+       Scope kecil (opsional)
+       ======================= */
+    public function scopeRole($q, string $role)
+    {
+        return $q->where('role', $role);
+    }
+
+    public function isKepalaUnit(): bool
+    {
+        return $this->role === self::ROLE_KEPALA_UNIT;
     }
 }

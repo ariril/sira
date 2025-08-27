@@ -17,7 +17,7 @@ return new class extends Migration
             $table->time('waktu_masuk_antrian')->nullable();
             $table->time('waktu_mulai_dilayani')->nullable();
             $table->time('waktu_selesai_dilayani')->nullable();
-            $table->foreignId('dokter_bertugas_id')->nullable()->constrained('pegawais')->onDelete('set null'); // Dokter yang melayani
+            $table->foreignId('dokter_bertugas_id')->nullable()->constrained('users')->onDelete('set null'); // Dokter yang melayani
             $table->timestamps();
         });
     }

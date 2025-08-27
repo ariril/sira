@@ -10,15 +10,15 @@ class JadwalDokter extends Model
     use HasFactory;
 
     protected $fillable = [
-        'id_pegawai',
+        'dokter_id',
         'tanggal',
         'jam_mulai',
         'jam_selesai',
         'lokasi_poliklinik',
     ];
 
-    public function pegawai()
+    public function user()
     {
-        return $this->belongsTo(Pegawai::class, 'id_pegawai', 'id_pegawai');
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

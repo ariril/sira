@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('jadwal_dokters', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('pegawai_id')->constrained('pegawais')->onDelete('cascade'); // Khusus untuk dokter
+            $table->foreignId('dokter_id')->constrained('users')->onDelete('cascade'); // Khusus untuk dokter
             $table->date('tanggal');
             $table->time('jam_mulai');
             $table->time('jam_selesai');

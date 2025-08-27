@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('ulasan_pasiens', function (Blueprint $table) {
             $table->id();
             $table->foreignId('pasien_id')->nullable()->constrained('pasiens')->onDelete('set null');
-            $table->foreignId('pegawai_medis_id')->nullable()->constrained('pegawais')->onDelete('set null');
+            $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamp('tanggal_ulasan')->useCurrent();
             $table->integer('rating_layanan')->nullable();
             $table->text('komentar_saran_kritik')->nullable();

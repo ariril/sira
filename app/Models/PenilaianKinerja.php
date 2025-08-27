@@ -10,31 +10,35 @@ class PenilaianKinerja extends Model
     use HasFactory;
 
     protected $fillable = [
-        'id_pegawai',
-        'id_periode_penilaian',
+        'user_id',                // ganti dari id_pegawai → user_id
+        'periode_penilaian_id',   // ganti dari id_periode_penilaian → periode_penilaian_id
         'tanggal_penilaian',
         'skor_total_wsm',
         'status_validasi',
         'komentar_atasan',
     ];
 
-    public function pegawai()
+    /** Relasi ke user (pegawai yang dinilai) */
+    public function user()
     {
-        return $this->belongsTo(Pegawai::class, 'id_pegawai', 'id_pegawai');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
+    /** Relasi ke periode penilaian */
     public function periodePenilaian()
     {
-        return $this->belongsTo(PeriodePenilaian::class, 'id_periode_penilaian', 'id_periode_penilaian');
+        return $this->belongsTo(PeriodePenilaian::class, 'periode_penilaian_id');
     }
 
+    /** Detail setiap kriteria penilaian */
     public function detailPenilaianKriterias()
     {
-        return $this->hasMany(DetailPenilaianKriteria::class, 'id_penilaian', 'id_penilaian');
+        return $this->hasMany(DetailPenilaianKriteria::class, 'penilaian_kinerja_id');
     }
 
+    /** Relasi ke remunerasi hasil penilaian */
     public function remunerasi()
     {
-        return $this->hasOne(Remunerasi::class, 'id_penilaian', 'id_penilaian'); // Jika ada relasi one-to-one
+        return $this->hasOne(Remunerasi::class, 'penilaian_kinerja_id');
     }
 }

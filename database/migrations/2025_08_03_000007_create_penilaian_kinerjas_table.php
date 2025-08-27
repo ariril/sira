@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('penilaian_kinerjas', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('pegawai_id')->constrained('pegawais')->onDelete('cascade');
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('periode_penilaian_id')->constrained('periode_penilaians')->onDelete('cascade');
             $table->date('tanggal_penilaian');
             $table->decimal('skor_total_wsm', 8, 2)->nullable();
@@ -18,7 +18,7 @@ return new class extends Migration
             $table->text('komentar_atasan')->nullable();
             $table->timestamps();
 
-            $table->unique(['pegawai_id', 'periode_penilaian_id']);
+            $table->unique(['user_id', 'periode_penilaian_id']);
         });
     }
 

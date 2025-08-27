@@ -10,7 +10,7 @@ class Kehadiran extends Model
     use HasFactory;
 
     protected $fillable = [
-        'id_pegawai',
+        'user_id',
         'tanggal_hadir',
         'jam_masuk',
         'jam_keluar',
@@ -18,8 +18,8 @@ class Kehadiran extends Model
         'catatan_lembur',
     ];
 
-    public function pegawai()
+    public function user()
     {
-        return $this->belongsTo(Pegawai::class, 'id_pegawai', 'id_pegawai');
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('remunerasis', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('pegawai_id')->constrained('pegawais')->onDelete('cascade');
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('periode_penilaian_id')->constrained('periode_penilaians')->onDelete('cascade');
             $table->decimal('nilai_remunerasi', 15, 2);
             $table->date('tanggal_pembayaran')->nullable();
@@ -18,7 +18,7 @@ return new class extends Migration
             $table->json('rincian_perhitungan')->nullable(); // Menyimpan rincian perhitungan dalam format JSON
             $table->timestamps();
 
-            $table->unique(['pegawai_id', 'periode_penilaian_id']);
+            $table->unique(['user_id', 'periode_penilaian_id']);
         });
     }
 

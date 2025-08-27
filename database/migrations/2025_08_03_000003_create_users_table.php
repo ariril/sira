@@ -8,10 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('pegawais', function (Blueprint $table) {
+        Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('nip')->unique()->nullable();
-            $table->string('nama_pegawai');
+            $table->string('nama');
             $table->date('tanggal_mulai_kerja');
             $table->string('jenis_kelamin', 10);
             $table->string('kewarganegaraan', 50);
@@ -21,15 +21,32 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('pendidikan_terakhir', 50)->nullable();
             $table->string('jabatan');
-            $table->foreignId('id_unit')->constrained('unit_kerjas')->onDelete('cascade');
+
+            // Relasi ke unit kerja
+            $table->foreignId('unit_kerja_id')
+                ->constrained('unit_kerjas')
+                ->cascadeOnDelete();
+
+            // Relasi ke profesi medis
+            $table->foreignId('profesi_id')
+                ->nullable()
+                ->constrained('profesis')
+                ->nullOnDelete();
+
             $table->string('password');
-            $table->enum('role', ['pegawai_medis', 'kepala_unit', 'administrasi', 'super_admin'])->default('pegawai_medis');
+
+            // Role untuk otorisasi
+            $table->enum('role', ['pegawai_medis', 'kepala_unit', 'administrasi', 'super_admin'])
+                ->default('pegawai_medis');
+
+            $table->index('nama');
             $table->timestamps();
         });
+
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('pegawais');
+        Schema::dropIfExists('users');
     }
 };
