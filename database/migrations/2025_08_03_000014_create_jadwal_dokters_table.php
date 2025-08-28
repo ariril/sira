@@ -10,12 +10,25 @@ return new class extends Migration
     {
         Schema::create('jadwal_dokters', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('dokter_id')->constrained('users')->onDelete('cascade'); // Khusus untuk dokter
+
+            $table->foreignId('dokter_id')
+                ->constrained('users')
+                ->cascadeOnDelete();
+
             $table->date('tanggal');
             $table->time('jam_mulai');
             $table->time('jam_selesai');
-            $table->string('lokasi_poliklinik');
+
+            $table->foreignId('unit_kerja_id')
+                ->constrained('unit_kerjas')
+                ->cascadeOnDelete();
+
             $table->timestamps();
+
+            $table->unique(
+                ['dokter_id', 'tanggal', 'jam_mulai', 'jam_selesai', 'unit_kerja_id'],
+                'uniq_jadwal_dokter_slot'
+            );
         });
     }
 

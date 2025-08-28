@@ -14,7 +14,6 @@ return new class extends Migration {
             $table->text('deskripsi')->nullable();
             $table->timestamps();
         });
-
     }
 
     public function down(): void

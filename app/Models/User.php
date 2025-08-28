@@ -22,10 +22,9 @@ class User extends Authenticatable
     /** Mass assignable fields */
     protected $fillable = [
         'name', 'email', 'password',
-        // profil pegawai yang sebelumnya ada di Pegawai:
         'nip', 'tanggal_mulai_kerja', 'jenis_kelamin', 'kewarganegaraan',
         'nomor_identitas', 'alamat', 'nomor_telepon', 'pendidikan_terakhir',
-        'jabatan', 'unit_kerja_id', 'role',
+        'jabatan', 'unit_kerja_id', 'role', 'profesi_id',
     ];
 
     /** Hidden attrs */
@@ -44,6 +43,10 @@ class User extends Authenticatable
     /* =======================
        Relasi
        ======================= */
+    public function profesi(): BelongsTo
+    {
+        return $this->belongsTo(Profesi::class);
+    }
 
     public function unitKerja(): BelongsTo
     {
@@ -88,11 +91,16 @@ class User extends Authenticatable
     }
 
     /* =======================
-       Scope kecil (opsional)
+       Scope
        ======================= */
     public function scopeRole($q, string $role)
     {
         return $q->where('role', $role);
+    }
+
+    public function scopeProfesi($q, string $kode)
+    {
+        return $q->whereHas('profesi', fn($p) => $p->where('kode', $kode));
     }
 
     public function isKepalaUnit(): bool

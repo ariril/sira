@@ -11,7 +11,7 @@
                 </div>
             </div>
 
-            <a href="#"
+            <a href="#login" @click.prevent="$store.authModal.show()"
                class="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 backdrop-blur transition hover:bg-white/20">
                 <i class="fa-solid fa-right-to-bracket"></i>
                 <span>Login</span>
