@@ -11,19 +11,20 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('nip')->unique()->nullable();
-            $table->string('nama');
-            $table->date('tanggal_mulai_kerja');
-            $table->string('jenis_kelamin', 10);
-            $table->string('kewarganegaraan', 50);
-            $table->string('nomor_identitas')->unique();
+            $table->string('nama')->nullable();
+            $table->date('tanggal_mulai_kerja')->nullable();
+            $table->string('jenis_kelamin', 10)->nullable();
+            $table->string('kewarganegaraan', 50)->nullable();
+            $table->string('nomor_identitas')->unique()->nullable();
             $table->text('alamat')->nullable();
             $table->string('nomor_telepon', 20)->nullable();
-            $table->string('email')->unique();
+            $table->string('email')->unique()->nullable();
             $table->string('pendidikan_terakhir', 50)->nullable();
-            $table->string('jabatan');
+            $table->string('jabatan')->nullable();
 
             // Relasi ke unit kerja
             $table->foreignId('unit_kerja_id')
+                ->nullable()
                 ->constrained('unit_kerjas')
                 ->cascadeOnDelete();
 
@@ -37,16 +38,26 @@ return new class extends Migration
 
             // Role untuk otorisasi
             $table->enum('role', ['pegawai_medis', 'kepala_unit', 'administrasi', 'super_admin'])
-                ->default('pegawai_medis');
+                ->default('pegawai_medis')->nullable();
 
             $table->index('nama');
+
+            $table->timestamp('email_verified_at')->nullable();
+            $table->rememberToken();
+
             $table->timestamps();
         });
 
+        Schema::create('password_reset_tokens', function (Blueprint $table) {
+            $table->string('email')->index();
+            $table->string('token');
+            $table->timestamp('created_at')->nullable();
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('users');
     }
 };

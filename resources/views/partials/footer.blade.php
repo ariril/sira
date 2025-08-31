@@ -14,7 +14,7 @@
             <section>
                 <h3 class="text-white font-semibold mb-3">Menu Utama</h3>
                 <ul class="space-y-2">
-                    <li><a href="{{ route('home') }}" class="hover:text-blue-400">Beranda</a></li>
+                    <li><a href="{{ url('/') }}" class="hover:text-blue-400">Beranda</a></li>
                     <li><a href="#" class="hover:text-blue-400">Profil</a></li>
                     <li><a href="{{ route('data') }}" class="hover:text-blue-400">Data Remunerasi</a></li>
                     <li><a href="#" class="hover:text-blue-400">Berita</a></li>

@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.public')
 @section('title','Data Remunerasi - Unit Remunerasi UNS')
 
 @section('content')

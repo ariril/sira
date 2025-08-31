@@ -5,7 +5,7 @@
             {{-- Desktop menu --}}
             <ul class="hidden md:flex items-stretch text-slate-200">
                 <li>
-                    <a href="{{ route('home') }}"
+                    <a href="{{ url('/') }}"
                        class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400 {{ request()->routeIs('home')?'bg-slate-700 text-blue-400 border-blue-400':'' }}">
                         <i class="fa-solid fa-house"></i> Beranda
                     </a>

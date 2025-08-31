@@ -2,7 +2,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4">
         <div class="flex items-center justify-between flex-wrap gap-4">
             <div class="flex items-center gap-4">
-                <img src="https://via.placeholder.com/80x80/1e40af/ffffff?text=UNS"
+                <img src="{{ Storage::url('images/logo-rsudmgr.jpeg') }}"
                      alt="UNS Logo"
                      class="w-[60px] h-[60px] rounded-lg md:w-[60px] md:h-[60px]">
                 <div>

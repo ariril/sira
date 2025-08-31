@@ -21,7 +21,7 @@ class User extends Authenticatable
 
     /** Mass assignable fields */
     protected $fillable = [
-        'name', 'email', 'password',
+        'nama', 'email', 'password',
         'nip', 'tanggal_mulai_kerja', 'jenis_kelamin', 'kewarganegaraan',
         'nomor_identitas', 'alamat', 'nomor_telepon', 'pendidikan_terakhir',
         'jabatan', 'unit_kerja_id', 'role', 'profesi_id',

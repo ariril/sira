@@ -27,8 +27,11 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
+            'email'       => ['required','string','email'],
+            'password'    => ['required','string'],
+            'remember'    => ['nullable','boolean'],
+            'role'        => ['required','in:pegawai_medis,kepala_unit,administrasi,super_admin'],
+            'profesi_id'  => ['nullable','required_if:role,pegawai_medis','exists:profesis,id'],
         ];
     }
 
@@ -41,16 +44,34 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        if (! Auth::attempt($this->only('email','password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
-
-            throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
-            ]);
+            throw ValidationException::withMessages(['email' => __('Email atau password tidak sesuai.')]);
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        // cek role/profesi sesuai pilihan user
+        $user = $this->user();
+
+        if ($user->role !== $this->string('role')) {
+            Auth::logout();
+            throw ValidationException::withMessages([
+                'role' => __('Akun Anda terdaftar sebagai ":actual", bukan ":chosen".', [
+                    'actual' => str_replace('_',' ',$user->role),
+                    'chosen' => str_replace('_',' ',$this->string('role'))
+                ])
+            ])->redirectTo(url()->previous());
+        }
+
+        if ($user->role === 'pegawai_medis' && $this->filled('profesi_id') && (int)$user->profesi_id !== (int)$this->input('profesi_id')) {
+            Auth::logout();
+            throw ValidationException::withMessages([
+                'profesi_id' => __('Profesi yang dipilih tidak sesuai dengan akun Anda.'),
+            ])->redirectTo(url()->previous());
+        }
     }
+
 
     /**
      * Ensure the login request is not rate limited.
@@ -64,7 +85,6 @@ class LoginRequest extends FormRequest
         }
 
         event(new Lockout($this));
-
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
