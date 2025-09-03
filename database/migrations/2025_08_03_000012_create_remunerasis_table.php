@@ -16,6 +16,10 @@ return new class extends Migration
             $table->date('tanggal_pembayaran')->nullable();
             $table->string('status_pembayaran', 50)->default('Belum Dibayar');
             $table->json('rincian_perhitungan')->nullable(); // Menyimpan rincian perhitungan dalam format JSON
+            $table->timestamp('published_at')->nullable();
+            $table->timestamp('calculated_at')->nullable();
+            $table->foreignId('revised_by')->nullable()
+                ->constrained('users')->nullOnDelete();
             $table->timestamps();
 
             $table->unique(['user_id', 'periode_penilaian_id']);

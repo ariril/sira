@@ -17,7 +17,8 @@ return new class extends Migration
             $table->string('file_bukti')->nullable(); // Path atau URL ke dokumen
             $table->string('status_validasi', 50); // Menunggu Persetujuan, Disetujui, Ditolak
             $table->text('komentar_supervisor')->nullable();
-            $table->timestamps();
+            $table->timestamps();$table->foreignId('periode_penilaian_id')->nullable()
+                ->constrained('periode_penilaians')->nullOnDelete();
         });
     }
 

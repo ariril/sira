@@ -15,6 +15,8 @@ return new class extends Migration
             $table->date('tanggal_akhir');
             $table->string('siklus_penilaian', 20); // Bulanan, Triwulanan, Tahunan, dll.
             $table->string('status_periode', 20); // Aktif, Selesai, Draft, dll.
+            $table->boolean('is_active')->default(false);
+            $table->timestamp('locked_at')->nullable();
             $table->timestamps();
         });
     }

@@ -12,10 +12,14 @@ return new class extends Migration
             $table->id();
             $table->string('question');
             $table->longText('answer');
-            $table->unsignedSmallInteger('order')->default(0)->index();
-            $table->boolean('is_active')->default(true)->index();
-            $table->string('category',50)->nullable();
+            $table->unsignedSmallInteger('sort_order')->default(0);
+            $table->boolean('is_active')->default(true);
+            $table->string('category', 50)->nullable();
             $table->timestamps();
+
+            // index bernama (konsisten & mudah di-maintain)
+            $table->index('sort_order', 'faqs_sort_order_index');
+            $table->index('is_active', 'faqs_is_active_index');
         });
     }
 

@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('nomor_identitas')->unique()->nullable();
             $table->text('alamat')->nullable();
             $table->string('nomor_telepon', 20)->nullable();
-            $table->string('email')->unique()->nullable();
+            $table->string('email')->unique();
             $table->string('pendidikan_terakhir', 50)->nullable();
             $table->string('jabatan')->nullable();
 
@@ -26,7 +26,7 @@ return new class extends Migration
             $table->foreignId('unit_kerja_id')
                 ->nullable()
                 ->constrained('unit_kerjas')
-                ->cascadeOnDelete();
+                ->nullOnDelete();
 
             // Relasi ke profesi medis
             $table->foreignId('profesi_id')

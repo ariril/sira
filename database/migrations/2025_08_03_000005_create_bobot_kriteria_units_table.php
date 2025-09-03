@@ -14,6 +14,7 @@ return new class extends Migration
             $table->foreignId('id_kriteria')->constrained('kriteria_kinerjas')->onDelete('cascade');
             $table->decimal('bobot', 5, 2);
             $table->timestamps();
+            $table->unique(['id_unit','id_kriteria'], 'uniq_unit_kriteria');
         });
     }
 
