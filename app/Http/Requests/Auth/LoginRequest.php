@@ -46,25 +46,33 @@ class LoginRequest extends FormRequest
 
         if (! Auth::attempt($this->only('email','password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
-            throw ValidationException::withMessages(['email' => __('Email atau password tidak sesuai.')]);
+            throw ValidationException::withMessages([
+                'email' => __('Email atau password tidak sesuai.'),
+            ]);
         }
 
         RateLimiter::clear($this->throttleKey());
 
         // cek role/profesi sesuai pilihan user
-        $user = $this->user();
+        $user       = $this->user();
+        $chosenRole = (string) $this->input('role'); // <-- ambil string murni
 
-        if ($user->role !== $this->string('role')) {
+        if ($user->role !== $chosenRole) {
             Auth::logout();
+
+            $actual = str_replace('_', ' ', $user->role);
+            $chosen = str_replace('_', ' ', $chosenRole);
+
             throw ValidationException::withMessages([
-                'role' => __('Akun Anda terdaftar sebagai ":actual", bukan ":chosen".', [
-                    'actual' => str_replace('_',' ',$user->role),
-                    'chosen' => str_replace('_',' ',$this->string('role'))
-                ])
+                'role' => __('Akun Anda terdaftar sebagai ":actual", bukan ":chosen".', compact('actual','chosen')),
             ])->redirectTo(url()->previous());
         }
 
-        if ($user->role === 'pegawai_medis' && $this->filled('profesi_id') && (int)$user->profesi_id !== (int)$this->input('profesi_id')) {
+        // opsional: validasi kecocokan profesi untuk pegawai medis
+        if ($user->role === 'pegawai_medis'
+            && $this->filled('profesi_id')
+            && (int) $user->profesi_id !== (int) $this->input('profesi_id')) {
+
             Auth::logout();
             throw ValidationException::withMessages([
                 'profesi_id' => __('Profesi yang dipilih tidak sesuai dengan akun Anda.'),
@@ -100,6 +108,8 @@ class LoginRequest extends FormRequest
      */
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        // gunakan string biasa agar aman
+        $email = (string) $this->input('email');
+        return Str::transliterate(Str::lower($email).'|'.$this->ip());
     }
 }

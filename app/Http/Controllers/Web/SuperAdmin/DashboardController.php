@@ -83,7 +83,8 @@ class DashboardController extends Controller
         }
         if (Schema::hasTable('penilaian_kinerjas')) {
             $kinerja['penilaian_pending'] = DB::table('penilaian_kinerjas')
-                ->where('status','pending')->count();
+                ->where('status_validasi', 'Menunggu Validasi')
+                ->count();
         }
 
         return view('super_admin.dashboard', compact('stats','review','kinerja'));

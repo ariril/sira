@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Web\UlasanPublicController;
+use App\Http\Controllers\HomeController;
 
 use App\Http\Controllers\Web\SuperAdmin\DashboardController as SADashboard;
 use App\Http\Controllers\Web\KepalaUnit\DashboardController as KUDashboard;
@@ -14,9 +15,12 @@ Route::get('/', function () {
 })->name('home');;
 Route::view('/data-remunerasi', 'pages.data-remunerasi')->name('data');
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+//Route::get('/dashboard', function () {
+//    return view('dashboard');
+//})->middleware(['auth', 'verified'])->name('dashboard');
+Route::middleware(['auth','verified'])
+    ->get('/dashboard', [HomeController::class, 'index'])
+    ->name('dashboard');
 
 Route::get('/ulasan',  [UlasanPublicController::class, 'create'])->name('ulasan.create');
 Route::post('/ulasan', [UlasanPublicController::class, 'store'])->name('ulasan.store');

@@ -69,9 +69,10 @@ class DashboardController extends Controller
             $kinerja['periode_aktif'] = DB::table('periode_penilaians')->orderByDesc('id')->first();
         }
         if (Schema::hasTable('penilaian_kinerjas')) {
-            $kinerja['penilaian_pending'] = DB::table('penilaian_kinerjas')
-                ->where('unit_kerja_id', $unitId)
-                ->where('status','pending')
+            $kinerja['penilaian_pending'] = DB::table('penilaian_kinerjas as pk')
+                ->join('users as u', 'u.id', '=', 'pk.user_id')
+                ->where('u.unit_kerja_id', $unitId)
+                ->where('pk.status_validasi', 'Menunggu Validasi')
                 ->count();
         }
 

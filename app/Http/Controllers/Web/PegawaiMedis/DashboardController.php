@@ -50,8 +50,9 @@ class DashboardController extends Controller
 
         if (Schema::hasTable('penilaian_kinerjas')) {
             $me['nilai_kinerja_terakhir'] = DB::table('penilaian_kinerjas')
-                ->where('user_id',$userId)
-                ->orderByDesc('id')->value('skor_total');
+                ->where('user_id', $userId)
+                ->orderByDesc('id')
+                ->value('skor_total_wsm');
         }
 
         if (Schema::hasTable('jadwal_dokters')) {
