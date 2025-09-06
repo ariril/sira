@@ -17,14 +17,12 @@ return new class extends Migration
             $table->string('status_kehadiran', 50); // Hadir, Sakit, Izin, Cuti, Terlambat, Absen
             $table->text('catatan_lembur')->nullable();
 
-            // >>> tambahan baru
             $table->enum('source', ['manual','import','integrasi'])->default('import');
             $table->foreignId('import_batch_id')->nullable()
-                ->constrained('kehadiran_import_batches')->nullOnDelete();
+                ->constrained('batch_import_kehadiran')->nullOnDelete();
 
             $table->timestamps();
 
-            // Hindari duplikasi baris kehadiran per orang per hari
             $table->unique(['user_id', 'tanggal_hadir'], 'uniq_user_tanggal');
             $table->index(['tanggal_hadir', 'status_kehadiran'], 'idx_tanggal_status');
         });

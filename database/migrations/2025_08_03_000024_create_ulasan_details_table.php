@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     public function up(): void {
-        Schema::create('ulasan_items', function (Blueprint $t) {
+        Schema::create('ulasan_details', function (Blueprint $t) {
             $t->id();
             $t->foreignId('ulasan_id')->constrained('ulasans')->cascadeOnDelete();
             $t->foreignId('tenaga_medis_id')->constrained('users')->cascadeOnDelete();
@@ -23,6 +23,6 @@ return new class extends Migration {
     }
 
     public function down(): void {
-        Schema::dropIfExists('ulasan_items');
+        Schema::dropIfExists('ulasan_details');
     }
 };
