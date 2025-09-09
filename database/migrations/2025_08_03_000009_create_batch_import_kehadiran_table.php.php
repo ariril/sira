@@ -23,6 +23,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('kehadiran_import_batches');
+        Schema::dropIfExists('batch_import_kehadiran');
     }
 };

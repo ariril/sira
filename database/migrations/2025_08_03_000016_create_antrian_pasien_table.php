@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('antrian_pasiens', function (Blueprint $table) {
+        Schema::create('antrian_pasien', function (Blueprint $table) {
             $table->id();
 
             // data antrean
@@ -28,7 +28,7 @@ return new class extends Migration
             // >>> penambahan mulai di sini
             // unit kerja poli yang melayani
             $table->foreignId('unit_kerja_id')
-                ->constrained('unit_kerjas')      // default: NOT NULL (bagus utk UNIQUE)
+                ->constrained('unit_kerja') // default: NOT NULL (bagus utk UNIQUE)
                 ->cascadeOnUpdate()
                 ->restrictOnDelete();
 
@@ -38,7 +38,7 @@ return new class extends Migration
             // keterkaitan ke kunjungan (jika sudah dibuatkan tiket/visit)
             $table->foreignId('kunjungan_id')
                 ->nullable()
-                ->constrained('kunjungans')
+                ->constrained('kunjungan')
                 ->nullOnDelete();
 
             $table->timestamps();
@@ -54,7 +54,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('antrian_pasiens');
+        Schema::dropIfExists('antrian_pasien');
     }
 
 };

@@ -6,9 +6,9 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     public function up(): void {
-        Schema::create('ulasans', function (Blueprint $t) {
+        Schema::create('ulasan', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('kunjungan_id')->constrained('kunjungans')->cascadeOnDelete();
+            $t->foreignId('kunjungan_id')->constrained('kunjungan')->cascadeOnDelete();
 
             $t->unsignedTinyInteger('overall_rating')->nullable(); // 1..5 (opsional)
             $t->text('komentar')->nullable();
@@ -29,6 +29,6 @@ return new class extends Migration {
     }
 
     public function down(): void {
-        Schema::dropIfExists('ulasans');
+        Schema::dropIfExists('ulasan');
     }
 };

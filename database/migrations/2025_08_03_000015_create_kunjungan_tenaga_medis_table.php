@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('kunjungan_tenaga_medis', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('kunjungan_id')->constrained('kunjungans')->cascadeOnDelete();
+            $table->foreignId('kunjungan_id')->constrained('kunjungan')->cascadeOnDelete();
             $table->foreignId('tenaga_medis_id')->constrained('users')->cascadeOnDelete();
             $table->enum('peran', ['dokter','perawat','lab','farmasi','admin','lainnya']);
             $table->unsignedInteger('durasi_menit')->nullable();

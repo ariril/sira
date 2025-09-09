@@ -25,13 +25,13 @@ return new class extends Migration
             // Relasi ke unit kerja
             $table->foreignId('unit_kerja_id')
                 ->nullable()
-                ->constrained('unit_kerjas')
+                ->constrained('unit_kerja')
                 ->nullOnDelete();
 
             // Relasi ke profesi medis
             $table->foreignId('profesi_id')
                 ->nullable()
-                ->constrained('profesis')
+                ->constrained('profesi')
                 ->nullOnDelete();
 
             $table->string('password');

@@ -8,10 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('penilaian_kinerjas', function (Blueprint $table) {
+        Schema::create('penilaian_kinerja', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('periode_penilaian_id')->constrained('periode_penilaians')->onDelete('cascade');
+            $table->foreignId('periode_penilaian_id')->constrained('periode_penilaian')->onDelete('cascade');
             $table->date('tanggal_penilaian');
             $table->decimal('skor_total_wsm', 8, 2)->nullable();
             $table->string('status_validasi', 50); // Menunggu Validasi, Tervalidasi, Ditolak
@@ -24,6 +24,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('penilaian_kinerjas');
+        Schema::dropIfExists('penilaian_kinerja');
     }
 };

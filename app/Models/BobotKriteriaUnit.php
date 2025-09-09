@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class BobotKriteriaUnit extends Model
 {
     use HasFactory;
+    protected $table = 'bobot_kriteria_unit';
 
     protected $fillable = [
         'id_unit',

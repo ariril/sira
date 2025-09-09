@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('kontribusi_tambahans', function (Blueprint $table) {
+        Schema::create('kontribusi_tambahan', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->string('judul_kontribusi');
@@ -18,12 +18,12 @@ return new class extends Migration
             $table->string('status_validasi', 50); // Menunggu Persetujuan, Disetujui, Ditolak
             $table->text('komentar_supervisor')->nullable();
             $table->timestamps();$table->foreignId('periode_penilaian_id')->nullable()
-                ->constrained('periode_penilaians')->nullOnDelete();
+                ->constrained('periode_penilaian')->nullOnDelete();
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('kontribusi_tambahans');
+        Schema::dropIfExists('kontribusi_tambahan');
     }
 };

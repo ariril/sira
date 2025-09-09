@@ -8,18 +8,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('transaksi_pembayarans', function (Blueprint $table) {
+        Schema::create('transaksi_pembayaran', function (Blueprint $table) {
             $table->id();
 
             // Relasi ke operasional
             $table->foreignId('kunjungan_id')
                 ->nullable()
-                ->constrained('kunjungans')
+                ->constrained('kunjungan')
                 ->nullOnDelete();
 
             $table->foreignId('antrian_id')
                 ->nullable()
-                ->constrained('antrian_pasiens')
+                ->constrained('antrian_pasien')
                 ->nullOnDelete();
 
             // Detail transaksi
@@ -54,6 +54,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('transaksi_pembayarans');
+        Schema::dropIfExists('transaksi_pembayaran');
     }
 };

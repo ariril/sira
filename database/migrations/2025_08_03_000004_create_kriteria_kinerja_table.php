@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('kriteria_kinerjas', function (Blueprint $table) {
+        Schema::create('kriteria_kinerja', function (Blueprint $table) {
             $table->id();
             $table->string('nama_kriteria');
             $table->string('tipe_kriteria', 10); // Benefit, Cost
@@ -20,6 +20,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('kriteria_kinerjas');
+        Schema::dropIfExists('kriteria_kinerja');
     }
 };

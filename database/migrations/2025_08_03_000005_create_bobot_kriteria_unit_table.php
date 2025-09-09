@@ -8,10 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('bobot_kriteria_units', function (Blueprint $table) {
+        Schema::create('bobot_kriteria_unit', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_unit')->constrained('unit_kerjas')->onDelete('cascade');
-            $table->foreignId('id_kriteria')->constrained('kriteria_kinerjas')->onDelete('cascade');
+            $table->foreignId('id_unit')->constrained('unit_kerja')->onDelete('cascade');
+            $table->foreignId('id_kriteria')->constrained('kriteria_kinerja')->onDelete('cascade');
             $table->decimal('bobot', 5, 2);
             $table->timestamps();
             $table->unique(['id_unit','id_kriteria'], 'uniq_unit_kriteria');
@@ -20,6 +20,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('bobot_kriteria_units');
+        Schema::dropIfExists('bobot_kriteria_unit');
     }
 };

@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class About extends Model
+class HalamanTentang extends Model
 {
     use HasFactory;
 
+    protected $table = 'halaman_tentang';
     protected $fillable = [
         'type','title','content','image_path','attachments_json',
         'published_at','is_active','author_id'

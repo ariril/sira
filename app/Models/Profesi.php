@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Profesi extends Model
 {
     use HasFactory;
-
+    protected $table = 'profesi';
     protected $fillable = ['nama', 'kode', 'deskripsi'];
 
     public function users()

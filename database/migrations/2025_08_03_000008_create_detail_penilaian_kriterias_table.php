@@ -8,10 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('detail_penilaian_kriterias', function (Blueprint $table) {
+        Schema::create('detail_penilaian_kriteria', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('penilaian_kinerja_id')->constrained('penilaian_kinerjas')->onDelete('cascade');
-            $table->foreignId('kriteria_kinerja_id')->constrained('kriteria_kinerjas')->onDelete('cascade');
+            $table->foreignId('penilaian_kinerja_id')->constrained('penilaian_kinerja')->onDelete('cascade');
+            $table->foreignId('kriteria_kinerja_id')->constrained('kriteria_kinerja')->onDelete('cascade');
             $table->decimal('nilai', 10, 2);
             $table->timestamps();
 
@@ -21,6 +21,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('detail_penilaian_kriterias');
+        Schema::dropIfExists('detail_penilaian_kriteria');
     }
 };

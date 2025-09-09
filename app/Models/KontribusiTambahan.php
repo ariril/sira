@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class KontribusiTambahan extends Model
 {
     use HasFactory;
-
+    protected $table = 'kontribusi_tambahan';
     protected $fillable = [
         'user_id',                // ganti dari id_pegawai → user_id
         'judul_kontribusi',

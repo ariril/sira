@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Ulasan extends Model
 {
     use HasFactory;
+    protected $table = 'ulasan';
 
     protected $fillable = [
         'kunjungan_id',
@@ -26,6 +27,6 @@ class Ulasan extends Model
 
     public function items()
     {
-        return $this->hasMany(UlasanItem::class);
+        return $this->hasMany(UlasanDetail::class);
     }
 }

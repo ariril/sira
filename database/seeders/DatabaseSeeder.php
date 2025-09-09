@@ -20,7 +20,7 @@ class DatabaseSeeder extends Seeder
             // =========================================================
 
             // Insert Manajemen dulu agar parent_id bisa direferensikan
-            $manajemenId = DB::table('unit_kerjas')->insertGetId([
+            $manajemenId = DB::table('unit_kerja')->insertGetId([
                 'nama_unit' => 'Manajemen Rumah Sakit',
                 'slug' => 'manajemen-rumah-sakit',
                 'kode' => 'MNG',
@@ -72,10 +72,10 @@ class DatabaseSeeder extends Seeder
                 $u['created_at'] = $now;
                 $u['updated_at'] = $now;
             }
-            DB::table('unit_kerjas')->insert($units);
+            DB::table('unit_kerja')->insert($units);
 
             // Helper ambil id unit cepat
-            $unitId = fn(string $slug) => DB::table('unit_kerjas')->where('slug', $slug)->value('id');
+            $unitId = fn(string $slug) => DB::table('unit_kerja')->where('slug', $slug)->value('id');
 
             // =========================================================
             // 2) PROFESI
@@ -91,9 +91,9 @@ class DatabaseSeeder extends Seeder
                 ['nama' => 'Administrasi', 'kode' => 'ADM', 'deskripsi' => 'Staf administrasi'],
             ];
             foreach ($profesis as &$p) { $p['created_at']=$now; $p['updated_at']=$now; }
-            DB::table('profesis')->insert($profesis);
+            DB::table('profesi')->insert($profesis);
 
-            $profesiId = fn(string $kode) => DB::table('profesis')->where('kode', $kode)->value('id');
+            $profesiId = fn(string $kode) => DB::table('profesi')->where('kode', $kode)->value('id');
 
             // =========================================================
             // 3) USERS (akun awal agar modul bisa langsung dipakai)
@@ -281,7 +281,7 @@ class DatabaseSeeder extends Seeder
             // =========================================================
             // 6) PERIODE PENILAIAN
             // =========================================================
-            DB::table('periode_penilaians')->insert([
+            DB::table('periode_penilaian')->insert([
                 'nama_periode' => 'Triwulan III 2025',
                 'tanggal_mulai' => '2025-07-01',
                 'tanggal_akhir' => '2025-09-30',
@@ -292,7 +292,7 @@ class DatabaseSeeder extends Seeder
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
-            $periodeId = DB::table('periode_penilaians')->where('nama_periode','Triwulan III 2025')->value('id');
+            $periodeId = DB::table('periode_penilaian')->where('nama_periode','Triwulan III 2025')->value('id');
 
             // =========================================================
             // 7) KRITERIA KINERJA
@@ -303,14 +303,14 @@ class DatabaseSeeder extends Seeder
                 ['nama_kriteria'=>'Kepatuhan Prosedur','tipe_kriteria'=>'angka','deskripsi_kriteria'=>null,'aktif'=>1],
             ];
             foreach ($kriteria as &$k) { $k['created_at']=$now; $k['updated_at']=$now; }
-            DB::table('kriteria_kinerjas')->insert($kriteria);
+            DB::table('kriteria_kinerja')->insert($kriteria);
 
-            $krId = fn(string $nama) => DB::table('kriteria_kinerjas')->where('nama_kriteria',$nama)->value('id');
+            $krId = fn(string $nama) => DB::table('kriteria_kinerja')->where('nama_kriteria',$nama)->value('id');
 
             // =========================================================
             // 8) BOBOT KRITERIA PER UNIT (contoh untuk Poli Umum)
             // =========================================================
-            DB::table('bobot_kriteria_units')->insert([
+            DB::table('bobot_kriteria_unit')->insert([
                 ['id_unit'=>$unitId('poliklinik-umum'),'id_kriteria'=>$krId('Kedisiplinan'),'bobot'=>40.00,'created_at'=>$now,'updated_at'=>$now],
                 ['id_unit'=>$unitId('poliklinik-umum'),'id_kriteria'=>$krId('Pelayanan Pasien'),'bobot'=>40.00,'created_at'=>$now,'updated_at'=>$now],
                 ['id_unit'=>$unitId('poliklinik-umum'),'id_kriteria'=>$krId('Kepatuhan Prosedur'),'bobot'=>20.00,'created_at'=>$now,'updated_at'=>$now],
@@ -347,7 +347,7 @@ class DatabaseSeeder extends Seeder
             // =========================================================
             // (Bonus untuk kebutuhan UI) KUNJUNGAN & ANTRIAN HARI INI
             // =========================================================
-            $kunjunganId = DB::table('kunjungans')->insertGetId([
+            $kunjunganId = DB::table('kunjungan')->insertGetId([
                 'ticket_code' => 'KJ-'.date('Ymd').'-0001',
                 'unit_kerja_id' => $unitId('poliklinik-umum'),
                 'tanggal' => $now,
@@ -355,7 +355,7 @@ class DatabaseSeeder extends Seeder
                 'updated_at' => $now,
             ]);
 
-            $antrianId = DB::table('antrian_pasiens')->insertGetId([
+            $antrianId = DB::table('antrian_pasien')->insertGetId([
                 'tanggal_antri' => $now->toDateString(),
                 'nomor_antrian' => 1,
                 'status_antrian' => 'Menunggu',
@@ -376,26 +376,26 @@ class DatabaseSeeder extends Seeder
             ]);
 
             // =========================================================
-// (Helper ID yang dipakai di bawah)
-// =========================================================
+            // (Helper ID yang dipakai di bawah)
+            // =========================================================
             $dokterId     = $userId('dokter.umum@rsud.local');
             $perawatId    = $userId('perawat@rsud.local');
             $superAdminId = $userId('superadmin@rsud.local');
             $kepalaIgdId  = $userId('kepala.igd@rsud.local');
             $poliUmumId   = $unitId('poliklinik-umum');
-            $periodeId    = DB::table('periode_penilaians')->orderBy('id', 'desc')->value('id');
+            $periodeId    = DB::table('periode_penilaian')->orderBy('id', 'desc')->value('id');
 
-// Pastikan ada $kunjunganId untuk ulasan/transaksi, kalau belum ada buat satu.
-            $kunjunganId = $kunjunganId ?? DB::table('kunjungans')->insertGetId([
+            // Pastikan ada $kunjunganId untuk ulasan/transaksi, kalau belum ada buat satu.
+            $kunjunganId = $kunjunganId ?? DB::table('kunjungan')->insertGetId([
                 'ticket_code'   => 'KJ-'.date('Ymd').'-X001',
                 'unit_kerja_id' => $poliUmumId,
                 'tanggal'       => $now,
                 'created_at'    => $now, 'updated_at' => $now,
             ]);
 
-// =========================================================
-// 11) JADWAL DOKTER (contoh slot 3 hari ke depan)
-// =========================================================
+            // =========================================================
+            // 11) JADWAL DOKTER (contoh slot 3 hari ke depan)
+            // =========================================================
             $jadwal = [];
             for ($i=0; $i<3; $i++) {
                 $tgl = Carbon::now()->addDays($i)->toDateString();
@@ -408,11 +408,11 @@ class DatabaseSeeder extends Seeder
                     'created_at'    => $now, 'updated_at' => $now,
                 ];
             }
-            DB::table('jadwal_dokters')->insert($jadwal);
+            DB::table('jadwal_dokter')->insert($jadwal);
 
-// =========================================================
-// 12) BATCH IMPORT KEHADIRAN (dummy 1 file) -> relasi kehadiran
-// =========================================================
+            // =========================================================
+            // 12) BATCH IMPORT KEHADIRAN (dummy 1 file) -> relasi kehadiran
+            // =========================================================
             $batchId = DB::table('batch_import_kehadiran')->insertGetId([
                 'nama_file'      => 'simrs_khanza_'.date('Y-m-d').'.xlsx',
                 'diimpor_oleh'   => $superAdminId,
@@ -423,10 +423,10 @@ class DatabaseSeeder extends Seeder
                 'created_at'     => $now, 'updated_at' => $now,
             ]);
 
-// =========================================================
-// 13) KEHADIRAN (dokter & perawat hari ini, sumber import)
-// =========================================================
-            DB::table('kehadirans')->insert([
+            // =========================================================
+            // 13) KEHADIRAN (dokter & perawat hari ini, sumber import)
+            // =========================================================
+            DB::table('kehadiran')->insert([
                 [
                     'user_id'           => $dokterId,
                     'tanggal_hadir'     => $now->toDateString(),
@@ -451,10 +451,10 @@ class DatabaseSeeder extends Seeder
                 ],
             ]);
 
-// =========================================================
-// 14) KONTRIBUSI TAMBAHAN (contoh dua usulan pegawai)
-// =========================================================
-            DB::table('kontribusi_tambahans')->insert([
+            // =========================================================
+            // 14) KONTRIBUSI TAMBAHAN (contoh dua usulan pegawai)
+            // =========================================================
+            DB::table('kontribusi_tambahan')->insert([
                 [
                     'user_id'               => $perawatId,
                     'judul_kontribusi'      => 'Penyusunan SOP Triase Poli Umum',
@@ -479,10 +479,10 @@ class DatabaseSeeder extends Seeder
                 ],
             ]);
 
-// =========================================================
-// 15) PENILAIAN KINERJA (dokter poli umum pada periode aktif)
-// =========================================================
-            $pkDokterId = DB::table('penilaian_kinerjas')->insertGetId([
+            // =========================================================
+            // 15) PENILAIAN KINERJA (dokter poli umum pada periode aktif)
+            // =========================================================
+            $pkDokterId = DB::table('penilaian_kinerja')->insertGetId([
                 'user_id'              => $dokterId,
                 'periode_penilaian_id' => $periodeId,
                 'tanggal_penilaian'    => $now->toDateString(),
@@ -492,14 +492,14 @@ class DatabaseSeeder extends Seeder
                 'created_at'           => $now, 'updated_at' => $now,
             ]);
 
-// =========================================================
-// 16) DETAIL PENILAIAN KRITERIA (sinkron dgn kriteria yg sudah ada)
-// =========================================================
+            // =========================================================
+            // 16) DETAIL PENILAIAN KRITERIA (sinkron dgn kriteria yg sudah ada)
+            // =========================================================
             $kedisiplinanId     = $krId('Kedisiplinan');
             $pelayananPasienId  = $krId('Pelayanan Pasien');
             $kepatuhanId        = $krId('Kepatuhan Prosedur');
 
-            DB::table('detail_penilaian_kriterias')->insert([
+            DB::table('detail_penilaian_kriteria')->insert([
                 [
                     'penilaian_kinerja_id' => $pkDokterId,
                     'kriteria_kinerja_id'  => $kedisiplinanId,
@@ -520,10 +520,10 @@ class DatabaseSeeder extends Seeder
                 ],
             ]);
 
-// =========================================================
-// 17) APPROVAL PENILAIAN (2 level: Kepala Unit -> Manajemen)
-// =========================================================
-            DB::table('penilaian_approvals')->insert([
+            // =========================================================
+            // 17) APPROVAL PENILAIAN (2 level: Kepala Unit -> Manajemen)
+            // =========================================================
+            DB::table('penilaian_approval')->insert([
                 [
                     'penilaian_kinerja_id' => $pkDokterId,
                     'approver_id'          => $kepalaIgdId,
@@ -544,10 +544,10 @@ class DatabaseSeeder extends Seeder
                 ],
             ]);
 
-// =========================================================
-// 18) REMUNERASI (berdasarkan periode & user yang sama)
-// =========================================================
-            DB::table('remunerasis')->insert([
+            // =========================================================
+            // 18) REMUNERASI (berdasarkan periode & user yang sama)
+            // =========================================================
+            DB::table('remunerasi')->insert([
                 'user_id'               => $dokterId,
                 'periode_penilaian_id'  => $periodeId,
                 'nilai_remunerasi'      => 3500000.00,
@@ -564,10 +564,10 @@ class DatabaseSeeder extends Seeder
                 'created_at'            => $now, 'updated_at' => $now,
             ]);
 
-// =========================================================
-// 19) ULASAN KUNJUNGAN (feedback pasien sederhana)
-// =========================================================
-            $ulasanId = DB::table('ulasans')->insertGetId([
+            // =========================================================
+            // 19) ULASAN KUNJUNGAN (feedback pasien sederhana)
+            // =========================================================
+            $ulasanId = DB::table('ulasan')->insertGetId([
                 'kunjungan_id'  => $kunjunganId,
                 'overall_rating'=> 5,
                 'komentar'      => 'Pelayanan cepat dan ramah.',
@@ -581,7 +581,7 @@ class DatabaseSeeder extends Seeder
 // =========================================================
 // 20) DETAIL ULASAN (per nakes di kunjungan tersebut)
 // =========================================================
-            DB::table('ulasan_details')->insert([
+            DB::table('ulasan_detail')->insert([
                 [
                     'ulasan_id'       => $ulasanId,
                     'tenaga_medis_id' => $dokterId,
@@ -614,9 +614,9 @@ class DatabaseSeeder extends Seeder
             $poliUmumId    = $poliUmumId    ?? $unitId('poliklinik-umum');
 
 // Pastikan ada kunjungan & antrian untuk relasi transaksi
-            $kunjunganId = $kunjunganId ?? DB::table('kunjungans')->orderByDesc('id')->value('id');
+            $kunjunganId = $kunjunganId ?? DB::table('kunjungan')->orderByDesc('id')->value('id');
             if (!$kunjunganId) {
-                $kunjunganId = DB::table('kunjungans')->insertGetId([
+                $kunjunganId = DB::table('kunjungan')->insertGetId([
                     'ticket_code'   => 'KJ-'.date('Ymd').'-B001',
                     'unit_kerja_id' => $poliUmumId,
                     'tanggal'       => $now,
@@ -624,9 +624,9 @@ class DatabaseSeeder extends Seeder
                 ]);
             }
 
-            $antrianId = $antrianId ?? DB::table('antrian_pasiens')->orderByDesc('id')->value('id');
+            $antrianId = $antrianId ?? DB::table('antrian_pasien')->orderByDesc('id')->value('id');
             if (!$antrianId) {
-                $antrianId = DB::table('antrian_pasiens')->insertGetId([
+                $antrianId = DB::table('antrian_pasien')->insertGetId([
                     'tanggal_antri'          => $now->toDateString(),
                     'nomor_antrian'          => 2,
                     'status_antrian'         => 'Menunggu',
@@ -641,58 +641,61 @@ class DatabaseSeeder extends Seeder
                 ]);
             }
 
-// =========================================================
-// (21) ENTRI LOGBOOK — contoh 3 entri (dokter, perawat, rekam medis)
-// =========================================================
+            // =========================================================
+            // (21) ENTRI LOGBOOK — contoh 3 entri (dokter, perawat, rekam medis)
+            // =========================================================
             DB::table('entri_logbook')->insert([
                 [
-                    'pengguna_id'     => $dokterId,
-                    'tanggal'         => $now->toDateString(),
-                    'jam_mulai'       => '08:00:00',
-                    'jam_selesai'     => '11:00:00',
-                    'durasi_menit'    => 180,
-                    'aktivitas'       => 'Pelayanan pasien rawat jalan Poli Umum (5 pasien).',
-                    'kategori'        => 'pelayanan',
-                    'status'          => 'disetujui',
-                    'penyetuju_id'    => $kepalaIgdId,    // contoh atasan klinis
-                    'disetujui_pada'  => $now,
-                    'lampiran_json'   => json_encode([]),
-                    'created_at'      => $now, 'updated_at' => $now,
+                    'user_id'        => 4,
+                    'tanggal'        => '2025-09-09',
+                    'jam_mulai'      => '08:00:00',
+                    'jam_selesai'    => '11:00:00',
+                    'durasi_menit'   => 180,
+                    'aktivitas'      => 'Pelayanan pasien rawat jalan Poli Umum (5 pasien).',
+                    'kategori'       => 'pelayanan',
+                    'status'         => 'disetujui',
+                    'penyetuju_id'   => 2,
+                    'disetujui_pada' => '2025-09-09 13:01:11',
+                    'lampiran_json'  => '[]',
+                    'created_at'     => '2025-09-09 13:01:11',
+                    'updated_at'     => '2025-09-09 13:01:11',
                 ],
                 [
-                    'pengguna_id'     => $perawatId,
-                    'tanggal'         => $now->toDateString(),
-                    'jam_mulai'       => '07:30:00',
-                    'jam_selesai'     => '12:00:00',
-                    'durasi_menit'    => 270,
-                    'aktivitas'       => 'Triase, pengukuran TTV, dan edukasi pra-konsultasi.',
-                    'kategori'        => 'keperawatan',
-                    'status'          => 'diajukan',
-                    'penyetuju_id'    => $kepalaIgdId,
-                    'disetujui_pada'  => null,
-                    'lampiran_json'   => json_encode([]),
-                    'created_at'      => $now, 'updated_at' => $now,
+                    'user_id'        => 5,
+                    'tanggal'        => '2025-09-09',
+                    'jam_mulai'      => '07:30:00',
+                    'jam_selesai'    => '12:00:00',
+                    'durasi_menit'   => 270,
+                    'aktivitas'      => 'Triase, pengukuran TTV, dan edukasi pra-konsultasi.',
+                    'kategori'       => 'keperawatan',
+                    'status'         => 'diajukan',
+                    'penyetuju_id'   => 5,
+                    'disetujui_pada' => null,
+                    'lampiran_json'  => '[]',
+                    'created_at'     => '2025-09-09 13:01:11',
+                    'updated_at'     => '2025-09-09 13:01:11',
                 ],
                 [
-                    'pengguna_id'     => $rekamMedisId,
-                    'tanggal'         => $now->toDateString(),
-                    'jam_mulai'       => '09:00:00',
-                    'jam_selesai'     => '10:30:00',
-                    'durasi_menit'    => 90,
-                    'aktivitas'       => 'Verifikasi dan penyusunan berkas rekam medis kunjungan hari ini.',
-                    'kategori'        => 'administrasi',
-                    'status'          => 'draf',
-                    'penyetuju_id'    => null,
-                    'disetujui_pada'  => null,
-                    'lampiran_json'   => json_encode([]),
-                    'created_at'      => $now, 'updated_at' => $now,
+                    'user_id'        => 3,
+                    'tanggal'        => '2025-09-09',
+                    'jam_mulai'      => '09:00:00',
+                    'jam_selesai'    => '10:30:00',
+                    'durasi_menit'   => 90,
+                    'aktivitas'      => 'Verifikasi dan penyusunan berkas rekam medis kunjungan hari ini.',
+                    'kategori'       => 'administrasi',
+                    'status'         => 'draf',
+                    'penyetuju_id'   => 3,
+                    'disetujui_pada' => null,
+                    'lampiran_json'  => '[]',
+                    'created_at'     => '2025-09-09 13:01:11',
+                    'updated_at'     => '2025-09-09 13:01:11',
                 ],
             ]);
 
-// =========================================================
-// (17) TRANSAKSI PEMBAYARAN — 2 contoh transaksi
-// =========================================================
-            DB::table('transaksi_pembayarans')->insert([
+            // =========================================================
+            // (17) TRANSAKSI PEMBAYARAN — 2 contoh transaksi
+            // =========================================================
+            DB::table('transaksi_pembayaran')->insert([
                 [
                     'kunjungan_id'               => $kunjunganId,
                     'antrian_id'                 => $antrianId,

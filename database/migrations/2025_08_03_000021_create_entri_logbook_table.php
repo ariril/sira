@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
 
             // relasi pengguna yang membuat entri
-            $table->foreignId('pengguna_id')
+            $table->foreignId('user_id')
                 ->constrained('users')
                 ->cascadeOnDelete();
 

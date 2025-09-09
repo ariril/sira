@@ -6,13 +6,13 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     public function up(): void {
-        Schema::create('ulasan_details', function (Blueprint $t) {
+        Schema::create('ulasan_detail', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('ulasan_id')->constrained('ulasans')->cascadeOnDelete();
+            $t->foreignId('ulasan_id')->constrained('ulasan')->cascadeOnDelete();
             $t->foreignId('tenaga_medis_id')->constrained('users')->cascadeOnDelete();
 
             $t->enum('peran', ['dokter','perawat','lainnya'])->nullable(); // opsional
-            $t->unsignedTinyInteger('rating');                              // 1..5
+            $t->unsignedTinyInteger('rating');
             $t->text('komentar')->nullable();
 
             $t->timestamps();
@@ -23,6 +23,6 @@ return new class extends Migration {
     }
 
     public function down(): void {
-        Schema::dropIfExists('ulasan_details');
+        Schema::dropIfExists('ulasan_detail');
     }
 };

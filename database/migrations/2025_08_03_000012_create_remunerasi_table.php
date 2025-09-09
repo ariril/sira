@@ -8,10 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('remunerasis', function (Blueprint $table) {
+        Schema::create('remunerasi', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('periode_penilaian_id')->constrained('periode_penilaians')->onDelete('cascade');
+            $table->foreignId('periode_penilaian_id')->constrained('periode_penilaian')->onDelete('cascade');
             $table->decimal('nilai_remunerasi', 15, 2);
             $table->date('tanggal_pembayaran')->nullable();
             $table->string('status_pembayaran', 50)->default('Belum Dibayar');
@@ -28,6 +28,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('remunerasis');
+        Schema::dropIfExists('remunerasi');
     }
 };

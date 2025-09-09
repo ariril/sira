@@ -6,11 +6,11 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     public function up(): void {
-        Schema::create('kunjungans', function (Blueprint $t) {
+        Schema::create('kunjungan', function (Blueprint $t) {
             $t->id();
             $t->string('ticket_code')->unique();                 // kode pada QR/struk antrian
             $t->foreignId('unit_kerja_id')->nullable()
-                ->constrained('unit_kerjas')->nullOnDelete();      // poli/unit tempat dilayani
+                ->constrained('unit_kerja')->nullOnDelete();      // poli/unit tempat dilayani
             $t->timestamp('tanggal')->nullable();
             $t->timestamps();
 
@@ -19,6 +19,6 @@ return new class extends Migration {
     }
 
     public function down(): void {
-        Schema::dropIfExists('kunjungans');
+        Schema::dropIfExists('kunjungan');
     }
 };

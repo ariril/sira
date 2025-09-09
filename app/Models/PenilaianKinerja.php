@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class PenilaianKinerja extends Model
 {
     use HasFactory;
+    protected $table = 'penilaian_kinerja';
 
     protected $fillable = [
         'user_id',                // ganti dari id_pegawai → user_id

@@ -7,9 +7,9 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('penilaian_approvals', function (Blueprint $table) {
+        Schema::create('penilaian_approval', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('penilaian_kinerja_id')->constrained('penilaian_kinerjas')->cascadeOnDelete();
+            $table->foreignId('penilaian_kinerja_id')->constrained('penilaian_kinerja')->cascadeOnDelete();
             $table->foreignId('approver_id')->constrained('users')->cascadeOnDelete();
             $table->unsignedSmallInteger('level'); // 1=atasan langsung, 2=manajer, dst.
             $table->enum('status', ['pending','approved','rejected'])->default('pending');
@@ -23,6 +23,6 @@ return new class extends Migration {
 
     public function down(): void
     {
-        Schema::dropIfExists('penilaian_approvals');
+        Schema::dropIfExists('penilaian_approval');
     }
 };
