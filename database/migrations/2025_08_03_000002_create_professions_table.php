@@ -7,11 +7,11 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('profesi', function (Blueprint $table) {
+        Schema::create('professions', function (Blueprint $table) {
             $table->id();
-            $table->string('nama')->unique();   // contoh: Dokter, Perawat
-            $table->string('kode')->unique();   // contoh: DOK, PRW
-            $table->text('deskripsi')->nullable();
+            $table->string('name')->unique();      // contoh: Doctor, Nurse
+            $table->string('code')->unique();      // contoh: DOK, NRS
+            $table->text('description')->nullable();
             $table->timestamps();
         });
     }
@@ -19,8 +19,9 @@ return new class extends Migration {
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropConstrainedForeignId('profesi_id');
+            $table->dropConstrainedForeignId('profession_id');
         });
-        Schema::dropIfExists('profesi');
+        Schema::dropIfExists('professions');
     }
+
 };

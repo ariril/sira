@@ -16,103 +16,103 @@ class DatabaseSeeder extends Seeder
             $now = Carbon::now();
 
             // =========================================================
-            // 1) UNIT KERJA (lengkap: manajemen, admin, poli, penunjang)
+            // 1) UNITS (lengkap: manajemen, admin, poli, penunjang)
             // =========================================================
 
             // Insert Manajemen dulu agar parent_id bisa direferensikan
-            $manajemenId = DB::table('unit_kerja')->insertGetId([
-                'nama_unit' => 'Manajemen Rumah Sakit',
+            $managementId = DB::table('units')->insertGetId([
+                'name' => 'Manajemen Rumah Sakit',
                 'slug' => 'manajemen-rumah-sakit',
-                'kode' => 'MNG',
+                'code' => 'MNG',
                 'type' => 'manajemen',
                 'parent_id' => null,
-                'lokasi' => 'Kantor Direksi',
-                'telepon' => null,
+                'location' => 'Kantor Direksi',
+                'phone' => null,
                 'email' => null,
-                'proporsi_remunerasi_unit' => 0.00,
+                'remuneration_ratio' => 0.00,
                 'is_active' => 1,
                 'created_at' => $now, 'updated_at' => $now,
             ]);
 
             $units = [
                 // Administrasi
-                ['nama_unit' => 'Sumber Daya Manusia', 'slug' => 'sdm', 'kode' => 'SDM', 'type' => 'administrasi', 'parent_id' => $manajemenId, 'lokasi' => 'Gedung Administrasi', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Keuangan', 'slug' => 'keuangan', 'kode' => 'KEU', 'type' => 'administrasi', 'parent_id' => $manajemenId, 'lokasi' => 'Gedung Administrasi', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Rekam Medis & Informasi', 'slug' => 'rekam-medis', 'kode' => 'RM', 'type' => 'administrasi', 'parent_id' => $manajemenId, 'lokasi' => 'Lantai Dasar', 'telepon' => null, 'email' => null],
+                ['name'=>'Sumber Daya Manusia','slug'=>'sdm','code'=>'SDM','type'=>'administrasi','parent_id'=>$managementId,'location'=>'Gedung Administrasi','phone'=>null,'email'=>null],
+                ['name'=>'Keuangan','slug'=>'keuangan','code'=>'KEU','type'=>'administrasi','parent_id'=>$managementId,'location'=>'Gedung Administrasi','phone'=>null,'email'=>null],
+                ['name'=>'Rekam Medis & Informasi','slug'=>'rekam-medis','code'=>'RM','type'=>'administrasi','parent_id'=>$managementId,'location'=>'Lantai Dasar','phone'=>null,'email'=>null],
 
                 // Gawat darurat & rawat inap
-                ['nama_unit' => 'Instalasi Gawat Darurat (IGD)', 'slug' => 'igd', 'kode' => 'IGD', 'type' => 'igd', 'parent_id' => null, 'lokasi' => 'Gedung IGD 24 Jam', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Rawat Inap', 'slug' => 'rawat-inap', 'kode' => 'RWI', 'type' => 'rawat_inap', 'parent_id' => null, 'lokasi' => 'Gedung Rawat Inap', 'telepon' => null, 'email' => null],
+                ['name'=>'Instalasi Gawat Darurat (IGD)','slug'=>'igd','code'=>'IGD','type'=>'igd','parent_id'=>null,'location'=>'Gedung IGD 24 Jam','phone'=>null,'email'=>null],
+                ['name'=>'Rawat Inap','slug'=>'rawat-inap','code'=>'RWI','type'=>'rawat_inap','parent_id'=>null,'location'=>'Gedung Rawat Inap','phone'=>null,'email'=>null],
 
-                // Poliklinik (contoh medik dasar & spesialis)
-                ['nama_unit' => 'Poliklinik Umum', 'slug' => 'poliklinik-umum', 'kode' => 'POL-UM', 'type' => 'poliklinik', 'parent_id' => null, 'lokasi' => 'Gedung Poli', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Poliklinik Gigi & Mulut', 'slug' => 'poliklinik-gigi', 'kode' => 'POL-GG', 'type' => 'poliklinik', 'parent_id' => null, 'lokasi' => 'Gedung Poli', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Poliklinik KIA/KB', 'slug' => 'poliklinik-kia-kb', 'kode' => 'POL-KIA', 'type' => 'poliklinik', 'parent_id' => null, 'lokasi' => 'Gedung Poli', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Penyakit Dalam', 'slug' => 'penyakit-dalam', 'kode' => 'POL-PD', 'type' => 'poliklinik', 'parent_id' => null, 'lokasi' => 'Gedung Poli', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Kesehatan Anak', 'slug' => 'kesehatan-anak', 'kode' => 'POL-AN', 'type' => 'poliklinik', 'parent_id' => null, 'lokasi' => 'Gedung Poli', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Bedah', 'slug' => 'bedah', 'kode' => 'POL-BD', 'type' => 'poliklinik', 'parent_id' => null, 'lokasi' => 'Gedung Poli', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Obstetri & Ginekologi', 'slug' => 'obgyn', 'kode' => 'POL-OBG', 'type' => 'poliklinik', 'parent_id' => null, 'lokasi' => 'Gedung Poli', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Mata', 'slug' => 'mata', 'kode' => 'POL-MT', 'type' => 'poliklinik', 'parent_id' => null, 'lokasi' => 'Gedung Poli', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Paru', 'slug' => 'paru', 'kode' => 'POL-PR', 'type' => 'poliklinik', 'parent_id' => null, 'lokasi' => 'Gedung Poli', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Saraf', 'slug' => 'saraf', 'kode' => 'POL-SR', 'type' => 'poliklinik', 'parent_id' => null, 'lokasi' => 'Gedung Poli', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Jantung & Pembuluh Darah', 'slug' => 'jantung', 'kode' => 'POL-JTG', 'type' => 'poliklinik', 'parent_id' => null, 'lokasi' => 'Gedung Poli', 'telepon' => null, 'email' => null],
+                // Poliklinik
+                ['name'=>'Poliklinik Umum','slug'=>'poliklinik-umum','code'=>'POL-UM','type'=>'poliklinik','parent_id'=>null,'location'=>'Gedung Poli','phone'=>null,'email'=>null],
+                ['name'=>'Poliklinik Gigi & Mulut','slug'=>'poliklinik-gigi','code'=>'POL-GG','type'=>'poliklinik','parent_id'=>null,'location'=>'Gedung Poli','phone'=>null,'email'=>null],
+                ['name'=>'Poliklinik KIA/KB','slug'=>'poliklinik-kia-kb','code'=>'POL-KIA','type'=>'poliklinik','parent_id'=>null,'location'=>'Gedung Poli','phone'=>null,'email'=>null],
+                ['name'=>'Penyakit Dalam','slug'=>'penyakit-dalam','code'=>'POL-PD','type'=>'poliklinik','parent_id'=>null,'location'=>'Gedung Poli','phone'=>null,'email'=>null],
+                ['name'=>'Kesehatan Anak','slug'=>'kesehatan-anak','code'=>'POL-AN','type'=>'poliklinik','parent_id'=>null,'location'=>'Gedung Poli','phone'=>null,'email'=>null],
+                ['name'=>'Bedah','slug'=>'bedah','code'=>'POL-BD','type'=>'poliklinik','parent_id'=>null,'location'=>'Gedung Poli','phone'=>null,'email'=>null],
+                ['name'=>'Obstetri & Ginekologi','slug'=>'obgyn','code'=>'POL-OBG','type'=>'poliklinik','parent_id'=>null,'location'=>'Gedung Poli','phone'=>null,'email'=>null],
+                ['name'=>'Mata','slug'=>'mata','code'=>'POL-MT','type'=>'poliklinik','parent_id'=>null,'location'=>'Gedung Poli','phone'=>null,'email'=>null],
+                ['name'=>'Paru','slug'=>'paru','code'=>'POL-PR','type'=>'poliklinik','parent_id'=>null,'location'=>'Gedung Poli','phone'=>null,'email'=>null],
+                ['name'=>'Saraf','slug'=>'saraf','code'=>'POL-SR','type'=>'poliklinik','parent_id'=>null,'location'=>'Gedung Poli','phone'=>null,'email'=>null],
+                ['name'=>'Jantung & Pembuluh Darah','slug'=>'jantung','code'=>'POL-JTG','type'=>'poliklinik','parent_id'=>null,'location'=>'Gedung Poli','phone'=>null,'email'=>null],
 
                 // Penunjang
-                ['nama_unit' => 'Laboratorium', 'slug' => 'laboratorium', 'kode' => 'LAB', 'type' => 'penunjang', 'parent_id' => null, 'lokasi' => 'Gedung Penunjang', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Radiologi', 'slug' => 'radiologi', 'kode' => 'RAD', 'type' => 'penunjang', 'parent_id' => null, 'lokasi' => 'Gedung Penunjang', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Farmasi', 'slug' => 'farmasi', 'kode' => 'FAR', 'type' => 'penunjang', 'parent_id' => null, 'lokasi' => 'Gedung Penunjang', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Rehabilitasi Medik', 'slug' => 'rehabilitasi-medik', 'kode' => 'RHM', 'type' => 'penunjang', 'parent_id' => null, 'lokasi' => 'Gedung Penunjang', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'CSSD (Sterilisasi)', 'slug' => 'cssd', 'kode' => 'CSSD', 'type' => 'penunjang', 'parent_id' => null, 'lokasi' => 'Penunjang', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Bank Darah', 'slug' => 'bank-darah', 'kode' => 'BD', 'type' => 'penunjang', 'parent_id' => null, 'lokasi' => 'Penunjang', 'telepon' => null, 'email' => null],
-                ['nama_unit' => 'Laundry', 'slug' => 'laundry', 'kode' => 'LDY', 'type' => 'penunjang', 'parent_id' => null, 'lokasi' => 'Penunjang', 'telepon' => null, 'email' => null],
+                ['name'=>'Laboratorium','slug'=>'laboratorium','code'=>'LAB','type'=>'penunjang','parent_id'=>null,'location'=>'Gedung Penunjang','phone'=>null,'email'=>null],
+                ['name'=>'Radiologi','slug'=>'radiologi','code'=>'RAD','type'=>'penunjang','parent_id'=>null,'location'=>'Gedung Penunjang','phone'=>null,'email'=>null],
+                ['name'=>'Farmasi','slug'=>'farmasi','code'=>'FAR','type'=>'penunjang','parent_id'=>null,'location'=>'Gedung Penunjang','phone'=>null,'email'=>null],
+                ['name'=>'Rehabilitasi Medik','slug'=>'rehabilitasi-medik','code'=>'RHM','type'=>'penunjang','parent_id'=>null,'location'=>'Gedung Penunjang','phone'=>null,'email'=>null],
+                ['name'=>'CSSD (Sterilisasi)','slug'=>'cssd','code'=>'CSSD','type'=>'penunjang','parent_id'=>null,'location'=>'Penunjang','phone'=>null,'email'=>null],
+                ['name'=>'Bank Darah','slug'=>'bank-darah','code'=>'BD','type'=>'penunjang','parent_id'=>null,'location'=>'Penunjang','phone'=>null,'email'=>null],
+                ['name'=>'Laundry','slug'=>'laundry','code'=>'LDY','type'=>'penunjang','parent_id'=>null,'location'=>'Penunjang','phone'=>null,'email'=>null],
             ];
             foreach ($units as &$u) {
-                $u['proporsi_remunerasi_unit'] = 0.00;
+                $u['remuneration_ratio'] = 0.00;
                 $u['is_active'] = 1;
                 $u['created_at'] = $now;
                 $u['updated_at'] = $now;
             }
-            DB::table('unit_kerja')->insert($units);
+            DB::table('units')->insert($units);
 
             // Helper ambil id unit cepat
-            $unitId = fn(string $slug) => DB::table('unit_kerja')->where('slug', $slug)->value('id');
+            $unitId = fn(string $slug) => DB::table('units')->where('slug', $slug)->value('id');
 
             // =========================================================
-            // 2) PROFESI
+            // 2) PROFESSIONS
             // =========================================================
-            $profesis = [
-                ['nama' => 'Dokter Umum', 'kode' => 'DOK-UM', 'deskripsi' => 'Dokter layanan primer'],
-                ['nama' => 'Dokter Spesialis', 'kode' => 'DOK-SP', 'deskripsi' => 'Dokter spesialis klinis'],
-                ['nama' => 'Perawat', 'kode' => 'PRW', 'deskripsi' => 'Tenaga keperawatan'],
-                ['nama' => 'Bidan', 'kode' => 'BDN', 'deskripsi' => 'Tenaga kebidanan'],
-                ['nama' => 'Apoteker', 'kode' => 'APT', 'deskripsi' => 'Tenaga farmasi'],
-                ['nama' => 'Analis Lab', 'kode' => 'LAB-AN', 'deskripsi' => 'Tenaga laboratorium'],
-                ['nama' => 'Radiografer', 'kode' => 'RAD', 'deskripsi' => 'Tenaga radiologi'],
-                ['nama' => 'Administrasi', 'kode' => 'ADM', 'deskripsi' => 'Staf administrasi'],
+            $professions = [
+                ['name'=>'Dokter Umum','code'=>'DOK-UM','description'=>'Dokter layanan primer'],
+                ['name'=>'Dokter Spesialis','code'=>'DOK-SP','description'=>'Dokter spesialis klinis'],
+                ['name'=>'Perawat','code'=>'PRW','description'=>'Tenaga keperawatan'],
+                ['name'=>'Bidan','code'=>'BDN','description'=>'Tenaga kebidanan'],
+                ['name'=>'Apoteker','code'=>'APT','description'=>'Tenaga farmasi'],
+                ['name'=>'Analis Lab','code'=>'LAB-AN','description'=>'Tenaga laboratorium'],
+                ['name'=>'Radiografer','code'=>'RAD','description'=>'Tenaga radiologi'],
+                ['name'=>'Administrasi','code'=>'ADM','description'=>'Staf administrasi'],
             ];
-            foreach ($profesis as &$p) { $p['created_at']=$now; $p['updated_at']=$now; }
-            DB::table('profesi')->insert($profesis);
+            foreach ($professions as &$p) { $p['created_at']=$now; $p['updated_at']=$now; }
+            DB::table('professions')->insert($professions);
 
-            $profesiId = fn(string $kode) => DB::table('profesi')->where('kode', $kode)->value('id');
+            $professionId = fn(string $code) => DB::table('professions')->where('code', $code)->value('id');
 
             // =========================================================
-            // 3) USERS (akun awal agar modul bisa langsung dipakai)
+            // 3) USERS (akun awal)
             // =========================================================
             $users = [
                 [
-                    'nip' => '000000000000000001',
-                    'nama' => 'Super Admin',
-                    'tanggal_mulai_kerja' => '2020-01-01',
-                    'jenis_kelamin' => 'Laki-laki',
-                    'kewarganegaraan' => 'Indonesia',
-                    'nomor_identitas' => 'ID-0001',
-                    'alamat' => 'Jl. Dr. Sutomo No. 2, Atambua',
-                    'nomor_telepon' => '0389-2513137',
+                    'employee_number' => '000000000000000001', // nip
+                    'name' => 'Super Admin',
+                    'start_date' => '2020-01-01',
+                    'gender' => 'Laki-laki',
+                    'nationality' => 'Indonesia',
+                    'id_number' => 'ID-0001',
+                    'address' => 'Jl. Dr. Sutomo No. 2, Atambua',
+                    'phone' => '0389-2513137',
                     'email' => 'superadmin@rsud.local',
-                    'pendidikan_terakhir' => 'S1',
-                    'jabatan' => 'Administrator',
-                    'unit_kerja_id' => $unitId('manajemen-rumah-sakit'),
-                    'profesi_id' => null,
+                    'last_education' => 'S1',
+                    'position' => 'Administrator',
+                    'unit_id' => $unitId('manajemen-rumah-sakit'),
+                    'profession_id' => null,
                     'password' => Hash::make('password'),
                     'role' => 'super_admin',
                     'email_verified_at' => $now,
@@ -120,19 +120,19 @@ class DatabaseSeeder extends Seeder
                     'created_at' => $now, 'updated_at' => $now,
                 ],
                 [
-                    'nip' => '000000000000000002',
-                    'nama' => 'dr. Kepala IGD',
-                    'tanggal_mulai_kerja' => '2017-03-12',
-                    'jenis_kelamin' => 'Perempuan',
-                    'kewarganegaraan' => 'Indonesia',
-                    'nomor_identitas' => 'ID-0002',
-                    'alamat' => 'Atambua',
-                    'nomor_telepon' => '0812-2467-11027',
+                    'employee_number' => '000000000000000002',
+                    'name' => 'dr. Kepala IGD',
+                    'start_date' => '2017-03-12',
+                    'gender' => 'Perempuan',
+                    'nationality' => 'Indonesia',
+                    'id_number' => 'ID-0002',
+                    'address' => 'Atambua',
+                    'phone' => '0812-2467-11027',
                     'email' => 'kepala.igd@rsud.local',
-                    'pendidikan_terakhir' => 'Sp.',
-                    'jabatan' => 'Kepala Unit IGD',
-                    'unit_kerja_id' => $unitId('igd'),
-                    'profesi_id' => $profesiId('DOK-UM'),
+                    'last_education' => 'Sp.',
+                    'position' => 'Kepala Unit IGD',
+                    'unit_id' => $unitId('igd'),
+                    'profession_id' => $professionId('DOK-UM'),
                     'password' => Hash::make('password'),
                     'role' => 'kepala_unit',
                     'email_verified_at' => $now,
@@ -140,19 +140,19 @@ class DatabaseSeeder extends Seeder
                     'created_at' => $now, 'updated_at' => $now,
                 ],
                 [
-                    'nip' => '000000000000000003',
-                    'nama' => 'Staf Rekam Medis',
-                    'tanggal_mulai_kerja' => '2019-07-01',
-                    'jenis_kelamin' => 'Laki-laki',
-                    'kewarganegaraan' => 'Indonesia',
-                    'nomor_identitas' => 'ID-0003',
-                    'alamat' => 'Atambua',
-                    'nomor_telepon' => '0813-3333-3333',
+                    'employee_number' => '000000000000000003',
+                    'name' => 'Staf Rekam Medis',
+                    'start_date' => '2019-07-01',
+                    'gender' => 'Laki-laki',
+                    'nationality' => 'Indonesia',
+                    'id_number' => 'ID-0003',
+                    'address' => 'Atambua',
+                    'phone' => '0813-3333-3333',
                     'email' => 'rekam.medis@rsud.local',
-                    'pendidikan_terakhir' => 'D3',
-                    'jabatan' => 'Staf Administrasi',
-                    'unit_kerja_id' => $unitId('rekam-medis'),
-                    'profesi_id' => $profesiId('ADM'),
+                    'last_education' => 'D3',
+                    'position' => 'Staf Administrasi',
+                    'unit_id' => $unitId('rekam-medis'),
+                    'profession_id' => $professionId('ADM'),
                     'password' => Hash::make('password'),
                     'role' => 'administrasi',
                     'email_verified_at' => $now,
@@ -160,19 +160,19 @@ class DatabaseSeeder extends Seeder
                     'created_at' => $now, 'updated_at' => $now,
                 ],
                 [
-                    'nip' => '000000000000000004',
-                    'nama' => 'dr. Umum Poliklinik',
-                    'tanggal_mulai_kerja' => '2021-02-10',
-                    'jenis_kelamin' => 'Laki-laki',
-                    'kewarganegaraan' => 'Indonesia',
-                    'nomor_identitas' => 'ID-0004',
-                    'alamat' => 'Atambua',
-                    'nomor_telepon' => '0814-4444-4444',
+                    'employee_number' => '000000000000000004',
+                    'name' => 'dr. Umum Poliklinik',
+                    'start_date' => '2021-02-10',
+                    'gender' => 'Laki-laki',
+                    'nationality' => 'Indonesia',
+                    'id_number' => 'ID-0004',
+                    'address' => 'Atambua',
+                    'phone' => '0814-4444-4444',
                     'email' => 'dokter.umum@rsud.local',
-                    'pendidikan_terakhir' => 'S.Ked',
-                    'jabatan' => 'Dokter Umum',
-                    'unit_kerja_id' => $unitId('poliklinik-umum'),
-                    'profesi_id' => $profesiId('DOK-UM'),
+                    'last_education' => 'S.Ked',
+                    'position' => 'Dokter Umum',
+                    'unit_id' => $unitId('poliklinik-umum'),
+                    'profession_id' => $professionId('DOK-UM'),
                     'password' => Hash::make('password'),
                     'role' => 'pegawai_medis',
                     'email_verified_at' => $now,
@@ -180,19 +180,19 @@ class DatabaseSeeder extends Seeder
                     'created_at' => $now, 'updated_at' => $now,
                 ],
                 [
-                    'nip' => '000000000000000005',
-                    'nama' => 'Perawat Poli Umum',
-                    'tanggal_mulai_kerja' => '2018-11-05',
-                    'jenis_kelamin' => 'Perempuan',
-                    'kewarganegaraan' => 'Indonesia',
-                    'nomor_identitas' => 'ID-0005',
-                    'alamat' => 'Atambua',
-                    'nomor_telepon' => '0815-5555-5555',
+                    'employee_number' => '000000000000000005',
+                    'name' => 'Perawat Poli Umum',
+                    'start_date' => '2018-11-05',
+                    'gender' => 'Perempuan',
+                    'nationality' => 'Indonesia',
+                    'id_number' => 'ID-0005',
+                    'address' => 'Atambua',
+                    'phone' => '0815-5555-5555',
                     'email' => 'perawat@rsud.local',
-                    'pendidikan_terakhir' => 'D3 Keperawatan',
-                    'jabatan' => 'Perawat',
-                    'unit_kerja_id' => $unitId('poliklinik-umum'),
-                    'profesi_id' => $profesiId('PRW'),
+                    'last_education' => 'D3 Keperawatan',
+                    'position' => 'Perawat',
+                    'unit_id' => $unitId('poliklinik-umum'),
+                    'profession_id' => $professionId('PRW'),
                     'password' => Hash::make('password'),
                     'role' => 'pegawai_medis',
                     'email_verified_at' => $now,
@@ -205,522 +205,567 @@ class DatabaseSeeder extends Seeder
             $userId = fn(string $email) => DB::table('users')->where('email', $email)->value('id');
 
             // =========================================================
-            // 4) PENGATURAN SITUS
+            // 4) SITE SETTINGS
             // =========================================================
-            DB::table('pengaturan_situs')->insert([
-                'nama'          => 'RSUD Mgr. Gabriel Manek, SVD Atambua',
-                'nama_singkat'  => 'RSUD GM Atambua',
-                'alamat'        => "Jl. Dr Sutomo No. 2, Atambua, Belu, NTT",
-                'telepon'       => '(0389)2513137',
-                'email'         => 'rsudatambua66@gmail.com',
-                'path_logo'     => null,
-                'path_favicon'  => null,
-                'url_facebook'  => 'https://www.facebook.com/people/RSUD-MGR-GABRIEL-MANEK-SVD/100054300359896/',
-                'url_instagram' => null,
-                'url_twitter'   => null,
-                'url_youtube'   => null,
-                'teks_footer'   => '© ' . date('Y') . ' RSUD Mgr. Gabriel Manek, SVD Atambua. Semua hak cipta.',
-                'diperbarui_oleh'=> $userId('superadmin@rsud.local'),
-                'created_at'    => $now,
-                'updated_at'    => $now,
+            DB::table('site_settings')->insert([
+                'name'             => 'RSUD Mgr. Gabriel Manek, SVD Atambua',
+                'short_name'       => 'RSUD GM Atambua',
+                'short_description'=> 'RSUD GM Atambua melayani IGD 24 jam, poliklinik, rawat inap, dan penunjang medis.',
+                'address'          => "Jl. Dr Sutomo No. 2, Atambua, Belu, NTT",
+                'phone'            => '(0389)2513137',
+                'email'            => 'rsudatambua66@gmail.com',
+                'logo_path'        => null,
+                'favicon_path'     => null,
+                'facebook_url'     => 'https://www.facebook.com/people/RSUD-MGR-GABRIEL-MANEK-SVD/100054300359896/',
+                'instagram_url'    => null,
+                'twitter_url'      => null,
+                'youtube_url'      => null,
+                'footer_text'      => '© ' . date('Y') . ' RSUD Mgr. Gabriel Manek, SVD Atambua. Semua hak cipta.',
+                'updated_by'       => $userId('superadmin@rsud.local'),
+                'created_at'       => $now,
+                'updated_at'       => $now,
             ]);
 
             // =========================================================
-            // 5) HALAMAN TENTANG
+            // 5) ABOUT PAGES
             // =========================================================
             $about = [
                 [
-                    'tipe' => 'profil_rs',
-                    'judul' => 'Profil RSUD',
-                    'konten' => "RSUD Mgr. Gabriel Manek, SVD Atambua berlokasi di Jl. Dr Sutomo No. 2, Atambua. Telepon (0389)2513137. Melayani IGD 24 jam, poliklinik, rawat inap, dan penunjang medis.",
-                    'path_gambar' => null,
-                    'lampiran_json' => json_encode([]),
-                    'diterbitkan_pada' => $now,
-                    'aktif' => 1,
+                    'type' => 'profil_rs',
+                    'title' => 'Profil RSUD',
+                    'content' => "RSUD Mgr. Gabriel Manek, SVD Atambua berlokasi di Jl. Dr Sutomo No. 2, Atambua. Telepon (0389)2513137. Melayani IGD 24 jam, poliklinik, rawat inap, dan penunjang medis.",
+                    'image_path' => null,
+                    'attachments' => json_encode([]),
+                    'published_at' => $now,
+                    'is_active' => 1,
                 ],
                 [
-                    'tipe' => 'visi',
-                    'judul' => 'Visi',
-                    'konten' => "Mewujudkan pelayanan kesehatan yang prima, terjangkau, dan berpihak pada masyarakat—bersama yang tak mampu, kita berupaya maju.",
-                    'path_gambar' => null,
-                    'lampiran_json' => json_encode([]),
-                    'diterbitkan_pada' => $now,
-                    'aktif' => 1,
+                    'type' => 'visi',
+                    'title' => 'Visi',
+                    'content' => "Mewujudkan pelayanan kesehatan yang prima, terjangkau, dan berpihak pada masyarakat—bersama yang tak mampu, kita berupaya maju.",
+                    'image_path' => null,
+                    'attachments' => json_encode([]),
+                    'published_at' => $now,
+                    'is_active' => 1,
                 ],
                 [
-                    'tipe' => 'misi',
-                    'judul' => 'Misi',
-                    'konten' => "Memberikan pelayanan kesehatan yang berkualitas tanpa membebani biaya pasien; mendukung akses layanan berdasarkan kebutuhan, bukan kemampuan ekonomi; dan terus meningkatkan kapasitas RSUD melalui pengembangan SDM dan fasilitas.",
-                    'path_gambar' => null,
-                    'lampiran_json' => json_encode([]),
-                    'diterbitkan_pada' => $now,
-                    'aktif' => 1,
+                    'type' => 'misi',
+                    'title' => 'Misi',
+                    'content' => "Memberikan pelayanan kesehatan yang berkualitas tanpa membebani biaya pasien; mendukung akses layanan berdasarkan kebutuhan, bukan kemampuan ekonomi; dan terus meningkatkan kapasitas RSUD melalui pengembangan SDM dan fasilitas.",
+                    'image_path' => null,
+                    'attachments' => json_encode([]),
+                    'published_at' => $now,
+                    'is_active' => 1,
                 ],
                 [
-                    'tipe' => 'struktur',
-                    'judul' => 'Struktur Organisasi',
-                    'konten' => null,
-                    'path_gambar' => null,
-                    'lampiran_json' => json_encode([]),
-                    'diterbitkan_pada' => null,
-                    'aktif' => 1,
+                    'type' => 'struktur',
+                    'title' => 'Struktur Organisasi',
+                    'content' => null,
+                    'image_path' => null,
+                    'attachments' => json_encode([]),
+                    'published_at' => null,
+                    'is_active' => 1,
                 ],
                 [
-                    'tipe' => 'tugas_fungsi',
-                    'judul' => 'Tugas & Fungsi',
-                    'konten' => null,
-                    'path_gambar' => null,
-                    'lampiran_json' => json_encode([]),
-                    'diterbitkan_pada' => null,
-                    'aktif' => 1,
+                    'type' => 'tugas_fungsi',
+                    'title' => 'Tugas & Fungsi',
+                    'content' => null,
+                    'image_path' => null,
+                    'attachments' => json_encode([]),
+                    'published_at' => null,
+                    'is_active' => 1,
                 ],
             ];
             foreach ($about as &$a) { $a['created_at']=$now; $a['updated_at']=$now; }
-            DB::table('halaman_tentang')->insert($about);
+            DB::table('about_pages')->insert($about);
 
             // =========================================================
-            // 6) PERIODE PENILAIAN
+            // 6) ASSESSMENT PERIODS
             // =========================================================
-            DB::table('periode_penilaian')->insert([
-                'nama_periode' => 'Triwulan III 2025',
-                'tanggal_mulai' => '2025-07-01',
-                'tanggal_akhir' => '2025-09-30',
-                'siklus_penilaian' => 'triwulan',
-                'status_periode' => 'berjalan',
+            DB::table('assessment_periods')->insert([
+                'name' => 'Triwulan III 2025',
+                'start_date' => '2025-07-01',
+                'end_date' => '2025-09-30',
+                'cycle' => 'triwulan',
+                'status' => 'berjalan',
                 'is_active' => 1,
                 'locked_at' => null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
-            $periodeId = DB::table('periode_penilaian')->where('nama_periode','Triwulan III 2025')->value('id');
+            $assessmentPeriodId = DB::table('assessment_periods')->where('name','Triwulan III 2025')->value('id');
 
             // =========================================================
-            // 7) KRITERIA KINERJA
+            // 7) PERFORMANCE CRITERIAS
             // =========================================================
-            $kriteria = [
-                ['nama_kriteria'=>'Kedisiplinan','tipe_kriteria'=>'angka','deskripsi_kriteria'=>null,'aktif'=>1],
-                ['nama_kriteria'=>'Pelayanan Pasien','tipe_kriteria'=>'angka','deskripsi_kriteria'=>null,'aktif'=>1],
-                ['nama_kriteria'=>'Kepatuhan Prosedur','tipe_kriteria'=>'angka','deskripsi_kriteria'=>null,'aktif'=>1],
+            $criterias = [
+                ['name'=>'Kedisiplinan','type'=>'angka','description'=>null,'is_active'=>1],
+                ['name'=>'Pelayanan Pasien','type'=>'angka','description'=>null,'is_active'=>1],
+                ['name'=>'Kepatuhan Prosedur','type'=>'angka','description'=>null,'is_active'=>1],
             ];
-            foreach ($kriteria as &$k) { $k['created_at']=$now; $k['updated_at']=$now; }
-            DB::table('kriteria_kinerja')->insert($kriteria);
+            foreach ($criterias as &$k) { $k['created_at']=$now; $k['updated_at']=$now; }
+            DB::table('performance_criterias')->insert($criterias);
 
-            $krId = fn(string $nama) => DB::table('kriteria_kinerja')->where('nama_kriteria',$nama)->value('id');
+            $criteriaId = fn(string $name) =>
+            DB::table('performance_criterias')->where('name', $name)->value('id');
 
             // =========================================================
-            // 8) BOBOT KRITERIA PER UNIT (contoh untuk Poli Umum)
+            // 8) UNIT CRITERIA WEIGHTS (contoh untuk Poli Umum)
             // =========================================================
-            DB::table('bobot_kriteria_unit')->insert([
-                ['id_unit'=>$unitId('poliklinik-umum'),'id_kriteria'=>$krId('Kedisiplinan'),'bobot'=>40.00,'created_at'=>$now,'updated_at'=>$now],
-                ['id_unit'=>$unitId('poliklinik-umum'),'id_kriteria'=>$krId('Pelayanan Pasien'),'bobot'=>40.00,'created_at'=>$now,'updated_at'=>$now],
-                ['id_unit'=>$unitId('poliklinik-umum'),'id_kriteria'=>$krId('Kepatuhan Prosedur'),'bobot'=>20.00,'created_at'=>$now,'updated_at'=>$now],
+            DB::table('unit_criteria_weights')->insert([
+                [
+                    'unit_id' => $unitId('poliklinik-umum'),
+                    'performance_criteria_id' => $criteriaId('Kedisiplinan'),
+                    'weight' => 40.00,
+                    'created_at'=>$now,'updated_at'=>$now
+                ],
+                [
+                    'unit_id' => $unitId('poliklinik-umum'),
+                    'performance_criteria_id' => $criteriaId('Pelayanan Pasien'),
+                    'weight' => 40.00,
+                    'created_at'=>$now,'updated_at'=>$now
+                ],
+                [
+                    'unit_id' => $unitId('poliklinik-umum'),
+                    'performance_criteria_id' => $criteriaId('Kepatuhan Prosedur'),
+                    'weight' => 20.00,
+                    'created_at'=>$now,'updated_at'=>$now
+                ],
             ]);
 
             // =========================================================
-            // 9) PENGUMUMAN
+            // 9) ANNOUNCEMENTS
             // =========================================================
-            DB::table('pengumuman')->insert([
-                'judul' => 'Selamat datang di Sistem Informasi RSUD GM Atambua',
+            DB::table('announcements')->insert([
+                'title' => 'Selamat datang di Sistem Informasi RSUD GM Atambua',
                 'slug' => 'selamat-datang',
-                'ringkasan' => 'Portal internal untuk kinerja, remunerasi, dan layanan klinik.',
-                'konten' => '<p>Silakan gunakan menu di atas untuk mengakses modul-modul yang tersedia.</p>',
-                'kategori' => 'lainnya',
+                'summary' => 'Portal internal untuk kinerja, remunerasi, dan layanan klinik.',
+                'content' => '<p>Silakan gunakan menu di atas untuk mengakses modul-modul yang tersedia.</p>',
+                'category' => 'lainnya',
                 'label' => 'info',
-                'disorot' => 1,
-                'dipublikasikan_pada' => $now,
-                'kedaluwarsa_pada' => null,
-                'lampiran_json' => json_encode([]),
-                'penulis_id' => $userId('superadmin@rsud.local'),
+                'is_featured' => 1,
+                'published_at' => $now,
+                'expired_at' => null,
+                'attachments' => json_encode([]),
+                'author_id' => $userId('superadmin@rsud.local'),
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
 
             // =========================================================
-            // 10) FAQ (Pertanyaan Umum)
+            // 10) FAQS
             // =========================================================
-            DB::table('pertanyaan_umum')->insert([
-                ['pertanyaan'=>'Jam operasional IGD?','jawaban'=>'IGD melayani 24 jam, 7 hari seminggu.','urutan'=>1,'aktif'=>1,'kategori'=>'layanan','created_at'=>$now,'updated_at'=>$now],
-                ['pertanyaan'=>'Cara ambil nomor antrian poli?','jawaban'=>'Datang ke loket pendaftaran atau gunakan aplikasi internal bila tersedia.','urutan'=>2,'aktif'=>1,'kategori'=>'antrian','created_at'=>$now,'updated_at'=>$now],
-                ['pertanyaan'=>'Kontak RS?','jawaban'=>'Telepon (0389)2513137, Email rsudatambua66@gmail.com.','urutan'=>3,'aktif'=>1,'kategori'=>'kontak','created_at'=>$now,'updated_at'=>$now],
+            DB::table('faqs')->insert([
+                [
+                    'question'=>'Jam operasional IGD?',
+                    'answer'=>'IGD melayani 24 jam, 7 hari seminggu.',
+                    'order'=>1,'is_active'=>1,'category'=>'layanan',
+                    'created_at'=>$now,'updated_at'=>$now
+                ],
+                [
+                    'question'=>'Cara ambil nomor antrian poli?',
+                    'answer'=>'Datang ke loket pendaftaran atau gunakan aplikasi internal bila tersedia.',
+                    'order'=>2,'is_active'=>1,'category'=>'antrian',
+                    'created_at'=>$now,'updated_at'=>$now
+                ],
+                [
+                    'question'=>'Kontak RS?',
+                    'answer'=>'Telepon (0389)2513137, Email rsudatambua66@gmail.com.',
+                    'order'=>3,'is_active'=>1,'category'=>'kontak',
+                    'created_at'=>$now,'updated_at'=>$now
+                ],
             ]);
 
             // =========================================================
-            // (Bonus untuk kebutuhan UI) KUNJUNGAN & ANTRIAN HARI INI
+            // (Bonus UI) VISITS & QUEUE HARI INI
             // =========================================================
-            $kunjunganId = DB::table('kunjungan')->insertGetId([
+            $visitId = DB::table('visits')->insertGetId([
                 'ticket_code' => 'KJ-'.date('Ymd').'-0001',
-                'unit_kerja_id' => $unitId('poliklinik-umum'),
-                'tanggal' => $now,
+                'unit_id' => $unitId('poliklinik-umum'),
+                'visit_date' => $now,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
 
-            $antrianId = DB::table('antrian_pasien')->insertGetId([
-                'tanggal_antri' => $now->toDateString(),
-                'nomor_antrian' => 1,
-                'status_antrian' => 'Menunggu',
-                'waktu_masuk_antrian' => $now->format('H:i:s'),
-                'waktu_mulai_dilayani' => null,
-                'waktu_selesai_dilayani' => null,
-                'dokter_bertugas_id' => $userId('dokter.umum@rsud.local'),
-                'unit_kerja_id' => $unitId('poliklinik-umum'),
+            $queueId = DB::table('patient_queues')->insertGetId([
+                'queue_date' => $now->toDateString(),
+                'queue_number' => 1,
+                'queue_status' => 'Menunggu',
+                'queued_at' => $now->format('H:i:s'),
+                'service_started_at' => null,
+                'service_finished_at' => null,
+                'on_duty_doctor_id' => $userId('dokter.umum@rsud.local'),
+                'unit_id' => $unitId('poliklinik-umum'),
                 'patient_ref' => 'RM-EX-0001',
-                'kunjungan_id' => $kunjunganId,
+                'visit_id' => $visitId,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
 
-            DB::table('kunjungan_tenaga_medis')->insert([
-                ['kunjungan_id'=>$kunjunganId,'tenaga_medis_id'=>$userId('dokter.umum@rsud.local'),'peran'=>'dokter','durasi_menit'=>15,'created_at'=>$now,'updated_at'=>$now],
-                ['kunjungan_id'=>$kunjunganId,'tenaga_medis_id'=>$userId('perawat@rsud.local'),'peran'=>'perawat','durasi_menit'=>10,'created_at'=>$now,'updated_at'=>$now],
+            DB::table('visit_medical_staff')->insert([
+                [
+                    'visit_id'=>$visitId,
+                    'medical_staff_id'=>$userId('dokter.umum@rsud.local'),
+                    'role'=>'dokter',
+                    'duration_minutes'=>15,
+                    'created_at'=>$now,'updated_at'=>$now
+                ],
+                [
+                    'visit_id'=>$visitId,
+                    'medical_staff_id'=>$userId('perawat@rsud.local'),
+                    'role'=>'perawat',
+                    'duration_minutes'=>10,
+                    'created_at'=>$now,'updated_at'=>$now
+                ],
             ]);
 
             // =========================================================
-            // (Helper ID yang dipakai di bawah)
+            // Helper IDs (dipakai di bawah)
             // =========================================================
-            $dokterId     = $userId('dokter.umum@rsud.local');
-            $perawatId    = $userId('perawat@rsud.local');
+            $doctorId     = $userId('dokter.umum@rsud.local');
+            $nurseId      = $userId('perawat@rsud.local');
             $superAdminId = $userId('superadmin@rsud.local');
-            $kepalaIgdId  = $userId('kepala.igd@rsud.local');
-            $poliUmumId   = $unitId('poliklinik-umum');
-            $periodeId    = DB::table('periode_penilaian')->orderBy('id', 'desc')->value('id');
+            $headIgdId    = $userId('kepala.igd@rsud.local');
+            $poliklinikUmumUnitId = $unitId('poliklinik-umum');
+            $assessmentPeriodId = DB::table('assessment_periods')->orderBy('id', 'desc')->value('id');
 
-            // Pastikan ada $kunjunganId untuk ulasan/transaksi, kalau belum ada buat satu.
-            $kunjunganId = $kunjunganId ?? DB::table('kunjungan')->insertGetId([
-                'ticket_code'   => 'KJ-'.date('Ymd').'-X001',
-                'unit_kerja_id' => $poliUmumId,
-                'tanggal'       => $now,
-                'created_at'    => $now, 'updated_at' => $now,
+            // Pastikan ada $visitId
+            $visitId = $visitId ?? DB::table('visits')->insertGetId([
+                'ticket_code' => 'KJ-'.date('Ymd').'-X001',
+                'unit_id'     => $poliklinikUmumUnitId,
+                'visit_date'  => $now,
+                'created_at'  => $now, 'updated_at' => $now,
             ]);
 
             // =========================================================
-            // 11) JADWAL DOKTER (contoh slot 3 hari ke depan)
+            // 11) DOCTOR SCHEDULES (3 hari ke depan)
             // =========================================================
-            $jadwal = [];
+            $schedules = [];
             for ($i=0; $i<3; $i++) {
-                $tgl = Carbon::now()->addDays($i)->toDateString();
-                $jadwal[] = [
-                    'dokter_id'     => $dokterId,
-                    'tanggal'       => $tgl,
-                    'jam_mulai'     => '08:00:00',
-                    'jam_selesai'   => '12:00:00',
-                    'unit_kerja_id' => $poliUmumId,
-                    'created_at'    => $now, 'updated_at' => $now,
+                $date = Carbon::now()->addDays($i)->toDateString();
+                $schedules[] = [
+                    'doctor_id'   => $doctorId,
+                    'schedule_date' => $date,
+                    'start_time'  => '08:00:00',
+                    'end_time'    => '12:00:00',
+                    'unit_id'     => $poliklinikUmumUnitId,
+                    'created_at'  => $now, 'updated_at' => $now,
                 ];
             }
-            DB::table('jadwal_dokter')->insert($jadwal);
+            DB::table('doctor_schedules')->insert($schedules);
 
             // =========================================================
-            // 12) BATCH IMPORT KEHADIRAN (dummy 1 file) -> relasi kehadiran
+            // 12) ATTENDANCE IMPORT BATCH (dummy 1 file) -> relasi attendances
             // =========================================================
-            $batchId = DB::table('batch_import_kehadiran')->insertGetId([
-                'nama_file'      => 'simrs_khanza_'.date('Y-m-d').'.xlsx',
-                'diimpor_oleh'   => $superAdminId,
-                'diimpor_pada'   => $now,
-                'total_baris'    => 2,
-                'baris_berhasil' => 2,
-                'baris_gagal'    => 0,
-                'created_at'     => $now, 'updated_at' => $now,
+            $batchId = DB::table('attendance_import_batches')->insertGetId([
+                'file_name'       => 'simrs_khanza_'.date('Y-m-d').'.xlsx',
+                'imported_by'     => $superAdminId,
+                'imported_at'     => $now,
+                'total_rows'      => 2,
+                'success_rows'    => 2,
+                'failed_rows'     => 0,
+                'created_at'      => $now, 'updated_at' => $now,
             ]);
 
             // =========================================================
-            // 13) KEHADIRAN (dokter & perawat hari ini, sumber import)
+            // 13) ATTENDANCES (dokter & perawat hari ini, sumber import)
             // =========================================================
-            DB::table('kehadiran')->insert([
+            DB::table('attendances')->insert([
                 [
-                    'user_id'           => $dokterId,
-                    'tanggal_hadir'     => $now->toDateString(),
-                    'jam_masuk'         => '07:45:00',
-                    'jam_keluar'        => '14:30:00',
-                    'status_kehadiran'  => 'Hadir',
-                    'catatan_lembur'    => null,
-                    'source'            => 'import',
-                    'import_batch_id'   => $batchId,
-                    'created_at'        => $now, 'updated_at' => $now,
+                    'user_id'          => $doctorId,
+                    'attendance_date'  => $now->toDateString(),
+                    'check_in'         => '07:45:00',
+                    'check_out'        => '14:30:00',
+                    'attendance_status'=> 'Hadir',
+                    'overtime_note'    => null,
+                    'source'           => 'import',
+                    'import_batch_id'  => $batchId,
+                    'created_at'       => $now, 'updated_at' => $now,
                 ],
                 [
-                    'user_id'           => $perawatId,
-                    'tanggal_hadir'     => $now->toDateString(),
-                    'jam_masuk'         => '07:30:00',
-                    'jam_keluar'        => '15:00:00',
-                    'status_kehadiran'  => 'Hadir',
-                    'catatan_lembur'    => null,
-                    'source'            => 'import',
-                    'import_batch_id'   => $batchId,
-                    'created_at'        => $now, 'updated_at' => $now,
-                ],
-            ]);
-
-            // =========================================================
-            // 14) KONTRIBUSI TAMBAHAN (contoh dua usulan pegawai)
-            // =========================================================
-            DB::table('kontribusi_tambahan')->insert([
-                [
-                    'user_id'               => $perawatId,
-                    'judul_kontribusi'      => 'Penyusunan SOP Triase Poli Umum',
-                    'deskripsi_kontribusi'  => 'Draft SOP triase pasien poli umum untuk percepatan alur.',
-                    'tanggal_pengajuan'     => $now->toDateString(),
-                    'file_bukti'            => null,
-                    'status_validasi'       => 'menunggu',
-                    'komentar_supervisor'   => null,
-                    'periode_penilaian_id'  => $periodeId,
-                    'created_at'            => $now, 'updated_at' => $now,
-                ],
-                [
-                    'user_id'               => $dokterId,
-                    'judul_kontribusi'      => 'Edukasi DM Hipertensi Komunitas',
-                    'deskripsi_kontribusi'  => 'Materi penyuluhan singkat untuk pasien rawat jalan.',
-                    'tanggal_pengajuan'     => $now->toDateString(),
-                    'file_bukti'            => null,
-                    'status_validasi'       => 'disetujui',
-                    'komentar_supervisor'   => 'Bagus, lanjutkan implementasi.',
-                    'periode_penilaian_id'  => $periodeId,
-                    'created_at'            => $now, 'updated_at' => $now,
+                    'user_id'          => $nurseId,
+                    'attendance_date'  => $now->toDateString(),
+                    'check_in'         => '07:30:00',
+                    'check_out'        => '15:00:00',
+                    'attendance_status'=> 'Hadir',
+                    'overtime_note'    => null,
+                    'source'           => 'import',
+                    'import_batch_id'  => $batchId,
+                    'created_at'       => $now, 'updated_at' => $now,
                 ],
             ]);
 
             // =========================================================
-            // 15) PENILAIAN KINERJA (dokter poli umum pada periode aktif)
+            // 14) ADDITIONAL CONTRIBUTIONS (contoh dua usulan pegawai)
             // =========================================================
-            $pkDokterId = DB::table('penilaian_kinerja')->insertGetId([
-                'user_id'              => $dokterId,
-                'periode_penilaian_id' => $periodeId,
-                'tanggal_penilaian'    => $now->toDateString(),
-                'skor_total_wsm'       => 86.50,
-                'status_validasi'      => 'menunggu',
-                'komentar_atasan'      => null,
-                'created_at'           => $now, 'updated_at' => $now,
-            ]);
-
-            // =========================================================
-            // 16) DETAIL PENILAIAN KRITERIA (sinkron dgn kriteria yg sudah ada)
-            // =========================================================
-            $kedisiplinanId     = $krId('Kedisiplinan');
-            $pelayananPasienId  = $krId('Pelayanan Pasien');
-            $kepatuhanId        = $krId('Kepatuhan Prosedur');
-
-            DB::table('detail_penilaian_kriteria')->insert([
+            DB::table('additional_contributions')->insert([
                 [
-                    'penilaian_kinerja_id' => $pkDokterId,
-                    'kriteria_kinerja_id'  => $kedisiplinanId,
-                    'nilai'                => 90.00,
+                    'user_id'              => $nurseId,
+                    'title'                => 'Penyusunan SOP Triase Poli Umum',
+                    'description'          => 'Draft SOP triase pasien poli umum untuk percepatan alur.',
+                    'submission_date'      => $now->toDateString(),
+                    'evidence_file'        => null,
+                    'validation_status'    => 'Menunggu Persetujuan', // mapped from 'menunggu'
+                    'supervisor_comment'   => null,
+                    'assessment_period_id' => $assessmentPeriodId,
                     'created_at'           => $now, 'updated_at' => $now,
                 ],
                 [
-                    'penilaian_kinerja_id' => $pkDokterId,
-                    'kriteria_kinerja_id'  => $pelayananPasienId,
-                    'nilai'                => 85.00,
-                    'created_at'           => $now, 'updated_at' => $now,
-                ],
-                [
-                    'penilaian_kinerja_id' => $pkDokterId,
-                    'kriteria_kinerja_id'  => $kepatuhanId,
-                    'nilai'                => 80.00,
+                    'user_id'              => $doctorId,
+                    'title'                => 'Edukasi DM Hipertensi Komunitas',
+                    'description'          => 'Materi penyuluhan singkat untuk pasien rawat jalan.',
+                    'submission_date'      => $now->toDateString(),
+                    'evidence_file'        => null,
+                    'validation_status'    => 'Disetujui',           // mapped from 'disetujui'
+                    'supervisor_comment'   => 'Bagus, lanjutkan implementasi.',
+                    'assessment_period_id' => $assessmentPeriodId,
                     'created_at'           => $now, 'updated_at' => $now,
                 ],
             ]);
 
             // =========================================================
-            // 17) APPROVAL PENILAIAN (2 level: Kepala Unit -> Manajemen)
+            // 15) PERFORMANCE ASSESSMENTS (dokter poli umum pada periode aktif)
             // =========================================================
-            DB::table('penilaian_approval')->insert([
+            $pkDoctorId = DB::table('performance_assessments')->insertGetId([
+                'user_id'                => $doctorId,
+                'assessment_period_id'   => $assessmentPeriodId,
+                'assessment_date'        => $now->toDateString(),
+                'total_wsm_score'        => 86.50,
+                'validation_status'      => 'Menunggu Validasi', // mapped from 'menunggu'
+                'supervisor_comment'     => null,
+                'created_at'             => $now, 'updated_at' => $now,
+            ]);
+
+            // =========================================================
+            // 16) PERFORMANCE ASSESSMENT DETAILS (sinkron dgn criterias yang ada)
+            // =========================================================
+            $kedisiplinanId    = $criteriaId('Kedisiplinan');
+            $pelayananPasienId = $criteriaId('Pelayanan Pasien');
+            $kepatuhanId       = $criteriaId('Kepatuhan Prosedur');
+
+            DB::table('performance_assessment_details')->insert([
                 [
-                    'penilaian_kinerja_id' => $pkDokterId,
-                    'approver_id'          => $kepalaIgdId,
-                    'level'                => 1,
-                    'status'               => 'approved',
-                    'catatan'              => 'Disetujui, lanjut ke manajemen.',
-                    'acted_at'             => $now,
-                    'created_at'           => $now, 'updated_at' => $now,
+                    'performance_assessment_id' => $pkDoctorId,
+                    'performance_criteria_id'   => $kedisiplinanId,
+                    'score'                     => 90.00,
+                    'created_at'                => $now, 'updated_at' => $now,
                 ],
                 [
-                    'penilaian_kinerja_id' => $pkDokterId,
-                    'approver_id'          => $superAdminId,
-                    'level'                => 2,
-                    'status'               => 'pending',
-                    'catatan'              => null,
-                    'acted_at'             => null,
-                    'created_at'           => $now, 'updated_at' => $now,
+                    'performance_assessment_id' => $pkDoctorId,
+                    'performance_criteria_id'   => $pelayananPasienId,
+                    'score'                     => 85.00,
+                    'created_at'                => $now, 'updated_at' => $now,
+                ],
+                [
+                    'performance_assessment_id' => $pkDoctorId,
+                    'performance_criteria_id'   => $kepatuhanId,
+                    'score'                     => 80.00,
+                    'created_at'                => $now, 'updated_at' => $now,
                 ],
             ]);
 
             // =========================================================
-            // 18) REMUNERASI (berdasarkan periode & user yang sama)
+            // 17) ASSESSMENT APPROVALS (2 level: Kepala Unit -> Manajemen)
             // =========================================================
-            DB::table('remunerasi')->insert([
-                'user_id'               => $dokterId,
-                'periode_penilaian_id'  => $periodeId,
-                'nilai_remunerasi'      => 3500000.00,
-                'tanggal_pembayaran'    => null,
-                'status_pembayaran'     => 'Belum Dibayar',
-                'rincian_perhitungan'   => json_encode([
+            DB::table('assessment_approvals')->insert([
+                [
+                    'performance_assessment_id' => $pkDoctorId,
+                    'approver_id'               => $headIgdId,
+                    'level'                     => 1,
+                    'status'                    => 'approved',
+                    'note'                      => 'Disetujui, lanjut ke manajemen.',
+                    'acted_at'                  => $now,
+                    'created_at'                => $now, 'updated_at' => $now,
+                ],
+                [
+                    'performance_assessment_id' => $pkDoctorId,
+                    'approver_id'               => $superAdminId,
+                    'level'                     => 2,
+                    'status'                    => 'pending',
+                    'note'                      => null,
+                    'acted_at'                  => null,
+                    'created_at'                => $now, 'updated_at' => $now,
+                ],
+            ]);
+
+            // =========================================================
+            // 18) REMUNERATIONS (berdasarkan periode & user yang sama)
+            // =========================================================
+            DB::table('remunerations')->insert([
+                'user_id'              => $doctorId,
+                'assessment_period_id' => $assessmentPeriodId,
+                'amount'               => 3500000.00,
+                'payment_date'         => null,
+                'payment_status'       => 'Belum Dibayar',
+                'calculation_details'  => json_encode([
                     'dasar' => 3000000,
                     'insentif_kinerja' => 500000,
                     'catatan' => 'Mengacu skor WSM & kontribusi tambahan',
                 ]),
-                'published_at'          => null,
-                'calculated_at'         => $now,
-                'revised_by'            => null,
-                'created_at'            => $now, 'updated_at' => $now,
+                'published_at'         => null,
+                'calculated_at'        => $now,
+                'revised_by'           => null,
+                'created_at'           => $now, 'updated_at' => $now,
             ]);
 
             // =========================================================
-            // 19) ULASAN KUNJUNGAN (feedback pasien sederhana)
+            // 19) REVIEWS (feedback pasien sederhana)
             // =========================================================
-            $ulasanId = DB::table('ulasan')->insertGetId([
-                'kunjungan_id'  => $kunjunganId,
-                'overall_rating'=> 5,
-                'komentar'      => 'Pelayanan cepat dan ramah.',
-                'nama_pasien'   => 'Bapak A',
-                'kontak'        => '08xxxxxxxxxx',
-                'client_ip'     => request()->ip() ?? '127.0.0.1',
-                'user_agent'    => request()->userAgent() ?? 'Seeder',
-                'created_at'    => $now, 'updated_at' => $now,
+            $reviewId = DB::table('reviews')->insertGetId([
+                'visit_id'        => $visitId,
+                'overall_rating'  => 5,
+                'comment'         => 'Pelayanan cepat dan ramah.',
+                'patient_name'    => 'Bapak A',
+                'contact'         => '08xxxxxxxxxx',
+                'client_ip'       => request()->ip() ?? '127.0.0.1',
+                'user_agent'      => request()->userAgent() ?? 'Seeder',
+                'created_at'      => $now, 'updated_at' => $now,
             ]);
 
-// =========================================================
-// 20) DETAIL ULASAN (per nakes di kunjungan tersebut)
-// =========================================================
-            DB::table('ulasan_detail')->insert([
+            // =========================================================
+            // 20) REVIEW DETAILS (per nakes di kunjungan tersebut)
+            // =========================================================
+            DB::table('review_details')->insert([
                 [
-                    'ulasan_id'       => $ulasanId,
-                    'tenaga_medis_id' => $dokterId,
-                    'peran'           => 'dokter',
-                    'rating'          => 5,
-                    'komentar'        => 'Dokter komunikatif.',
-                    'created_at'      => $now, 'updated_at' => $now,
+                    'review_id'        => $reviewId,
+                    'medical_staff_id' => $doctorId,
+                    'role'             => 'dokter',
+                    'rating'           => 5,
+                    'comment'          => 'Dokter komunikatif.',
+                    'created_at'       => $now, 'updated_at' => $now,
                 ],
                 [
-                    'ulasan_id'       => $ulasanId,
-                    'tenaga_medis_id' => $perawatId,
-                    'peran'           => 'perawat',
-                    'rating'          => 5,
-                    'komentar'        => 'Perawat membantu dengan sigap.',
-                    'created_at'      => $now, 'updated_at' => $now,
+                    'review_id'        => $reviewId,
+                    'medical_staff_id' => $nurseId,
+                    'role'             => 'perawat',
+                    'rating'           => 5,
+                    'comment'          => 'Perawat membantu dengan sigap.',
+                    'created_at'       => $now, 'updated_at' => $now,
                 ],
             ]);
-// =========================================================
-// SISA TABEL YANG BELUM DI-SEED:
-// - (21) entri_logbook
-// - (17) transaksi_pembayarans
-// =========================================================
 
-// Pastikan helper siap
-            $dokterId      = $dokterId      ?? $userId('dokter.umum@rsud.local');
-            $perawatId     = $perawatId     ?? $userId('perawat@rsud.local');
-            $superAdminId  = $superAdminId  ?? $userId('superadmin@rsud.local');
-            $kepalaIgdId   = $kepalaIgdId   ?? $userId('kepala.igd@rsud.local');
-            $rekamMedisId  = $userId('rekam.medis@rsud.local') ?? null;
-            $poliUmumId    = $poliUmumId    ?? $unitId('poliklinik-umum');
+            // =========================================================
+            // SISA TABEL YANG BELUM DI-SEED:
+            // - (21) logbook_entries
+            // - (17) payment_transactions
+            // =========================================================
 
-// Pastikan ada kunjungan & antrian untuk relasi transaksi
-            $kunjunganId = $kunjunganId ?? DB::table('kunjungan')->orderByDesc('id')->value('id');
-            if (!$kunjunganId) {
-                $kunjunganId = DB::table('kunjungan')->insertGetId([
-                    'ticket_code'   => 'KJ-'.date('Ymd').'-B001',
-                    'unit_kerja_id' => $poliUmumId,
-                    'tanggal'       => $now,
-                    'created_at'    => $now, 'updated_at' => $now,
+            // Pastikan helper siap
+            $doctorId     = $doctorId     ?? $userId('dokter.umum@rsud.local');
+            $nurseId      = $nurseId      ?? $userId('perawat@rsud.local');
+            $superAdminId = $superAdminId ?? $userId('superadmin@rsud.local');
+            $headIgdId    = $headIgdId    ?? $userId('kepala.igd@rsud.local');
+            $rekamMedisId = $rekamMedisId ?? $userId('rekam.medis@rsud.local');
+            $poliklinikUmumId = $poliklinikUmumId ?? $unitId('poliklinik-umum');
+
+            // Pastikan ada visit & queue untuk relasi transaksi
+            $visitId = $visitId ?? DB::table('visits')->orderByDesc('id')->value('id');
+            if (!$visitId) {
+                $visitId = DB::table('visits')->insertGetId([
+                    'ticket_code' => 'KJ-'.date('Ymd').'-B001',
+                    'unit_id'     => $poliklinikUmumId,
+                    'visit_date'  => $now,
+                    'created_at'  => $now, 'updated_at' => $now,
                 ]);
             }
 
-            $antrianId = $antrianId ?? DB::table('antrian_pasien')->orderByDesc('id')->value('id');
-            if (!$antrianId) {
-                $antrianId = DB::table('antrian_pasien')->insertGetId([
-                    'tanggal_antri'          => $now->toDateString(),
-                    'nomor_antrian'          => 2,
-                    'status_antrian'         => 'Menunggu',
-                    'waktu_masuk_antrian'    => $now->format('H:i:s'),
-                    'waktu_mulai_dilayani'   => null,
-                    'waktu_selesai_dilayani' => null,
-                    'dokter_bertugas_id'     => $dokterId,
-                    'unit_kerja_id'          => $poliUmumId,
-                    'patient_ref'            => 'RM-EX-0002',
-                    'kunjungan_id'           => $kunjunganId,
-                    'created_at'             => $now, 'updated_at' => $now,
+            $queueId = $queueId ?? DB::table('patient_queues')->orderByDesc('id')->value('id');
+            if (!$queueId) {
+                $queueId = DB::table('patient_queues')->insertGetId([
+                    'queue_date'           => $now->toDateString(),
+                    'queue_number'         => 2,
+                    'queue_status'         => 'Menunggu',
+                    'queued_at'            => $now->format('H:i:s'),
+                    'service_started_at'   => null,
+                    'service_finished_at'  => null,
+                    'on_duty_doctor_id'    => $doctorId,
+                    'unit_id'              => $poliklinikUmumId,
+                    'patient_ref'          => 'RM-EX-0002',
+                    'visit_id'             => $visitId,
+                    'created_at'           => $now, 'updated_at' => $now,
                 ]);
             }
 
             // =========================================================
-            // (21) ENTRI LOGBOOK — contoh 3 entri (dokter, perawat, rekam medis)
+            // (21) LOGBOOK ENTRIES — contoh 3 entri (dokter, perawat, rekam medis)
             // =========================================================
-            DB::table('entri_logbook')->insert([
+            DB::table('logbook_entries')->insert([
                 [
-                    'user_id'        => 4,
-                    'tanggal'        => '2025-09-09',
-                    'jam_mulai'      => '08:00:00',
-                    'jam_selesai'    => '11:00:00',
-                    'durasi_menit'   => 180,
-                    'aktivitas'      => 'Pelayanan pasien rawat jalan Poli Umum (5 pasien).',
-                    'kategori'       => 'pelayanan',
-                    'status'         => 'disetujui',
-                    'penyetuju_id'   => 2,
-                    'disetujui_pada' => '2025-09-09 13:01:11',
-                    'lampiran_json'  => '[]',
-                    'created_at'     => '2025-09-09 13:01:11',
-                    'updated_at'     => '2025-09-09 13:01:11',
+                    'user_id'         => $doctorId,
+                    'entry_date'      => '2025-09-09',
+                    'start_time'      => '08:00:00',
+                    'end_time'        => '11:00:00',
+                    'duration_minutes'=> 180,
+                    'activity'        => 'Pelayanan pasien rawat jalan Poli Umum (5 pasien).',
+                    'category'        => 'pelayanan',
+                    'status'          => 'disetujui',
+                    'approver_id'     => $headIgdId,
+                    'approved_at'     => '2025-09-09 13:01:11',
+                    'attachments'     => '[]',
+                    'created_at'      => '2025-09-09 13:01:11',
+                    'updated_at'      => '2025-09-09 13:01:11',
                 ],
                 [
-                    'user_id'        => 5,
-                    'tanggal'        => '2025-09-09',
-                    'jam_mulai'      => '07:30:00',
-                    'jam_selesai'    => '12:00:00',
-                    'durasi_menit'   => 270,
-                    'aktivitas'      => 'Triase, pengukuran TTV, dan edukasi pra-konsultasi.',
-                    'kategori'       => 'keperawatan',
-                    'status'         => 'diajukan',
-                    'penyetuju_id'   => 5,
-                    'disetujui_pada' => null,
-                    'lampiran_json'  => '[]',
-                    'created_at'     => '2025-09-09 13:01:11',
-                    'updated_at'     => '2025-09-09 13:01:11',
+                    'user_id'         => $nurseId,
+                    'entry_date'      => '2025-09-09',
+                    'start_time'      => '07:30:00',
+                    'end_time'        => '12:00:00',
+                    'duration_minutes'=> 270,
+                    'activity'        => 'Triase, pengukuran TTV, dan edukasi pra-konsultasi.',
+                    'category'        => 'keperawatan',
+                    'status'          => 'diajukan',
+                    'approver_id'     => $nurseId, // sesuai contoh asli (boleh diganti null)
+                    'approved_at'     => null,
+                    'attachments'     => '[]',
+                    'created_at'      => '2025-09-09 13:01:11',
+                    'updated_at'      => '2025-09-09 13:01:11',
                 ],
                 [
-                    'user_id'        => 3,
-                    'tanggal'        => '2025-09-09',
-                    'jam_mulai'      => '09:00:00',
-                    'jam_selesai'    => '10:30:00',
-                    'durasi_menit'   => 90,
-                    'aktivitas'      => 'Verifikasi dan penyusunan berkas rekam medis kunjungan hari ini.',
-                    'kategori'       => 'administrasi',
-                    'status'         => 'draf',
-                    'penyetuju_id'   => 3,
-                    'disetujui_pada' => null,
-                    'lampiran_json'  => '[]',
-                    'created_at'     => '2025-09-09 13:01:11',
-                    'updated_at'     => '2025-09-09 13:01:11',
+                    'user_id'         => $rekamMedisId,
+                    'entry_date'      => '2025-09-09',
+                    'start_time'      => '09:00:00',
+                    'end_time'        => '10:30:00',
+                    'duration_minutes'=> 90,
+                    'activity'        => 'Verifikasi dan penyusunan berkas rekam medis kunjungan hari ini.',
+                    'category'        => 'administrasi',
+                    'status'          => 'draf',
+                    'approver_id'     => $rekamMedisId,
+                    'approved_at'     => null,
+                    'attachments'     => '[]',
+                    'created_at'      => '2025-09-09 13:01:11',
+                    'updated_at'      => '2025-09-09 13:01:11',
                 ],
             ]);
 
             // =========================================================
-            // (17) TRANSAKSI PEMBAYARAN — 2 contoh transaksi
+            // (17) PAYMENT TRANSACTIONS — 2 contoh transaksi
             // =========================================================
-            DB::table('transaksi_pembayaran')->insert([
+            DB::table('payment_transactions')->insert([
                 [
-                    'kunjungan_id'               => $kunjunganId,
-                    'antrian_id'                 => $antrianId,
-                    'tanggal_transaksi'          => $now->toDateString(),
-                    'jumlah_pembayaran'          => 75000.00,
-                    'metode_pembayaran'          => 'QRIS',
-                    'channel'                    => 'QRIS',
-                    'status_pembayaran'          => 'Berhasil',
-                    'paid_at'                    => $now,
-                    'nomor_referensi_pembayaran' => 'INV-'.strtoupper(Str::random(10)),
-                    'created_by'                 => $superAdminId,
-                    'created_at'                 => $now, 'updated_at' => $now,
+                    'visit_id'                 => $visitId,
+                    'queue_id'                 => $queueId,
+                    'transaction_date'         => $now->toDateString(),
+                    'amount'                   => 75000.00,
+                    'payment_method'           => 'QRIS',
+                    'channel'                  => 'QRIS',
+                    'payment_status'           => 'Berhasil',   // enum: Berhasil | Pending | Gagal
+                    'paid_at'                  => $now,
+                    'payment_reference_number' => 'INV-'.strtoupper(Str::random(10)),
+                    'created_by'               => $superAdminId,
+                    'created_at'               => $now, 'updated_at' => $now,
                 ],
                 [
-                    'kunjungan_id'               => $kunjunganId,
-                    'antrian_id'                 => $antrianId,
-                    'tanggal_transaksi'          => $now->toDateString(),
-                    'jumlah_pembayaran'          => 150000.00,
-                    'metode_pembayaran'          => 'Virtual Account',
-                    'channel'                    => 'VA',
-                    'status_pembayaran'          => 'Menunggu',
-                    'paid_at'                    => null,
-                    'nomor_referensi_pembayaran' => 'INV-'.strtoupper(Str::random(10)),
-                    'created_by'                 => $superAdminId,
-                    'created_at'                 => $now, 'updated_at' => $now,
+                    'visit_id'                 => $visitId,
+                    'queue_id'                 => $queueId,
+                    'transaction_date'         => $now->toDateString(),
+                    'amount'                   => 150000.00,
+                    'payment_method'           => 'Virtual Account',
+                    'channel'                  => 'VA',
+                    'payment_status'           => 'Pending',    // mapped dari 'Menunggu'
+                    'paid_at'                  => null,
+                    'payment_reference_number' => 'INV-'.strtoupper(Str::random(10)),
+                    'created_by'               => $superAdminId,
+                    'created_at'               => $now, 'updated_at' => $now,
                 ],
             ]);
 

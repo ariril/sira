@@ -10,41 +10,33 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('nip')->unique()->nullable();
-            $table->string('nama')->nullable();
-            $table->date('tanggal_mulai_kerja')->nullable();
-            $table->string('jenis_kelamin', 10)->nullable();
-            $table->string('kewarganegaraan', 50)->nullable();
-            $table->string('nomor_identitas')->unique()->nullable();
-            $table->text('alamat')->nullable();
-            $table->string('nomor_telepon', 20)->nullable();
+            $table->string('employee_number')->unique()->nullable();
+            $table->string('name')->nullable();
+            $table->date('start_date')->nullable();
+            $table->string('gender', 10)->nullable();
+            $table->string('nationality', 50)->nullable();
+            $table->string('id_number')->unique()->nullable();
+            $table->text('address')->nullable();
+            $table->string('phone', 20)->nullable();
             $table->string('email')->unique();
-            $table->string('pendidikan_terakhir', 50)->nullable();
-            $table->string('jabatan')->nullable();
+            $table->string('last_education', 50)->nullable();
+            $table->string('position')->nullable();
 
-            // Relasi ke unit kerja
-            $table->foreignId('unit_kerja_id')
-                ->nullable()
-                ->constrained('unit_kerja')
-                ->nullOnDelete();
+            $table->foreignId('unit_id')->nullable()
+                ->constrained('units')->nullOnDelete();
 
-            // Relasi ke profesi medis
-            $table->foreignId('profesi_id')
-                ->nullable()
-                ->constrained('profesi')
-                ->nullOnDelete();
+            $table->foreignId('profession_id')->nullable()
+                ->constrained('professions')->nullOnDelete();
 
             $table->string('password');
 
-            // Role untuk otorisasi
             $table->enum('role', ['pegawai_medis', 'kepala_unit', 'administrasi', 'super_admin'])
                 ->default('pegawai_medis')->nullable();
 
-            $table->index('nama');
+            $table->index('name');
 
             $table->timestamp('email_verified_at')->nullable();
             $table->rememberToken();
-
             $table->timestamps();
         });
 

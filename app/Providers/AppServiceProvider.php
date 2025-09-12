@@ -3,54 +3,46 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\View;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
-
-use App\Models\Profesi;
-
-use App\Models\PengaturanSitus;
-use App\Models\HalamanTentang;
+use Illuminate\Support\Facades\{DB, Log, View, Cache};
+use App\Models\{Profession, SiteSetting, AboutPage};
 
 class AppServiceProvider extends ServiceProvider
 {
-    public function register(): void
-    {
-        //
-    }
+    public function register(): void {}
 
     public function boot(): void
     {
+        // Optional: buat DB jika belum ada
         try {
             DB::statement('CREATE DATABASE IF NOT EXISTS sira');
         } catch (\Throwable $e) {
             Log::error('Gagal membuat database: '.$e->getMessage());
         }
 
+        // ====== Composer untuk modal login: kirim daftar profesi ======
         View::composer('partials.login-modal', function ($view) {
             $view->with(
+            // tetap pakai key 'profesis' agar Blade lama tidak rusak
                 'profesis',
-                Profesi::select('id','nama')->orderBy('nama')->get()
+                Profession::query()
+                    ->select('id','name')       // was: id, nama
+                    ->orderBy('name')           // was: nama
+                    ->get()
             );
         });
 
-        /**
-         * View composer baru: inject data situs & menu profil
-         * ke layouts.public dan semua partials.*
-         *
-         * - $site: dari tabel pengaturan_situs (nama, singkatan, alamat, telepon, email, logo, sosmed, footer, dll.)
-         * - $profilPages: daftar item profil dari tabel halaman_tentang (tipe: profil_rs, tugas_fungsi, struktur, visi, misi)
-         */
+        // ====== Data site & menu profil (About) ======
         $site = Cache::remember('site.profile', 300, function () {
-            return PengaturanSitus::query()->first();
+            // was: PengaturanSitus::first()
+            return SiteSetting::query()->first(); // fields: name, short_name, address, phone, email, logo_path, favicon_path, footer_text, dll.
         });
 
         $profilPages = Cache::remember('site.profil_pages', 300, function () {
-            $rows = HalamanTentang::query()
-                ->whereIn('tipe', ['tugas_fungsi','struktur','visi','misi','profil_rs'])
-                ->orderBy('tipe')
-                ->get(['tipe','judul','path_gambar','diterbitkan_pada']);
+            // was: HalamanTentang with columns tipe, judul, path_gambar, diterbitkan_pada
+            $rows = AboutPage::query()
+                ->whereIn('type', ['tugas_fungsi','struktur','visi','misi','profil_rs'])
+                ->orderBy('type')
+                ->get(['type','title','image_path','published_at']);
 
             $labelMap = [
                 'tugas_fungsi' => 'Tugas & Fungsi',
@@ -60,9 +52,10 @@ class AppServiceProvider extends ServiceProvider
                 'profil_rs'    => 'Profil',
             ];
 
+            // Struktur keluaran tetap sama agar Blade lama aman
             return $rows->map(fn($r) => [
-                'tipe'   => $r->tipe,
-                'label'  => $labelMap[$r->tipe] ?? ucfirst(str_replace('_',' ',$r->tipe)),
+                'tipe'   => $r->type,
+                'label'  => $labelMap[$r->type] ?? ucfirst(str_replace('_',' ',$r->type)),
                 'exists' => true,
             ])->values();
         });
