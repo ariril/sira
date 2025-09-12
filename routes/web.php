@@ -10,10 +10,25 @@ use App\Http\Controllers\Web\KepalaUnit\DashboardController as KUDashboard;
 use App\Http\Controllers\Web\Administrasi\DashboardController as AdminDashboard;
 use App\Http\Controllers\Web\PegawaiMedis\DashboardController as PMDashboard;
 
-Route::get('/', function () {
-    return view('welcome');
-})->name('home');;
+use App\Http\Controllers\Web\PengumumanController;
+use App\Http\Controllers\Web\PertanyaanUmumController;
+use App\Http\Controllers\Web\HalamanTentangController;
+use App\Http\Controllers\Web\DataRemunerasiController;
+
+Route::get('/', [HomeController::class, 'index'])->name('home');
+
 Route::view('/data-remunerasi', 'pages.data-remunerasi')->name('data');
+
+Route::get('/pengumuman', [PengumumanController::class, 'index'])->name('pengumuman.index');
+Route::get('/pengumuman/{slug}', [PengumumanController::class, 'show'])->name('pengumuman.show');
+
+Route::get('/faq', [PertanyaanUmumController::class, 'index'])->name('pertanyaan_umum.index');
+
+Route::get('/profil/{tipe}', [HalamanTentangController::class, 'show'])
+    ->name('profil.show');
+
+Route::get('/data-remunerasi', [DataRemunerasiController::class, 'index'])
+    ->name('data');
 
 //Route::get('/dashboard', function () {
 //    return view('dashboard');

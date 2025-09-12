@@ -9,6 +9,11 @@ class PeriodePenilaian extends Model
 {
     use HasFactory;
     protected $table = 'periode_penilaian';
+    protected $casts = [
+        'tanggal_mulai' => 'date',
+        'tanggal_akhir' => 'date',
+        'is_active' => 'boolean',
+    ];
     protected $fillable = [
         'nama_periode',
         'tanggal_mulai',

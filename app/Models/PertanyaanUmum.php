@@ -7,4 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PertanyaanUmum extends Model
 {
     protected $table = 'pertanyaan_umum';
+    protected $casts = [
+        'aktif' => 'boolean',
+    ];
 }

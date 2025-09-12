@@ -18,10 +18,10 @@ return new class extends Migration
                 'rawat_inap', 'igd', 'poliklinik', // klinis
                 'lainnya'
             ])->default('poliklinik');
-            $table->foreignId('parent_id')->nullable()       // untuk hierarki (sub-unit)
+            $table->foreignId('parent_id')->nullable() // untuk hierarki (sub-unit)
             ->constrained('unit_kerja')->nullOnDelete();
 
-            $table->string('lokasi')->nullable();            // gedung/lantai
+            $table->string('lokasi')->nullable(); // gedung/lantai
             $table->string('telepon', 30)->nullable();
             $table->string('email', 150)->nullable();
 

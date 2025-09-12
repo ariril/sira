@@ -9,6 +9,9 @@ class JadwalDokter extends Model
 {
     use HasFactory;
     protected $table = 'jadwal_dokter';
+    protected $casts = [
+        'tanggal' => 'date',
+    ];
     protected $fillable = [
         'dokter_id',
         'tanggal',

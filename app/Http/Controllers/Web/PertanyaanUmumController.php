@@ -1,0 +1,18 @@
+<?php
+
+namespace App\Http\Controllers\Web;
+
+use App\Http\Controllers\Controller;
+use App\Models\PertanyaanUmum;
+
+class PertanyaanUmumController extends Controller
+{
+    public function index()
+    {
+        $items = PertanyaanUmum::where('aktif', 1)
+            ->orderBy('urutan')
+            ->paginate(10);
+
+        return view('pertanyaan_umum.index', compact('items'));
+    }
+}
