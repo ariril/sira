@@ -41,7 +41,7 @@ return new class extends Migration
             // Referensi pasien eksternal (opsional)
             $table->string('patient_ref', 50)->nullable();
 
-            // Kunjungan terhubung (opsional)
+            // Visit terhubung (opsional)
             $table->foreignId('visit_id')
             ->nullable()
                 ->constrained('visits')
@@ -61,5 +61,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('patient_queues');
     }
-
 };

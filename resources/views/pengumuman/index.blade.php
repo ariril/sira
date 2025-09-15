@@ -1,5 +1,5 @@
 @extends('layouts.public')
-@section('title', 'Pengumuman')
+@section('title', 'Announcement')
 
 @section('content')
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-10">

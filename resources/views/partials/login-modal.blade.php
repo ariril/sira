@@ -1,25 +1,25 @@
 @php
     // daftar profesi (kalau belum disupply via View composer)
-    $profesis = $profesis ?? \App\Models\Profesi::select('id','nama')->orderBy('nama')->get();
+    $profesis = $profesis ?? \App\Models\Profession::select('id','nama')->orderBy('nama')->get();
     $oldRole  = old('role', ''); // default kosong -> memaksa user memilih role
 @endphp
 
 <div
-    x-cloak
-    x-data="{ role: '{{ $oldRole }}', showPass: false }"
-    x-show="$store.authModal.open"
-    x-transition.opacity
-    @keydown.escape.window="$store.authModal.hide()"
-    class="fixed inset-0 z-[100] flex items-start justify-center p-4"
-    aria-modal="true" role="dialog">
+        x-cloak
+        x-data="{ role: '{{ $oldRole }}', showPass: false }"
+        x-show="$store.authModal.open"
+        x-transition.opacity
+        @keydown.escape.window="$store.authModal.hide()"
+        class="fixed inset-0 z-[100] flex items-start justify-center p-4"
+        aria-modal="true" role="dialog">
 
     {{-- backdrop --}}
     <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$store.authModal.hide()"></div>
 
     {{-- panel --}}
     <div
-        x-transition.scale.origin.center
-        class="relative w-full max-w-xl rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+            x-transition.scale.origin.center
+            class="relative w-full max-w-xl rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
 
         {{-- header --}}
         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5">
@@ -58,8 +58,18 @@
                         <button type="button" @click="showPass = !showPass"
                                 class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
                                 aria-label="Toggle password visibility">
-                            <svg x-show="!showPass" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.644C3.423 7.51 7.36 5 12 5c4.64 0 8.577 2.51 9.964 6.678.07.21.07.434 0 .644C20.577 16.49 16.64 19 12 19c-4.64 0-8.577-2.51-9.964-6.678z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                            <svg x-show="showPass"  xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.28 15.978 7.285 19 12 19c1.51 0 2.944-.29 4.243-.82M9.88 9.88a3 3 0 104.24 4.24M6.1 6.1l11.8 11.8"/></svg>
+                            <svg x-show="!showPass" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                 viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                      d="M2.036 12.322a1.012 1.012 0 010-.644C3.423 7.51 7.36 5 12 5c4.64 0 8.577 2.51 9.964 6.678.07.21.07.434 0 .644C20.577 16.49 16.64 19 12 19c-4.64 0-8.577-2.51-9.964-6.678z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                            <svg x-show="showPass" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                 viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                      d="M3.98 8.223A10.477 10.477 0 001.934 12C3.28 15.978 7.285 19 12 19c1.51 0 2.944-.29 4.243-.82M9.88 9.88a3 3 0 104.24 4.24M6.1 6.1l11.8 11.8"/>
+                            </svg>
                         </button>
                     </div>
                     @error('password')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
@@ -79,7 +89,7 @@
                     @error('role')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                 </div>
 
-                {{-- Profesi (muncul jika pegawai medis) --}}
+                {{-- Profession (muncul jika pegawai medis) --}}
                 <div x-show="role === 'pegawai_medis'">
                     <label for="profesi_id" class="block text-[15px] font-medium text-slate-700">Profesi</label>
                     <select id="profesi_id" name="profesi_id"
@@ -95,7 +105,8 @@
                 {{-- Remember & Forgot --}}
                 <div class="flex items-center justify-between">
                     <label class="flex items-center gap-2">
-                        <input type="checkbox" name="remember" class="h-4 w-4 rounded border-slate-300 text-blue-600" @checked(old('remember'))>
+                        <input type="checkbox" name="remember"
+                               class="h-4 w-4 rounded border-slate-300 text-blue-600" @checked(old('remember'))>
                         <span class="text-sm text-slate-600">Remember me</span>
                     </label>
                     <a href="{{ route('password.request') }}" class="text-sm text-blue-600 hover:underline">Forgot?</a>

@@ -2,7 +2,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-12">
         <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             <section>
-                <h3 class="text-white font-semibold mb-3">{{ $site->nama_singkat ?? 'Unit Remunerasi' }}</h3>
+                <h3 class="text-white font-semibold mb-3">{{ $site->nama_singkat ?? 'Unit Remuneration' }}</h3>
                 <p class="text-slate-300">
                     {{ $site->nama ?? 'RSUD ATAMBUA' }}
                 </p>
@@ -58,7 +58,7 @@
         </div>
 
         <div class="border-t border-slate-700 mt-10 pt-4 text-center text-slate-400 text-sm">
-            {{ $site->teks_footer ?? '© '.date('Y').' Unit Remunerasi - Universitas Sebelas Maret. All rights reserved.' }}
+            {{ $site->teks_footer ?? '© '.date('Y').' Unit Remuneration - Universitas Sebelas Maret. All rights reserved.' }}
         </div>
     </div>
 </footer>

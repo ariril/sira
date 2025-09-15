@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\{User, UnitKerja, Profesi, Remunerasi, PeriodePenilaian, PenilaianKinerja};
+use App\Models\{User, Unit, Profession, Remuneration, AssessmentPeriod, PerformanceAssessment};
 
 class DataRemunerasiController extends Controller
 {
@@ -14,11 +14,11 @@ class DataRemunerasiController extends Controller
         $selectedPeriode = null;
 
         if ($req->filled('periode_id')) {
-            $selectedPeriode = PeriodePenilaian::find($req->integer('periode_id'));
+            $selectedPeriode = AssessmentPeriod::find($req->integer('periode_id'));
         }
         if (!$selectedPeriode) {
-            $selectedPeriode = PeriodePenilaian::where('is_active', 1)->first()
-                ?: PeriodePenilaian::orderByDesc('tanggal_mulai')->first();
+            $selectedPeriode = AssessmentPeriod::where('is_active', 1)->first()
+                ?: AssessmentPeriod::orderByDesc('tanggal_mulai')->first();
         }
 
         // --- Filter lain ---
@@ -65,9 +65,9 @@ class DataRemunerasiController extends Controller
         $rows = $base->orderBy('users.nama')->paginate($perPage)->withQueryString();
 
         // --- Data untuk filter dropdown ---
-        $periodes = PeriodePenilaian::orderByDesc('tanggal_mulai')->get(['id','nama_periode','is_active']);
-        $units    = UnitKerja::orderBy('nama_unit')->get(['id','nama_unit']);
-        $profesis = Profesi::orderBy('nama')->get(['id','nama']);
+        $periodes = AssessmentPeriod::orderByDesc('tanggal_mulai')->get(['id','nama_periode','is_active']);
+        $units    = Unit::orderBy('nama_unit')->get(['id','nama_unit']);
+        $profesis = Profession::orderBy('nama')->get(['id','nama']);
 
         // --- Ringkasan (agregat seluruh hasil filter, bukan hanya halaman ini) ---
         $aggBase = clone $base;

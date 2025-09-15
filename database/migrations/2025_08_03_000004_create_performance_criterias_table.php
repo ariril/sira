@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('performance_criterias', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('type', 10);                 // tipe_kriteria (contoh: Benefit, Cost)
+            $table->enum('type', ['benefit', 'cost']);
             $table->text('description')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
@@ -22,5 +22,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('performance_criterias');
     }
-
 };

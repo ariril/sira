@@ -82,7 +82,7 @@
                 new ApexCharts(el, {
                     chart: { type: 'bar', height: 220, toolbar: { show: false } },
                     series: [{ name: 'Jumlah', data: [val.antrian, val.hadir, val.ulasan] }],
-                    xaxis: { categories: ['Antrian','Kehadiran','Ulasan'] },
+                    xaxis: { categories: ['Antrian','Attendance','Review'] },
                     dataLabels: { enabled: true },
                     plotOptions: { bar: { borderRadius: 6 } }
                 }).render();

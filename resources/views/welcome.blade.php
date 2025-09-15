@@ -1,5 +1,5 @@
 @extends('layouts.public')
-@section('title', ($site->nama_singkat ?? 'Unit Remunerasi') . ' - Universitas Sebelas Maret')
+@section('title', ($site->nama_singkat ?? 'Unit Remuneration') . ' - Universitas Sebelas Maret')
 
 @section('content')
     <div class="max-w-7xl mx-auto px-4 sm:px-6">
@@ -8,7 +8,7 @@
         <section class="grid md:grid-cols-2 gap-12 items-center py-16">
             <div>
                 <h2 class="text-4xl md:text-5xl font-semibold text-slate-800 mb-4">
-                    {{ ($site->nama_singkat ?? 'Unit Remunerasi') }}
+                    {{ ($site->nama_singkat ?? 'Unit Remuneration') }}
                 </h2>
                 <p class="text-slate-500 mb-8">
                     {{ $site->nama ? 'Sistem informasi pengelolaan remunerasi & kinerja - '.$site->nama : 'Sistem informasi pengelolaan remunerasi dan kinerja pegawai RSUD MGR GM ATAMBUA' }}
@@ -32,7 +32,7 @@
             <div>
                 <img class="w-full h-auto rounded-xl shadow-2xl"
                      src="{{ $site?->path_favicon ? Storage::url($site->path_favicon) : Storage::url('images/hero.jpeg') }}"
-                     alt="{{ $site->nama ?? 'Portal Remunerasi' }}">
+                     alt="{{ $site->nama ?? 'Portal Remuneration' }}">
             </div>
         </section>
 
@@ -56,7 +56,7 @@
             </div>
         </section>
 
-        {{-- Pengumuman --}}
+        {{-- Announcement --}}
         <section id="announcements" class="mb-16">
             <h2 class="text-center text-3xl font-semibold text-slate-800 mb-10">Pengumuman Terbaru</h2>
 

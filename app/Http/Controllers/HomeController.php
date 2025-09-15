@@ -9,12 +9,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Contracts\View\View;
 
 // Models (pastikan ada dengan $table yang sesuai)
-use App\Models\PengaturanSitus;
-use App\Models\PeriodePenilaian;
-use App\Models\Pengumuman;
-use App\Models\PertanyaanUmum;
-use App\Models\EntriLogbook;
-use App\Models\JadwalDokter;
+use App\Models\SiteSetting;
+use App\Models\AssessmentPeriod;
+use App\Models\Announcement;
+use App\Models\Faq;
+use App\Models\LogbookEntry;
+use App\Models\DoctorSchedule;
 use App\Models\User;
 
 use Carbon\Carbon;
@@ -42,11 +42,11 @@ class HomeController extends Controller
         Carbon::setLocale('id');
 
         // Site/Profile
-        $site = Cache::remember('site.profile', 300, fn () => PengaturanSitus::query()->first());
+        $site = Cache::remember('site.profile', 300, fn () => SiteSetting::query()->first());
 
         // Periode aktif
         $periodeAktif = Cache::remember('periode.aktif', 300, function () {
-            return PeriodePenilaian::query()
+            return AssessmentPeriod::query()
                 ->where('is_active', 1)
                 ->orderByDesc('id')
                 ->first();
@@ -64,12 +64,12 @@ class HomeController extends Controller
         });
 
         // Total entri logbook (bisa difilter status jika perlu)
-        $logbookTerisi = Cache::remember('stat.logbook_terisi', 300, fn () => EntriLogbook::query()->count());
+        $logbookTerisi = Cache::remember('stat.logbook_terisi', 300, fn () => LogbookEntry::query()->count());
 
         // Jadwal dokter besok (opsional untuk info tambahan di hero)
         $jadwalDokterBesok = Cache::remember('stat.jadwal_dokter_besok', 300, function () {
             $besok = Carbon::tomorrow()->toDateString();
-            return JadwalDokter::whereDate('tanggal', $besok)->count();
+            return DoctorSchedule::whereDate('tanggal', $besok)->count();
         });
 
         $stats = [
@@ -97,9 +97,9 @@ class HomeController extends Controller
             ],
         ];
 
-        // Pengumuman terbaru (termasuk yang belum kedaluwarsa)
+        // Announcement terbaru (termasuk yang belum kedaluwarsa)
         $announcements = Cache::remember('pengumuman.terbaru', 300, function () {
-            return Pengumuman::query()
+            return Announcement::query()
                 ->where(function ($q) {
                     $q->whereNull('kedaluwarsa_pada')
                         ->orWhere('kedaluwarsa_pada', '>=', now());
@@ -111,7 +111,7 @@ class HomeController extends Controller
 
         // FAQ aktif
         $faqs = Cache::remember('faq.aktif', 300, function () {
-            return PertanyaanUmum::query()
+            return Faq::query()
                 ->where('aktif', 1)
                 ->orderBy('urutan')
                 ->limit(10)
@@ -120,7 +120,7 @@ class HomeController extends Controller
 
         // Quick links (statis untuk sekarang; bisa ambil dari DB jika sudah ada tabelnya)
         $links = [
-            ['icon' => 'fa-table',          'title' => 'Data Remunerasi', 'desc' => 'Lihat data remunerasi pegawai', 'href' => route('data')],
+            ['icon' => 'fa-table',          'title' => 'Data Remuneration', 'desc' => 'Lihat data remunerasi pegawai', 'href' => route('data')],
             ['icon' => 'fa-clipboard-list', 'title' => 'Logbook Harian',  'desc' => 'Isi logbook kerja harian',     'href' => route('login') . '?redirect=logbook'],
             ['icon' => 'fa-chart-bar',      'title' => 'Laporan SKP',     'desc' => 'Lihat laporan kinerja SKP',     'href' => '#'],
             ['icon' => 'fa-download',       'title' => 'Unduh Formulir',  'desc' => 'Download formulir terbaru',      'href' => '#'],

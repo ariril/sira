@@ -299,9 +299,9 @@ class DatabaseSeeder extends Seeder
             // 7) PERFORMANCE CRITERIAS
             // =========================================================
             $criterias = [
-                ['name'=>'Kedisiplinan','type'=>'angka','description'=>null,'is_active'=>1],
-                ['name'=>'Pelayanan Pasien','type'=>'angka','description'=>null,'is_active'=>1],
-                ['name'=>'Kepatuhan Prosedur','type'=>'angka','description'=>null,'is_active'=>1],
+                ['name'=>'Kedisiplinan','type'=>'benefit','description'=>null,'is_active'=>1],
+                ['name'=>'Pelayanan Pasien','type'=>'benefit','description'=>null,'is_active'=>1],
+                ['name'=>'Kepatuhan Prosedur','type'=>'benefit','description'=>null,'is_active'=>1],
             ];
             foreach ($criterias as &$k) { $k['created_at']=$now; $k['updated_at']=$now; }
             DB::table('performance_criterias')->insert($criterias);

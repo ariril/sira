@@ -1,5 +1,5 @@
 @extends('layouts.public')
-@section('title','Data Remunerasi - Unit Remunerasi')
+@section('title','Data Remuneration - Unit Remuneration')
 
 @section('content')
     {{-- Header --}}
@@ -53,7 +53,7 @@
                             </select>
                         </div>
 
-                        {{-- Profesi --}}
+                        {{-- Profession --}}
                         <div>
                             <label class="block mb-2 font-medium text-slate-700">Profesi:</label>
                             <select name="profesi_id"

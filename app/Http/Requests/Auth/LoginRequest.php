@@ -75,7 +75,7 @@ class LoginRequest extends FormRequest
 
             Auth::logout();
             throw ValidationException::withMessages([
-                'profesi_id' => __('Profesi yang dipilih tidak sesuai dengan akun Anda.'),
+                'profesi_id' => __('Profession yang dipilih tidak sesuai dengan akun Anda.'),
             ])->redirectTo(url()->previous());
         }
     }

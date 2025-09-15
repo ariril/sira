@@ -7,7 +7,7 @@
                      class="w-[60px] h-[60px] rounded-lg md:w-[60px] md:h-[60px]">
                 <div>
                     <h1 class="text-[1.8rem] font-semibold leading-tight">
-                        {{ $site->nama_singkat ?? 'Unit Remunerasi' }}
+                        {{ $site->nama_singkat ?? 'Unit Remuneration' }}
                     </h1>
                     <p class="text-white/90 text-sm m-0">
                         {{ $site->nama ?? 'Universitas Sebelas Maret' }}

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use App\Models\Kunjungan;
-use App\Models\Ulasan;
+use App\Models\Visit;
+use App\Models\Review;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -52,7 +52,7 @@ class UlasanPublicController extends Controller
 
         DB::transaction(function () use ($request, $data) {
             // Buat / ambil kunjungan berdasarkan ticket_code
-            $kunjungan = Kunjungan::firstOrCreate(
+            $kunjungan = Visit::firstOrCreate(
                 ['ticket_code' => $data['ticket_code']],
                 [
                     'unit_kerja_id' => $data['unit_kerja_id'] ?? null,
@@ -61,11 +61,11 @@ class UlasanPublicController extends Controller
             );
 
             // (opsional) cegah 2 ulasan untuk 1 ticket
-            if (Ulasan::where('kunjungan_id', $kunjungan->id)->exists()) {
-                abort(422, 'Ulasan untuk tiket ini sudah ada.');
+            if (Review::where('kunjungan_id', $kunjungan->id)->exists()) {
+                abort(422, 'Review untuk tiket ini sudah ada.');
             }
 
-            $ulasan = Ulasan::create([
+            $ulasan = Review::create([
                 'kunjungan_id'   => $kunjungan->id,
                 'overall_rating' => $data['overall_rating'] ?? null,
                 'komentar'       => $data['komentar'] ?? null,

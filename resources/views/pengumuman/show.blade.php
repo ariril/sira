@@ -63,7 +63,7 @@
 
         {{-- Optional: kartu rekomendasi singkat --}}
         @php
-            $lainnya = \App\Models\Pengumuman::where('id','<>',$item->id)
+            $lainnya = \App\Models\Announcement::where('id','<>',$item->id)
               ->orderByDesc('dipublikasikan_pada')->limit(3)->get();
         @endphp
 

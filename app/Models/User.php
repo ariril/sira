@@ -5,102 +5,115 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-// use Laravel\Sanctum\HasApiTokens; // aktifkan kalau pakai Sanctum
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable; // , HasApiTokens;
+    use HasFactory, Notifiable;
 
-    /** Role constants (opsional, biar rapi) */
+    /*
+    |--------------------------------------------------------------------------
+    | Role constants
+    |--------------------------------------------------------------------------
+    */
     public const ROLE_PEGAWAI_MEDIS = 'pegawai_medis';
-    public const ROLE_KEPALA_UNIT = 'kepala_unit';
-    public const ROLE_ADMINISTRASI = 'administrasi';
-    public const ROLE_SUPER_ADMIN = 'super_admin';
+    public const ROLE_KEPALA_UNIT   = 'kepala_unit';
+    public const ROLE_ADMINISTRASI  = 'administrasi';
+    public const ROLE_SUPER_ADMIN   = 'super_admin';
 
-    /** Mass assignable fields */
+    /*
+    |--------------------------------------------------------------------------
+    | Fillable
+    |--------------------------------------------------------------------------
+    */
     protected $fillable = [
-        'nama', 'email', 'password',
-        'nip', 'tanggal_mulai_kerja', 'jenis_kelamin', 'kewarganegaraan',
-        'nomor_identitas', 'alamat', 'nomor_telepon', 'pendidikan_terakhir',
-        'jabatan', 'unit_kerja_id', 'role', 'profesi_id',
+        'employee_number',
+        'name',
+        'start_date',
+        'gender',
+        'nationality',
+        'id_number',
+        'address',
+        'phone',
+        'email',
+        'last_education',
+        'position',
+        'unit_id',
+        'profession_id',
+        'password',
+        'role',
     ];
 
-    /** Hidden attrs */
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
 
-    /** Casts */
-    protected function casts(): array
+    protected $casts = [
+        'start_date'        => 'date',
+        'email_verified_at' => 'datetime',
+        'password'          => 'hashed',
+    ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+    public function profession(): BelongsTo
     {
-        return [
-            'email_verified_at'  => 'datetime',
-            'tanggal_mulai_kerja'=> 'date',
-            'password'           => 'hashed',
-        ];
+        return $this->belongsTo(Profession::class);
     }
 
-    /* =======================
-       Relasi
-       ======================= */
-    public function profesi(): BelongsTo
+    public function unit(): BelongsTo
     {
-        return $this->belongsTo(Profesi::class);
+        return $this->belongsTo(Unit::class);
     }
 
-    public function unitKerja(): BelongsTo
+    public function performanceAssessments(): HasMany
     {
-        return $this->belongsTo(UnitKerja::class);
+        return $this->hasMany(PerformanceAssessment::class);
     }
 
-    public function penilaianKinerjas(): HasMany
+    public function attendances(): HasMany
     {
-        return $this->hasMany(PenilaianKinerja::class, 'user_id');
+        return $this->hasMany(Attendance::class);
     }
 
-    public function kehadirans(): HasMany
+    public function additionalContributions(): HasMany
     {
-        return $this->hasMany(Kehadiran::class, 'user_id');
+        return $this->hasMany(AdditionalContribution::class);
     }
 
-    public function kontribusiTambahans(): HasMany
+    public function remunerations(): HasMany
     {
-        return $this->hasMany(KontribusiTambahan::class, 'user_id');
+        return $this->hasMany(Remuneration::class);
     }
 
-    public function remunerasis(): HasMany
+    public function doctorSchedules(): HasMany
     {
-        return $this->hasMany(Remunerasi::class, 'user_id');
+        return $this->hasMany(DoctorSchedule::class, 'doctor_id');
     }
 
-    public function jadwalDokters(): HasMany
+    public function reviewDetails(): HasMany
     {
-        return $this->hasMany(JadwalDokter::class, 'user_id');
+        return $this->hasMany(ReviewDetail::class, 'medical_staff_id');
     }
 
-    /** Ulasan pasien yang (opsional) terkait user/tenaga medis ini */
-    public function ulasanPasiens(): HasMany
+    public function patientQueuesAsDoctor(): HasMany
     {
-        return $this->hasMany(UlasanPasien::class, 'user_id');
+        return $this->hasMany(PatientQueue::class, 'on_duty_doctor_id');
     }
 
-    /** Antrian di mana user ini menjadi dokter bertugas (jika ada) */
-    public function antrianSebagaiDokter(): HasMany
-    {
-        return $this->hasMany(AntrianPasien::class, 'dokter_bertugas_user_id');
-    }
-
-    /* =======================
-       Scope
-       ======================= */
+    /*
+    |--------------------------------------------------------------------------
+    | Scopes & Helpers
+    |--------------------------------------------------------------------------
+    */
     public function scopeRole($q, string $role)
     {
         return $q->where('role', $role);
-    }
-
-    public function scopeProfesi($q, string $kode)
-    {
-        return $q->whereHas('profesi', fn($p) => $p->where('kode', $kode));
     }
 
     public function isKepalaUnit(): bool

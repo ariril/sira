@@ -3,7 +3,7 @@
 
     $user = auth()->user();
     $role = $user?->role;
-    $site = \App\Models\PengaturanSitus::first();
+    $site = \App\Models\SiteSetting::first();
 
     $href = function (string $routeName, string $fallbackPath) {
         return Route::has($routeName) ? route($routeName) : url($fallbackPath);
@@ -30,7 +30,7 @@
                 ['label'=>'Unit Kerja','icon'=>'fa-diagram-project',
                  'href'=>$href('super_admin.unit_kerja.index','/super-admin/unit-kerja'),
                  'active'=>request()->routeIs('super_admin.unit_kerja.*')],
-                ['label'=>'Profesi','icon'=>'fa-user-doctor',
+                ['label'=>'Profession','icon'=>'fa-user-doctor',
                  'href'=>$href('super_admin.profesi.index','/super-admin/profesi'),
                  'active'=>request()->routeIs('super_admin.profesi.*')],
             ],
@@ -54,23 +54,23 @@
             ],
         ],
         [
-            'heading' => 'Kehadiran',
+            'heading' => 'Attendance',
             'items' => [
                 ['label'=>'Impor Excel','icon'=>'fa-file-arrow-up',
                  'href'=>$href('super_admin.kehadiran.import','/super-admin/kehadiran/import'),
                  'active'=>request()->is('super-admin/kehadiran/import*')],
-                ['label'=>'Rekap Kehadiran','icon'=>'fa-calendar-check',
+                ['label'=>'Rekap Attendance','icon'=>'fa-calendar-check',
                  'href'=>$href('super_admin.kehadiran.index','/super-admin/kehadiran'),
                  'active'=>request()->is('super-admin/kehadiran*')],
             ],
         ],
         [
-            'heading' => 'Remunerasi',
+            'heading' => 'Remuneration',
             'items' => [
                 ['label'=>'Perhitungan & Publikasi','icon'=>'fa-money-bill-trend-up',
                  'href'=>$href('super_admin.remunerasi.index','/super-admin/remunerasi'),
                  'active'=>request()->routeIs('super_admin.remunerasi.*')],
-                ['label'=>'Laporan Remunerasi','icon'=>'fa-file-invoice',
+                ['label'=>'Laporan Remuneration','icon'=>'fa-file-invoice',
                  'href'=>$href('super_admin.remunerasi.report','/super-admin/remunerasi/laporan'),
                  'active'=>request()->is('super-admin/remunerasi/laporan*')],
             ],
@@ -84,10 +84,10 @@
                 ['label'=>'Antrian Pasien','icon'=>'fa-clipboard-list',
                  'href'=>$href('super_admin.antrian.index','/super-admin/antrian'),
                  'active'=>request()->is('super-admin/antrian*')],
-                ['label'=>'Kunjungan','icon'=>'fa-id-card-clip',
+                ['label'=>'Visit','icon'=>'fa-id-card-clip',
                  'href'=>$href('super_admin.kunjungan.index','/super-admin/kunjungan'),
                  'active'=>request()->is('super-admin/kunjungan*')],
-                ['label'=>'Petugas per Kunjungan','icon'=>'fa-user-nurse',
+                ['label'=>'Petugas per Visit','icon'=>'fa-user-nurse',
                  'href'=>$href('super_admin.kunjungan_tm.index','/super-admin/kunjungan/tenaga-medis'),
                  'active'=>request()->is('super-admin/kunjungan/tenaga-medis*')],
                 ['label'=>'Transaksi Pembayaran','icon'=>'fa-cash-register',
@@ -98,7 +98,7 @@
         [
             'heading' => 'Feedback Pasien',
             'items' => [
-                ['label'=>'Ulasan Pasien','icon'=>'fa-comments',
+                ['label'=>'Review Pasien','icon'=>'fa-comments',
                  'href'=>$href('super_admin.ulasan.index','/super-admin/ulasan'),
                  'active'=>request()->routeIs('super_admin.ulasan.*')],
             ],
@@ -106,7 +106,7 @@
         [
             'heading' => 'Konten Situs',
             'items' => [
-                ['label'=>'Pengumuman','icon'=>'fa-bullhorn',
+                ['label'=>'Announcement','icon'=>'fa-bullhorn',
                  'href'=>$href('super_admin.pengumuman.index','/super-admin/konten/pengumuman'),
                  'active'=>request()->routeIs('super_admin.pengumuman.*')],
                 ['label'=>'FAQ','icon'=>'fa-circle-question',
@@ -151,7 +151,7 @@
                 ['label'=>'Antrian Pasien','icon'=>'fa-clipboard-list',
                  'href'=>$href('administrasi.antrian.index','/administrasi/antrian'),
                  'active'=>request()->is('administrasi/antrian*')],
-                ['label'=>'Kunjungan','icon'=>'fa-id-card-clip',
+                ['label'=>'Visit','icon'=>'fa-id-card-clip',
                  'href'=>$href('administrasi.kunjungan.index','/administrasi/kunjungan'),
                  'active'=>request()->is('administrasi/kunjungan*')],
                 ['label'=>'Transaksi Pembayaran','icon'=>'fa-cash-register',
@@ -162,7 +162,7 @@
         [
             'heading' => 'Feedback',
             'items' => [
-                ['label'=>'Ulasan Pasien','icon'=>'fa-comments',
+                ['label'=>'Review Pasien','icon'=>'fa-comments',
                  'href'=>$href('administrasi.ulasan.index','/administrasi/ulasan'),
                  'active'=>request()->routeIs('administrasi.ulasan.*')],
             ],
@@ -185,14 +185,17 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6">
         <div class="h-14 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <button @click="sidebarOpen = !sidebarOpen" class="p-2 rounded-md hover:bg-slate-100 lg:hidden" aria-label="Toggle navigation">
+                <button @click="sidebarOpen = !sidebarOpen" class="p-2 rounded-md hover:bg-slate-100 lg:hidden"
+                        aria-label="Toggle navigation">
                     <i class="fa-solid fa-bars"></i>
                 </button>
-                <a href="{{ $role==='super_admin' ? url('/super-admin/dashboard') : url('/administrasi/dashboard') }}" class="flex items-center gap-2">
+                <a href="{{ $role==='super_admin' ? url('/super-admin/dashboard') : url('/administrasi/dashboard') }}"
+                   class="flex items-center gap-2">
                     @if($site?->path_logo)
                         <img src="{{ Storage::url($site->path_logo) }}" class="h-7 w-7 rounded" alt="Logo">
                     @else
-                        <span class="inline-grid place-items-center h-7 w-7 rounded bg-blue-600 text-white font-bold">R</span>
+                        <span
+                            class="inline-grid place-items-center h-7 w-7 rounded bg-blue-600 text-white font-bold">R</span>
                     @endif
                     <span class="font-semibold text-slate-800">{{ $site->nama_singkat ?? 'RSUD GM Atambua' }}</span>
                 </a>
@@ -200,10 +203,12 @@
 
             <div class="flex items-center gap-4">
                 <div class="hidden md:block">
-                    <input type="search" placeholder="Cari…" class="px-3 py-1.5 rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="search" placeholder="Cari…"
+                           class="px-3 py-1.5 rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div class="relative" x-data="{open:false}">
-                    <button @click="open=!open" class="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-slate-100">
+                    <button @click="open=!open"
+                            class="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-slate-100">
                         <i class="fa-solid fa-user-circle text-lg text-slate-600"></i>
                         <span class="hidden sm:block text-sm">{{ $user?->nama ?? 'User' }}</span>
                         <i class="fa-solid fa-chevron-down text-xs text-slate-500"></i>

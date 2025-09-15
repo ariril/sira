@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@yield('title','Unit Remunerasi - Universitas Sebelas Maret')</title>
+    <title>@yield('title','Unit Remuneration - Universitas Sebelas Maret')</title>
 
     {{-- Tailwind v4 (via Vite) --}}
     @vite(['resources/css/app.css','resources/js/app.js'])

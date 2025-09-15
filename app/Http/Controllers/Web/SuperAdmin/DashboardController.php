@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\UnitKerja;
-use App\Models\Profesi;
+use App\Models\Unit;
+use App\Models\Profession;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -16,8 +16,8 @@ class DashboardController extends Controller
     {
         $stats = [
             'total_user'     => User::count(),
-            'total_unit'     => UnitKerja::count(),
-            'total_profesi'  => Profesi::count(),
+            'total_unit'     => Unit::count(),
+            'total_profesi'  => Profession::count(),
             'pegawai_medis'  => User::where('role','pegawai_medis')->count(),
             'kepala_unit'    => User::where('role','kepala_unit')->count(),
             'administrasi'   => User::where('role','administrasi')->count(),
@@ -66,7 +66,7 @@ class DashboardController extends Controller
                 ->get();
         }
 
-        // Remunerasi & Penilaian (opsional)
+        // Remuneration & Penilaian (opsional)
         $kinerja = [
             'periode_aktif'  => null,
             'total_remunerasi_periode' => null,

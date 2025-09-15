@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use App\Models\PertanyaanUmum;
+use App\Models\Faq;
 
 class PertanyaanUmumController extends Controller
 {
     public function index()
     {
-        $items = PertanyaanUmum::where('aktif', 1)
+        $items = Faq::where('aktif', 1)
             ->orderBy('urutan')
             ->paginate(10);
 
