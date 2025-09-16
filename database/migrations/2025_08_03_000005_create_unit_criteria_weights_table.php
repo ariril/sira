@@ -13,17 +13,41 @@ return new class extends Migration
 
             $table->foreignId('unit_id')
                 ->constrained('units')
-                ->onDelete('cascade'); // id_unit -> unit_id
+                ->onDelete('cascade');
 
             $table->foreignId('performance_criteria_id')
                 ->constrained('performance_criterias')
-                ->onDelete('cascade'); // id_kriteria -> performance_criteria_id
+                ->onDelete('cascade');
 
-            $table->decimal('weight', 5, 2); // bobot
+            $table->decimal('weight', 5, 2);
+
+            // Revisi: Approval & policy
+            $table->foreignId('assessment_period_id')
+                ->nullable()
+                ->constrained('assessment_periods')
+                ->nullOnDelete();
+
+            $table->enum('status', ['draft','pending','active','rejected'])
+                ->default('draft');
+
+            $table->string('policy_doc_path')->nullable();
+            $table->text('policy_note')->nullable();
+
+            $table->foreignId('unit_head_id')->nullable()
+                ->constrained('users')->nullOnDelete();
+            $table->text('unit_head_note')->nullable();
+
+            $table->foreignId('polyclinic_head_id')->nullable()
+                ->constrained('users')->nullOnDelete();
 
             $table->timestamps();
 
-            $table->unique(['unit_id', 'performance_criteria_id'], 'uniq_unit_criteria');
+            // Index
+            $table->unique(
+                ['unit_id','performance_criteria_id','assessment_period_id','status'],
+                'uniq_unit_crit_period_status'
+            );
+            $table->index(['assessment_period_id','status'], 'idx_ucw_period_status');
         });
     }
 
@@ -31,5 +55,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('unit_criteria_weights');
     }
-
 };
