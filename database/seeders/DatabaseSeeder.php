@@ -16,10 +16,8 @@ class DatabaseSeeder extends Seeder
             $now = Carbon::now();
 
             // =========================================================
-            // 1) UNITS (lengkap: manajemen, admin, poli, penunjang)
+            // 1) UNITS
             // =========================================================
-
-            // Insert Manajemen dulu agar parent_id bisa direferensikan
             $managementId = DB::table('units')->insertGetId([
                 'name' => 'Manajemen Rumah Sakit',
                 'slug' => 'manajemen-rumah-sakit',
@@ -74,7 +72,6 @@ class DatabaseSeeder extends Seeder
             }
             DB::table('units')->insert($units);
 
-            // Helper ambil id unit cepat
             $unitId = fn(string $slug) => DB::table('units')->where('slug', $slug)->value('id');
 
             // =========================================================
@@ -96,16 +93,15 @@ class DatabaseSeeder extends Seeder
             $professionId = fn(string $code) => DB::table('professions')->where('code', $code)->value('id');
 
             // =========================================================
-            // 3) USERS (akun awal)
+            // 3) USERS
             // =========================================================
-            $users = [
+            DB::table('users')->insert([
                 [
-                    'employee_number' => '000000000000000001', // nip
+                    'employee_number' => '000000000000000001',
                     'name' => 'Super Admin',
                     'start_date' => '2020-01-01',
                     'gender' => 'Laki-laki',
                     'nationality' => 'Indonesia',
-                    'id_number' => 'ID-0001',
                     'address' => 'Jl. Dr. Sutomo No. 2, Atambua',
                     'phone' => '0389-2513137',
                     'email' => 'superadmin@rsud.local',
@@ -125,7 +121,6 @@ class DatabaseSeeder extends Seeder
                     'start_date' => '2017-03-12',
                     'gender' => 'Perempuan',
                     'nationality' => 'Indonesia',
-                    'id_number' => 'ID-0002',
                     'address' => 'Atambua',
                     'phone' => '0812-2467-11027',
                     'email' => 'kepala.igd@rsud.local',
@@ -145,7 +140,6 @@ class DatabaseSeeder extends Seeder
                     'start_date' => '2019-07-01',
                     'gender' => 'Laki-laki',
                     'nationality' => 'Indonesia',
-                    'id_number' => 'ID-0003',
                     'address' => 'Atambua',
                     'phone' => '0813-3333-3333',
                     'email' => 'rekam.medis@rsud.local',
@@ -165,7 +159,6 @@ class DatabaseSeeder extends Seeder
                     'start_date' => '2021-02-10',
                     'gender' => 'Laki-laki',
                     'nationality' => 'Indonesia',
-                    'id_number' => 'ID-0004',
                     'address' => 'Atambua',
                     'phone' => '0814-4444-4444',
                     'email' => 'dokter.umum@rsud.local',
@@ -185,7 +178,6 @@ class DatabaseSeeder extends Seeder
                     'start_date' => '2018-11-05',
                     'gender' => 'Perempuan',
                     'nationality' => 'Indonesia',
-                    'id_number' => 'ID-0005',
                     'address' => 'Atambua',
                     'phone' => '0815-5555-5555',
                     'email' => 'perawat@rsud.local',
@@ -199,10 +191,17 @@ class DatabaseSeeder extends Seeder
                     'remember_token' => Str::random(10),
                     'created_at' => $now, 'updated_at' => $now,
                 ],
-            ];
-            DB::table('users')->insert($users);
+            ]);
 
             $userId = fn(string $email) => DB::table('users')->where('email', $email)->value('id');
+
+            // helper ids
+            $doctorId          = $userId('dokter.umum@rsud.local');
+            $nurseId           = $userId('perawat@rsud.local');
+            $superAdminId      = $userId('superadmin@rsud.local');
+            $headIgdId         = $userId('kepala.igd@rsud.local');
+            $rekamMedisId      = $userId('rekam.medis@rsud.local');
+            $poliklinikUmumId  = $unitId('poliklinik-umum');
 
             // =========================================================
             // 4) SITE SETTINGS
@@ -221,7 +220,7 @@ class DatabaseSeeder extends Seeder
                 'twitter_url'      => null,
                 'youtube_url'      => null,
                 'footer_text'      => '© ' . date('Y') . ' RSUD Mgr. Gabriel Manek, SVD Atambua. Semua hak cipta.',
-                'updated_by'       => $userId('superadmin@rsud.local'),
+                'updated_by'       => $superAdminId,
                 'created_at'       => $now,
                 'updated_at'       => $now,
             ]);
@@ -310,23 +309,23 @@ class DatabaseSeeder extends Seeder
             DB::table('performance_criterias')->where('name', $name)->value('id');
 
             // =========================================================
-            // 8) UNIT CRITERIA WEIGHTS (contoh untuk Poli Umum)
+            // 8) UNIT CRITERIA WEIGHTS (contoh Poli Umum)
             // =========================================================
             DB::table('unit_criteria_weights')->insert([
                 [
-                    'unit_id' => $unitId('poliklinik-umum'),
+                    'unit_id' => $poliklinikUmumId,
                     'performance_criteria_id' => $criteriaId('Kedisiplinan'),
                     'weight' => 40.00,
                     'created_at'=>$now,'updated_at'=>$now
                 ],
                 [
-                    'unit_id' => $unitId('poliklinik-umum'),
+                    'unit_id' => $poliklinikUmumId,
                     'performance_criteria_id' => $criteriaId('Pelayanan Pasien'),
                     'weight' => 40.00,
                     'created_at'=>$now,'updated_at'=>$now
                 ],
                 [
-                    'unit_id' => $unitId('poliklinik-umum'),
+                    'unit_id' => $poliklinikUmumId,
                     'performance_criteria_id' => $criteriaId('Kepatuhan Prosedur'),
                     'weight' => 20.00,
                     'created_at'=>$now,'updated_at'=>$now
@@ -347,115 +346,40 @@ class DatabaseSeeder extends Seeder
                 'published_at' => $now,
                 'expired_at' => null,
                 'attachments' => json_encode([]),
-                'author_id' => $userId('superadmin@rsud.local'),
+                'author_id' => $superAdminId,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
 
             // =========================================================
-            // 10) FAQS
+            // 10) FAQS (dengan user_id)
             // =========================================================
             DB::table('faqs')->insert([
                 [
                     'question'=>'Jam operasional IGD?',
                     'answer'=>'IGD melayani 24 jam, 7 hari seminggu.',
                     'order'=>1,'is_active'=>1,'category'=>'layanan',
+                    'user_id'=>$superAdminId,
                     'created_at'=>$now,'updated_at'=>$now
                 ],
                 [
                     'question'=>'Cara ambil nomor antrian poli?',
                     'answer'=>'Datang ke loket pendaftaran atau gunakan aplikasi internal bila tersedia.',
                     'order'=>2,'is_active'=>1,'category'=>'antrian',
+                    'user_id'=>$superAdminId,
                     'created_at'=>$now,'updated_at'=>$now
                 ],
                 [
                     'question'=>'Kontak RS?',
                     'answer'=>'Telepon (0389)2513137, Email rsudatambua66@gmail.com.',
                     'order'=>3,'is_active'=>1,'category'=>'kontak',
+                    'user_id'=>$superAdminId,
                     'created_at'=>$now,'updated_at'=>$now
                 ],
             ]);
 
             // =========================================================
-            // (Bonus UI) VISITS & QUEUE HARI INI
-            // =========================================================
-            $visitId = DB::table('visits')->insertGetId([
-                'ticket_code' => 'KJ-'.date('Ymd').'-0001',
-                'unit_id' => $unitId('poliklinik-umum'),
-                'visit_date' => $now,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            $queueId = DB::table('patient_queues')->insertGetId([
-                'queue_date' => $now->toDateString(),
-                'queue_number' => 1,
-                'queue_status' => 'Menunggu',
-                'queued_at' => $now->format('H:i:s'),
-                'service_started_at' => null,
-                'service_finished_at' => null,
-                'on_duty_doctor_id' => $userId('dokter.umum@rsud.local'),
-                'unit_id' => $unitId('poliklinik-umum'),
-                'patient_ref' => 'RM-EX-0001',
-                'visit_id' => $visitId,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            DB::table('visit_medical_staff')->insert([
-                [
-                    'visit_id'=>$visitId,
-                    'medical_staff_id'=>$userId('dokter.umum@rsud.local'),
-                    'role'=>'dokter',
-                    'duration_minutes'=>15,
-                    'created_at'=>$now,'updated_at'=>$now
-                ],
-                [
-                    'visit_id'=>$visitId,
-                    'medical_staff_id'=>$userId('perawat@rsud.local'),
-                    'role'=>'perawat',
-                    'duration_minutes'=>10,
-                    'created_at'=>$now,'updated_at'=>$now
-                ],
-            ]);
-
-            // =========================================================
-            // Helper IDs (dipakai di bawah)
-            // =========================================================
-            $doctorId     = $userId('dokter.umum@rsud.local');
-            $nurseId      = $userId('perawat@rsud.local');
-            $superAdminId = $userId('superadmin@rsud.local');
-            $headIgdId    = $userId('kepala.igd@rsud.local');
-            $poliklinikUmumUnitId = $unitId('poliklinik-umum');
-            $assessmentPeriodId = DB::table('assessment_periods')->orderBy('id', 'desc')->value('id');
-
-            // Pastikan ada $visitId
-            $visitId = $visitId ?? DB::table('visits')->insertGetId([
-                'ticket_code' => 'KJ-'.date('Ymd').'-X001',
-                'unit_id'     => $poliklinikUmumUnitId,
-                'visit_date'  => $now,
-                'created_at'  => $now, 'updated_at' => $now,
-            ]);
-
-            // =========================================================
-            // 11) DOCTOR SCHEDULES (3 hari ke depan)
-            // =========================================================
-            $schedules = [];
-            for ($i=0; $i<3; $i++) {
-                $date = Carbon::now()->addDays($i)->toDateString();
-                $schedules[] = [
-                    'doctor_id'   => $doctorId,
-                    'schedule_date' => $date,
-                    'start_time'  => '08:00:00',
-                    'end_time'    => '12:00:00',
-                    'unit_id'     => $poliklinikUmumUnitId,
-                    'created_at'  => $now, 'updated_at' => $now,
-                ];
-            }
-            DB::table('doctor_schedules')->insert($schedules);
-
-            // =========================================================
-            // 12) ATTENDANCE IMPORT BATCH (dummy 1 file) -> relasi attendances
+            // 11) ATTENDANCE IMPORT BATCH + ATTENDANCES
             // =========================================================
             $batchId = DB::table('attendance_import_batches')->insertGetId([
                 'file_name'       => 'simrs_khanza_'.date('Y-m-d').'.xlsx',
@@ -467,9 +391,6 @@ class DatabaseSeeder extends Seeder
                 'created_at'      => $now, 'updated_at' => $now,
             ]);
 
-            // =========================================================
-            // 13) ATTENDANCES (dokter & perawat hari ini, sumber import)
-            // =========================================================
             DB::table('attendances')->insert([
                 [
                     'user_id'          => $doctorId,
@@ -496,7 +417,7 @@ class DatabaseSeeder extends Seeder
             ]);
 
             // =========================================================
-            // 14) ADDITIONAL CONTRIBUTIONS (contoh dua usulan pegawai)
+            // 12) ADDITIONAL CONTRIBUTIONS
             // =========================================================
             DB::table('additional_contributions')->insert([
                 [
@@ -505,7 +426,7 @@ class DatabaseSeeder extends Seeder
                     'description'          => 'Draft SOP triase pasien poli umum untuk percepatan alur.',
                     'submission_date'      => $now->toDateString(),
                     'evidence_file'        => null,
-                    'validation_status'    => 'Menunggu Persetujuan', // mapped from 'menunggu'
+                    'validation_status'    => 'Menunggu Persetujuan',
                     'supervisor_comment'   => null,
                     'assessment_period_id' => $assessmentPeriodId,
                     'created_at'           => $now, 'updated_at' => $now,
@@ -516,7 +437,7 @@ class DatabaseSeeder extends Seeder
                     'description'          => 'Materi penyuluhan singkat untuk pasien rawat jalan.',
                     'submission_date'      => $now->toDateString(),
                     'evidence_file'        => null,
-                    'validation_status'    => 'Disetujui',           // mapped from 'disetujui'
+                    'validation_status'    => 'Disetujui',
                     'supervisor_comment'   => 'Bagus, lanjutkan implementasi.',
                     'assessment_period_id' => $assessmentPeriodId,
                     'created_at'           => $now, 'updated_at' => $now,
@@ -524,48 +445,44 @@ class DatabaseSeeder extends Seeder
             ]);
 
             // =========================================================
-            // 15) PERFORMANCE ASSESSMENTS (dokter poli umum pada periode aktif)
+            // 13) PERFORMANCE ASSESSMENTS
             // =========================================================
             $pkDoctorId = DB::table('performance_assessments')->insertGetId([
                 'user_id'                => $doctorId,
                 'assessment_period_id'   => $assessmentPeriodId,
                 'assessment_date'        => $now->toDateString(),
                 'total_wsm_score'        => 86.50,
-                'validation_status'      => 'Menunggu Validasi', // mapped from 'menunggu'
+                'validation_status'      => 'Menunggu Validasi',
                 'supervisor_comment'     => null,
                 'created_at'             => $now, 'updated_at' => $now,
             ]);
 
             // =========================================================
-            // 16) PERFORMANCE ASSESSMENT DETAILS (sinkron dgn criterias yang ada)
+            // 14) PERFORMANCE ASSESSMENT DETAILS
             // =========================================================
-            $kedisiplinanId    = $criteriaId('Kedisiplinan');
-            $pelayananPasienId = $criteriaId('Pelayanan Pasien');
-            $kepatuhanId       = $criteriaId('Kepatuhan Prosedur');
-
             DB::table('performance_assessment_details')->insert([
                 [
                     'performance_assessment_id' => $pkDoctorId,
-                    'performance_criteria_id'   => $kedisiplinanId,
+                    'performance_criteria_id'   => $criteriaId('Kedisiplinan'),
                     'score'                     => 90.00,
                     'created_at'                => $now, 'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkDoctorId,
-                    'performance_criteria_id'   => $pelayananPasienId,
+                    'performance_criteria_id'   => $criteriaId('Pelayanan Pasien'),
                     'score'                     => 85.00,
                     'created_at'                => $now, 'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkDoctorId,
-                    'performance_criteria_id'   => $kepatuhanId,
+                    'performance_criteria_id'   => $criteriaId('Kepatuhan Prosedur'),
                     'score'                     => 80.00,
                     'created_at'                => $now, 'updated_at' => $now,
                 ],
             ]);
 
             // =========================================================
-            // 17) ASSESSMENT APPROVALS (2 level: Kepala Unit -> Manajemen)
+            // 15) ASSESSMENT APPROVALS (dengan snapshot profesi - opsional)
             // =========================================================
             DB::table('assessment_approvals')->insert([
                 [
@@ -589,7 +506,7 @@ class DatabaseSeeder extends Seeder
             ]);
 
             // =========================================================
-            // 18) REMUNERATIONS (berdasarkan periode & user yang sama)
+            // 16) REMUNERATIONS
             // =========================================================
             DB::table('remunerations')->insert([
                 'user_id'              => $doctorId,
@@ -609,21 +526,22 @@ class DatabaseSeeder extends Seeder
             ]);
 
             // =========================================================
-            // 19) REVIEWS (feedback pasien sederhana)
+            // 17) REVIEWS (tanpa relasi visit)
             // =========================================================
             $reviewId = DB::table('reviews')->insertGetId([
-                'visit_id'        => $visitId,
-                'overall_rating'  => 5,
-                'comment'         => 'Pelayanan cepat dan ramah.',
-                'patient_name'    => 'Bapak A',
-                'contact'         => '08xxxxxxxxxx',
-                'client_ip'       => request()->ip() ?? '127.0.0.1',
-                'user_agent'      => request()->userAgent() ?? 'Seeder',
-                'created_at'      => $now, 'updated_at' => $now,
+                'registration_ref' => 'REG-'.date('Ymd').'-0001',
+                'unit_id'          => $poliklinikUmumId,
+                'overall_rating'   => 5,
+                'comment'          => 'Pelayanan cepat dan ramah.',
+                'patient_name'     => 'Bapak A',
+                'contact'          => '08xxxxxxxxxx',
+                'client_ip'        => '127.0.0.1',
+                'user_agent'       => 'Seeder',
+                'created_at'       => $now, 'updated_at' => $now,
             ]);
 
             // =========================================================
-            // 20) REVIEW DETAILS (per nakes di kunjungan tersebut)
+            // 18) REVIEW DETAILS (per nakes)
             // =========================================================
             DB::table('review_details')->insert([
                 [
@@ -643,132 +561,6 @@ class DatabaseSeeder extends Seeder
                     'created_at'       => $now, 'updated_at' => $now,
                 ],
             ]);
-
-            // =========================================================
-            // SISA TABEL YANG BELUM DI-SEED:
-            // - (21) logbook_entries
-            // - (17) payment_transactions
-            // =========================================================
-
-            // Pastikan helper siap
-            $doctorId     = $doctorId     ?? $userId('dokter.umum@rsud.local');
-            $nurseId      = $nurseId      ?? $userId('perawat@rsud.local');
-            $superAdminId = $superAdminId ?? $userId('superadmin@rsud.local');
-            $headIgdId    = $headIgdId    ?? $userId('kepala.igd@rsud.local');
-            $rekamMedisId = $rekamMedisId ?? $userId('rekam.medis@rsud.local');
-            $poliklinikUmumId = $poliklinikUmumId ?? $unitId('poliklinik-umum');
-
-            // Pastikan ada visit & queue untuk relasi transaksi
-            $visitId = $visitId ?? DB::table('visits')->orderByDesc('id')->value('id');
-            if (!$visitId) {
-                $visitId = DB::table('visits')->insertGetId([
-                    'ticket_code' => 'KJ-'.date('Ymd').'-B001',
-                    'unit_id'     => $poliklinikUmumId,
-                    'visit_date'  => $now,
-                    'created_at'  => $now, 'updated_at' => $now,
-                ]);
-            }
-
-            $queueId = $queueId ?? DB::table('patient_queues')->orderByDesc('id')->value('id');
-            if (!$queueId) {
-                $queueId = DB::table('patient_queues')->insertGetId([
-                    'queue_date'           => $now->toDateString(),
-                    'queue_number'         => 2,
-                    'queue_status'         => 'Menunggu',
-                    'queued_at'            => $now->format('H:i:s'),
-                    'service_started_at'   => null,
-                    'service_finished_at'  => null,
-                    'on_duty_doctor_id'    => $doctorId,
-                    'unit_id'              => $poliklinikUmumId,
-                    'patient_ref'          => 'RM-EX-0002',
-                    'visit_id'             => $visitId,
-                    'created_at'           => $now, 'updated_at' => $now,
-                ]);
-            }
-
-            // =========================================================
-            // (21) LOGBOOK ENTRIES — contoh 3 entri (dokter, perawat, rekam medis)
-            // =========================================================
-            DB::table('logbook_entries')->insert([
-                [
-                    'user_id'         => $doctorId,
-                    'entry_date'      => '2025-09-09',
-                    'start_time'      => '08:00:00',
-                    'end_time'        => '11:00:00',
-                    'duration_minutes'=> 180,
-                    'activity'        => 'Pelayanan pasien rawat jalan Poli Umum (5 pasien).',
-                    'category'        => 'pelayanan',
-                    'status'          => 'disetujui',
-                    'approver_id'     => $headIgdId,
-                    'approved_at'     => '2025-09-09 13:01:11',
-                    'attachments'     => '[]',
-                    'created_at'      => '2025-09-09 13:01:11',
-                    'updated_at'      => '2025-09-09 13:01:11',
-                ],
-                [
-                    'user_id'         => $nurseId,
-                    'entry_date'      => '2025-09-09',
-                    'start_time'      => '07:30:00',
-                    'end_time'        => '12:00:00',
-                    'duration_minutes'=> 270,
-                    'activity'        => 'Triase, pengukuran TTV, dan edukasi pra-konsultasi.',
-                    'category'        => 'keperawatan',
-                    'status'          => 'diajukan',
-                    'approver_id'     => $nurseId, // sesuai contoh asli (boleh diganti null)
-                    'approved_at'     => null,
-                    'attachments'     => '[]',
-                    'created_at'      => '2025-09-09 13:01:11',
-                    'updated_at'      => '2025-09-09 13:01:11',
-                ],
-                [
-                    'user_id'         => $rekamMedisId,
-                    'entry_date'      => '2025-09-09',
-                    'start_time'      => '09:00:00',
-                    'end_time'        => '10:30:00',
-                    'duration_minutes'=> 90,
-                    'activity'        => 'Verifikasi dan penyusunan berkas rekam medis kunjungan hari ini.',
-                    'category'        => 'administrasi',
-                    'status'          => 'draf',
-                    'approver_id'     => $rekamMedisId,
-                    'approved_at'     => null,
-                    'attachments'     => '[]',
-                    'created_at'      => '2025-09-09 13:01:11',
-                    'updated_at'      => '2025-09-09 13:01:11',
-                ],
-            ]);
-
-            // =========================================================
-            // (17) PAYMENT TRANSACTIONS — 2 contoh transaksi
-            // =========================================================
-            DB::table('payment_transactions')->insert([
-                [
-                    'visit_id'                 => $visitId,
-                    'queue_id'                 => $queueId,
-                    'transaction_date'         => $now->toDateString(),
-                    'amount'                   => 75000.00,
-                    'payment_method'           => 'QRIS',
-                    'channel'                  => 'QRIS',
-                    'payment_status'           => 'Berhasil',   // enum: Berhasil | Pending | Gagal
-                    'paid_at'                  => $now,
-                    'payment_reference_number' => 'INV-'.strtoupper(Str::random(10)),
-                    'created_by'               => $superAdminId,
-                    'created_at'               => $now, 'updated_at' => $now,
-                ],
-                [
-                    'visit_id'                 => $visitId,
-                    'queue_id'                 => $queueId,
-                    'transaction_date'         => $now->toDateString(),
-                    'amount'                   => 150000.00,
-                    'payment_method'           => 'Virtual Account',
-                    'channel'                  => 'VA',
-                    'payment_status'           => 'Pending',    // mapped dari 'Menunggu'
-                    'paid_at'                  => null,
-                    'payment_reference_number' => 'INV-'.strtoupper(Str::random(10)),
-                    'created_by'               => $superAdminId,
-                    'created_at'               => $now, 'updated_at' => $now,
-                ],
-            ]);
-
         });
     }
 }

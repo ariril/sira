@@ -17,10 +17,17 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
             $table->string('category', 50)->nullable();
 
+            // pencatat/penyusun FAQ
+            $table->foreignId('user_id')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
             $table->timestamps();
 
             $table->index('order', 'faqs_order_index');
             $table->index('is_active', 'faqs_is_active_index');
+            $table->index('user_id', 'faqs_user_id_index');
         });
     }
 
@@ -28,5 +35,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('faqs');
     }
-
 };

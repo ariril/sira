@@ -10,9 +10,14 @@ return new class extends Migration {
         Schema::create('reviews', function (Blueprint $t) {
             $t->id();
 
-            $t->foreignId('visit_id')
-            ->constrained('visits')
-                ->cascadeOnDelete();
+            // Nomor dari SIM RS (tanpa relasi ke visits)
+            $t->string('registration_ref', 50);
+
+            // Unit yang dikunjungi (boleh NULL; jika unit dihapus -> NULL)
+            $t->foreignId('unit_id')
+                ->nullable()
+                ->constrained('units')
+                ->nullOnDelete();
 
             $t->unsignedTinyInteger('overall_rating')->nullable();
             $t->text('comment')->nullable();
@@ -27,8 +32,11 @@ return new class extends Migration {
 
             $t->timestamps();
 
-            // jika hanya SATU ulasan per kunjungan:
-            $t->unique('visit_id');
+            // satu review per nomor registrasi
+            $t->unique('registration_ref', 'reviews_registration_ref_unique');
+
+            // untuk laporan/analitik
+            $t->index(['unit_id', 'created_at'], 'idx_reviews_unit_created');
         });
     }
 
@@ -36,5 +44,4 @@ return new class extends Migration {
     {
         Schema::dropIfExists('reviews');
     }
-
 };

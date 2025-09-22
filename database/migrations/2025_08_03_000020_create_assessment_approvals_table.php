@@ -11,20 +11,17 @@ return new class extends Migration {
             $table->id();
 
             $table->foreignId('performance_assessment_id')
-            ->constrained('performance_assessments')
+                ->constrained('performance_assessments')
                 ->cascadeOnDelete();
 
             $table->foreignId('approver_id')
-            ->constrained('users')
+                ->constrained('users')
                 ->cascadeOnDelete();
 
             $table->unsignedSmallInteger('level');
 
-            $table->enum('status', [
-                'pending',
-                'approved',
-                'rejected',
-            ])->default('pending');
+            $table->enum('status', ['pending','approved','rejected'])
+                ->default('pending');
 
             $table->text('note')->nullable();
             $table->timestamp('acted_at')->nullable();
@@ -39,5 +36,4 @@ return new class extends Migration {
     {
         Schema::dropIfExists('assessment_approvals');
     }
-
 };
