@@ -18,8 +18,9 @@
                     <ul x-cloak x-transition.opacity x-show="show"
                         class="absolute left-0 top-full min-w-[220px] bg-slate-800 shadow-xl">
                         @forelse($profilPages as $p)
+                            @php $type = $p['type'] ?? $p['tipe'] ?? null; @endphp
                             <li>
-                                <a href="{{ route('profil.show', $p['tipe']) }}" class="block px-5 py-3 hover:bg-slate-700">
+                                <a href="{{ $type ? route('about_pages.show', $type) : '#' }}" class="block px-5 py-3 hover:bg-slate-700">
                                     {{ $p['label'] }}
                                 </a>
                             </li>
@@ -30,15 +31,30 @@
                 </li>
 
                 <li>
-                    <a href="{{ route('data') }}"
-                       class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400 {{ request()->routeIs('data')?'bg-slate-700 text-blue-400 border-blue-400':'' }}">
+                    <a href="{{ route('remuneration.data') }}"
+                       class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400 {{ request()->routeIs('remuneration.data')?'bg-slate-700 text-blue-400 border-blue-400':'' }}">
                         <i class="fa-solid fa-database"></i> Data Remunerasi
                     </a>
                 </li>
 
-                <li><a href="#" class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400"><i class="fa-regular fa-newspaper"></i> Berita</a></li>
-                <li><a href="{{ route('pertanyaan_umum.index') }}" class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400"><i class="fa-regular fa-circle-question"></i> FAQ</a></li>
-                <li><a href="{{ route('profil.show','profil_rs') }}" class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400"><i class="fa-solid fa-phone"></i> Kontak</a></li>
+                <li>
+                    <a href="{{ route('announcements.index') }}"
+                       class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400">
+                        <i class="fa-regular fa-newspaper"></i> Berita
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ route('faqs.index') }}"
+                       class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400">
+                        <i class="fa-regular fa-circle-question"></i> FAQ
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ route('about_pages.show','profil_rs') }}"
+                       class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400">
+                        <i class="fa-solid fa-phone"></i> Kontak
+                    </a>
+                </li>
             </ul>
 
             <button @click="open=!open" class="md:hidden text-slate-200 p-3">
@@ -55,16 +71,17 @@
                 </button>
                 <ul x-show="sub" x-transition class="bg-slate-700/60">
                     @forelse($profilPages as $p)
-                        <li><a href="{{ route('profil.show', $p['tipe']) }}" class="block px-6 py-3 hover:bg-slate-700">{{ $p['label'] }}</a></li>
+                        @php $type = $p['type'] ?? $p['tipe'] ?? null; @endphp
+                        <li><a href="{{ $type ? route('about_pages.show', $type) : '#' }}" class="block px-6 py-3 hover:bg-slate-700">{{ $p['label'] }}</a></li>
                     @empty
                         <li><span class="block px-6 py-3 text-slate-400">Belum ada konten</span></li>
                     @endforelse
                 </ul>
             </li>
-            <li><a href="{{ route('data') }}" class="px-4 py-3 hover:bg-slate-700">Data Remunerasi</a></li>
-            <li><a href="#" class="px-4 py-3 hover:bg-slate-700">Berita</a></li>
-            <li><a href="{{ route('pertanyaan_umum.index') }}" class="px-4 py-3 hover:bg-slate-700">FAQ</a></li>
-            <li><a href="{{ route('profil.show','profil_rs') }}" class="px-4 py-3 hover:bg-slate-700">Kontak</a></li>
+            <li><a href="{{ route('remuneration.data') }}" class="px-4 py-3 hover:bg-slate-700">Data Remunerasi</a></li>
+            <li><a href="{{ route('announcements.index') }}" class="px-4 py-3 hover:bg-slate-700">Berita</a></li>
+            <li><a href="{{ route('faqs.index') }}" class="px-4 py-3 hover:bg-slate-700">FAQ</a></li>
+            <li><a href="{{ route('about_pages.show','profil_rs') }}" class="px-4 py-3 hover:bg-slate-700">Kontak</a></li>
         </ul>
     </div>
 </nav>

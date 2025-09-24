@@ -2,15 +2,15 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4">
         <div class="flex items-center justify-between flex-wrap gap-4">
             <div class="flex items-center gap-4">
-                <img src="{{ $site?->path_logo ? Storage::url($site->path_logo) : Storage::url('images/logo-rsudmgr.jpeg') }}"
-                     alt="{{ $site->nama ?? 'Logo' }}"
+                <img src="{{ $site?->logo_path ? Storage::url($site->logo_path) : Storage::url('images/logo-rsudmgr.jpeg') }}"
+                     alt="{{ $site->name ?? 'Logo' }}"
                      class="w-[60px] h-[60px] rounded-lg md:w-[60px] md:h-[60px]">
                 <div>
                     <h1 class="text-[1.8rem] font-semibold leading-tight">
-                        {{ $site->nama_singkat ?? 'Unit Remuneration' }}
+                        {{ $site->short_name ?? 'Unit Remuneration' }}
                     </h1>
                     <p class="text-white/90 text-sm m-0">
-                        {{ $site->nama ?? 'Universitas Sebelas Maret' }}
+                        {{ $site->name ?? 'Universitas Sebelas Maret' }}
                     </p>
                 </div>
             </div>

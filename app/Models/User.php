@@ -17,10 +17,11 @@ class User extends Authenticatable
     | Role constants
     |--------------------------------------------------------------------------
     */
-    public const ROLE_PEGAWAI_MEDIS = 'pegawai_medis';
-    public const ROLE_KEPALA_UNIT   = 'kepala_unit';
-    public const ROLE_ADMINISTRASI  = 'administrasi';
-    public const ROLE_SUPER_ADMIN   = 'super_admin';
+    public const ROLE_PEGAWAI_MEDIS     = 'pegawai_medis';
+    public const ROLE_KEPALA_UNIT       = 'kepala_unit';
+    public const ROLE_KEPALA_POLIKLINIK = 'kepala_poliklinik';
+    public const ROLE_ADMINISTRASI      = 'administrasi';
+    public const ROLE_SUPER_ADMIN       = 'super_admin';
 
     /*
     |--------------------------------------------------------------------------
@@ -33,7 +34,6 @@ class User extends Authenticatable
         'start_date',
         'gender',
         'nationality',
-        'id_number',
         'address',
         'phone',
         'email',
@@ -44,6 +44,7 @@ class User extends Authenticatable
         'password',
         'role',
     ];
+    // NOTE: kolom 'id_number' tidak ada di dump -> dihapus dari $fillable agar tidak error insert
 
     protected $hidden = [
         'password',
@@ -91,20 +92,16 @@ class User extends Authenticatable
         return $this->hasMany(Remuneration::class);
     }
 
-    public function doctorSchedules(): HasMany
+    // Relasi approval (sebagai approver) — berguna untuk dashboard administrasi/kepala*
+    public function assessmentApprovals(): HasMany
     {
-        return $this->hasMany(DoctorSchedule::class, 'doctor_id');
+        return $this->hasMany(AssessmentApproval::class, 'approver_id');
     }
 
-    public function reviewDetails(): HasMany
-    {
-        return $this->hasMany(ReviewDetail::class, 'medical_staff_id');
-    }
-
-    public function patientQueuesAsDoctor(): HasMany
-    {
-        return $this->hasMany(PatientQueue::class, 'on_duty_doctor_id');
-    }
+    // RELASI YANG DIHAPUS karena tabel/arah datanya sudah tidak ada di scope TA:
+    // - doctorSchedules()         -> DoctorSchedule dihapus
+    // - reviewDetails()           -> review_details sekarang per-profession, bukan per-user
+    // - patientQueuesAsDoctor()   -> patient_queues dihapus
 
     /*
     |--------------------------------------------------------------------------
@@ -119,5 +116,20 @@ class User extends Authenticatable
     public function isKepalaUnit(): bool
     {
         return $this->role === self::ROLE_KEPALA_UNIT;
+    }
+
+    public function isKepalaPoliklinik(): bool
+    {
+        return $this->role === self::ROLE_KEPALA_POLIKLINIK;
+    }
+
+    public function isAdministrasi(): bool
+    {
+        return $this->role === self::ROLE_ADMINISTRASI;
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === self::ROLE_SUPER_ADMIN;
     }
 }

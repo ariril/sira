@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Announcement;
 
-class PengumumanController extends Controller
+class AnnouncementController extends Controller
 {
     public function index()
     {

@@ -8,7 +8,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <x-card metric="{{ $stats['total_pegawai'] ?? 0 }}" label="Total Pegawai" />
             <x-card metric="{{ $stats['total_dokter'] ?? 0 }}"  label="Dokter" />
-            <x-card metric="{{ $stats['total_admin'] ?? 0 }}"   label="Staf Administrasi" />
+            <x-card metric="{{ $stats['total_admin'] ?? 0 }}"   label="Staf Administration" />
             <x-card metric="{{ number_format($review['avg_rating_unit_30d'] ?? 0, 2) }}" label="Avg Rating (30 hari)" />
         </div>
 

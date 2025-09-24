@@ -1,25 +1,25 @@
 @php
     // daftar profesi (kalau belum disupply via View composer)
-    $profesis = $profesis ?? \App\Models\Profession::select('id','nama')->orderBy('nama')->get();
+    $profesis = $profesis ?? \App\Models\Profession::select('id','name as nama')->orderBy('nama')->get();
     $oldRole  = old('role', ''); // default kosong -> memaksa user memilih role
 @endphp
 
 <div
-        x-cloak
-        x-data="{ role: '{{ $oldRole }}', showPass: false }"
-        x-show="$store.authModal.open"
-        x-transition.opacity
-        @keydown.escape.window="$store.authModal.hide()"
-        class="fixed inset-0 z-[100] flex items-start justify-center p-4"
-        aria-modal="true" role="dialog">
+    x-cloak
+    x-data="{ role: '{{ $oldRole }}', showPass: false }"
+    x-show="$store.authModal.open"
+    x-transition.opacity
+    @keydown.escape.window="$store.authModal.hide()"
+    class="fixed inset-0 z-[100] flex items-start justify-center p-4"
+    aria-modal="true" role="dialog">
 
     {{-- backdrop --}}
     <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$store.authModal.hide()"></div>
 
     {{-- panel --}}
     <div
-            x-transition.scale.origin.center
-            class="relative w-full max-w-xl rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+        x-transition.scale.origin.center
+        class="relative w-full max-w-xl rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
 
         {{-- header --}}
         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5">
@@ -83,7 +83,8 @@
                         <option value="" disabled {{ $oldRole==='' ? 'selected' : '' }}>— Pilih Role —</option>
                         <option value="pegawai_medis">Pegawai Medis</option>
                         <option value="kepala_unit">Kepala Unit</option>
-                        <option value="administrasi">Staf Administrasi</option>
+                        <option value="kepala_poliklinik">Kepala Poliklinik</option>
+                        <option value="administrasi">Staf Administration</option>
                         <option value="super_admin">Super Admin</option>
                     </select>
                     @error('role')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror

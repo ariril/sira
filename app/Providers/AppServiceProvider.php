@@ -12,68 +12,88 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // (opsional) inisialisasi DB
+        // (opsional) inisialisasi DB - dibungkus try/catch
         try {
             DB::statement('CREATE DATABASE IF NOT EXISTS sira');
         } catch (\Throwable $e) {
             Log::error('Gagal membuat database: '.$e->getMessage());
         }
 
-        /**
-         * Jangan jalankan view composer & query model saat running di console
-         * (migrate/seed/queue) agar tidak error sebelum tabel ada.
-         */
+        // Hindari query saat artisan command (migrate/seed/queue) berjalan
         if ($this->app->runningInConsole()) {
             return;
         }
 
-        // ====== Composer untuk modal login: kirim daftar profesi ======
+        /**
+         * ===== Modal Login: daftar profesi =====
+         * Blade lama mengakses $p->nama, jadi kita aliases name AS nama
+         */
         View::composer('partials.login-modal', function ($view) {
-            $profesis = collect(); // default kosong
+            $profesis = collect();
 
             if (Schema::hasTable('professions')) {
                 $profesis = Profession::query()
-                    ->select('id', 'name')    // kolom baru
+                    ->selectRaw('id, name as nama')
                     ->orderBy('name')
                     ->get();
             }
 
-            // Tetap pakai key 'profesis' agar Blade lama tidak rusak
             $view->with('profesis', $profesis);
         });
 
-        // ====== Data site & menu profil (About) ======
+        /**
+         * ===== Site profile & menu Profil (About) =====
+         * - $site disediakan ke layout/partials
+         * - $profilPages: selalu keluarkan 5 item default dgn flag 'exists'
+         * - Jika kolom type dicast enum, gunakan ->value agar jadi string
+         */
         View::composer(['layouts.public', 'partials.*'], function ($view) {
             $site = null;
             $profilPages = collect();
 
             if (Schema::hasTable('site_settings')) {
                 $site = Cache::remember('site.profile', 300, function () {
-                    return SiteSetting::query()->first(); // name, short_name, address, phone, email, logo_path, favicon_path, footer_text, ...
+                    return SiteSetting::query()->first();
                 });
             }
 
             if (Schema::hasTable('about_pages')) {
                 $profilPages = Cache::remember('site.profil_pages', 300, function () {
+                    $wanted = ['profil_rs', 'visi', 'misi', 'struktur', 'tugas_fungsi'];
+
+                    // Ambil yang aktif, cukup kolom minimal
                     $rows = AboutPage::query()
-                        ->whereIn('type', ['tugas_fungsi', 'struktur', 'visi', 'misi', 'profil_rs'])
+                        ->whereIn('type', $wanted)
+                        ->where('is_active', 1)
                         ->orderBy('type')
                         ->get(['type', 'title', 'image_path', 'published_at']);
 
                     $labelMap = [
-                        'tugas_fungsi' => 'Tugas & Fungsi',
-                        'struktur'     => 'Struktur Organisasi',
+                        'profil_rs'    => 'Profil',
                         'visi'         => 'Visi',
                         'misi'         => 'Misi',
-                        'profil_rs'    => 'Profil',
+                        'struktur'     => 'Struktur Organisasi',
+                        'tugas_fungsi' => 'Tugas & Fungsi',
                     ];
 
-                    // Keluarkan struktur yang kompatibel dengan Blade lama
-                    return $rows->map(fn ($r) => [
-                        'tipe'   => $r->type,
-                        'label'  => $labelMap[$r->type] ?? ucfirst(str_replace('_', ' ', $r->type)),
-                        'exists' => true,
-                    ])->values();
+                    // Normalisasi hasil query (enum->string)
+                    $have = $rows->map(function ($r) {
+                        $type = $r->type instanceof \BackedEnum ? $r->type->value : (string) $r->type;
+                        return [
+                            'tipe'   => $type,
+                            'exists' => true,
+                        ];
+                    });
+
+                    // Susun 5 menu tetap, tandai exists=false bila belum ada kontennya
+                    return collect($wanted)->map(function ($t) use ($have, $labelMap) {
+                        $exists = (bool) $have->firstWhere('tipe', $t);
+                        return [
+                            'tipe'   => $t,
+                            'label'  => $labelMap[$t] ?? ucfirst(str_replace('_', ' ', $t)),
+                            'exists' => $exists,
+                        ];
+                    });
                 });
             }
 

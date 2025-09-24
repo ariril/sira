@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Web\PegawaiMedis;
+namespace App\Http\Controllers\Web\MedicalStaff;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;

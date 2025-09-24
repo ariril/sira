@@ -23,7 +23,7 @@
                     <i class="fa-solid fa-filter"></i> Filter Data
                 </h3>
 
-                <form method="GET" action="{{ route('data') }}" class="grid gap-6">
+                <form method="GET" action="{{ route('remuneration.data') }}" class="grid gap-6">
                     <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                         {{-- Periode --}}
                         <div>
@@ -33,7 +33,7 @@
                                 @foreach($periodes as $p)
                                     <option value="{{ $p->id }}"
                                         {{ (int)($filters['periode_id'] ?? 0) === $p->id ? 'selected' : '' }}>
-                                        {{ $p->nama_periode }} {{ $p->is_active ? '- (Aktif)' : '' }}
+                                        {{ $p->name }} {{ $p->is_active ? '- (Aktif)' : '' }}
                                     </option>
                                 @endforeach
                             </select>
@@ -80,7 +80,7 @@
                         <button type="submit" class="btn-primary">
                             <i class="fa-solid fa-magnifying-glass"></i> Terapkan
                         </button>
-                        <a href="{{ route('data') }}" class="btn-outline">
+                        <a href="{{ route('remuneration.data') }}" class="btn-outline">
                             <i class="fa-solid fa-rotate-right"></i> Reset
                         </a>
                         <button type="button"
@@ -181,21 +181,21 @@
                     @forelse($rows as $i => $r)
                         <tr class="border-b hover:bg-slate-50">
                             <td class="px-3 py-3">{{ $rows->firstItem() + $i }}</td>
-                            <td class="px-3 py-3">{{ $r->nip ?? '-' }}</td>
-                            <td class="px-3 py-3 font-medium text-slate-800">{{ $r->nama }}</td>
+                            <td class="px-3 py-3">{{ $r->employee_number ?? '-' }}</td>
+                            <td class="px-3 py-3 font-medium text-slate-800">{{ $r->name }}</td>
                             <td class="px-3 py-3">{{ $r->unit_nama ?? '-' }}</td>
                             <td class="px-3 py-3">{{ $r->profesi_nama ?? '-' }}</td>
-                            <td class="px-3 py-3">{{ $r->jabatan ?? '-' }}</td>
+                            <td class="px-3 py-3">{{ $r->position ?? '-' }}</td>
                             <td class="px-3 py-3 text-right">{{ $r->skor_wsm ? number_format($r->skor_wsm, 2) : '0.00' }}</td>
                             <td class="px-3 py-3 text-right"> {{ $r->nilai_remunerasi ? 'Rp '.number_format($r->nilai_remunerasi,0,',','.') : 'Rp 0' }} </td>
                             <td class="px-3 py-3">
                                 @php $st = $r->status_pembayaran ?: 'Belum Dibayar'; @endphp
                                 <span class="px-3 py-1 rounded-full text-xs font-semibold
-                                        {{ $st==='Berhasil' || $st==='Dibayar' ? 'bg-blue-100 text-blue-600' : '' }}
-                                        {{ $st==='Menunggu' || $st==='Belum Dibayar' ? 'bg-amber-100 text-amber-600' : '' }}
-                                        {{ $st==='Gagal' ? 'bg-red-100 text-red-600' : '' }}">
+                                        {{ $st==='Dibayar' ? 'bg-blue-100 text-blue-600' : '' }}
+                                        {{ $st==='Belum Dibayar' ? 'bg-amber-100 text-amber-600' : '' }}
+                                        {{ $st==='Ditahan' ? 'bg-red-100 text-red-600' : '' }}">
                                         {{ $st }}
-                                    </span>
+                                </span>
                             </td>
                         </tr>
                     @empty

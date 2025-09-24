@@ -1,5 +1,5 @@
 @extends('layouts.public')
-@section('title', ($site->nama_singkat ?? 'Unit Remuneration') . ' - Universitas Sebelas Maret')
+@section('title', ($site->short_name ?? 'Unit Remuneration') . ' - Universitas Sebelas Maret')
 
 @section('content')
     <div class="max-w-7xl mx-auto px-4 sm:px-6">
@@ -8,17 +8,17 @@
         <section class="grid md:grid-cols-2 gap-12 items-center py-16">
             <div>
                 <h2 class="text-4xl md:text-5xl font-semibold text-slate-800 mb-4">
-                    {{ ($site->nama_singkat ?? 'Unit Remuneration') }}
+                    {{ ($site->short_name ?? 'Unit Remuneration') }}
                 </h2>
                 <p class="text-slate-500 mb-8">
-                    {{ $site->nama ? 'Sistem informasi pengelolaan remunerasi & kinerja - '.$site->nama : 'Sistem informasi pengelolaan remunerasi dan kinerja pegawai RSUD MGR GM ATAMBUA' }}
+                    {{ $site->name ? 'Sistem informasi pengelolaan remunerasi & kinerja - '.$site->name : 'Sistem informasi pengelolaan remunerasi dan kinerja pegawai RSUD MGR GM ATAMBUA' }}
                 </p>
 
                 <div class="flex flex-wrap gap-3">
                     <a href="#announcements" class="btn-primary">
                         Lihat Pengumuman
                     </a>
-                    <a href="{{ route('data') }}" class="btn-outline">
+                    <a href="{{ route('remuneration.data') }}" class="btn-outline">
                         Akses Data
                     </a>
                 </div>
@@ -31,8 +31,8 @@
             </div>
             <div>
                 <img class="w-full h-auto rounded-xl shadow-2xl"
-                     src="{{ $site?->path_favicon ? Storage::url($site->path_favicon) : Storage::url('images/hero.jpeg') }}"
-                     alt="{{ $site->nama ?? 'Portal Remuneration' }}">
+                     src="{{ $site?->favicon_path ? Storage::url($site->favicon_path) : Storage::url('images/hero.jpeg') }}"
+                     alt="{{ $site->name ?? 'Portal Remuneration' }}">
             </div>
         </section>
 
@@ -63,35 +63,49 @@
             <div class="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
                 @forelse($announcements as $i => $a)
                     @php
-                        $badge = match($a->label){
-                            'penting' => ['bg' => 'bg-red-100', 'text' => 'text-red-600'],
-                            'info'    => ['bg' => 'bg-blue-100', 'text' => 'text-blue-600'],
-                            'update'  => ['bg' => 'bg-green-100','text' => 'text-green-600'],
-                            default   => ['bg' => 'bg-slate-100','text' => 'text-slate-600'],
+                        // Enum -> string (jika dicast enum)
+                        $label    = $a->label    instanceof \BackedEnum ? $a->label->value    : $a->label;
+                        $category = $a->category instanceof \BackedEnum ? $a->category->value : $a->category;
+
+                        $badge = match($label) {
+                            'penting' => ['bg' => 'bg-red-100',   'text' => 'text-red-600'],
+                            'info'    => ['bg' => 'bg-blue-100',  'text' => 'text-blue-600'],
+                            'update'  => ['bg' => 'bg-green-100', 'text' => 'text-green-600'],
+                            default   => ['bg' => 'bg-slate-100', 'text' => 'text-slate-600'],
                         };
-                        $isFeatured = $i === 0 || (bool)$a->disorot;
+
+                        $isFeatured = $i === 0 || (bool)($a->is_featured ?? false);
                     @endphp
 
                     <article class="bg-white rounded-xl p-6 shadow-md {{ $isFeatured ? 'border-l-4 border-red-600' : '' }} hover:-translate-y-1 transition">
+                        {{-- Header: label badge + tanggal --}}
                         <div class="flex items-center justify-between mb-3">
-                        <span class="px-3 py-1 rounded-full text-xs font-semibold {{ $badge['bg'] }} {{ $badge['text'] }} uppercase">
-                            {{ ucfirst($a->label ?? 'info') }}
-                        </span>
+                    <span class="px-3 py-1 rounded-full text-xs font-semibold {{ $badge['bg'] }} {{ $badge['text'] }} uppercase">
+                        {{ ucfirst($label ?? 'info') }}
+                    </span>
                             <time class="text-slate-500">
-                                {{ optional($a->dipublikasikan_pada)->translatedFormat('d F Y') }}
+                                {{ optional($a->published_at)->translatedFormat('d F Y') }}
                             </time>
                         </div>
+
+                        {{-- Title --}}
                         <h3 class="text-xl font-semibold text-slate-800 mb-3">
-                            {{ $a->judul }}
+                            {{ $a->title }}
                         </h3>
+
+                        {{-- Summary --}}
                         <p class="text-slate-500">
-                            {{ $a->ringkasan ? \Illuminate\Support\Str::limit(strip_tags($a->ringkasan), 140) : \Illuminate\Support\Str::limit(strip_tags($a->konten), 140) }}
+                            {{ $a->summary
+                                ? \Illuminate\Support\Str::limit(strip_tags($a->summary), 140)
+                                : \Illuminate\Support\Str::limit(strip_tags($a->content), 140) }}
                         </p>
+
+                        {{-- Footer: kategori chip + link --}}
                         <div class="flex items-center justify-between mt-5">
-                        <span class="px-3 py-1 rounded-full text-xs bg-slate-100 text-slate-500">
-                            {{ ucfirst($a->kategori) }}
-                        </span>
-                            <a href="{{ route('pengumuman.show', $a->slug ?? $a->id) }}"
+                    <span class="px-3 py-1 rounded-full text-xs bg-slate-100 text-slate-500">
+                        {{ ucfirst($category ?? 'lainnya') }}
+                    </span>
+                            <a href="{{ route('announcements.show', $a->slug ?? $a->id) }}"
                                class="text-blue-600 font-medium inline-flex items-center gap-1">
                                 Baca selengkapnya <i class="fa-solid fa-arrow-right text-sm"></i>
                             </a>
@@ -103,9 +117,10 @@
             </div>
 
             <div class="text-center mt-8">
-                <a href="{{ route('pengumuman.index') }}" class="btn-outline">Lihat Semua Pengumuman</a>
+                <a href="{{ route('announcements.index') }}" class="btn-outline">Lihat Semua Pengumuman</a>
             </div>
         </section>
+
 
         {{-- FAQ --}}
         <section id="faq" class="mb-16">
@@ -118,11 +133,11 @@
                         <div x-data="{open:false}" class="bg-white rounded-lg shadow">
                             <button @click="open=!open"
                                     class="w-full px-6 py-4 text-left font-medium flex items-center justify-between hover:bg-slate-50">
-                                <span>{{ $f->pertanyaan }}</span>
+                                <span>{{ $f->question }}</span>
                                 <i class="fa-solid fa-chevron-down text-sm transition" :class="open?'rotate-180':''"></i>
                             </button>
                             <div x-show="open" x-collapse x-cloak class="px-6 pb-5 text-slate-600">
-                                {!! $f->jawaban !!}
+                                {!! $f->answer !!}
                             </div>
                         </div>
                     @empty
@@ -131,7 +146,7 @@
                 </div>
 
                 <div class="text-center mt-8">
-                    <a href="{{ route('pertanyaan_umum.index') }}" class="btn-outline">Lihat FAQ Lainnya</a>
+                    <a href="{{ route('faqs.index') }}" class="btn-outline">Lihat FAQ Lainnya</a>
                 </div>
             </div>
         </section>

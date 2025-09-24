@@ -33,9 +33,9 @@ class DatabaseSeeder extends Seeder
             ]);
 
             $units = [
-                // Administrasi
-                ['name'=>'Sumber Daya Manusia','slug'=>'sdm','code'=>'SDM','type'=>'administrasi','parent_id'=>$managementId,'location'=>'Gedung Administrasi','phone'=>null,'email'=>null],
-                ['name'=>'Keuangan','slug'=>'keuangan','code'=>'KEU','type'=>'administrasi','parent_id'=>$managementId,'location'=>'Gedung Administrasi','phone'=>null,'email'=>null],
+                // Administration
+                ['name'=>'Sumber Daya Manusia','slug'=>'sdm','code'=>'SDM','type'=>'administrasi','parent_id'=>$managementId,'location'=>'Gedung Administration','phone'=>null,'email'=>null],
+                ['name'=>'Keuangan','slug'=>'keuangan','code'=>'KEU','type'=>'administrasi','parent_id'=>$managementId,'location'=>'Gedung Administration','phone'=>null,'email'=>null],
                 ['name'=>'Rekam Medis & Informasi','slug'=>'rekam-medis','code'=>'RM','type'=>'administrasi','parent_id'=>$managementId,'location'=>'Lantai Dasar','phone'=>null,'email'=>null],
 
                 // Gawat darurat & rawat inap
@@ -85,7 +85,7 @@ class DatabaseSeeder extends Seeder
                 ['name'=>'Apoteker','code'=>'APT','description'=>'Tenaga farmasi'],
                 ['name'=>'Analis Lab','code'=>'LAB-AN','description'=>'Tenaga laboratorium'],
                 ['name'=>'Radiografer','code'=>'RAD','description'=>'Tenaga radiologi'],
-                ['name'=>'Administrasi','code'=>'ADM','description'=>'Staf administrasi'],
+                ['name'=>'Administration','code'=>'ADM','description'=>'Staf administrasi'],
             ];
             foreach ($professions as &$p) { $p['created_at']=$now; $p['updated_at']=$now; }
             DB::table('professions')->insert($professions);
@@ -144,7 +144,7 @@ class DatabaseSeeder extends Seeder
                     'phone' => '0813-3333-3333',
                     'email' => 'rekam.medis@rsud.local',
                     'last_education' => 'D3',
-                    'position' => 'Staf Administrasi',
+                    'position' => 'Staf Administration',
                     'unit_id' => $unitId('rekam-medis'),
                     'profession_id' => $professionId('ADM'),
                     'password' => Hash::make('password'),

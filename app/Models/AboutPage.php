@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Enums\AboutPageType;
 
 class AboutPage extends Model
 {
@@ -20,9 +21,10 @@ class AboutPage extends Model
     ];
 
     protected $casts = [
-        'attachments'  => 'array',
-        'published_at' => 'datetime',
+        'type'         => AboutPageType::class,
         'is_active'    => 'boolean',
+        'published_at' => 'datetime',
+        'attachments'  => 'array',
     ];
 
     // Optional: default nilai aktif (ikut default DB = 1, ini hanya jaga-jaga saat mass create)

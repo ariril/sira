@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Enums\UnitCriteriaWeightStatus;
 
 class UnitCriteriaWeight extends Model
 {
@@ -16,7 +17,10 @@ class UnitCriteriaWeight extends Model
     ];
 
     protected $casts = [
-        'weight' => 'decimal:2',
+        'weight'      => 'decimal:2',
+        'status'      => UnitCriteriaWeightStatus::class,
+        'policy_note' => 'string',
+        'unit_head_note' => 'string',
     ];
 
     /*

@@ -24,6 +24,7 @@
 <main class="min-h-[60vh]">
     @yield('content')
 </main>
+
 {{-- Footer --}}
 @include('partials.footer')
 @include('partials.login-modal')

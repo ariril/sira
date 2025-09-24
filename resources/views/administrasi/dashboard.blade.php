@@ -1,6 +1,6 @@
-<x-app-layout title="Dashboard Administrasi">
+<x-app-layout title="Dashboard Administration">
     <x-slot name="header">
-        <h1 class="text-2xl font-semibold">Dashboard Administrasi</h1>
+        <h1 class="text-2xl font-semibold">Dashboard Administration</h1>
     </x-slot>
 
     <div class="container-px py-6">
