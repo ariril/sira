@@ -9,7 +9,7 @@
 
     {{-- Fonts --}}
     <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet"/>
 
     @stack('head')
 
@@ -17,33 +17,26 @@
     @vite(['resources/css/app.css','resources/js/app.js'])
 </head>
 @php
-    $role = auth()->check() ? auth()->user()->role : null;
-    $useAdminShell = in_array($role, ['super_admin','administrasi']); // nanti bisa ditambah 'kepala_unit','pegawai_medis'
+    $role = auth()->user()->role ?? null;
+    // layout ini untuk semua role selain pegawai_medis
 @endphp
-<body class="font-sans antialiased bg-gray-100 min-h-screen">
+<body class="font-sans antialiased bg-gray-100 min-h-screen pt-14">
 
-{{-- NAV --}}
-@auth
-    @if($useAdminShell)
-        @include('admin.partials.navigation')  {{-- Topbar + Sidebar admin (role-aware) --}}
-    @else
-        {{-- kalau bukan admin shell, kamu bebas pakai nav publicmu --}}
-        @includeIf('partials.nav')
-    @endif
-@endauth
+{{-- Topbar + Sidebar (fixed) --}}
+@include('admin.partials.navigation')
 
-{{-- Header slot (judul halaman, breadcrumb) --}}
+{{-- Header slot (opsional) --}}
 @isset($header)
-    <header class="bg-white shadow {{ $useAdminShell ? 'lg:ml-64' : '' }}">
+    <header class="bg-white shadow lg:ml-64">
         <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
             {{ $header }}
         </div>
     </header>
 @endisset
 
-{{-- Flash status --}}
+{{-- Flash status (opsional) --}}
 @if (session('status'))
-    <div class="{{ $useAdminShell ? 'lg:ml-64' : '' }}">
+    <div class="lg:ml-64">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
             <div class="rounded-lg bg-green-50 text-green-800 px-4 py-3 text-sm">
                 {{ session('status') }}
@@ -52,18 +45,14 @@
     </div>
 @endif
 
-{{-- Page content --}}
-<main class="py-6 {{ $useAdminShell ? 'lg:ml-64' : '' }}">
+{{-- Konten utama --}}
+<main class="py-6 lg:ml-64">
     {{ $slot }}
 </main>
 
 {{-- Footer --}}
-<div class="{{ $useAdminShell ? 'lg:ml-64' : '' }}">
-    @if($useAdminShell)
-        @include('admin.partials.footer')
-    @else
-        @includeIf('partials.footer')
-    @endif
+<div class="lg:ml-64">
+    @include('admin.partials.footer')
 </div>
 
 @stack('scripts')

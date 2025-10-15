@@ -113,23 +113,22 @@ class User extends Authenticatable
         return $q->where('role', $role);
     }
 
-    public function isKepalaUnit(): bool
+    public function isPegawaiMedis(): bool { return $this->role === self::ROLE_PEGAWAI_MEDIS; }
+    public function isAdministrasi(): bool { return $this->role === self::ROLE_ADMINISTRASI; } // sudah ada
+    public function isKepalaUnit(): bool { return $this->role === self::ROLE_KEPALA_UNIT; }   // sudah ada
+    public function isKepalaPoliklinik(): bool { return $this->role === self::ROLE_KEPALA_POLIKLINIK; } // sudah ada
+    public function isSuperAdmin(): bool { return $this->role === self::ROLE_SUPER_ADMIN; }   // sudah ada
+
+    public function getRoleLabelAttribute(): string
     {
-        return $this->role === self::ROLE_KEPALA_UNIT;
+        return match ($this->role) {
+            self::ROLE_PEGAWAI_MEDIS     => 'Pegawai Medis',
+            self::ROLE_KEPALA_UNIT       => 'Kepala Unit',
+            self::ROLE_KEPALA_POLIKLINIK => 'Kepala Poliklinik',
+            self::ROLE_ADMINISTRASI      => 'Admin RS',
+            self::ROLE_SUPER_ADMIN       => 'Super Admin',
+            default => ucfirst(str_replace('_',' ', (string)$this->role)),
+        };
     }
 
-    public function isKepalaPoliklinik(): bool
-    {
-        return $this->role === self::ROLE_KEPALA_POLIKLINIK;
-    }
-
-    public function isAdministrasi(): bool
-    {
-        return $this->role === self::ROLE_ADMINISTRASI;
-    }
-
-    public function isSuperAdmin(): bool
-    {
-        return $this->role === self::ROLE_SUPER_ADMIN;
-    }
 }

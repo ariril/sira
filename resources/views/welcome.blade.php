@@ -121,7 +121,6 @@
             </div>
         </section>
 
-
         {{-- FAQ --}}
         <section id="faq" class="mb-16">
             <h2 class="text-center text-3xl font-semibold text-slate-800">Frequently Asked Questions</h2>

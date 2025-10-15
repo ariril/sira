@@ -1,92 +1,68 @@
-<x-app-layout title="Dashboard Administration">
+<x-app-layout title="Dashboard Admin RS">
     <x-slot name="header">
-        <h1 class="text-2xl font-semibold">Dashboard Administration</h1>
+        <h1 class="text-2xl font-semibold">Dashboard Admin RS</h1>
     </x-slot>
 
-    <div class="container-px py-6">
-        {{-- KPI cards --}}
+    <div class="container-px py-6 space-y-6">
+        {{-- STAT CARDS --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <x-card metric="{{ $ops['antrian_hari_ini']   ?? 0 }}" label="Antrian Hari Ini" />
-            <x-card metric="{{ $ops['kehadiran_hari_ini'] ?? 0 }}" label="Kehadiran Pegawai" />
-            <x-card metric="{{ $ops['ulasan_hari_ini']    ?? 0 }}" label="Ulasan Masuk" />
-            <x-card metric="{{ collect($ops['jadwal_dokter_besok'] ?? [])->count() }}" label="Jadwal Dokter (Besok)" />
+            <x-stat-card label="File Absensi Diunggah" value="{{ $stats['attendance_batches'] ?? 0 }}" icon="fa-file-excel" accent="from-emerald-500 to-teal-600"/>
+            <x-stat-card label="Data Absensi" value="{{ $stats['attendances'] ?? 0 }}" icon="fa-calendar-check" accent="from-emerald-500 to-teal-600"/>
+            <x-stat-card label="Penilaian Pending" value="{{ $stats['approvals_pending'] ?? 0 }}" icon="fa-list-check" accent="from-emerald-500 to-teal-600"/>
+            <x-stat-card label="Unit Dapat Alokasi" value="{{ $stats['unit_allocations'] ?? 0 }}" icon="fa-diagram-project" accent="from-emerald-500 to-teal-600"/>
         </div>
 
-        <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {{-- Ringkasan Operasional --}}
-            <div class="col-span-1 p-4 rounded-xl border">
-                <h2 class="font-semibold mb-3">Ringkasan Operasional (Hari Ini)</h2>
-                <div id="admTodayBar" class="min-h-[220px]"></div>
-            </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <x-section title="Status Approval Kinerja">
+                <table class="min-w-full text-sm">
+                    <thead class="text-slate-500 border-b">
+                    <tr>
+                        <th class="py-2 text-left">Periode</th>
+                        <th class="py-2 text-left">Pegawai</th>
+                        <th class="py-2 text-left">Level</th>
+                        <th class="py-2 text-left">Status</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @forelse($recentApprovals as $approval)
+                        <tr class="border-b">
+                            <td class="py-2">{{ $approval->assessment->period->name ?? '-' }}</td>
+                            <td>{{ $approval->assessment->user->name ?? '-' }}</td>
+                            <td>{{ $approval->level }}</td>
+                            <td>
+                  <span class="px-2 py-1 rounded text-xs
+                    @if($approval->status=='approved') bg-emerald-100 text-emerald-700
+                    @elseif($approval->status=='rejected') bg-rose-100 text-rose-700
+                    @else bg-amber-100 text-amber-700 @endif">
+                    {{ ucfirst($approval->status) }}
+                  </span>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="4" class="py-3 text-center text-slate-500">No approvals yet.</td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </x-section>
 
-            {{-- Jadwal Dokter Besok --}}
-            <div class="col-span-1 lg:col-span-2 p-4 rounded-xl border">
-                <h2 class="font-semibold mb-3">Jadwal Dokter Besok</h2>
-
-                @php
-                    $rows = collect($ops['jadwal_dokter_besok'] ?? []);
-                @endphp
-
-                @if($rows->isEmpty())
-                    <p class="text-sm text-gray-500">Belum ada jadwal.</p>
-                @else
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead>
-                            <tr class="text-left border-b">
-                                <th class="py-2">Dokter</th>
-                                <th class="py-2">Tanggal</th>
-                                <th class="py-2">Jam</th>
-                                <th class="py-2">Ruangan</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            @foreach($rows as $r)
-                                @php
-                                    $tgl     = data_get($r, 'tanggal');
-                                    $mulai   = data_get($r, 'jam_mulai');
-                                    $selesai = data_get($r, 'jam_selesai');
-                                @endphp
-                                <tr class="border-b">
-                                    <td class="py-2">{{ data_get($r, 'nama_dokter') ?? data_get($r, 'dokter') ?? '-' }}</td>
-                                    <td class="py-2">{{ $tgl ? \Illuminate\Support\Carbon::parse($tgl)->format('d M Y') : '-' }}</td>
-                                    <td class="py-2">
-                                        {{ $mulai ? ($mulai . ($selesai ? ' - '.$selesai : '')) : '-' }}
-                                    </td>
-                                    <td class="py-2">{{ data_get($r, 'ruangan') ?? '-' }}</td>
-                                </tr>
-                            @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
-            </div>
+            <x-section title="Alokasi Remunerasi Terbaru">
+                <ul class="divide-y text-sm">
+                    @forelse($recentAllocations as $alloc)
+                        <li class="py-2 flex justify-between">
+                            <div>
+                                <div class="font-medium">{{ $alloc->unit->name }}</div>
+                                <div class="text-xs text-slate-500">{{ $alloc->period->name }}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="font-semibold">{{ number_format($alloc->amount, 2) }}</div>
+                                <div class="text-xs text-slate-500">{{ $alloc->published_at ? 'Published' : 'Draft' }}</div>
+                            </div>
+                        </li>
+                    @empty
+                        <li class="py-3 text-center text-slate-500">No data yet.</li>
+                    @endforelse
+                </ul>
+            </x-section>
         </div>
     </div>
-
-    @push('scripts')
-        @once
-            <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-        @endonce
-        <script>
-            (() => {
-                const el = document.querySelector('#admTodayBar');
-                if (!el || typeof ApexCharts === 'undefined') return;
-
-                const val = {
-                    antrian: Number(@json($ops['antrian_hari_ini']   ?? 0)) || 0,
-                    hadir:   Number(@json($ops['kehadiran_hari_ini'] ?? 0)) || 0,
-                    ulasan:  Number(@json($ops['ulasan_hari_ini']    ?? 0)) || 0,
-                };
-
-                new ApexCharts(el, {
-                    chart: { type: 'bar', height: 220, toolbar: { show: false } },
-                    series: [{ name: 'Jumlah', data: [val.antrian, val.hadir, val.ulasan] }],
-                    xaxis: { categories: ['Antrian','Attendance','Review'] },
-                    dataLabels: { enabled: true },
-                    plotOptions: { bar: { borderRadius: 6 } }
-                }).render();
-            })();
-        </script>
-    @endpush
 </x-app-layout>

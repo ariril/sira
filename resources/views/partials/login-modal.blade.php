@@ -1,7 +1,12 @@
 @php
-    // daftar profesi (kalau belum disupply via View composer)
-    $profesis = $profesis ?? \App\Models\Profession::select('id','name as nama')->orderBy('nama')->get();
-    $oldRole  = old('role', ''); // default kosong -> memaksa user memilih role
+    // Daftar profesi (fallback kalau belum disupply via View composer)
+    $profesis = $profesis
+        ?? \App\Models\Profession::query()
+            ->selectRaw('id, name as nama')
+            ->orderBy('name')
+            ->get();
+
+    $oldRole  = old('role', ''); // default kosong -> paksa user pilih role
 @endphp
 
 <div
@@ -13,21 +18,21 @@
     class="fixed inset-0 z-[100] flex items-start justify-center p-4"
     aria-modal="true" role="dialog">
 
-    {{-- backdrop --}}
+    {{-- Backdrop --}}
     <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$store.authModal.hide()"></div>
 
-    {{-- panel --}}
+    {{-- Panel --}}
     <div
         x-transition.scale.origin.center
         class="relative w-full max-w-xl rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
 
-        {{-- header --}}
+        {{-- Header --}}
         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5">
             <h2 class="text-2xl font-semibold text-white">Login</h2>
             <p class="text-white/80 text-sm">Masuk untuk mengakses dashboard sesuai peran.</p>
         </div>
 
-        {{-- body --}}
+        {{-- Body --}}
         <div class="p-6 space-y-5">
             @if ($errors->any())
                 <div class="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{{ $errors->first() }}</div>
@@ -84,7 +89,7 @@
                         <option value="pegawai_medis">Pegawai Medis</option>
                         <option value="kepala_unit">Kepala Unit</option>
                         <option value="kepala_poliklinik">Kepala Poliklinik</option>
-                        <option value="administrasi">Staf Administration</option>
+                        <option value="administrasi">Admin RS</option> {{-- label diganti, value tetap --}}
                         <option value="super_admin">Super Admin</option>
                     </select>
                     @error('role')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
@@ -92,15 +97,15 @@
 
                 {{-- Profession (muncul jika pegawai medis) --}}
                 <div x-show="role === 'pegawai_medis'">
-                    <label for="profesi_id" class="block text-[15px] font-medium text-slate-700">Profesi</label>
-                    <select id="profesi_id" name="profesi_id"
+                    <label for="profession_id" class="block text-[15px] font-medium text-slate-700">Profesi</label>
+                    <select id="profession_id" name="profession_id"
                             class="mt-1 w-full h-12 px-4 rounded-xl border-slate-300 text-[15px] shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <option value="">— Pilih Profesi —</option>
                         @foreach($profesis as $p)
-                            <option value="{{ $p->id }}" @selected(old('profesi_id')==$p->id)>{{ $p->nama }}</option>
+                            <option value="{{ $p->id }}" @selected(old('profession_id')==$p->id)>{{ $p->nama }}</option>
                         @endforeach
                     </select>
-                    @error('profesi_id')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+                    @error('profession_id')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                 </div>
 
                 {{-- Remember & Forgot --}}

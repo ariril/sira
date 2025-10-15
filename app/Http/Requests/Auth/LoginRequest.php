@@ -2,60 +2,58 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class LoginRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
-            'email'       => ['required','string','email'],
-            'password'    => ['required','string'],
-            'remember'    => ['nullable','boolean'],
-            'role'        => ['required','in:pegawai_medis,kepala_unit,administrasi,super_admin'],
-            'profesi_id'  => ['nullable','required_if:role,pegawai_medis','exists:profesis,id'],
+            'email' => ['required', 'string', 'email'],
+            'password' => ['required', 'string'],
+            'remember' => ['nullable', 'boolean'],
+            'role' => [
+                'required',
+                Rule::in([
+                    User::ROLE_PEGAWAI_MEDIS,
+                    User::ROLE_KEPALA_UNIT,
+                    User::ROLE_KEPALA_POLIKLINIK,
+                    User::ROLE_ADMINISTRASI,
+                    User::ROLE_SUPER_ADMIN,
+                ]),
+            ],
+            // pakai tabel English sesuai dump: professions
+            'profesi_id' => ['nullable', 'required_if:role,' . User::ROLE_PEGAWAI_MEDIS, 'exists:professions,id'],
         ];
     }
 
-    /**
-     * Attempt to authenticate the request's credentials.
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
     public function authenticate(): void
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email','password'), $this->boolean('remember'))) {
+        if (!Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
             throw ValidationException::withMessages([
-                'email' => __('Email atau password tidak sesuai.'),
+                'email' => __('Email or password is incorrect.'),
             ]);
         }
 
         RateLimiter::clear($this->throttleKey());
 
-        // cek role/profesi sesuai pilihan user
-        $user       = $this->user();
-        $chosenRole = (string) $this->input('role'); // <-- ambil string murni
+        $user = $this->user();
+        $chosenRole = (string)$this->input('role');
 
         if ($user->role !== $chosenRole) {
             Auth::logout();
@@ -64,31 +62,24 @@ class LoginRequest extends FormRequest
             $chosen = str_replace('_', ' ', $chosenRole);
 
             throw ValidationException::withMessages([
-                'role' => __('Akun Anda terdaftar sebagai ":actual", bukan ":chosen".', compact('actual','chosen')),
+                'role' => __('Your account is registered as ":actual", not ":chosen".', compact('actual', 'chosen')),
             ])->redirectTo(url()->previous());
         }
 
-        // opsional: validasi kecocokan profesi untuk pegawai medis
-        if ($user->role === 'pegawai_medis'
+        if ($user->role === User::ROLE_PEGAWAI_MEDIS
             && $this->filled('profesi_id')
-            && (int) $user->profesi_id !== (int) $this->input('profesi_id')) {
+            && (int)$user->profession_id !== (int)$this->input('profesi_id')) {
 
             Auth::logout();
             throw ValidationException::withMessages([
-                'profesi_id' => __('Profession yang dipilih tidak sesuai dengan akun Anda.'),
+                'profesi_id' => __('The selected profession does not match your account.'),
             ])->redirectTo(url()->previous());
         }
     }
 
-
-    /**
-     * Ensure the login request is not rate limited.
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+        if (!RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
             return;
         }
 
@@ -103,13 +94,9 @@ class LoginRequest extends FormRequest
         ]);
     }
 
-    /**
-     * Get the rate limiting throttle key for the request.
-     */
     public function throttleKey(): string
     {
-        // gunakan string biasa agar aman
-        $email = (string) $this->input('email');
-        return Str::transliterate(Str::lower($email).'|'.$this->ip());
+        $email = (string)$this->input('email');
+        return Str::transliterate(Str::lower($email) . '|' . $this->ip());
     }
 }
