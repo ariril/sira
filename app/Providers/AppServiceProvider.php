@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\{DB, Log, View, Cache, Schema};
 use App\Models\{Profession, SiteSetting, AboutPage};
@@ -19,6 +20,8 @@ class AppServiceProvider extends ServiceProvider
             Log::error('Gagal membuat database: '.$e->getMessage());
         }
 
+        Paginator::useTailwind();
+        Paginator::defaultView('vendor.pagination.tailwind-no-info');
         // Hindari query saat artisan command (migrate/seed/queue) berjalan
         if ($this->app->runningInConsole()) {
             return;

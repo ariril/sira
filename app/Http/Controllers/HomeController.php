@@ -28,7 +28,7 @@ class HomeController extends Controller
                 'super_admin'        => redirect()->route('super_admin.dashboard'),
                 'kepala_unit'        => redirect()->route('kepala_unit.dashboard'),
                 'kepala_poliklinik'  => redirect()->route('polyclinic_head.dashboard'),
-                'administrasi'       => redirect()->route('administration.dashboard'),
+                'admin_rs'       => redirect()->route('admin_rs.dashboard'),
                 default              => redirect()->route('medical_staff.dashboard'),
             };
         }

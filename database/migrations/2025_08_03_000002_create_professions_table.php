@@ -12,6 +12,7 @@ return new class extends Migration {
             $table->string('name')->unique();      // contoh: Doctor, Nurse
             $table->string('code')->unique();      // contoh: DOK, NRS
             $table->text('description')->nullable();
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
     }
@@ -23,5 +24,4 @@ return new class extends Migration {
         });
         Schema::dropIfExists('professions');
     }
-
 };

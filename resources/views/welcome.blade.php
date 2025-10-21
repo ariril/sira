@@ -1,5 +1,5 @@
 @extends('layouts.public')
-@section('title', ($site->short_name ?? 'Unit Remuneration') . ' - Universitas Sebelas Maret')
+@section('title', ($site->short_name ?? 'Unit Remuneration') . ' - RSUD MGR Gabriel Manek')
 
 @section('content')
     <div class="max-w-7xl mx-auto px-4 sm:px-6">
@@ -8,10 +8,12 @@
         <section class="grid md:grid-cols-2 gap-12 items-center py-16">
             <div>
                 <h2 class="text-4xl md:text-5xl font-semibold text-slate-800 mb-4">
-                    {{ ($site->short_name ?? 'Unit Remuneration') }}
+                    {{ $site?->short_name ?? 'Unit Remuneration' }}
                 </h2>
                 <p class="text-slate-500 mb-8">
-                    {{ $site->name ? 'Sistem informasi pengelolaan remunerasi & kinerja - '.$site->name : 'Sistem informasi pengelolaan remunerasi dan kinerja pegawai RSUD MGR GM ATAMBUA' }}
+                    {{ $site?->name
+                        ? 'Sistem informasi pengelolaan remunerasi & kinerja - ' . $site?->name
+                        : 'Sistem informasi pengelolaan remunerasi dan kinerja pegawai RSUD MGR GM ATAMBUA' }}
                 </p>
 
                 <div class="flex flex-wrap gap-3">
@@ -25,14 +27,15 @@
 
                 @isset($jadwalDokterBesok)
                     <p class="mt-6 text-sm text-slate-500">
-                        Jadwal tenaga medis besok: <span class="font-semibold text-slate-700">{{ $jadwalDokterBesok }}</span> slot.
+                        Jadwal tenaga medis besok:
+                        <span class="font-semibold text-slate-700">{{ $jadwalDokterBesok }}</span> slot.
                     </p>
                 @endisset
             </div>
             <div>
                 <img class="w-full h-auto rounded-xl shadow-2xl"
-                     src="{{ $site?->favicon_path ? Storage::url($site->favicon_path) : Storage::url('images/hero.jpeg') }}"
-                     alt="{{ $site->name ?? 'Portal Remuneration' }}">
+                     src="{{ $site?->favicon_path ? Storage::url($site?->favicon_path) : asset('images/hero.jpeg') }}"
+                     alt="{{ $site?->name ?? 'Portal Remuneration' }}">
             </div>
         </section>
 
@@ -40,7 +43,8 @@
         <section class="mb-16">
             <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 @forelse($stats as $s)
-                    <div class="bg-white rounded-xl shadow-md p-6 flex items-center gap-4 hover:-translate-y-1 transition">
+                    <div
+                        class="bg-white rounded-xl shadow-md p-6 flex items-center gap-4 hover:-translate-y-1 transition">
                         <div class="w-14 h-14 rounded-xl grid place-content-center text-white text-xl
                                 bg-gradient-to-tr from-blue-500 to-indigo-600">
                             <i class="fa-solid {{ $s['icon'] }}"></i>
@@ -77,10 +81,12 @@
                         $isFeatured = $i === 0 || (bool)($a->is_featured ?? false);
                     @endphp
 
-                    <article class="bg-white rounded-xl p-6 shadow-md {{ $isFeatured ? 'border-l-4 border-red-600' : '' }} hover:-translate-y-1 transition">
+                    <article
+                        class="bg-white rounded-xl p-6 shadow-md {{ $isFeatured ? 'border-l-4 border-red-600' : '' }} hover:-translate-y-1 transition">
                         {{-- Header: label badge + tanggal --}}
                         <div class="flex items-center justify-between mb-3">
-                    <span class="px-3 py-1 rounded-full text-xs font-semibold {{ $badge['bg'] }} {{ $badge['text'] }} uppercase">
+                    <span
+                        class="px-3 py-1 rounded-full text-xs font-semibold {{ $badge['bg'] }} {{ $badge['text'] }} uppercase">
                         {{ ucfirst($label ?? 'info') }}
                     </span>
                             <time class="text-slate-500">
@@ -133,7 +139,8 @@
                             <button @click="open=!open"
                                     class="w-full px-6 py-4 text-left font-medium flex items-center justify-between hover:bg-slate-50">
                                 <span>{{ $f->question }}</span>
-                                <i class="fa-solid fa-chevron-down text-sm transition" :class="open?'rotate-180':''"></i>
+                                <i class="fa-solid fa-chevron-down text-sm transition"
+                                   :class="open?'rotate-180':''"></i>
                             </button>
                             <div x-show="open" x-collapse x-cloak class="px-6 pb-5 text-slate-600">
                                 {!! $f->answer !!}
@@ -155,7 +162,8 @@
             <h2 class="text-center text-3xl font-semibold text-slate-800 mb-10">Akses Cepat</h2>
             <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
                 @foreach($links as $l)
-                    <a href="{{ $l['href'] }}" class="bg-white rounded-xl shadow p-8 text-center hover:-translate-y-1 transition">
+                    <a href="{{ $l['href'] }}"
+                       class="bg-white rounded-xl shadow p-8 text-center hover:-translate-y-1 transition">
                         <div class="w-20 h-20 mx-auto mb-4 rounded-full grid place-content-center text-3xl text-white
                                 bg-gradient-to-tr from-amber-500 to-amber-600">
                             <i class="fa-solid {{ $l['icon'] }}"></i>

@@ -34,9 +34,9 @@ class DatabaseSeeder extends Seeder
 
             $units = [
                 // Administration
-                ['name' => 'Sumber Daya Manusia', 'slug' => 'sdm', 'code' => 'SDM', 'type' => 'administrasi', 'parent_id' => $managementId, 'location' => 'Gedung Administration', 'phone' => null, 'email' => null],
-                ['name' => 'Keuangan', 'slug' => 'keuangan', 'code' => 'KEU', 'type' => 'administrasi', 'parent_id' => $managementId, 'location' => 'Gedung Administration', 'phone' => null, 'email' => null],
-                ['name' => 'Rekam Medis & Informasi', 'slug' => 'rekam-medis', 'code' => 'RM', 'type' => 'administrasi', 'parent_id' => $managementId, 'location' => 'Lantai Dasar', 'phone' => null, 'email' => null],
+                ['name' => 'Sumber Daya Manusia', 'slug' => 'sdm', 'code' => 'SDM', 'type' => 'admin_rs', 'parent_id' => $managementId, 'location' => 'Gedung Administration', 'phone' => null, 'email' => null],
+                ['name' => 'Keuangan', 'slug' => 'keuangan', 'code' => 'KEU', 'type' => 'admin_rs', 'parent_id' => $managementId, 'location' => 'Gedung Administration', 'phone' => null, 'email' => null],
+                ['name' => 'Rekam Medis & Informasi', 'slug' => 'rekam-medis', 'code' => 'RM', 'type' => 'admin_rs', 'parent_id' => $managementId, 'location' => 'Lantai Dasar', 'phone' => null, 'email' => null],
 
                 // Gawat darurat & rawat inap
                 ['name' => 'Instalasi Gawat Darurat (IGD)', 'slug' => 'igd', 'code' => 'IGD', 'type' => 'igd', 'parent_id' => null, 'location' => 'Gedung IGD 24 Jam', 'phone' => null, 'email' => null],
@@ -173,7 +173,7 @@ class DatabaseSeeder extends Seeder
                     'unit_id' => $unitId('manajemen-rumah-sakit'),
                     'profession_id' => $professionId('ADM'),
                     'password' => Hash::make('password'),
-                    'role' => 'administrasi',
+                    'role' => 'admin_rs',
                     'email_verified_at' => $now,
                     'remember_token' => Str::random(10),
                     'created_at' => $now, 'updated_at' => $now,

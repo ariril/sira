@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('slug')->unique(); // ex: 'poliklinik-bedah', 'igd'
             $table->string('code', 20)->nullable();
             $table->enum('type', [ // isi tetap bahasa Indonesia
-                'manajemen', 'administrasi', 'penunjang', // keuangan, SDM, IT, dll
+                'manajemen', 'admin_rs', 'penunjang', // keuangan, SDM, IT, dll
                 'rawat_inap', 'igd', 'poliklinik', // klinis
                 'lainnya'
             ])->default('poliklinik');

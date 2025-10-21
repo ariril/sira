@@ -20,7 +20,7 @@ class User extends Authenticatable
     public const ROLE_PEGAWAI_MEDIS     = 'pegawai_medis';
     public const ROLE_KEPALA_UNIT       = 'kepala_unit';
     public const ROLE_KEPALA_POLIKLINIK = 'kepala_poliklinik';
-    public const ROLE_ADMINISTRASI      = 'administrasi';
+    public const ROLE_ADMINISTRASI      = 'admin_rs';
     public const ROLE_SUPER_ADMIN       = 'super_admin';
 
     /*
@@ -92,7 +92,7 @@ class User extends Authenticatable
         return $this->hasMany(Remuneration::class);
     }
 
-    // Relasi approval (sebagai approver) — berguna untuk dashboard administrasi/kepala*
+    // Relasi approval (sebagai approver) — berguna untuk dashboard admin_rs/kepala*
     public function assessmentApprovals(): HasMany
     {
         return $this->hasMany(AssessmentApproval::class, 'approver_id');

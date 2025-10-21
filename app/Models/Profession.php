@@ -10,9 +10,11 @@ class Profession extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name',
-        'code',
-        'description',
+        'name', 'code', 'description', 'is_active',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
     ];
 
     /*

@@ -35,8 +35,22 @@ class LoginRequest extends FormRequest
                 ]),
             ],
             // pakai tabel English sesuai dump: professions
-            'profesi_id' => ['nullable', 'required_if:role,' . User::ROLE_PEGAWAI_MEDIS, 'exists:professions,id'],
+            // form uses profession_id; keep legacy 'profesi_id' support via prepareForValidation
+            'profession_id' => ['nullable', 'required_if:role,' . User::ROLE_PEGAWAI_MEDIS, 'exists:professions,id'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        // Backward compatibility: map legacy values/keys to new ones
+        $role = (string) $this->input('role');
+        if ($role === 'administrasi') {
+            $this->merge(['role' => User::ROLE_ADMINISTRASI]); // 'admin_rs'
+        }
+
+        if ($this->has('profesi_id') && !$this->has('profession_id')) {
+            $this->merge(['profession_id' => $this->input('profesi_id')]);
+        }
     }
 
     public function authenticate(): void
@@ -67,8 +81,8 @@ class LoginRequest extends FormRequest
         }
 
         if ($user->role === User::ROLE_PEGAWAI_MEDIS
-            && $this->filled('profesi_id')
-            && (int)$user->profession_id !== (int)$this->input('profesi_id')) {
+            && $this->filled('profession_id')
+            && (int)$user->profession_id !== (int)$this->input('profession_id')) {
 
             Auth::logout();
             throw ValidationException::withMessages([

@@ -68,4 +68,12 @@ class Unit extends Model
     {
         return $this->hasMany(Visit::class);
     }
+
+    public function head() { return $this->belongsTo(\App\Models\User::class, 'head_user_id'); }
+
+    public function getTypeKeyAttribute(): ?string
+    {
+        $t = $this->type;
+        return $t instanceof \BackedEnum ? $t->value : $t; // string|null
+    }
 }

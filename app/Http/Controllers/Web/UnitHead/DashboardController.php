@@ -22,7 +22,7 @@ class DashboardController extends Controller
                 ->whereNotNull('profession_id')
                 ->where('role', 'pegawai_medis')->count(),
             'total_admin'   => User::where('unit_id', $unitId)
-                ->where('role', 'administrasi')->count(),
+                ->where('role', 'admin_rs')->count(),
         ];
 
         $review = [

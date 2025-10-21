@@ -29,7 +29,7 @@ return new class extends Migration
 
             $table->string('password');
 
-            $table->enum('role', ['pegawai_medis', 'kepala_unit', 'kepala_poliklinik', 'administrasi', 'super_admin'])
+            $table->enum('role', ['pegawai_medis', 'kepala_unit', 'kepala_poliklinik', 'admin_rs', 'super_admin'])
                 ->default('pegawai_medis')->nullable();
 
             $table->index('name');

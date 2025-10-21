@@ -89,7 +89,7 @@
                         <option value="pegawai_medis">Pegawai Medis</option>
                         <option value="kepala_unit">Kepala Unit</option>
                         <option value="kepala_poliklinik">Kepala Poliklinik</option>
-                        <option value="administrasi">Admin RS</option> {{-- label diganti, value tetap --}}
+                        <option value="admin_rs">Admin RS</option>
                         <option value="super_admin">Super Admin</option>
                     </select>
                     @error('role')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror

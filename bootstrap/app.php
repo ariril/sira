@@ -16,6 +16,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\RoleMiddleware::class,
         ]);
 
+        // Temporary: bypass CSRF for login to diagnose 419 issues
+        // Note: This is safe locally; remove once login is confirmed working.
+        $middleware->validateCsrfTokens(except: [
+            'login',
+        ]);
+
         // contoh lain (opsional): menambahkan ke group 'web'
         // $middleware->appendToGroup('web', [ \App\Http\Middleware\RoleMiddleware::class ]);
     })
