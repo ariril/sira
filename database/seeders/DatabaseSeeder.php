@@ -85,8 +85,6 @@ class DatabaseSeeder extends Seeder
                 ['name' => 'Apoteker', 'code' => 'APT', 'description' => 'Tenaga farmasi'],
                 ['name' => 'Analis Lab', 'code' => 'LAB-AN', 'description' => 'Tenaga laboratorium'],
                 ['name' => 'Radiografer', 'code' => 'RAD', 'description' => 'Tenaga radiologi'],
-                // ganti "Administration" -> "Admin RS"
-                ['name' => 'Admin RS', 'code' => 'ADM', 'description' => 'Administrator rumah sakit'],
             ];
             foreach ($professions as &$p) {
                 $p['created_at'] = $now;

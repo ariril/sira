@@ -11,6 +11,7 @@
       'admin_rs'          => ['grad'=>'from-emerald-500 to-teal-600','pill'=>'bg-emerald-50 text-emerald-700 border-emerald-100'],
       'kepala_poliklinik' => ['grad'=>'from-fuchsia-500 to-purple-600','pill'=>'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100'],
       'kepala_unit'       => ['grad'=>'from-amber-500 to-orange-600','pill'=>'bg-amber-50 text-amber-800 border-amber-100'],
+      'pegawai_medis'     => ['grad'=>'from-cyan-500 to-sky-600','pill'=>'bg-cyan-50 text-cyan-700 border-cyan-100'],
     ];
     $accent = $roleAccent[$role] ?? $roleAccent['admin_rs'];
 
@@ -75,8 +76,8 @@
          'href'=>$href('admin_rs.attendances.import.form','/admin-rs/attendances/import'),
          'active'=>request()->is('admin-rs/attendances/import*')],
         ['label'=>'Rekap Absensi','icon'=>'fa-calendar-check',
-         'href'=>$href('admin_rs.attendances.index','/admin-rs/attendances'),
-         'active'=>request()->routeIs('admin_rs.attendances.*')],
+      'href'=>$href('admin_rs.attendances.index','/admin-rs/attendances'),
+      'active'=>request()->routeIs('admin_rs.attendances.index') || request()->routeIs('admin_rs.attendances.show')],
         ['label'=>'Batch Import','icon'=>'fa-database',
          'href'=>$href('admin_rs.attendances.batches','/admin-rs/attendances/batches'),
          'active'=>request()->is('admin-rs/attendances/batches*')],
@@ -106,7 +107,7 @@
          'active'=>request()->is('admin-rs/remunerations/calc*')],
         ['label'=>'Daftar Remunerasi','icon'=>'fa-money-bill-trend-up',
          'href'=>$href('admin_rs.remunerations.index','/admin-rs/remunerations'),
-         'active'=>request()->routeIs('admin_rs.remunerations.*')],
+         'active'=>request()->routeIs('admin_rs.remunerations.index') || request()->routeIs('admin_rs.remunerations.show')],
       ]],
     ];
 
@@ -165,11 +166,36 @@
       ]],
     ];
 
+    /* =======================
+       MENU: PEGAWAI MEDIS
+       ======================= */
+    $menuPegawaiMedis = [
+      ['heading'=>'Dashboard','items'=>[
+        ['label'=>'Dashboard','icon'=>'fa-gauge',
+         'href'=>$href('pegawai_medis.dashboard','/pegawai-medis/dashboard'),
+         'active'=>request()->routeIs('pegawai_medis.dashboard')],
+      ]],
+      ['heading'=>'Kinerja','items'=>[
+        ['label'=>'Penilaian Saya','icon'=>'fa-clipboard-check',
+         'href'=>$href('pegawai_medis.assessments.index','/pegawai-medis/assessments'),
+         'active'=>request()->routeIs('pegawai_medis.assessments.*')],
+        ['label'=>'Kontribusi Tambahan','icon'=>'fa-hand-holding-heart',
+         'href'=>$href('pegawai_medis.additional-contributions.index','/pegawai-medis/additional-contributions'),
+         'active'=>request()->routeIs('pegawai_medis.additional-contributions.*')],
+      ]],
+      ['heading'=>'Remunerasi','items'=>[
+        ['label'=>'Remunerasi Saya','icon'=>'fa-money-bill-trend-up',
+         'href'=>$href('pegawai_medis.remunerations.index','/pegawai-medis/remunerations'),
+         'active'=>request()->routeIs('pegawai_medis.remunerations.*')],
+      ]],
+    ];
+
     // Pilih menu sesuai role
-    $menu = match ($role) {
+  $menu = match ($role) {
         'super_admin'       => $menuSuperAdmin,
         'kepala_unit'       => $menuKepalaUnit,
         'kepala_poliklinik' => $menuKepalaPoli,
+    'pegawai_medis'     => $menuPegawaiMedis,
         default             => $menuAdminRS, // admin_rs
     };
 @endphp
@@ -183,10 +209,11 @@
                         aria-label="Toggle navigation">
                     <i class="fa-solid fa-bars"></i>
                 </button>
-                <a href="{{ match($role){
+    <a href="{{ match($role){
         'super_admin'       => url('/super-admin/dashboard'),
         'kepala_unit'       => url('/kepala-unit/dashboard'),
         'kepala_poliklinik' => url('/kepala-poliklinik/dashboard'),
+  'pegawai_medis'     => url('/pegawai-medis/dashboard'),
         default             => url('/admin-rs/dashboard'),
     } }}" class="flex items-center gap-2">
                     <div

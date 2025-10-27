@@ -1,6 +1,4 @@
-@extends('layouts.app')
-
-@section('content')
+<x-app-layout title="Dashboard Pegawai Medis">
     <div class="container-px py-6">
         <h1 class="text-2xl font-semibold mb-4">Dashboard Pegawai Medis</h1>
 
@@ -72,7 +70,7 @@
             </div>
         </div>
     </div>
-@endsection
+</x-app-layout>
 {{--@push('scripts')--}}
 {{--    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>--}}
 {{--    <script>--}}

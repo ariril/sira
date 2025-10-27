@@ -233,10 +233,9 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
 Route::middleware(['auth','verified','role:pegawai_medis'])
     ->prefix('pegawai-medis')->name('pegawai_medis.')->group(function () {
 
-        // Penilaian kinerja (create/edit milik sendiri)
-        Route::resource('assessments', \App\Http\Controllers\Web\MedicalStaff\PerformanceAssessmentController::class);
-        Route::resource('assessments.details', \App\Http\Controllers\Web\MedicalStaff\PerformanceAssessmentDetailController::class)
-            ->shallow()->only(['store','update','destroy']);
+        // Penilaian kinerja: hanya index & show (dibuat oleh sistem)
+        Route::resource('assessments', \App\Http\Controllers\Web\MedicalStaff\PerformanceAssessmentController::class)
+            ->only(['index','show']);
 
         // Klaim & tugas tambahan
         Route::post('additional-tasks/{task}/claim',    [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'claim'])->name('additional_tasks.claim');

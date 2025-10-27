@@ -3,63 +3,42 @@
 namespace App\Http\Controllers\Web\MedicalStaff;
 
 use App\Http\Controllers\Controller;
+use App\Models\PerformanceAssessment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\View\View;
 
 class PerformanceAssessmentController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * List assessments owned by the logged-in medical staff.
      */
-    public function index()
+    public function index(Request $request): View
     {
-        //
+        $assessments = PerformanceAssessment::with('assessmentPeriod')
+            ->where('user_id', Auth::id())
+            ->orderByDesc('id')
+            ->paginate(10);
+
+        return view('pegawai_medis.assessments.index', compact('assessments'));
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Show a single assessment (read-only with details).
      */
-    public function create()
+    public function show(PerformanceAssessment $assessment): View
     {
-        //
+        $this->authorizeSelf($assessment);
+        $assessment->load(['assessmentPeriod','details.performanceCriteria']);
+        return view('pegawai_medis.assessments.show', compact('assessment'));
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Ensure the record belongs to the logged-in user.
+     * If $editable is true, also block when status is VALIDATED.
      */
-    public function store(Request $request)
+    private function authorizeSelf(PerformanceAssessment $assessment): void
     {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        abort_unless($assessment->user_id === Auth::id(), 403);
     }
 }

@@ -32,46 +32,39 @@ class DashboardController extends Controller
             'recent_comments'       => collect(),
         ];
 
-        if ($unitId && Schema::hasTable('reviews') && Schema::hasTable('review_details')) {
+        if ($unitId && Schema::hasTable('review_details') && Schema::hasTable('users')) {
             $from = Carbon::now()->subDays(30)->toDateTimeString();
 
-            // Basis ulasan per unit (join reviews -> review_details)
+            // Basis ulasan per unit: scope via users.unit_id (rd.medical_staff_id -> users.id)
             $base = DB::table('review_details as rd')
-                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
-                ->where('r.unit_id', $unitId)
+                ->join('users as u', 'u.id', '=', 'rd.medical_staff_id')
+                ->where('u.unit_id', $unitId)
                 ->where('rd.created_at', '>=', $from);
 
             $review['avg_rating_unit_30d']   = (clone $base)->avg('rd.rating');
             $review['total_ulasan_unit_30d'] = (clone $base)->count();
 
-            // "top_staff" → top professions (min 3 review)
+            // "top_staff" → top staff within unit (min 3 review), include profession if available
             $review['top_staff'] = DB::table('review_details as rd')
-                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
-                ->join('professions as p', 'p.id', '=', 'rd.profession_id')
-                ->select(
-                    'p.id',
-                    DB::raw('p.name as nama'),
-                    DB::raw('NULL as jabatan'),
-                    DB::raw('AVG(rd.rating) as avg_rating'),
-                    DB::raw('COUNT(*) as total')
-                )
-                ->where('r.unit_id', $unitId)
-                ->groupBy('p.id', 'p.name')
+                ->join('users as u', 'u.id', '=', 'rd.medical_staff_id')
+                ->leftJoin('professions as p', 'p.id', '=', 'u.profession_id')
+                ->select('u.id', DB::raw('u.name as nama'), DB::raw('COALESCE(p.name, NULL) as jabatan'),
+                    DB::raw('AVG(rd.rating) as avg_rating'), DB::raw('COUNT(*) as total'))
+                ->where('u.unit_id', $unitId)
+                ->groupBy('u.id', 'u.name', 'p.name')
                 ->havingRaw('COUNT(*) >= 3')
                 ->orderByDesc('avg_rating')
-                ->limit(5)
-                ->get();
+                ->limit(5)->get();
 
             // Komentar terbaru
             $review['recent_comments'] = DB::table('review_details as rd')
-                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
-                ->join('professions as p', 'p.id', '=', 'rd.profession_id')
-                ->select('p.name as nama', 'rd.rating', 'rd.comment as komentar', 'r.created_at')
-                ->where('r.unit_id', $unitId)
+                ->join('users as u', 'u.id', '=', 'rd.medical_staff_id')
+                ->leftJoin('professions as p', 'p.id', '=', 'u.profession_id')
+                ->select('u.name as nama', 'rd.rating', 'rd.comment as komentar', 'rd.created_at')
+                ->where('u.unit_id', $unitId)
                 ->whereNotNull('rd.comment')
-                ->orderByDesc('r.created_at')
-                ->limit(10)
-                ->get();
+                ->orderByDesc('rd.created_at')
+                ->limit(10)->get();
         }
 
         $kinerja = [

@@ -14,6 +14,13 @@ class UnitCriteriaWeight extends Model
         'unit_id',
         'performance_criteria_id',
         'weight',
+        'assessment_period_id',
+        'status',
+        'policy_doc_path',
+        'policy_note',
+        'unit_head_id',
+        'unit_head_note',
+        'polyclinic_head_id',
     ];
 
     protected $casts = [

@@ -27,9 +27,9 @@ class HomeController extends Controller
             return match ($role) {
                 'super_admin'        => redirect()->route('super_admin.dashboard'),
                 'kepala_unit'        => redirect()->route('kepala_unit.dashboard'),
-                'kepala_poliklinik'  => redirect()->route('polyclinic_head.dashboard'),
-                'admin_rs'       => redirect()->route('admin_rs.dashboard'),
-                default              => redirect()->route('medical_staff.dashboard'),
+                'kepala_poliklinik'  => redirect()->route('kepala_poliklinik.dashboard'),
+                'admin_rs'           => redirect()->route('admin_rs.dashboard'),
+                default              => redirect()->route('pegawai_medis.dashboard'),
             };
         }
 
