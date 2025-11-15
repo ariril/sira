@@ -70,6 +70,18 @@ class UnitRemunerationAllocationController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);
+
+        // Friendly duplicate check to avoid DB exception on unique constraint
+        $duplicateExists = Allocation::query()
+            ->where('assessment_period_id', $data['assessment_period_id'])
+            ->where('unit_id', $data['unit_id'])
+            ->exists();
+        if ($duplicateExists) {
+            return back()
+                ->withInput()
+                ->with('danger', 'Alokasi untuk unit dan periode tersebut sudah ada.');
+        }
+
         $data['published_at'] = $request->boolean('publish_now') ? now() : null;
         Allocation::create($data);
         return redirect()->route('admin_rs.unit-remuneration-allocations.index')->with('status','Alokasi dibuat.');

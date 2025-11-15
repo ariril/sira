@@ -15,11 +15,13 @@ class PerformanceCriteria extends Model
         'type',
         'description',
         'is_active',
+        'suggested_weight',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'type'      => PerformanceCriteriaType::class,
+        'suggested_weight' => 'decimal:2',
     ];
 
     /*

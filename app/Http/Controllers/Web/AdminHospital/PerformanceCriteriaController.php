@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Web\AdminHospital;
 use App\Enums\PerformanceCriteriaType;
 use App\Http\Controllers\Controller;
 use App\Models\PerformanceCriteria;
+use App\Models\CriteriaProposal;
+use App\Enums\CriteriaProposalStatus;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -55,6 +57,13 @@ class PerformanceCriteriaController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
+        // Load proposed criteria to be reviewed inline under this page
+        $proposals = CriteriaProposal::query()
+            ->with(['unitHead:id,name'])
+            ->where('status', CriteriaProposalStatus::PROPOSED)
+            ->orderBy('id')
+            ->get(['id','name','description','suggested_weight','unit_head_id','created_at']);
+
         return view('admin_rs.performance_criterias.index', [
             'items'           => $items,
             'types'           => $this->types(),
@@ -65,6 +74,7 @@ class PerformanceCriteriaController extends Controller
                 'type'   => $type,
                 'active' => $active,
             ],
+            'proposals'       => $proposals,
         ]);
     }
 
@@ -121,6 +131,7 @@ class PerformanceCriteriaController extends Controller
             'type'        => ['required', 'in:' . implode(',', array_keys($this->types()))],
             'description' => ['nullable', 'string'],
             'is_active'   => ['nullable', 'boolean'],
+            'suggested_weight' => ['nullable','numeric','min:0','max:100'],
         ]);
     }
 }

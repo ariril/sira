@@ -14,9 +14,11 @@ class AuthenticatedSessionController extends Controller
     /**
      * Display the login view.
      */
-    public function create(): View
+    public function create()
     {
-        return view('auth.login');
+        // Arahkan ke beranda dengan query ?modal=1 agar login modal tampil.
+        // Tetap pertahankan route /login untuk kompatibilitas (password reset, dll.).
+        return redirect()->route('home', ['modal' => 1]);
     }
 
     /**

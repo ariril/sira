@@ -35,14 +35,9 @@ class AssessmentApprovalController extends Controller
         $q = (string) ($data['q'] ?? '');
         $perPage = (int) ($data['per_page'] ?? 10); // keep existing default 10
 
-        // Status filter: default to 'pending' only when not provided; allow empty for "Semua".
-        $validStatuses = ['pending','approved','rejected'];
-        if ($request->has('status')) {
-            $statusInput = (string) $request->input('status');
-            $status = in_array($statusInput, $validStatuses, true) ? $statusInput : '';
-        } else {
-            $status = 'pending';
-        }
+        // Composite filter values covering status and level scopes
+        // Values: '', 'pending_l1','approved_l1','rejected_l1','pending_all','approved_all','rejected_all'
+        $status = (string) $request->input('status', 'pending_l1');
 
         $items = collect();
         if (Schema::hasTable('assessment_approvals')) {
@@ -50,10 +45,35 @@ class AssessmentApprovalController extends Controller
                 ->join('performance_assessments as pa', 'pa.id', '=', 'aa.performance_assessment_id')
                 ->leftJoin('users as u', 'u.id', '=', 'pa.user_id')
                 ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'pa.assessment_period_id')
-                ->selectRaw('aa.id, aa.status, aa.level, aa.note, aa.created_at, u.name as user_name, ap.name as period_name, pa.total_wsm_score')
+                ->selectRaw("aa.id, aa.status, aa.level, aa.note, aa.created_at, u.name as user_name, ap.name as period_name, pa.total_wsm_score,
+                              EXISTS(SELECT 1 FROM assessment_approvals aa2 WHERE aa2.performance_assessment_id = aa.performance_assessment_id AND aa2.level = 2 AND aa2.status = 'approved') as has_lvl2_approved")
                 ->orderByDesc('aa.id');
 
-            if ($status !== '') $builder->where('aa.status', $status);
+            // Apply combined status+level filter
+            switch ($status) {
+                case 'pending_l1':
+                    $builder->where('aa.level', 1)->where('aa.status', 'pending');
+                    break;
+                case 'approved_l1':
+                    $builder->where('aa.level', 1)->where('aa.status', 'approved');
+                    break;
+                case 'rejected_l1':
+                    $builder->where('aa.level', 1)->where('aa.status', 'rejected');
+                    break;
+                case 'pending_all':
+                    $builder->where('aa.status', 'pending');
+                    break;
+                case 'approved_all':
+                    $builder->where('aa.status', 'approved');
+                    break;
+                case 'rejected_all':
+                    $builder->where('aa.status', 'rejected');
+                    break;
+                case '': // Semua
+                default:
+                    // No additional filters
+                    break;
+            }
             if ($q !== '') {
                 $builder->where(function ($w) use ($q) {
                     $w->where('u.name', 'like', "%$q%")
@@ -88,9 +108,15 @@ class AssessmentApprovalController extends Controller
     public function approve(Request $request, AssessmentApproval $assessment): RedirectResponse
     {
         $this->authorizeAccess();
-        // Prevent double approval
+        // Only Level 1 approval allowed here and must be pending
+        if ((int)($assessment->level ?? 0) !== 1) {
+            return back()->withErrors(['status' => 'Tidak dapat menyetujui: bukan level 1.']);
+        }
         if ($assessment->status === AStatus::APPROVED->value) {
             return back()->with('status', 'Penilaian sudah disetujui.');
+        }
+        if ($assessment->status !== AStatus::PENDING->value) {
+            return back()->withErrors(['status' => 'Status tidak valid untuk disetujui.']);
         }
         $assessment->update([
             'status'   => AStatus::APPROVED->value,
@@ -105,8 +131,13 @@ class AssessmentApprovalController extends Controller
     {
         $this->authorizeAccess();
         $request->validate(['note' => ['required','string','max:500']]);
-        // Disallow reject if already approved at level 2
-        if (($assessment->status === AStatus::APPROVED->value) && ((int)($assessment->level ?? 1) >= 2)) {
+        // Disallow reject if already approved at level 2 for the same assessment
+        $hasLvl2Approved = DB::table('assessment_approvals')
+            ->where('performance_assessment_id', $assessment->performance_assessment_id)
+            ->where('level', 2)
+            ->where('status', AStatus::APPROVED->value)
+            ->exists();
+        if ($hasLvl2Approved) {
             return back()->withErrors(['status' => 'Tidak dapat menolak, sudah disetujui pada level 2.']);
         }
         $assessment->update([

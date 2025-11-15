@@ -3,10 +3,10 @@
     use Illuminate\Support\Str;
 @endphp
 
-<x-app-layout title="Announcements">
+<x-app-layout title="Pengumuman">
     <x-slot name="header">
         <div class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold text-slate-800">Announcements</h1>
+            <h1 class="text-2xl font-semibold text-slate-800">Pengumuman</h1>
             <x-ui.button as="a" href="{{ route('super_admin.announcements.create') }}" variant="primary" class="h-12 px-6 text-base">
                 <i class="fa-solid fa-plus mr-2"></i> Tambah Pengumuman
             </x-ui.button>
@@ -52,20 +52,19 @@
         </form>
 
         {{-- TABLE --}}
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <table class="min-w-full">
-                <thead class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
+        <x-ui.table min-width="1000px">
+            <x-slot name="head">
                 <tr>
-                    <th class="px-6 py-4 text-left">Judul</th>
-                    <th class="px-6 py-4 text-left">Kategori</th>
-                    <th class="px-6 py-4 text-left">Label</th>
-                    <th class="px-6 py-4 text-left">Publikasi</th>
-                    <th class="px-6 py-4 text-left">Status</th>
-                    <th class="px-6 py-4 text-right">Aksi</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Judul</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Kategori</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Label</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Publikasi</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                 </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm">
-                @forelse(($announcements ?? collect()) as $a)
+            </x-slot>
+
+            @forelse(($announcements ?? collect()) as $a)
                     @php
                         $now = \Illuminate\Support\Carbon::now();
                         $status = 'Draft';
@@ -81,7 +80,7 @@
                     <tr class="hover:bg-slate-50">
                         <td class="px-6 py-4">
                             <div class="font-semibold text-slate-800">{{ $a->title }}</div>
-                            <div class="text-xs text-slate-500">/{{ $a->slug }}</div>
+                            <div class="text-xs text-slate-500 break-all">/{{ $a->slug }}</div>
                         </td>
                         <td class="px-6 py-4">{{ \Illuminate\Support\Str::headline($a->category?->value ?? '-') }}</td>
                         <td class="px-6 py-4">{{ \Illuminate\Support\Str::headline($a->label?->value ?? '-') }}</td>
@@ -101,7 +100,7 @@
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border {{ $badge }}">{{ $status }}</span>
                             @if($a->is_featured)
                                 <span class="ml-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
-                                    <i class="fa-solid fa-star"></i> Featured
+                                    <i class="fa-solid fa-star"></i> Sorotan
                                 </span>
                             @endif
                         </td>
@@ -115,12 +114,10 @@
                             </div>
                         </td>
                     </tr>
-                @empty
-                    <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
+            @empty
+                <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
+            @endforelse
+        </x-ui.table>
 
         {{-- FOOTER PAGINATION --}}
         @if(isset($announcements))

@@ -32,44 +32,40 @@
         </form>
 
         {{-- TABLE --}}
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <table class="min-w-full">
-                <thead class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
-                    <tr>
-                        <th class="px-6 py-4 text-left">Nama</th>
-                        <th class="px-6 py-4 text-left">Unit</th>
-                        <th class="px-6 py-4 text-left">Periode</th>
-                        <th class="px-6 py-4 text-right">Jumlah</th>
-                        <th class="px-6 py-4 text-left">Publish</th>
-                        <th class="px-6 py-4 text-left">Status Bayar</th>
-                        <th class="px-6 py-4 text-right">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm">
-                    @forelse($items as $it)
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-6 py-4">{{ $it->user_name ?? '-' }}</td>
-                            <td class="px-6 py-4">{{ $it->unit_name ?? '-' }}</td>
-                            <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
-                            <td class="px-6 py-4 text-right">{{ number_format((float)($it->amount ?? 0), 2) }}</td>
-                            <td class="px-6 py-4">
-                                @if(!empty($it->published_at))
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Published</span>
-                                @else
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Draft</span>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4">{{ $it->payment_status ?? '-' }}</td>
-                            <td class="px-6 py-4 text-right">
-                                <x-ui.icon-button as="a" href="{{ route('kepala_poliklinik.remunerations.show', $it->id) }}" icon="fa-eye" />
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="7" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+        <x-ui.table min-width="1100px">
+            <x-slot name="head">
+                <tr>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Nama</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Unit</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Jumlah</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Publish</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Status Bayar</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
+                </tr>
+            </x-slot>
+            @forelse($items as $it)
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4">{{ $it->user_name ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->unit_name ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
+                    <td class="px-6 py-4 text-right">{{ number_format((float)($it->amount ?? 0), 2) }}</td>
+                    <td class="px-6 py-4">
+                        @if(!empty($it->published_at))
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Published</span>
+                        @else
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Draft</span>
+                        @endif
+                    </td>
+                    <td class="px-6 py-4">{{ $it->payment_status ?? '-' }}</td>
+                    <td class="px-6 py-4 text-right">
+                        <x-ui.icon-button as="a" href="{{ route('kepala_poliklinik.remunerations.show', $it->id) }}" icon="fa-eye" />
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="7" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
+            @endforelse
+        </x-ui.table>
 
         {{-- FOOTER PAGINATION --}}
         <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

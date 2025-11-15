@@ -1,10 +1,19 @@
 @php
-    // Daftar profesi (fallback kalau belum disupply via View composer)
-    $profesis = $profesis
-        ?? \App\Models\Profession::query()
-            ->selectRaw('id, name as nama')
-            ->orderBy('name')
-            ->get();
+    // Daftar profesi (fallback kalau belum disupply via View composer), toleran saat tabel belum ada
+    if (!isset($profesis)) {
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('professions')) {
+                $profesis = \App\Models\Profession::query()
+                    ->selectRaw('id, name as nama')
+                    ->orderBy('name')
+                    ->get();
+            } else {
+                $profesis = collect();
+            }
+        } catch (\Throwable $e) {
+            $profesis = collect();
+        }
+    }
 
     $oldRole  = old('role', ''); // default kosong -> paksa user pilih role
 @endphp
@@ -47,18 +56,17 @@
                 {{-- Email --}}
                 <div>
                     <label for="email" class="block text-[15px] font-medium text-slate-700">Email</label>
-                    <input id="email" name="email" type="email" required autofocus autocomplete="username"
-                           value="{{ old('email') }}"
-                           class="mt-1 w-full h-12 px-4 rounded-xl border-slate-300 text-[15px] shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    @error('email')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+              <input id="email" name="email" type="email" required autofocus autocomplete="username"
+                  value="{{ old('email') }}" placeholder="Masukkan email Anda"
+                  class="mt-1 w-full h-12 px-4 rounded-xl border-slate-300 text-[15px] shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
 
                 {{-- Password + eye toggle --}}
                 <div>
-                    <label for="password" class="block text-[15px] font-medium text-slate-700">Password</label>
+                    <label for="password" class="block text-[15px] font-medium text-slate-700">Kata sandi</label>
                     <div class="relative">
-                        <input :type="showPass ? 'text' : 'password'"
-                               id="password" name="password" required autocomplete="current-password"
+               <input :type="showPass ? 'text' : 'password'"
+                   id="password" name="password" required autocomplete="current-password" placeholder="Masukkan kata sandi"
                                class="mt-1 w-full h-12 px-4 pr-12 rounded-xl border-slate-300 text-[15px] shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <button type="button" @click="showPass = !showPass"
                                 class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
@@ -77,7 +85,6 @@
                             </svg>
                         </button>
                     </div>
-                    @error('password')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                 </div>
 
                 {{-- Role --}}
@@ -92,7 +99,7 @@
                         <option value="admin_rs">Admin RS</option>
                         <option value="super_admin">Super Admin</option>
                     </select>
-                    @error('role')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+                    {{-- Pesan error untuk role cukup ditampilkan di alert paling atas --}}
                 </div>
 
                 {{-- Profession (muncul jika pegawai medis) --}}
@@ -105,23 +112,22 @@
                             <option value="{{ $p->id }}" @selected(old('profession_id')==$p->id)>{{ $p->nama }}</option>
                         @endforeach
                     </select>
-                    @error('profession_id')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                 </div>
 
                 {{-- Remember & Forgot --}}
                 <div class="flex items-center justify-between">
                     <label class="flex items-center gap-2">
-                        <input type="checkbox" name="remember"
+                        <input type="checkbox" name="remember" value="1"
                                class="h-4 w-4 rounded border-slate-300 text-blue-600" @checked(old('remember'))>
-                        <span class="text-sm text-slate-600">Remember me</span>
+                        <span class="text-sm text-slate-600">Ingat saya</span>
                     </label>
-                    <a href="{{ route('password.request') }}" class="text-sm text-blue-600 hover:underline">Forgot?</a>
+                    <a href="{{ route('password.request') }}" class="text-sm text-blue-600 hover:underline">Lupa?</a>
                 </div>
 
                 {{-- Submit --}}
                 <button type="submit"
                         class="inline-flex items-center justify-center w-full h-12 gap-2 px-6 rounded-xl text-base font-medium text-white bg-gradient-to-tr from-blue-500 to-indigo-600 shadow hover:-translate-y-0.5 transition">
-                    Login
+                    Masuk
                 </button>
             </form>
         </div>

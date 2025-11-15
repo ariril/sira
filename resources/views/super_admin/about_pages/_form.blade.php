@@ -37,7 +37,7 @@
 
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Publish At</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Waktu Publikasi</label>
                 <x-ui.input type="datetime-local" name="published_at" :value="old('published_at', optional($aboutPage->published_at)->format('Y-m-d\\TH:i'))" />
             </div>
             <div class="pt-6">
@@ -55,7 +55,7 @@
 
             <x-ui.button type="submit" variant="{{ $aboutPage->exists ? 'success' : 'primary' }}">
                 <i class="fa-solid fa-floppy-disk"></i>
-                {{ $aboutPage->exists ? 'Update' : 'Create' }}
+                {{ $aboutPage->exists ? 'Perbarui' : 'Simpan' }}
             </x-ui.button>
         </div>
     </div>

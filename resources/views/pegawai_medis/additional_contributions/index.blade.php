@@ -3,11 +3,10 @@
         <h1 class="text-2xl font-semibold">Kontribusi Tambahan</h1>
 
         {{-- SECTION: Tugas Tersedia (termasuk yang sudah Anda klaim) --}}
-        <div class="bg-white rounded-xl border p-4">
-            <h2 class="font-semibold mb-3">Tugas Tersedia</h2>
+        <x-section title="Tugas Tersedia">
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 @forelse($availableTasks as $t)
-                    <div class="border rounded-xl p-4">
+                    <div class="rounded-2xl ring-1 ring-slate-100 p-4 bg-white">
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <div class="font-semibold">{{ $t->title }}</div>
@@ -26,7 +25,7 @@
                                 @if($t->my_claim_id)
                                     <form method="POST" action="{{ route('pegawai_medis.additional_task_claims.cancel', $t->my_claim_id) }}" onsubmit="return confirm('Batalkan klaim tugas ini?')">
                                         @csrf
-                                        <button class="px-3 py-1.5 rounded-md border text-slate-700 hover:bg-slate-50">Batalkan</button>
+                                        <button class="px-3 py-1.5 rounded-md ring-1 ring-slate-200 text-slate-700 hover:bg-slate-50">Batalkan</button>
                                     </form>
                                     <form method="POST" action="{{ route('pegawai_medis.additional_task_claims.complete', $t->my_claim_id) }}">
                                         @csrf
@@ -47,87 +46,81 @@
                     <div class="text-sm text-slate-500">Belum ada tugas yang tersedia.</div>
                 @endforelse
             </div>
-        </div>
+        </x-section>
 
         {{-- SECTION: Klaim Aktif Saya --}}
-        <div class="bg-white rounded-xl border p-4">
-            <h2 class="font-semibold mb-3">Klaim Aktif Saya</h2>
+        <x-section title="Klaim Aktif Saya">
             <div class="overflow-x-auto">
-                <table class="min-w-full text-sm">
-                    <thead class="bg-slate-50 text-slate-600">
+                <x-ui.table min-width="1000px">
+                    <x-slot name="head">
                         <tr>
-                            <th class="text-left px-4 py-3">Tugas</th>
-                            <th class="text-left px-4 py-3">Periode</th>
-                            <th class="text-left px-4 py-3">Klaim Pada</th>
-                            <th class="text-left px-4 py-3">Batas Batal</th>
-                            <th class="text-left px-4 py-3">Bonus</th>
-                            <th class="text-left px-4 py-3">Poin</th>
-                            <th class="px-4 py-3 text-right">Aksi</th>
+                            <th class="text-left px-4 py-3 whitespace-nowrap">Tugas</th>
+                            <th class="text-left px-4 py-3 whitespace-nowrap">Periode</th>
+                            <th class="text-left px-4 py-3 whitespace-nowrap">Klaim Pada</th>
+                            <th class="text-left px-4 py-3 whitespace-nowrap">Batas Batal</th>
+                            <th class="text-left px-4 py-3 whitespace-nowrap">Bonus</th>
+                            <th class="text-left px-4 py-3 whitespace-nowrap">Poin</th>
+                            <th class="px-4 py-3 text-right whitespace-nowrap">Aksi</th>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($myActiveClaims as $c)
-                            <tr class="border-t">
-                                <td class="px-4 py-3">{{ $c->title }}</td>
-                                <td class="px-4 py-3">{{ $c->period_name ?? '-' }}</td>
-                                <td class="px-4 py-3">{{ optional($c->claimed_at)->format('d M Y H:i') }}</td>
-                                <td class="px-4 py-3">{{ optional($c->cancel_deadline_at)->format('d M Y H:i') ?? '-' }}</td>
-                                <td class="px-4 py-3">{{ $c->bonus_amount ? 'Rp '.number_format($c->bonus_amount,0,',','.') : '-' }}</td>
-                                <td class="px-4 py-3">{{ $c->points ?? '-' }}</td>
-                                <td class="px-4 py-3">
-                                    <div class="flex items-center justify-end gap-2">
-                                        <form method="POST" action="{{ route('pegawai_medis.additional_task_claims.cancel', $c->claim_id) }}" onsubmit="return confirm('Batalkan klaim ini?')">
-                                            @csrf
-                                            <button class="px-3 py-1.5 rounded-md border text-slate-700 hover:bg-slate-50">Batalkan</button>
-                                        </form>
-                                        <form method="POST" action="{{ route('pegawai_medis.additional_task_claims.complete', $c->claim_id) }}">
-                                            @csrf
-                                            <button class="px-3 py-1.5 rounded-md bg-cyan-600 text-white hover:bg-cyan-700">Selesai</button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="px-4 py-6 text-center text-slate-500">Tidak ada klaim aktif.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                    </x-slot>
+                    @forelse($myActiveClaims as $c)
+                        <tr>
+                            <td class="px-4 py-3">{{ $c->title }}</td>
+                            <td class="px-4 py-3">{{ $c->period_name ?? '-' }}</td>
+                            <td class="px-4 py-3">{{ optional($c->claimed_at)->format('d M Y H:i') }}</td>
+                            <td class="px-4 py-3">{{ optional($c->cancel_deadline_at)->format('d M Y H:i') ?? '-' }}</td>
+                            <td class="px-4 py-3">{{ $c->bonus_amount ? 'Rp '.number_format($c->bonus_amount,0,',','.') : '-' }}</td>
+                            <td class="px-4 py-3">{{ $c->points ?? '-' }}</td>
+                            <td class="px-4 py-3">
+                                <div class="flex items-center justify-end gap-2">
+                                    <form method="POST" action="{{ route('pegawai_medis.additional_task_claims.cancel', $c->claim_id) }}" onsubmit="return confirm('Batalkan klaim ini?')">
+                                        @csrf
+                                        <button class="px-3 py-1.5 rounded-md ring-1 ring-slate-200 text-slate-700 hover:bg-slate-50">Batalkan</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('pegawai_medis.additional_task_claims.complete', $c->claim_id) }}">
+                                        @csrf
+                                        <button class="px-3 py-1.5 rounded-md bg-cyan-600 text-white hover:bg-cyan-700">Selesai</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="7" class="px-4 py-6 text-center text-slate-500">Tidak ada klaim aktif.</td>
+                        </tr>
+                    @endforelse
+                </x-ui.table>
             </div>
-        </div>
+        </x-section>
 
         {{-- SECTION: Tugas Selesai --}}
-        <div class="bg-white rounded-xl border p-4">
-            <h2 class="font-semibold mb-3">Tugas Selesai</h2>
+        <x-section title="Tugas Selesai">
             <div class="overflow-x-auto">
-                <table class="min-w-full text-sm">
-                    <thead class="bg-slate-50 text-slate-600">
+                <x-ui.table min-width="820px">
+                    <x-slot name="head">
                         <tr>
-                            <th class="text-left px-4 py-3">Tugas</th>
-                            <th class="text-left px-4 py-3">Periode</th>
-                            <th class="text-left px-4 py-3">Selesai Pada</th>
-                            <th class="text-left px-4 py-3">Bonus Diterima</th>
-                            <th class="text-left px-4 py-3">Poin</th>
+                            <th class="text-left px-4 py-3 whitespace-nowrap">Tugas</th>
+                            <th class="text-left px-4 py-3 whitespace-nowrap">Periode</th>
+                            <th class="text-left px-4 py-3 whitespace-nowrap">Selesai Pada</th>
+                            <th class="text-left px-4 py-3 whitespace-nowrap">Bonus Diterima</th>
+                            <th class="text-left px-4 py-3 whitespace-nowrap">Poin</th>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($myCompletedClaims as $c)
-                            <tr class="border-t">
-                                <td class="px-4 py-3">{{ $c->title }}</td>
-                                <td class="px-4 py-3">{{ $c->period_name ?? '-' }}</td>
-                                <td class="px-4 py-3">{{ optional($c->completed_at)->format('d M Y H:i') }}</td>
-                                <td class="px-4 py-3">{{ $c->bonus_amount ? 'Rp '.number_format($c->bonus_amount,0,',','.') : '-' }}</td>
-                                <td class="px-4 py-3">{{ $c->points ?? '-' }}</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="px-4 py-6 text-center text-slate-500">Belum ada tugas selesai.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                    </x-slot>
+                    @forelse($myCompletedClaims as $c)
+                        <tr>
+                            <td class="px-4 py-3">{{ $c->title }}</td>
+                            <td class="px-4 py-3">{{ $c->period_name ?? '-' }}</td>
+                            <td class="px-4 py-3">{{ optional($c->completed_at)->format('d M Y H:i') }}</td>
+                            <td class="px-4 py-3">{{ $c->bonus_amount ? 'Rp '.number_format($c->bonus_amount,0,',','.') : '-' }}</td>
+                            <td class="px-4 py-3">{{ $c->points ?? '-' }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="px-4 py-6 text-center text-slate-500">Belum ada tugas selesai.</td>
+                        </tr>
+                    @endforelse
+                </x-ui.table>
             </div>
-        </div>
+        </x-section>
     </div>
 </x-app-layout>

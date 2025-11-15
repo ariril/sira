@@ -1,8 +1,8 @@
 @php /** @var \App\Models\AboutPage $aboutPage */ @endphp
-<x-app-layout title="Edit About Page">
+<x-app-layout title="Edit Halaman Tentang">
     <x-slot name="header">
         <div class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold text-slate-800">Edit About Page</h1>
+            <h1 class="text-2xl font-semibold text-slate-800">Edit Halaman Tentang</h1>
         </div>
     </x-slot>
 

@@ -15,9 +15,27 @@ return new class extends Migration
                 ->constrained('users')
                 ->cascadeOnDelete();
 
-            $table->date('attendance_date'); // tanggal_hadir
-            $table->time('check_in')->nullable();  // jam_masuk
-            $table->time('check_out')->nullable(); // jam_keluar
+            // Tanggal hadir (wajib)
+            $table->date('attendance_date');
+
+            // Waktu scan masuk/keluar dari mesin (disimpan sebagai datetime agar konsisten dengan model & validasi)
+            $table->dateTime('check_in')->nullable();
+            $table->dateTime('check_out')->nullable();
+
+            // Informasi tambahan dari sheet Excel (opsional)
+            $table->string('shift_name', 100)->nullable();          // Nama Shift
+            $table->time('scheduled_in')->nullable();               // Jam Masuk (jadwal)
+            $table->time('scheduled_out')->nullable();              // Jam Keluar (jadwal)
+
+            $table->unsignedSmallInteger('late_minutes')->nullable();        // Datang Terlambat (menit)
+            $table->unsignedSmallInteger('early_leave_minutes')->nullable(); // Pulang Awal (menit)
+            $table->unsignedSmallInteger('work_duration_minutes')->nullable();   // Durasi Kerja (menit)
+            $table->unsignedSmallInteger('break_duration_minutes')->nullable();  // Istirahat Durasi (menit)
+            $table->unsignedSmallInteger('extra_break_minutes')->nullable();     // Istirahat Lebih (menit)
+            $table->time('overtime_end')->nullable();                 // Lembur Akhir (jam)
+            $table->boolean('holiday_public')->default(false);        // Libur Umum
+            $table->boolean('holiday_regular')->default(false);       // Libur Rutin
+            $table->boolean('overtime_shift')->default(false);        // Shift Lembur
 
             $table->enum('attendance_status', [    // status_kehadiran
                 'Hadir',
@@ -28,7 +46,9 @@ return new class extends Migration
                 'Absen',
             ])->default('Hadir');
 
-            $table->text('overtime_note')->nullable(); // catatan_lembur
+            // Keterangan umum dari sheet + catatan lembur terpisah
+            $table->text('note')->nullable();
+            $table->text('overtime_note')->nullable();
 
             $table->enum('source', ['manual','import','integrasi'])
                 ->default('import');

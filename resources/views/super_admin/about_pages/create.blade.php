@@ -1,7 +1,7 @@
-<x-app-layout title="Buat About Page">
+<x-app-layout title="Buat Halaman Tentang">
     <x-slot name="header">
         <div class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold text-slate-800">Buat About Page</h1>
+            <h1 class="text-2xl font-semibold text-slate-800">Buat Halaman Tentang</h1>
         </div>
     </x-slot>
 

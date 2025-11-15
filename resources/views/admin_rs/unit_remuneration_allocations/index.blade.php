@@ -36,57 +36,54 @@
         </form>
 
         {{-- TABLE --}}
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <table class="min-w-full">
-                <thead class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
-                    <tr>
-                        <th class="px-6 py-4 text-left">Periode</th>
-                        <th class="px-6 py-4 text-left">Unit</th>
-                        <th class="px-6 py-4 text-right">Jumlah</th>
-                        <th class="px-6 py-4 text-left">Status</th>
-                        <th class="px-6 py-4 text-right">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm">
-                    @forelse($items as $it)
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-6 py-4">{{ $it->period->name ?? '-' }}</td>
-                            <td class="px-6 py-4">{{ $it->unit->name ?? '-' }}</td>
-                            <td class="px-6 py-4 text-right">{{ number_format((float)($it->amount ?? 0), 2) }}</td>
-                            <td class="px-6 py-4">
-                                @if(!empty($it->published_at))
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Published</span>
+        <x-ui.table min-width="920px">
+            <x-slot name="head">
+                <tr>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Unit</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Jumlah</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
+                </tr>
+            </x-slot>
+
+            @forelse($items as $it)
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4">{{ $it->period->name ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->unit->name ?? '-' }}</td>
+                    <td class="px-6 py-4 text-right">{{ number_format((float)($it->amount ?? 0), 2) }}</td>
+                    <td class="px-6 py-4">
+                        @if(!empty($it->published_at))
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Published</span>
+                        @else
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Draft</span>
+                        @endif
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="inline-flex gap-2">
+                            <x-ui.icon-button as="a" href="{{ route('admin_rs.unit-remuneration-allocations.edit', $it) }}" icon="fa-pen-to-square" />
+                            <form method="POST" action="{{ route('admin_rs.unit-remuneration-allocations.destroy', $it) }}" onsubmit="return confirm('Hapus alokasi ini?')">
+                                @csrf
+                                @method('DELETE')
+                                <x-ui.icon-button icon="fa-trash" variant="danger" />
+                            </form>
+                            <form method="POST" action="{{ route('admin_rs.unit-remuneration-allocations.update', $it) }}">
+                                @csrf
+                                @method('PUT')
+                                <input type="hidden" name="publish_toggle" value="{{ empty($it->published_at) ? 1 : 0 }}" />
+                                @if(empty($it->published_at))
+                                    <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Publish</x-ui.button>
                                 @else
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Draft</span>
+                                    <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Jadikan Draft</x-ui.button>
                                 @endif
-                            </td>
-                            <td class="px-6 py-4 text-right">
-                                <div class="inline-flex gap-2">
-                                    <x-ui.icon-button as="a" href="{{ route('admin_rs.unit-remuneration-allocations.edit', $it) }}" icon="fa-pen-to-square" />
-                                    <form method="POST" action="{{ route('admin_rs.unit-remuneration-allocations.destroy', $it) }}" onsubmit="return confirm('Hapus alokasi ini?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <x-ui.icon-button icon="fa-trash" variant="danger" />
-                                    </form>
-                                    <form method="POST" action="{{ route('admin_rs.unit-remuneration-allocations.update', $it) }}">
-                                        @csrf
-                                        @method('PUT')
-                                        <input type="hidden" name="publish_toggle" value="{{ empty($it->published_at) ? 1 : 0 }}" />
-                                        @if(empty($it->published_at))
-                                            <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Publish</x-ui.button>
-                                        @else
-                                            <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Jadikan Draft</x-ui.button>
-                                        @endif
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
+            @endforelse
+        </x-ui.table>
 
         {{-- FOOTER PAGINATION --}}
         <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

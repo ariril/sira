@@ -7,6 +7,11 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
+        @if(session('danger'))
+            <div class="rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 text-sm">
+                {{ session('danger') }}
+            </div>
+        @endif
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <form method="POST" action="{{ route('admin_rs.unit-remuneration-allocations.store') }}" class="space-y-6">
                 @csrf
@@ -30,7 +35,7 @@
 
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Catatan</label>
-                    <x-ui.input as="textarea" name="note" rows="4" value="{{ old('note', $item->note) }}" placeholder="Opsional" />
+                    <x-ui.textarea name="note" rows="4" value="{{ old('note', $item->note) }}" placeholder="Opsional" />
                     @error('note')<div class="text-rose-600 text-xs mt-1">{{ $message }}</div>@enderror
                 </div>
 

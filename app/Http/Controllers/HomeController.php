@@ -6,6 +6,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Schema;
 
 use App\Models\SiteSetting;             // site_settings
 use App\Models\AssessmentPeriod;        // assessment_periods
@@ -36,19 +37,33 @@ class HomeController extends Controller
         // ========== PUBLIC LANDING (GUEST) ==========
         Carbon::setLocale('id');
 
-        // 1) Site/Profile
-        $site = Cache::remember('site.profile', 300, fn () => SiteSetting::query()->first());
+        // 1) Site/Profile (toleran saat tabel belum ada di lingkungan test)
+        $site = Cache::remember('site.profile', 300, function () {
+            if (!Schema::hasTable('site_settings')) {
+                return null;
+            }
+            return SiteSetting::query()->first();
+        });
 
         // 2) Periode aktif
+        if (Schema::hasTable('assessment_periods')) {
+            // Sinkronkan status otomatis berdasarkan tanggal sekarang saat halaman diakses
+            AssessmentPeriod::syncByNow();
+        }
         $periodeAktif = Cache::remember('periode.aktif', 300, function () {
+            if (!Schema::hasTable('assessment_periods')) {
+                return null;
+            }
             return AssessmentPeriod::query()
-                ->where('is_active', 1)
+                ->where('status', 'active')
                 ->orderByDesc('id')
                 ->first();
         });
 
         // 3) Quick stats
-        $totalPegawai = Cache::remember('stat.total_pegawai', 300, fn () => User::count());
+        $totalPegawai = Cache::remember('stat.total_pegawai', 300, function () {
+            return Schema::hasTable('users') ? User::count() : 0;
+        });
 
         // 3a) Rata-rata capaian (avg performance_assessments.total_wsm_score pada periode aktif)
         $capaianKinerja = Cache::remember('stat.capaian_kinerja', 300, function () use ($periodeAktif) {
@@ -61,18 +76,15 @@ class HomeController extends Controller
 
         // 3b) Pengganti "Logbook Terisi": jumlah additional_contributions pada periode aktif
         $logbookTerisi = Cache::remember('stat.logbook_terisi', 300, function () use ($periodeAktif) {
+            if (!Schema::hasTable('additional_contributions')) {
+                return 0;
+            }
             $q = AdditionalContribution::query();
             if ($periodeAktif) $q->where('assessment_period_id', $periodeAktif->id);
             return $q->count();
         });
 
-        // 3c) Pengganti "Jadwal Dokter Besok": jumlah performance_assessments dengan assessment_date = besok
-        $jadwalDokterBesok = Cache::remember('stat.jadwal_dokter_besok', 300, function () {
-            $besok = Carbon::tomorrow()->toDateString();
-            return PerformanceAssessment::query()
-                ->whereDate('assessment_date', $besok)
-                ->count();
-        });
+        // Catatan: Sistem tidak mencatat jadwal tenaga medis, jadi tidak ada statistik "Jadwal Besok" di beranda.
 
         $stats = [
             [
@@ -88,21 +100,25 @@ class HomeController extends Controller
                 'label' => 'Capaian Kinerja',
             ],
             [
-                'icon'  => 'fa-calendar-check',
+                'icon'  => 'fa-calendar-days',
                 'value' => $periodeAktif
-                    ? ($this->formatBulanTahun($periodeAktif->start_date) . ' – ' . $this->formatBulanTahun($periodeAktif->end_date))
+                    ? ($periodeAktif->name
+                        ?: ($this->formatBulanTahun($periodeAktif->start_date ?: $periodeAktif->end_date)))
                     : '—',
                 'label' => 'Periode Aktif',
             ],
             [
-                'icon'  => 'fa-file-lines',
+                'icon'  => 'fa-circle-plus',
                 'value' => number_format($logbookTerisi, 0, ',', '.'),
-                'label' => 'Logbook Terisi', // label UI dipertahankan
+                'label' => 'Kontribusi Tambahan',
             ],
         ];
 
         // 4) Announcements terbaru (published_at / expired_at)
         $announcements = Cache::remember('pengumuman.terbaru', 300, function () {
+            if (!Schema::hasTable('announcements')) {
+                return collect();
+            }
             return Announcement::query()
                 ->where(function ($q) {
                     $q->whereNull('expired_at')
@@ -115,6 +131,9 @@ class HomeController extends Controller
 
         // 5) FAQ aktif
         $faqs = Cache::remember('faq.aktif', 300, function () {
+            if (!Schema::hasTable('faqs')) {
+                return collect();
+            }
             return Faq::query()
                 ->where('is_active', 1)
                 ->orderBy('order')
@@ -122,12 +141,12 @@ class HomeController extends Controller
                 ->get(['id','question','answer','category']);
         });
 
-        // 6) Quick links (UI sama; rute disesuaikan)
+        // 6) Quick links (tanpa akses data remunerasi publik)
         $links = [
-            ['icon' => 'fa-table',          'title' => 'Data Remuneration', 'desc' => 'Lihat data remunerasi pegawai', 'href' => route('remuneration.data')],
-            ['icon' => 'fa-clipboard-list', 'title' => 'Logbook Harian',    'desc' => 'Isi logbook kerja harian',      'href' => route('login') . '?redirect=logbook'],
-            ['icon' => 'fa-chart-bar',      'title' => 'Laporan SKP',       'desc' => 'Lihat laporan kinerja SKP',     'href' => '#'],
-            ['icon' => 'fa-download',       'title' => 'Unduh Formulir',    'desc' => 'Download formulir terbaru',     'href' => '#'],
+            ['icon' => 'fa-bullhorn',   'title' => 'Pengumuman',    'desc' => 'Lihat informasi terbaru',   'href' => route('announcements.index')],
+            ['icon' => 'fa-comment',    'title' => 'Berikan Ulasan','desc' => 'Sampaikan masukan Anda',     'href' => route('reviews.create')],
+            ['icon' => 'fa-circle-question','title' => 'FAQ',        'desc' => 'Pertanyaan yang sering diajukan', 'href' => route('faqs.index')],
+            ['icon' => 'fa-phone',      'title' => 'Kontak',        'desc' => 'Alamat & nomor telepon',    'href' => route('contact')],
         ];
 
         return view('welcome', compact(
@@ -136,8 +155,7 @@ class HomeController extends Controller
             'stats',
             'announcements',
             'faqs',
-            'links',
-            'jadwalDokterBesok'
+            'links'
         ));
     }
 

@@ -41,42 +41,43 @@
 
         @if(!empty($selectedId))
         {{-- RINGKASAN --}}
-        <div class="grid gap-5 md:grid-cols-2">
-            <x-stat-card title="Alokasi Terpublish" :value="number_format((float)($allocSummary['total'] ?? 0), 2)" subtitle="{{ ($allocSummary['count'] ?? 0) }} item" icon="fa-sack-dollar" color="emerald" />
-            <x-stat-card title="Total Remunerasi Terhitung" :value="number_format((float)($summary['total'] ?? 0), 2)" subtitle="{{ ($summary['count'] ?? 0) }} pegawai" icon="fa-wallet" color="sky" />
+        @php($allocated = (float)($allocSummary['total'] ?? 0))
+        @php($remTotal = (float)($summary['total'] ?? 0))
+        @php($diff = $allocated - $remTotal)
+        <div class="grid gap-5 md:grid-cols-3">
+            <x-stat-card label="Total Alokasi Published" value="{{ number_format($allocated,2) }}" icon="fa-sack-dollar" accent="from-emerald-500 to-teal-600" />
+            <x-stat-card label="Total Remunerasi Terhitung" value="{{ number_format($remTotal,2) }}" icon="fa-wallet" accent="from-sky-500 to-indigo-600" />
+            <x-stat-card label="Sisa Belum Tersalurkan" value="{{ number_format(max($diff,0),2) }}" icon="fa-circle-exclamation" accent="from-amber-500 to-orange-600" />
         </div>
 
         {{-- TABEL HASIL --}}
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <table class="min-w-full">
-                <thead class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
-                    <tr>
-                        <th class="px-6 py-4 text-left">Nama</th>
-                        <th class="px-6 py-4 text-left">Unit</th>
-                        <th class="px-6 py-4 text-right">Jumlah</th>
-                        <th class="px-6 py-4 text-left">Status</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm">
-                    @forelse($remunerations as $it)
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-6 py-4">{{ $it->user->name ?? '-' }}</td>
-                            <td class="px-6 py-4">{{ $it->user->unit->name ?? '-' }}</td>
-                            <td class="px-6 py-4 text-right">{{ number_format((float)($it->amount ?? 0), 2) }}</td>
-                            <td class="px-6 py-4">
-                                @if(!empty($it->published_at))
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Published</span>
-                                @else
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Draft</span>
-                                @endif
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="4" class="px-6 py-8 text-center text-slate-500">Belum ada hasil perhitungan. Klik "Jalankan Perhitungan" untuk membuatnya.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+        <x-ui.table min-width="880px">
+            <x-slot name="head">
+                <tr>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Nama</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Unit</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Jumlah</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Status Publish</th>
+                </tr>
+            </x-slot>
+
+            @forelse($remunerations as $it)
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4">{{ $it->user->name ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->user->unit->name ?? '-' }}</td>
+                    <td class="px-6 py-4 text-right">{{ number_format((float)($it->amount ?? 0), 2) }}</td>
+                    <td class="px-6 py-4">
+                        @if(!empty($it->published_at))
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Published</span>
+                        @else
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Draft</span>
+                        @endif
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="4" class="px-6 py-8 text-center text-slate-500">Belum ada remunerasi terhitung. Jalankan perhitungan setelah memilih periode dengan alokasi published.</td></tr>
+            @endforelse
+        </x-ui.table>
         @endif
     </div>
 </x-app-layout>

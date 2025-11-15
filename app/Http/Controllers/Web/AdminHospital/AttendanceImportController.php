@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class AttendanceImportController extends Controller
 {
@@ -23,11 +24,12 @@ class AttendanceImportController extends Controller
         return view('admin_rs.attendances.import.create');
     }
 
-    // Handle upload + import CSV
+    // Handle upload + import (CSV/XLS/XLSX)
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'file' => ['required','file','mimetypes:text/plain,text/csv,application/csv','max:5120'],
+            // izinkan csv, xls, xlsx
+            'file' => ['required','file','mimes:csv,txt,xls,xlsx','max:5120'],
         ]);
 
         $file = $validated['file'];
@@ -49,30 +51,20 @@ class AttendanceImportController extends Controller
                 'failed_rows' => 0,
             ]);
 
-            $handle = fopen(Storage::path($storedPath), 'r');
-            if ($handle === false) {
-                throw new \RuntimeException('Gagal membuka file unggahan.');
-            }
+            // Baca sebagai array [header, rows]
+            [$header, $rows] = $this->readTabularFile(Storage::path($storedPath), $file->getClientOriginalExtension());
+            if (!$header) throw new \RuntimeException('File kosong atau header tidak ditemukan.');
 
-            // Header: employee_number,attendance_date,check_in,check_out,status
-            $header = fgetcsv($handle);
-            if (!$header) {
-                throw new \RuntimeException('File kosong atau header tidak ditemukan.');
-            }
-            $map = $this->mapCsvHeader($header);
-            if (!$map) {
-                throw new \RuntimeException('Header tidak sesuai. Gunakan: employee_number, attendance_date, check_in, check_out, status');
-            }
+            $map = $this->mapHeader($header);
+            if (!$map) throw new \RuntimeException('Header tidak sesuai. Pastikan terdapat kolom NIP/employee_number dan Tanggal.');
 
-            while (($row = fgetcsv($handle)) !== false) {
+            foreach ($rows as $row) {
                 $total++;
                 $data = $this->rowToAssoc($map, $row);
                 if (!$data) { $failed++; continue; }
-
                 $ok = $this->importRow($batch->id, $data);
                 if ($ok) $success++; else $failed++;
             }
-            fclose($handle);
 
             $batch->update([
                 'total_rows'   => $total,
@@ -113,7 +105,7 @@ class AttendanceImportController extends Controller
     }
 
     /* ------------------------- Helpers ------------------------- */
-    private function mapCsvHeader(array $header): ?array
+    private function mapHeader(array $header): ?array
     {
         // Normalize header: lowercase and collapse internal spaces
         $normalized = array_map(function ($h) {
@@ -134,14 +126,24 @@ class AttendanceImportController extends Controller
         $map = [
             'employee_number' => $find(['employee_number','nip','pin','nip/pin']),
             'attendance_date' => $find(['attendance_date','tanggal']),
-            // Prefer scan times if available, else jam
-            'check_in'        => $find(['check_in','scan masuk','jam masuk']),
-            'check_out'       => $find(['check_out','scan keluar','jam keluar']),
+            // Scan times preferred
+            'check_in'        => $find(['check_in','scan masuk','scan masuk (hh:mm)','jam masuk']),
+            'check_out'       => $find(['check_out','scan keluar','scan keluar (hh:mm)','jam keluar']),
             'status'          => $find(['status']),
             'late'            => $find(['datang terlambat','terlambat']),
             'note'            => $find(['keterangan']),
             'holiday_umum'    => $find(['libur umum','libur - umum']),
             'holiday_rutin'   => $find(['libur rutin','libur - rutin']),
+            // Additional fields from PDF/Excel
+            'shift_name'      => $find(['nama shift','shift','nama shift (text)']),
+            'scheduled_in'    => $find(['jam masuk','jam masuk (jadwal)']),
+            'scheduled_out'   => $find(['jam keluar','jam keluar (jadwal)']),
+            'early_leave'     => $find(['pulang awal']),
+            'work_duration'   => $find(['durasi kerja']),
+            'break_duration'  => $find(['istirahat durasi','istirahat']),
+            'extra_break'     => $find(['istirahat lebih']),
+            'overtime_end'    => $find(['lembur akhir']),
+            'overtime_shift'  => $find(['shift lembur']),
         ];
 
         if ($map['employee_number'] === false || $map['attendance_date'] === false) return null;
@@ -162,6 +164,16 @@ class AttendanceImportController extends Controller
             'note'            => trim((string)$get('note')),
             'holiday_umum'    => trim((string)$get('holiday_umum')),
             'holiday_rutin'   => trim((string)$get('holiday_rutin')),
+            // extras
+            'shift_name'      => trim((string)$get('shift_name')),
+            'scheduled_in'    => trim((string)$get('scheduled_in')),
+            'scheduled_out'   => trim((string)$get('scheduled_out')),
+            'early_leave'     => trim((string)$get('early_leave')),
+            'work_duration'   => trim((string)$get('work_duration')),
+            'break_duration'  => trim((string)$get('break_duration')),
+            'extra_break'     => trim((string)$get('extra_break')),
+            'overtime_end'    => trim((string)$get('overtime_end')),
+            'overtime_shift'  => trim((string)$get('overtime_shift')),
         ];
     }
 
@@ -178,12 +190,30 @@ class AttendanceImportController extends Controller
 
         $status = $this->deriveStatus($data, $in, $out);
 
-        Attendance::create([
+        Attendance::updateOrCreate(
+            [
+                'user_id'         => $user->id,
+                'attendance_date' => $date->format('Y-m-d'),
+            ],
+            [
             'user_id'          => $user->id,
             'attendance_date'  => $date->format('Y-m-d'),
             'check_in'         => $in,
             'check_out'        => $out,
+            'shift_name'       => $data['shift_name'] ?: null,
+            'scheduled_in'     => $this->ensureTime($data['scheduled_in'] ?? ''),
+            'scheduled_out'    => $this->ensureTime($data['scheduled_out'] ?? ''),
+            'late_minutes'         => $this->durationToMinutes($data['late'] ?? ''),
+            'early_leave_minutes'  => $this->durationToMinutes($data['early_leave'] ?? ''),
+            'work_duration_minutes'=> $this->durationToMinutes($data['work_duration'] ?? ''),
+            'break_duration_minutes'=> $this->durationToMinutes($data['break_duration'] ?? ''),
+            'extra_break_minutes'  => $this->durationToMinutes($data['extra_break'] ?? ''),
+            'overtime_end'     => $this->ensureTime($data['overtime_end'] ?? ''),
+            'holiday_public'   => $this->toBool($data['holiday_umum'] ?? ''),
+            'holiday_regular'  => $this->toBool($data['holiday_rutin'] ?? ''),
+            'overtime_shift'   => $this->toBool($data['overtime_shift'] ?? ''),
             'attendance_status'=> $status->value,
+            'note'             => $data['note'] ?: null,
             'overtime_note'    => $this->deriveNote($data),
             'source'           => AttendanceSource::IMPORT->value,
             'import_batch_id'  => $batchId,
@@ -222,6 +252,39 @@ class AttendanceImportController extends Controller
             return $date->format('Y-m-d')." ".$time;
         }
         return null;
+    }
+
+    private function ensureTime(?string $time): ?string
+    {
+        $time = trim((string)$time);
+        if ($time === '') return null;
+        if (preg_match('/^0{1,2}:0{2}(:0{2})?$/', $time)) return null;
+        if (preg_match('/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $time, $m)) {
+            $hh = str_pad($m[1], 2, '0', STR_PAD_LEFT);
+            $mm = $m[2];
+            $ss = $m[3] ?? '00';
+            return "$hh:$mm:$ss";
+        }
+        return null;
+    }
+
+    private function durationToMinutes(?string $val): ?int
+    {
+        $val = trim((string)$val);
+        if ($val === '') return null;
+        if ($val === '0' || $val === '00:00' || $val === '0:00') return 0;
+        if (preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?$/', $val, $m)) {
+            return ((int)$m[1]) * 60 + (int)$m[2];
+        }
+        if (is_numeric($val)) return (int)$val; // already minutes
+        return null;
+    }
+
+    private function toBool(?string $v): bool
+    {
+        $v = strtolower(trim((string)$v));
+        if ($v === '' || $v === '0' || $v === 'false' || $v === 'no') return false;
+        return in_array($v, ['1','true','yes','y','ya','✓','check','x'], true) || $v !== '';
     }
 
     private function deriveStatus(array $data, ?string $checkIn, ?string $checkOut): AttendanceStatus
@@ -270,5 +333,36 @@ class AttendanceImportController extends Controller
         if ($umum !== '' && $umum !== '0') $bits[] = 'Libur Umum';
         if ($rutin !== '' && $rutin !== '0') $bits[] = 'Libur Rutin';
         return $bits ? implode('; ', $bits) : null;
+    }
+
+    /**
+     * Baca file tabular (csv/xls/xlsx) dan kembalikan [header, rows]
+     * rows merupakan array of array string sesuai urutan header
+     */
+    private function readTabularFile(string $path, string $ext): array
+    {
+        $ext = strtolower($ext);
+        if (in_array($ext, ['csv','txt'])) {
+            $handle = fopen($path, 'r');
+            if ($handle === false) throw new \RuntimeException('Gagal membuka file.');
+            $header = fgetcsv($handle);
+            $rows = [];
+            while (($row = fgetcsv($handle)) !== false) { $rows[] = $row; }
+            fclose($handle);
+            return [$header, $rows];
+        }
+
+        // xls/xlsx via PhpSpreadsheet
+        try {
+            $reader = IOFactory::createReaderForFile($path);
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($path);
+            $sheet = $spreadsheet->getSheet(0);
+            $rows = $sheet->toArray(null, true, true, false);
+            $header = array_shift($rows);
+            return [$header, $rows];
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('Gagal membaca file Excel: '.$e->getMessage());
+        }
     }
 }

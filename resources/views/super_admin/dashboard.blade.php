@@ -18,120 +18,115 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {{-- Progres Bobot & Cakupan Penilaian --}}
-            <x-section title="Progres Periode Aktif">
-                @if($kinerja['periode_aktif'])
-                    <dl class="grid grid-cols-2 gap-4">
-                        <div>
-                            <dt class="text-xs text-slate-500">Bobot Kriteria Aktif</dt>
-                            <dd class="text-lg font-semibold">
-                                {{ $kinerja['weights_active'] }} / {{ $kinerja['weights_total'] }}
-                                <span class="text-xs text-slate-500">({{ $kinerja['weights_pct'] }}%)</span>
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs text-slate-500">Cakupan Penilaian</dt>
-                            <dd class="text-lg font-semibold">
-                                {{ $kinerja['coverage_submitted'] }} / {{ $kinerja['coverage_expected'] }}
-                                <span class="text-xs text-slate-500">({{ $kinerja['coverage_pct'] }}%)</span>
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs text-slate-500">Approval Pending (Lv.1)</dt>
-                            <dd class="text-lg font-semibold">{{ $kinerja['pending_l1'] }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs text-slate-500">Approval Pending (Lv.2/Lv.3)</dt>
-                            <dd class="text-lg font-semibold">{{ $kinerja['pending_l2'] }}
-                                / {{ $kinerja['pending_l3'] }}</dd>
-                        </div>
-                    </dl>
-                @else
-                    <p class="text-sm text-slate-500">Belum ada periode aktif.</p>
-                @endif
+            {{-- Distribusi Pengguna --}}
+            <x-section title="Distribusi Pengguna">
+                <dl class="grid grid-cols-2 gap-4">
+                    <div>
+                        <dt class="text-xs text-slate-500">Pegawai Medis</dt>
+                        <dd class="text-lg font-semibold">{{ $userDistribution['pegawai_medis'] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-slate-500">Kepala Unit</dt>
+                        <dd class="text-lg font-semibold">{{ $userDistribution['kepala_unit'] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-slate-500">Kepala Poliklinik</dt>
+                        <dd class="text-lg font-semibold">{{ $userDistribution['kepala_poliklinik'] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-slate-500">Admin RS</dt>
+                        <dd class="text-lg font-semibold">{{ $userDistribution['admin_rs'] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-slate-500">Super Admin</dt>
+                        <dd class="text-lg font-semibold">{{ $userDistribution['super_admin'] }}</dd>
+                    </div>
+                </dl>
             </x-section>
 
-            {{-- Import Absensi Terakhir --}}
-            <x-section title="Import Absensi Terakhir">
-                @if($kinerja['last_batch']['at'])
-                    <dl class="grid grid-cols-2 gap-4">
-                        <div>
-                            <dt class="text-xs text-slate-500">Tanggal</dt>
-                            <dd class="text-lg font-semibold">
-                                {{ \Illuminate\Support\Carbon::parse($kinerja['last_batch']['at'])->translatedFormat('d M Y H:i') }}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs text-slate-500">Success Rate</dt>
-                            <dd class="text-lg font-semibold">
-                                {{ $kinerja['last_batch']['success_rate'] ?? 0 }}%
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs text-slate-500">Baris</dt>
-                            <dd class="text-lg font-semibold">
-                                {{ $kinerja['last_batch']['success'] }} / {{ $kinerja['last_batch']['total'] }}
-                                <span
-                                    class="text-xs text-slate-500">({{ $kinerja['last_batch']['failed'] }} gagal)</span>
-                            </dd>
-                        </div>
-                    </dl>
-                @else
-                    <p class="text-sm text-slate-500">Belum ada proses import.</p>
-                @endif
+            {{-- Kesehatan Sistem --}}
+            <x-section title="Kesehatan Sistem">
+                <ul class="divide-y divide-slate-100">
+                    <li class="py-2 flex items-center justify-between">
+                        <span class="text-sm text-slate-600">App Key</span>
+                        <span class="text-xs px-2 py-1 rounded {{ $sysChecks['app_key'] ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700' }}">
+                            {{ $sysChecks['app_key'] ? 'OK' : 'Cek' }}
+                        </span>
+                    </li>
+                    <li class="py-2 flex items-center justify-between">
+                        <span class="text-sm text-slate-600">Database</span>
+                        <span class="text-xs px-2 py-1 rounded {{ $sysChecks['database'] ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700' }}">
+                            {{ $sysChecks['database'] ? 'OK' : 'Cek' }}
+                        </span>
+                    </li>
+                    <li class="py-2 flex items-center justify-between">
+                        <span class="text-sm text-slate-600">Cache</span>
+                        <span class="text-xs px-2 py-1 rounded {{ $sysChecks['cache'] ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700' }}">
+                            {{ $sysChecks['cache'] ? 'OK' : 'Cek' }}
+                        </span>
+                    </li>
+                    <li class="py-2 flex items-center justify-between">
+                        <span class="text-sm text-slate-600">Storage Writable</span>
+                        <span class="text-xs px-2 py-1 rounded {{ $sysChecks['storage_writable'] ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700' }}">
+                            {{ $sysChecks['storage_writable'] ? 'OK' : 'Cek' }}
+                        </span>
+                    </li>
+                </ul>
+                <div class="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-500">
+                    <div>Env: <span class="font-medium text-slate-700">{{ $sysSummary['env'] }}</span></div>
+                    <div>Debug: <span class="font-medium text-slate-700">{{ $sysSummary['debug'] ? 'on' : 'off' }}</span></div>
+                    <div>PHP: <span class="font-medium text-slate-700">{{ $sysSummary['php'] }}</span></div>
+                    <div>Laravel: <span class="font-medium text-slate-700">{{ $sysSummary['laravel'] }}</span></div>
+                    <div>Timezone: <span class="font-medium text-slate-700">{{ $sysSummary['timezone'] }}</span></div>
+                    <div>Queue: <span class="font-medium text-slate-700">{{ $sysSummary['queue'] }}</span></div>
+                </div>
             </x-section>
 
-            {{-- Ringkasan Remunerasi Periode Aktif --}}
-            <x-section title="Remunerasi (Periode Aktif)">
-                @if($kinerja['periode_aktif'])
+            {{-- Konfigurasi Situs --}}
+            <x-section title="Konfigurasi Situs">
+                @if(!$siteConfig['exists'])
+                    <p class="text-sm text-slate-500">Belum ada konfigurasi situs. Silakan lengkapi pengaturan.</p>
+                @else
                     <dl class="grid grid-cols-2 gap-4">
                         <div>
-                            <dt class="text-xs text-slate-500">Total Nominal</dt>
-                            <dd class="text-lg font-semibold">
-                                {{ number_format($kinerja['remunerasi']['total_nominal'] ?? 0, 0, ',', '.') }}
-                            </dd>
+                            <dt class="text-xs text-slate-500">Nama Situs</dt>
+                            <dd class="text-lg font-semibold">{{ $siteConfig['name'] ?? '-' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-slate-500">Dipublish</dt>
-                            <dd class="text-lg font-semibold">
-                                {{ $kinerja['remunerasi']['published'] }} / {{ $kinerja['remunerasi']['count'] }}
-                            </dd>
+                            <dt class="text-xs text-slate-500">Email</dt>
+                            <dd class="text-lg font-semibold break-all">{{ $siteConfig['email'] ?? '-' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-slate-500">Status</dt>
-                            <dd class="text-sm font-medium">
-                                Belum Dibayar: {{ $kinerja['remunerasi']['by_status']['Belum Dibayar'] ?? 0 }} •
-                                Dibayar: {{ $kinerja['remunerasi']['by_status']['Dibayar'] ?? 0 }} •
-                                Ditahan: {{ $kinerja['remunerasi']['by_status']['Ditahan'] ?? 0 }}
-                            </dd>
+                            <dt class="text-xs text-slate-500">Alamat</dt>
+                            <dd class="text-sm font-medium text-slate-700">{{ $siteConfig['address'] ?? '-' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-slate-500">Logo</dt>
+                            <dd class="text-sm font-medium">{{ $siteConfig['logo'] ? 'Tersedia' : 'Belum diunggah' }}</dd>
                         </div>
                     </dl>
-                @else
-                    <p class="text-sm text-slate-500">Belum ada periode aktif.</p>
+                    @if(!empty($siteConfig['missing']))
+                        <div class="mt-4 text-xs text-amber-700 bg-amber-50 rounded px-3 py-2">
+                            Perlu dilengkapi: {{ implode(', ', $siteConfig['missing']) }}
+                        </div>
+                    @endif
                 @endif
             </x-section>
         </div>
 
-        {{-- (Opsional) Tetap tampilkan mutu di bawah --}}
-        <x-section title="Mutu Pelayanan (Opsional)">
-            <p class="text-4xl font-bold text-slate-800">
-                {{ number_format($review['avg_rating_30d'] ?? 0, 2) }}
-                <span class="text-sm text-slate-500">({{ $review['total_30d'] }} ulasan)</span>
-            </p>
-            <div class="mt-4 divide-y">
-                @forelse($review['top_tenaga_medis'] as $row)
-                    <div class="flex items-center justify-between py-2">
+        {{-- User Terbaru --}}
+    <x-section title="User Terbaru">
+            <div class="divide-y divide-slate-100">
+                @forelse($recentUsers as $u)
+                    <div class="py-2 flex items-center justify-between">
                         <div>
-                            <div class="font-medium">{{ $row->nama }}</div>
-                            <div class="text-xs text-slate-500">{{ $row->jabatan }}</div>
+                            <div class="font-medium">{{ $u->name }}</div>
+                            <div class="text-xs text-slate-500">{{ $u->email }} • {{ \Illuminate\Support\Str::headline(str_replace('_',' ', $u->role)) }}</div>
                         </div>
-                        <div class="text-right">
-                            <div class="font-semibold">{{ number_format($row->avg_rating, 2) }}</div>
-                            <div class="text-xs text-slate-500">{{ $row->total_ulasan }} data</div>
-                        </div>
+                        <div class="text-xs text-slate-500">{{ $u->created_at->diffForHumans() }}</div>
                     </div>
                 @empty
-                    <div class="text-sm text-slate-500">Belum ada data.</div>
+                    <div class="py-4 text-sm text-slate-500">Belum ada data.</div>
                 @endforelse
             </div>
         </x-section>

@@ -10,7 +10,7 @@
                 @include('super_admin.units._form', [
                     'unit'       => $unit,
                     'types'      => $types, // map value => label
-                    'submitText' => 'Create',
+                    'submitText' => 'Simpan',
                 ])
             </form>
         </div>

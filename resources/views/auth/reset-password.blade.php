@@ -1,39 +1,46 @@
-<x-guest-layout>
-    <form method="POST" action="{{ route('password.store') }}">
-        @csrf
+@extends('layouts.public')
+@section('title','Reset Password - RSUD MGR GM')
 
-        <!-- Password Reset Token -->
-        <input type="hidden" name="token" value="{{ $request->route('token') }}">
+@section('content')
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-14">
+        <div class="max-w-lg mx-auto">
+            <div class="bg-white rounded-2xl shadow-lg ring-1 ring-black/5 overflow-hidden">
+                <div class="px-6 py-5 border-b border-slate-100">
+                    <h1 class="text-2xl font-semibold text-slate-800">Atur Ulang Password</h1>
+                    <p class="text-slate-500 mt-1 text-sm">Silakan isi email dan password baru Anda.</p>
+                </div>
 
-        <!-- Email Address -->
-        <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email', $request->email)" required autofocus autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+                <div class="p-6">
+                    <form method="POST" action="{{ route('password.store') }}" class="space-y-5">
+                        @csrf
+
+                        <input type="hidden" name="token" value="{{ request()->route('token') }}">
+
+                        <div>
+                            <label for="email" class="block text-[15px] font-medium text-slate-700">Email</label>
+                            <x-ui.input id="email" name="email" type="email" :value="old('email', request()->email)" required autofocus autocomplete="username" />
+                            @error('email')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+                        </div>
+
+                        <div>
+                            <label for="password" class="block text-[15px] font-medium text-slate-700">Password Baru</label>
+                            <x-ui.input id="password" name="password" type="password" required autocomplete="new-password" />
+                            @error('password')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+                        </div>
+
+                        <div>
+                            <label for="password_confirmation" class="block text-[15px] font-medium text-slate-700">Konfirmasi Password</label>
+                            <x-ui.input id="password_confirmation" name="password_confirmation" type="password" required autocomplete="new-password" />
+                            @error('password_confirmation')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <x-ui.button type="submit" class="h-11">Reset Password</x-ui.button>
+                            <x-ui.button as="a" href="{{ route('login') }}" variant="outline" class="h-11">Kembali ke Login</x-ui.button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-
-        <!-- Password -->
-        <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
-            <x-text-input id="password" class="block mt-1 w-full" type="password" name="password" required autocomplete="new-password" />
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
-        </div>
-
-        <!-- Confirm Password -->
-        <div class="mt-4">
-            <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
-
-            <x-text-input id="password_confirmation" class="block mt-1 w-full"
-                                type="password"
-                                name="password_confirmation" required autocomplete="new-password" />
-
-            <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
-        </div>
-
-        <div class="flex items-center justify-end mt-4">
-            <x-primary-button>
-                {{ __('Reset Password') }}
-            </x-primary-button>
-        </div>
-    </form>
-</x-guest-layout>
+    </div>
+@endsection

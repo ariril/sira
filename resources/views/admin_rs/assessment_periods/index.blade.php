@@ -9,6 +9,12 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
+            @if ($errors->any())
+                <div class="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{{ $errors->first() }}</div>
+            @endif
+            @if (session('status'))
+                <div class="rounded-lg bg-emerald-50 text-emerald-700 text-sm px-3 py-2">{{ session('status') }}</div>
+            @endif
         {{-- FILTERS --}}
         <form method="GET" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="grid gap-5 md:grid-cols-12">
@@ -17,14 +23,9 @@
                     <x-ui.input name="q" placeholder="Nama periode" addonLeft="fa-magnifying-glass" value="{{ $filters['q'] ?? '' }}" />
                 </div>
 
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Aktif</label>
-                    <x-ui.select name="active" :options="['yes'=>'Ya','no'=>'Tidak']" :value="$filters['active'] ?? null" placeholder="(Semua)" />
-                </div>
-
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Dikunci</label>
-                    <x-ui.select name="locked" :options="['yes'=>'Ya','no'=>'Tidak']" :value="$filters['locked'] ?? null" placeholder="(Semua)" />
+                <div class="md:col-span-4">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
+                    <x-ui.select name="status" :options="['draft'=>'Draft','active'=>'Aktif','locked'=>'Dikunci','closed'=>'Ditutup']" :value="$filters['status'] ?? null" placeholder="(Semua)" />
                 </div>
 
                 <div class="md:col-span-2">
@@ -51,63 +52,70 @@
         </form>
 
         {{-- TABLE --}}
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <table class="min-w-full">
-                <thead class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
+        <x-ui.table min-width="900px">
+            <x-slot name="head">
                 <tr>
-                    <th class="px-6 py-4 text-left">Nama</th>
-                    <th class="px-6 py-4 text-left">Tanggal</th>
-                    <th class="px-6 py-4 text-left">Status</th>
-                    <th class="px-6 py-4 text-left">Kunci</th>
-                    <th class="px-6 py-4 text-right">Aksi</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Nama</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Tanggal</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                 </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm">
-                @forelse($items as $it)
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-6 py-4 font-medium text-slate-800">{{ $it->name }}</td>
-                        <td class="px-6 py-4 text-slate-600">
-                            {{ optional($it->start_date)->format('d M Y') }} - {{ optional($it->end_date)->format('d M Y') }}
-                        </td>
-                        <td class="px-6 py-4">
-                            @if(Schema::hasColumn('assessment_periods','is_active') && $it->is_active)
+            </x-slot>
+            @forelse($items as $it)
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4 font-medium text-slate-800">{{ $it->name }}</td>
+                    <td class="px-6 py-4 text-slate-600">
+                        {{ optional($it->start_date)->format('d M Y') }} - {{ optional($it->end_date)->format('d M Y') }}
+                    </td>
+                    <td class="px-6 py-4">
+                        @switch($it->status)
+                            @case('active')
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Aktif</span>
-                            @else
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">Tidak Aktif</span>
-                            @endif
-                        </td>
-                        <td class="px-6 py-4">
-                            @if(!empty($it->locked_at))
+                                @break
+                            @case('locked')
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Dikunci</span>
-                            @else
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Terbuka</span>
-                            @endif
-                        </td>
-                        <td class="px-6 py-4 text-right">
-                            <div class="inline-flex gap-2">
-                                <x-ui.icon-button as="a" href="{{ route('admin_rs.assessment-periods.edit', $it) }}" icon="fa-pen-to-square" />
-                                <form method="POST" action="{{ route('admin_rs.assessment-periods.destroy', $it) }}" onsubmit="return confirm('Hapus periode ini?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <x-ui.icon-button icon="fa-trash" variant="danger" />
-                                </form>
+                                @break
+                            @case('closed')
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-200 text-slate-700 border border-slate-300">Ditutup</span>
+                                @break
+                            @default
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">Draft</span>
+                        @endswitch
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="inline-flex gap-2">
+                            <x-ui.icon-button as="a" href="{{ route('admin_rs.assessment-periods.edit', $it) }}" icon="fa-pen-to-square" />
+                            <form method="POST" action="{{ route('admin_rs.assessment-periods.destroy', $it) }}" onsubmit="return confirm('Hapus periode ini?')">
+                                @csrf
+                                @method('DELETE')
+                                <x-ui.icon-button icon="fa-trash" variant="danger" />
+                            </form>
+                            @php($today = \Carbon\Carbon::today())
+                            @if($it->status === 'draft' && (!$it->end_date || $today->lte($it->end_date)))
                                 <form method="POST" action="{{ route('admin_rs.assessment_periods.activate', $it) }}">
                                     @csrf
                                     <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Aktifkan</x-ui.button>
                                 </form>
+                            @endif
+                            @if($it->status === 'active')
                                 <form method="POST" action="{{ route('admin_rs.assessment_periods.lock', $it) }}" onsubmit="return confirm('Kunci periode ini?')">
                                     @csrf
                                     <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Kunci</x-ui.button>
                                 </form>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
+                            @endif
+                            @if($it->status === 'locked' && $it->end_date && $today->gte($it->end_date))
+                                <form method="POST" action="{{ route('admin_rs.assessment_periods.close', $it) }}" onsubmit="return confirm('Tutup periode ini?')">
+                                    @csrf
+                                    <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Tutup</x-ui.button>
+                                </form>
+                            @endif
+                        </div>
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
+            @endforelse
+        </x-ui.table>
 
         {{-- FOOTER PAGINATION --}}
         <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

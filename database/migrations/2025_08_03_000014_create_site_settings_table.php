@@ -20,6 +20,7 @@ return new class extends Migration
 
             $table->string('logo_path')->nullable();
             $table->string('favicon_path')->nullable();
+            $table->string('hero_path')->nullable();
 
             $table->string('facebook_url')->nullable();
             $table->string('instagram_url')->nullable();

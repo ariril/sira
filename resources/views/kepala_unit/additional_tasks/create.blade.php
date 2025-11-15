@@ -2,7 +2,6 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold">Buat Tugas Tambahan</h1>
-            <x-ui.button as="a" href="{{ route('kepala_unit.additional-tasks.index') }}" class="h-10 px-4 text-sm">Kembali</x-ui.button>
         </div>
     </x-slot>
 
@@ -46,8 +45,13 @@
                     <label class="block text-sm font-medium text-slate-600 mb-1">Status Awal</label>
                     <x-ui.select name="status" :options="['draft'=>'Draft','open'=>'Open','closed'=>'Closed','cancelled'=>'Cancelled']" :value="'open'" />
                 </div>
-                <div class="md:col-span-2 flex justify-end">
-                    <x-ui.button type="submit" class="h-10 px-6">Simpan</x-ui.button>
+                <div class="md:col-span-2 flex items-center justify-between pt-2">
+                    <x-ui.button as="a" href="{{ route('kepala_unit.additional-tasks.index') }}" variant="outline">
+                        <i class="fa-solid fa-arrow-left"></i> Kembali
+                    </x-ui.button>
+                    <x-ui.button type="submit" class="text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:brightness-110 focus:ring-amber-500 border-0">
+                        <i class="fa-solid fa-floppy-disk"></i> Simpan
+                    </x-ui.button>
                 </div>
             </form>
         </div>

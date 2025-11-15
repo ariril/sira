@@ -30,7 +30,7 @@
                 <x-ui.input name="phone" :value="old('phone', $setting->phone)" />
             </div>
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Footer Text</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Teks Footer</label>
                 <x-ui.input name="footer_text" :value="old('footer_text', $setting->footer_text)" />
             </div>
         </div>
@@ -40,19 +40,63 @@
         <div class="grid grid-cols-2 gap-4">
             <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Logo</label>
-                <x-ui.input type="file" name="logo" />
-                @if($setting->logo_path)
-                    <div class="mt-1 text-xs text-slate-600">{{ $setting->logo_path }}</div>
-                @endif
+                <x-ui.input id="logo" type="file" name="logo" accept="image/*" />
+                <div class="mt-2">
+                    @php
+                        $logoUrl = $setting->logo_path
+                            ? Storage::url($setting->logo_path)
+                            : Storage::url('images/logo-rsudmgr.jpeg');
+                    @endphp
+                    <img id="preview-logo" src="{{ $logoUrl }}" alt="Logo Saat Ini" class="h-16 rounded border bg-white object-contain">
+                    <div class="mt-1 text-xs text-slate-500">{{ $setting->logo_path ?: 'images/logo-rsudmgr.jpeg' }}</div>
+                </div>
             </div>
             <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Favicon</label>
-                <x-ui.input type="file" name="favicon" />
+                <x-ui.input id="favicon" type="file" name="favicon" accept="image/x-icon,image/png,.ico,.png" />
                 @if($setting->favicon_path)
-                    <div class="mt-1 text-xs text-slate-600">{{ $setting->favicon_path }}</div>
+                    <div class="mt-2">
+                        <img id="preview-favicon" src="{{ Storage::url($setting->favicon_path) }}" alt="Favicon Saat Ini" class="h-10 w-10 rounded border bg-white object-contain">
+                        <div class="mt-1 text-xs text-slate-500">{{ $setting->favicon_path }}</div>
+                    </div>
                 @endif
             </div>
         </div>
+
+        <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Gambar Hero (Homepage)</label>
+            <x-ui.input id="hero" type="file" name="hero" accept="image/*" />
+            <div class="mt-2">
+                @php
+                    $heroUrl = $setting->hero_path
+                        ? Storage::url($setting->hero_path)
+                        : Storage::url('images/hero.jpeg');
+                @endphp
+                <img id="preview-hero" src="{{ $heroUrl }}" alt="Gambar Hero Saat Ini" class="h-28 rounded border bg-white object-cover">
+                <div class="mt-1 text-xs text-slate-500">{{ $setting->hero_path ?: 'images/hero.jpeg' }}</div>
+            </div>
+        </div>
+
+        @push('scripts')
+            <script>
+                document.addEventListener('DOMContentLoaded', () => {
+                    const bindPreview = (inputId, imgId) => {
+                        const input = document.getElementById(inputId);
+                        const img = document.getElementById(imgId);
+                        if (!input || !img) return;
+                        input.addEventListener('change', (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const url = URL.createObjectURL(file);
+                            img.src = url;
+                        });
+                    };
+                    bindPreview('logo', 'preview-logo');
+                    bindPreview('favicon', 'preview-favicon');
+                    bindPreview('hero', 'preview-hero');
+                });
+            </script>
+        @endpush
 
         <div class="grid grid-cols-2 gap-4">
             <div>

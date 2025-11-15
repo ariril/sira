@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Web\AdminHospital;
 
 use App\Http\Controllers\Controller;
+use App\Models\CriteriaProposal;
+use App\Enums\CriteriaProposalStatus;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -19,16 +21,20 @@ class DashboardController extends Controller
         $today     = Carbon::today()->toDateString();
         $yesterday = Carbon::yesterday()->toDateString();
 
-        // Core stats for Admin RS
+        // Core stats for Admin RS (refined queries)
         $stats = [
             'attendance_batches' => Schema::hasTable('attendance_import_batches')
                 ? (int) DB::table('attendance_import_batches')->count() : 0,
             'attendances'        => Schema::hasTable('attendances')
                 ? (int) DB::table('attendances')->count() : 0,
-            'approvals_pending'  => Schema::hasTable('assessment_approvals')
-                ? (int) DB::table('assessment_approvals')->where('status','pending')->count() : 0,
+            // Level 1 pending approvals only
+            'approvals_pending_l1' => (Schema::hasTable('assessment_approvals')
+                ? (int) DB::table('assessment_approvals')->where('level',1)->where('status','pending')->count() : 0),
             'unit_allocations'   => Schema::hasTable('unit_remuneration_allocations')
                 ? (int) DB::table('unit_remuneration_allocations')->count() : 0,
+            // Remunerations pending publish (published_at null)
+            'remunerations_draft' => (Schema::hasTable('remunerations')
+                ? (int) DB::table('remunerations')->whereNull('published_at')->count() : 0),
         ];
 
         // Recent approvals table (limit 8)
@@ -58,12 +64,64 @@ class DashboardController extends Controller
 
         // Notifications (no DB schema changes; computed in code)
         $notifications = [];
-        if ($stats['approvals_pending'] > 0) {
+        if ($stats['approvals_pending_l1'] > 0) {
             $notifications[] = [
                 'type' => 'warning',
-                'text' => $stats['approvals_pending'] . ' penilaian menunggu review awal (Level 1).',
-                'href' => route('admin_rs.assessments.pending'),
+                'text' => $stats['approvals_pending_l1'] . ' penilaian menunggu review awal (Level 1).',
+                'href' => route('admin_rs.assessments.pending') . '?status=pending_l1',
             ];
+        }
+        // Active period resolution
+        $activePeriodId = null; $activePeriodName = null;
+        if (Schema::hasTable('assessment_periods')) {
+            $activePeriod = DB::table('assessment_periods')->where('status','active')->orderByDesc('id')->first();
+            if ($activePeriod) { $activePeriodId = $activePeriod->id; $activePeriodName = $activePeriod->name; }
+        }
+
+        // Units without allocation in active period (published allocations only)
+        if ($activePeriodId && Schema::hasTable('units') && Schema::hasTable('unit_remuneration_allocations')) {
+            $unitCount = (int) DB::table('units')->count();
+            $allocatedUnitIds = DB::table('unit_remuneration_allocations')
+                ->where('assessment_period_id',$activePeriodId)
+                ->pluck('unit_id')->unique();
+            $missingAllocCount = $unitCount - $allocatedUnitIds->count();
+            if ($missingAllocCount > 0) {
+                $notifications[] = [
+                    'type' => 'warning',
+                    'text' => $missingAllocCount . ' unit belum diberi alokasi pada periode aktif (' . $activePeriodName . ').',
+                    'href' => route('admin_rs.unit-remuneration-allocations.index') . '?period_id=' . $activePeriodId,
+                ];
+            }
+        }
+
+        // Remunerasi draft (belum publish)
+        if ($stats['remunerations_draft'] > 0) {
+            $notifications[] = [
+                'type' => 'warning',
+                'text' => $stats['remunerations_draft'] . ' data remunerasi menunggu untuk dipublish.',
+                'href' => route('admin_rs.remunerations.index') . '?period_id=' . ($activePeriodId ?? ''),
+            ];
+        }
+
+        // Suggestion: No active period at all
+        if (!$activePeriodId) {
+            $notifications[] = [
+                'type' => 'error',
+                'text' => 'Tidak ada periode aktif. Aktifkan periode agar proses remunerasi dan penilaian berjalan.',
+                'href' => route('admin_rs.assessment-periods.index'),
+            ];
+        }
+
+        // Inactive criteria count (for awareness)
+        if (Schema::hasTable('performance_criterias')) {
+            $inactiveCriteria = (int) DB::table('performance_criterias')->where('is_active',false)->count();
+            if ($inactiveCriteria > 0) {
+                $notifications[] = [
+                    'type' => 'info',
+                    'text' => $inactiveCriteria . ' kriteria dalam keadaan nonaktif (bisa diaktifkan bila diperlukan).',
+                    'href' => route('admin_rs.performance-criterias.index') . '?active=no',
+                ];
+            }
         }
         // Remind if no attendance was recorded today but exists yesterday
         $attToday = Schema::hasTable('attendances') ? DB::table('attendances')->whereDate('attendance_date',$today)->count() : 0;
@@ -74,6 +132,20 @@ class DashboardController extends Controller
                 'text' => 'Belum ada data absensi yang masuk hari ini. Pastikan proses impor berjalan.',
                 'href' => route('admin_rs.attendances.import.form'),
             ];
+        }
+
+        // Notification for pending criteria proposals
+        if (\Illuminate\Support\Facades\Schema::hasTable('criteria_proposals')) {
+            $pendingCount = (int) CriteriaProposal::query()
+                ->where('status', CriteriaProposalStatus::PROPOSED)
+                ->count();
+            if ($pendingCount > 0) {
+                $notifications[] = [
+                    'type' => 'warning',
+                    'text' => $pendingCount . ' kriteria baru menunggu review (Usulan Kriteria).',
+                    'href' => route('admin_rs.performance-criterias.index') . '#usulan-kriteria',
+                ];
+            }
         }
 
         return view('admin_rs.dashboard', compact('stats','recentApprovals','recentAllocations','notifications'));

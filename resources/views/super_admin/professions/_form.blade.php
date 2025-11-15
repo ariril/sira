@@ -3,7 +3,7 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
     <div class="space-y-4">
         <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Nama Profession *</label>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Nama Profesi *</label>
             <x-ui.input name="name" :value="old('name', $profession->name)" required />
         </div>
 
@@ -43,7 +43,7 @@
 
         <x-ui.button type="submit" variant="{{ $profession->exists ? 'success' : 'primary' }}">
             <i class="fa-solid fa-floppy-disk"></i>
-            {{ $profession->exists ? 'Update' : 'Create' }}
+            {{ $profession->exists ? 'Perbarui' : 'Simpan' }}
         </x-ui.button>
     </div>
 </div>

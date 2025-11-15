@@ -52,54 +52,50 @@
         </form>
 
         {{-- TABLE --}}
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <table class="min-w-full">
-                <thead class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
+        <x-ui.table min-width="960px">
+            <x-slot name="head">
                 <tr>
-                    <th class="px-6 py-4 text-left">Nama</th>
-                    <th class="px-6 py-4 text-left">Tipe</th>
-                    <th class="px-6 py-4 text-left">Status</th>
-                    <th class="px-6 py-4 text-left">Deskripsi</th>
-                    <th class="px-6 py-4 text-right">Aksi</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Nama</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Tipe</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Deskripsi</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                 </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm">
-                @forelse($items as $it)
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-6 py-4 font-medium text-slate-800">{{ $it->name }}</td>
-                        <td class="px-6 py-4">
-                            @php($t = $it->type?->value)
-                            @if($t==='benefit')
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Benefit</span>
-                            @else
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">Cost</span>
-                            @endif
-                        </td>
-                        <td class="px-6 py-4">
-                            @if($it->is_active)
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Aktif</span>
-                            @else
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Nonaktif</span>
-                            @endif
-                        </td>
-                        <td class="px-6 py-4 text-slate-600">{{ \Illuminate\Support\Str::limit($it->description, 80) }}</td>
-                        <td class="px-6 py-4 text-right">
-                            <div class="inline-flex gap-2">
-                                <x-ui.icon-button as="a" href="{{ route('admin_rs.performance-criterias.edit', $it) }}" icon="fa-pen-to-square" />
-                                <form method="POST" action="{{ route('admin_rs.performance-criterias.destroy', $it) }}" onsubmit="return confirm('Hapus kriteria ini?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <x-ui.icon-button icon="fa-trash" variant="danger" />
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
+            </x-slot>
+            @forelse($items as $it)
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4 font-medium text-slate-800">{{ $it->name }}</td>
+                    <td class="px-6 py-4">
+                        @php($t = $it->type?->value)
+                        @if($t==='benefit')
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Benefit</span>
+                        @else
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">Cost</span>
+                        @endif
+                    </td>
+                    <td class="px-6 py-4">
+                        @if($it->is_active)
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Aktif</span>
+                        @else
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Nonaktif</span>
+                        @endif
+                    </td>
+                    <td class="px-6 py-4 text-slate-600">{{ \Illuminate\Support\Str::limit($it->description, 80) }}</td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="inline-flex gap-2">
+                            <x-ui.icon-button as="a" href="{{ route('admin_rs.performance-criterias.edit', $it) }}" icon="fa-pen-to-square" />
+                            <form method="POST" action="{{ route('admin_rs.performance-criterias.destroy', $it) }}" onsubmit="return confirm('Hapus kriteria ini?')">
+                                @csrf
+                                @method('DELETE')
+                                <x-ui.icon-button icon="fa-trash" variant="danger" />
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
+            @endforelse
+        </x-ui.table>
 
         {{-- FOOTER PAGINATION --}}
         <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -113,6 +109,56 @@
                 data
             </div>
             <div>{{ $items->links() }}</div>
+        </div>
+
+        {{-- PROPOSALS SECTION --}}
+        <div id="usulan-kriteria" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-slate-800">Usulan Kriteria Baru</h2>
+                <a href="#usulan-kriteria" class="text-sm text-slate-500 hover:underline">#</a>
+            </div>
+            @if (session('status'))
+                <div class="mb-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 text-sm">
+                    {{ session('status') }}
+                </div>
+            @endif
+            @if ($errors->any())
+                <div class="mb-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 text-sm">{{ $errors->first() }}</div>
+            @endif
+
+            <x-ui.table min-width="960px">
+                <x-slot name="head">
+                    <tr>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Nama</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Pengusul</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Bobot Saran</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Deskripsi</th>
+                        <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
+                    </tr>
+                </x-slot>
+                @forelse($proposals as $p)
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-6 py-4 font-medium text-slate-800">{{ $p->name }}</td>
+                        <td class="px-6 py-4">{{ $p->unitHead->name ?? '-' }}</td>
+                        <td class="px-6 py-4">{{ isset($p->suggested_weight) ? number_format((float)$p->suggested_weight,2).'%' : '-' }}</td>
+                        <td class="px-6 py-4 text-slate-600">{{ \Illuminate\Support\Str::limit($p->description, 100) }}</td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="inline-flex gap-2">
+                                <form method="POST" action="{{ route('admin_rs.criteria_proposals.approve', $p->id) }}">
+                                    @csrf
+                                    <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Terima</x-ui.button>
+                                </form>
+                                <form method="POST" action="{{ route('admin_rs.criteria_proposals.reject', $p->id) }}" onsubmit="return confirm('Tolak usulan ini?')">
+                                    @csrf
+                                    <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Tolak</x-ui.button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">Tidak ada usulan.</td></tr>
+                @endforelse
+            </x-ui.table>
         </div>
     </div>
 </x-app-layout>

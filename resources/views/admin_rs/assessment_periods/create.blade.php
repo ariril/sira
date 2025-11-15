@@ -11,16 +11,14 @@
             <form method="POST" action="{{ route('admin_rs.assessment-periods.store') }}" class="space-y-6">
                 @csrf
 
+                @if ($errors->any())
+                    <div class="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{{ $errors->first() }}</div>
+                @endif
+
                 <div class="grid md:grid-cols-2 gap-5">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Nama Periode</label>
                         <x-ui.input name="name" :value="old('name', $item->name)" required />
-                        @error('name')<div class="text-rose-600 text-xs mt-1">{{ $message }}</div>@enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Siklus</label>
-                        <x-ui.input name="cycle" :value="old('cycle', $item->cycle)" placeholder="Mis. Triwulan III 2025" />
-                        @error('cycle')<div class="text-rose-600 text-xs mt-1">{{ $message }}</div>@enderror
                     </div>
                 </div>
 
@@ -28,23 +26,14 @@
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Mulai</label>
                         <x-ui.input type="date" name="start_date" :value="old('start_date', optional($item->start_date)->format('Y-m-d'))" required />
-                        @error('start_date')<div class="text-rose-600 text-xs mt-1">{{ $message }}</div>@enderror
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Selesai</label>
                         <x-ui.input type="date" name="end_date" :value="old('end_date', optional($item->end_date)->format('Y-m-d'))" required />
-                        @error('end_date')<div class="text-rose-600 text-xs mt-1">{{ $message }}</div>@enderror
                     </div>
                 </div>
 
-                <div class="flex items-center gap-3">
-                    <input type="hidden" name="is_active" value="0">
-                    <x-ui.input type="checkbox" name="is_active" value="1" :checked="old('is_active', $item->is_active)" class="h-5 w-5" />
-                    <div>
-                        <div class="text-sm font-medium text-slate-700">Aktifkan periode ini</div>
-                        <div class="text-xs text-slate-500">Hanya satu periode yang aktif dalam satu waktu.</div>
-                    </div>
-                </div>
+                <!-- Aktivasi otomatis berdasarkan tanggal; tidak perlu input dari user -->
 
                 <div class="flex justify-end gap-3">
                     <x-ui.button as="a" href="{{ route('admin_rs.assessment-periods.index') }}" variant="outline">Batal</x-ui.button>

@@ -50,7 +50,9 @@ class RemunerationMonitorController extends Controller
         $periods = collect();
         $units   = collect();
         if (Schema::hasTable('assessment_periods')) {
-            $periods = DB::table('assessment_periods')->orderByDesc('is_active')->orderByDesc('id')->get();
+            $periods = DB::table('assessment_periods')
+                ->orderByDesc(DB::raw("status = 'active'"))
+                ->orderByDesc('id')->get();
         }
         if (Schema::hasTable('units')) {
             $units = DB::table('units')

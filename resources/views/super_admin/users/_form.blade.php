@@ -14,7 +14,7 @@
         </div>
 
         <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">NIP / Employee Number</label>
+            <label class="block text-xs font-medium text-slate-600 mb-1">NIP / Nomor Pegawai</label>
             <x-ui.input name="employee_number" :value="old('employee_number', $user->employee_number)" />
         </div>
 
@@ -113,7 +113,7 @@
 
         <x-ui.button type="submit" variant="{{ $user->exists ? 'success' : 'primary' }}">
             <i class="fa-solid fa-floppy-disk"></i>
-            {{ $user->exists ? 'Update' : 'Create' }}
+            {{ $user->exists ? 'Perbarui' : 'Simpan' }}
         </x-ui.button>
     </div>
 </div>

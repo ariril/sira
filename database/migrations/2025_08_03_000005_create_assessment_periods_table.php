@@ -13,10 +13,14 @@ return new class extends Migration
             $table->string('name');                  // nama_periode
             $table->date('start_date');              // tanggal_mulai
             $table->date('end_date');                // tanggal_akhir
-            $table->string('cycle', 20);             // siklus_penilaian (Bulanan, Triwulanan, Tahunan, dll)
-            $table->string('status', 20);            // status_periode (Aktif, Selesai, Draft, dll)
-            $table->boolean('is_active')->default(false);
+            // Status lifecycle: draft -> active -> (locked|closed)
+            $table->enum('status', ['draft','active','locked','closed'])->default('draft');
+            // Lock / Close metadata
             $table->timestamp('locked_at')->nullable();
+            $table->foreignId('locked_by_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('closed_at')->nullable();
+            $table->foreignId('closed_by_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->text('notes')->nullable();
             $table->timestamps();
         });
     }

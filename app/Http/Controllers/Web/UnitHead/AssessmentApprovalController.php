@@ -47,7 +47,8 @@ class AssessmentApprovalController extends Controller
                 ->join('performance_assessments as pa', 'pa.id', '=', 'aa.performance_assessment_id')
                 ->leftJoin('users as u', 'u.id', '=', 'pa.user_id')
                 ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'pa.assessment_period_id')
-                ->selectRaw('aa.id, aa.status, aa.level, aa.note, aa.created_at, u.name as user_name, ap.name as period_name, pa.total_wsm_score')
+                ->selectRaw("aa.id, aa.status, aa.level, aa.note, aa.created_at, u.name as user_name, ap.name as period_name, pa.total_wsm_score,
+                              EXISTS(SELECT 1 FROM assessment_approvals aa1 WHERE aa1.performance_assessment_id = aa.performance_assessment_id AND aa1.level = 1 AND aa1.status = 'approved') as has_lvl1_approved")
                 ->orderByDesc('aa.id');
 
             // Level 2 only
@@ -86,6 +87,15 @@ class AssessmentApprovalController extends Controller
     {
         $this->authorizeAccess();
         if ((int) ($assessment->level ?? 0) !== 2) abort(403);
+        // Require Level 1 to be approved before Level 2 can approve
+        $hasLvl1Approved = AssessmentApproval::query()
+            ->where('performance_assessment_id', $assessment->performance_assessment_id)
+            ->where('level', 1)
+            ->where('status', AssessmentApprovalStatus::APPROVED->value)
+            ->exists();
+        if (!$hasLvl1Approved) {
+            return back()->withErrors(['status' => 'Belum dapat menyetujui: menunggu persetujuan Level 1.']);
+        }
         if ($assessment->status === AssessmentApprovalStatus::APPROVED->value) {
             return back()->with('status', 'Penilaian sudah disetujui.');
         }

@@ -7,6 +7,10 @@ use App\Models\User;
 use App\Models\Unit;
 use App\Models\Profession;
 use App\Models\AssessmentPeriod;
+use App\Models\SiteSetting;
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -14,123 +18,97 @@ class DashboardController extends Controller
 {
     public function index(): View
     {
-        // ====== USER STATS (tetap) ======
+        // ====== RINGKASAN USER ======
         $stats = [
             'total_user' => User::count(),
             'total_unit' => Unit::count(),
             'total_profesi' => Profession::count(),
+            'unverified' => User::whereNull('email_verified_at')->count(),
+        ];
+
+        $userDistribution = [
             'pegawai_medis' => User::where('role', 'pegawai_medis')->count(),
             'kepala_unit' => User::where('role', 'kepala_unit')->count(),
             'kepala_poliklinik' => User::where('role', 'kepala_poliklinik')->count(),
             // Backward-compatible count, but normalize to 'admin_rs'
             'admin_rs' => User::where('role', 'admin_rs')->orWhere('role', 'administrasi')->count(),
             'super_admin' => User::where('role', 'super_admin')->count(),
-            'unverified' => User::whereNull('email_verified_at')->count(),
         ];
 
-        // ====== PERIODE AKTIF ======
-        $activePeriod = AssessmentPeriod::where('is_active', 1)->latest('id')->first();
-
-        // ====== PROGRES BOBOT KRITERIA UNIT (periode aktif) ======
-        $weightsTotal = $activePeriod
-            ? DB::table('unit_criteria_weights')->where('assessment_period_id', $activePeriod->id)->count()
-            : 0;
-
-        $weightsActive = $activePeriod
-            ? DB::table('unit_criteria_weights')->where('assessment_period_id', $activePeriod->id)->where('status', 'active')->count()
-            : 0;
-
-        $weightsPct = $weightsTotal > 0 ? round(($weightsActive / $weightsTotal) * 100, 1) : 0;
-
-        // ====== APPROVAL PENDING PER LEVEL ======
-        $pendingL1 = DB::table('assessment_approvals')->where('status', 'pending')->where('level', 1)->count();
-        $pendingL2 = DB::table('assessment_approvals')->where('status', 'pending')->where('level', 2)->count();
-        $pendingL3 = DB::table('assessment_approvals')->where('status', 'pending')->where('level', 3)->count();
-
-        // ====== CAKUPAN PENILAIAN (periode aktif) ======
-        $expectedAssess = User::where('role', 'pegawai_medis')->count();
-        $submittedAssess = $activePeriod
-            ? DB::table('performance_assessments')->where('assessment_period_id', $activePeriod->id)->count()
-            : 0;
-        $coveragePct = $expectedAssess > 0 ? round(($submittedAssess / $expectedAssess) * 100, 1) : 0;
-
-        // ====== IMPORT ABSENSI TERAKHIR ======
-        $lastBatch = DB::table('attendance_import_batches')->orderByDesc('imported_at')->first();
-        $lastBatchInfo = [
-            'at' => optional($lastBatch)->imported_at,
-            'total' => (int)($lastBatch->total_rows ?? 0),
-            'success' => (int)($lastBatch->success_rows ?? 0),
-            'failed' => (int)($lastBatch->failed_rows ?? 0),
-            'success_rate' => ($lastBatch && $lastBatch->total_rows > 0)
-                ? round($lastBatch->success_rows / $lastBatch->total_rows * 100, 1)
-                : null,
+        // ====== RINGKASAN SISTEM ======
+        $sysSummary = [
+            'app_name' => Config::get('app.name'),
+            'env' => Config::get('app.env'),
+            'debug' => Config::get('app.debug'),
+            'php' => PHP_VERSION,
+            'laravel' => App::version(),
+            'timezone' => Config::get('app.timezone'),
+            'queue' => Config::get('queue.default'),
+            'cache' => Config::get('cache.default'),
         ];
 
-        // ====== STATUS REMUNERASI (periode aktif) ======
-        $remunerasi = [
-            'total_nominal' => 0,
-            'count' => 0,
-            'published' => 0,
-            'by_status' => ['Belum Dibayar' => 0, 'Dibayar' => 0, 'Ditahan' => 0],
-        ];
+        // ====== HEALTH CHECKS ======
+        // App key
+        $appKeyOk = filled(Config::get('app.key'));
 
-        if ($activePeriod) {
-            $remunerasi['total_nominal'] = (float)DB::table('remunerations')
-                ->where('assessment_period_id', $activePeriod->id)->sum('amount');
-
-            $remunerasi['count'] = DB::table('remunerations')
-                ->where('assessment_period_id', $activePeriod->id)->count();
-
-            $remunerasi['published'] = DB::table('remunerations')
-                ->where('assessment_period_id', $activePeriod->id)
-                ->whereNotNull('published_at')->count();
-
-            $byStatus = DB::table('remunerations')
-                ->select('payment_status', DB::raw('COUNT(*) as total'))
-                ->where('assessment_period_id', $activePeriod->id)
-                ->groupBy('payment_status')
-                ->pluck('total', 'payment_status')->all();
-
-            $remunerasi['by_status'] = array_merge($remunerasi['by_status'], $byStatus);
+        // DB connection
+        $dbOk = false;
+        try {
+            DB::select('select 1 as ok');
+            $dbOk = true;
+        } catch (\Throwable $e) {
+            $dbOk = false;
         }
 
-        // ====== PENILAIAN PENDING (tetap) ======
-        $penilaianPending = DB::table('performance_assessments')->where('validation_status', 'Menunggu Validasi')->count();
+        // Cache check
+        $cacheOk = false;
+        try {
+            Cache::put('health_check', 'ok', 10);
+            $cacheOk = Cache::get('health_check') === 'ok';
+        } catch (\Throwable $e) {
+            $cacheOk = false;
+        }
 
-        $kinerja = [
-            'periode_aktif' => $activePeriod,
-            'penilaian_pending' => $penilaianPending,
-            // tambahan
-            'weights_total' => $weightsTotal,
-            'weights_active' => $weightsActive,
-            'weights_pct' => $weightsPct,
-            'coverage_expected' => $expectedAssess,
-            'coverage_submitted' => $submittedAssess,
-            'coverage_pct' => $coveragePct,
-            'pending_l1' => $pendingL1,
-            'pending_l2' => $pendingL2,
-            'pending_l3' => $pendingL3,
-            'last_batch' => $lastBatchInfo,
-            'remunerasi' => $remunerasi,
+        // Storage writable
+        $storageOk = is_writable(storage_path('app'));
+
+        $sysChecks = [
+            'app_key' => $appKeyOk,
+            'database' => $dbOk,
+            'cache' => $cacheOk,
+            'storage_writable' => $storageOk,
         ];
 
-        // ====== (Opsional) SECTION Mutu/Review untuk bawah halaman ======
-        $from = now()->subDays(30);
-        $avgRating30d = DB::table('review_details')->where('created_at', '>=', $from)->avg('rating');
-        $totalReview30d = DB::table('review_details')->where('created_at', '>=', $from)->count();
-        $topTenagaMedis = DB::table('performance_assessments as pa')
-            ->join('users as u', 'u.id', '=', 'pa.user_id')
-            ->selectRaw('u.id, u.name as nama, u.position as jabatan, AVG(pa.total_wsm_score) as avg_rating, COUNT(*) as total_ulasan')
-            ->where('u.role', 'pegawai_medis')
-            ->groupBy('u.id', 'u.name', 'u.position')
-            ->orderByDesc('avg_rating')->limit(5)->get();
-
-        $review = [
-            'avg_rating_30d' => $avgRating30d,
-            'total_30d' => $totalReview30d,
-            'top_tenaga_medis' => $topTenagaMedis,
+        // ====== SITE CONFIG ======
+        $site = SiteSetting::query()->latest('updated_at')->first();
+        $siteConfig = [
+            'exists' => (bool) $site,
+            'name' => $site->name ?? null,
+            'email' => $site->email ?? null,
+            'address' => $site->address ?? null,
+            'logo' => $site->logo_path ?? null,
         ];
+        $siteConfig['missing'] = collect([
+            'name' => $siteConfig['name'],
+            'email' => $siteConfig['email'],
+            'address' => $siteConfig['address'],
+            'logo' => $siteConfig['logo'],
+        ])->filter(fn ($v) => blank($v))->keys()->values()->all();
 
-        return view('super_admin.dashboard', compact('stats', 'kinerja', 'review'));
+        // ====== USER TERBARU ======
+        $recentUsers = User::query()
+            ->select(['id', 'name', 'email', 'role', 'created_at'])
+            ->latest('id')
+            ->limit(8)
+            ->get();
+
+        return view('super_admin.dashboard', compact(
+            'stats',
+            'userDistribution',
+            'sysSummary',
+            'sysChecks',
+            'siteConfig',
+            'recentUsers'
+        ));
     }
 }

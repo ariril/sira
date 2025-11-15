@@ -24,9 +24,18 @@
         </div>
     </div>
 
+    <div class="grid md:grid-cols-2 gap-5">
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Bobot Saran (Global)</label>
+            <x-ui.input type="number" step="0.01" min="0" max="100" name="suggested_weight" :value="old('suggested_weight', $item->suggested_weight)" placeholder="Contoh: 10" />
+            <div class="text-xs text-slate-500 mt-1">Digunakan sebagai saran saat Kepala Unit membuat bobot per unit. Tidak otomatis terapkan.</div>
+            @error('suggested_weight')<div class="text-rose-600 text-xs mt-1">{{ $message }}</div>@enderror
+        </div>
+    </div>
+
     <div>
         <label class="block text-sm font-medium text-slate-700 mb-1">Deskripsi</label>
-        <x-ui.input as="textarea" name="description" rows="4" :value="old('description', $item->description)" placeholder="Keterangan tambahan (opsional)" />
+        <x-ui.textarea name="description" rows="4" :value="old('description', $item->description)" placeholder="Keterangan tambahan (opsional)" />
         @error('description')<div class="text-rose-600 text-xs mt-1">{{ $message }}</div>@enderror
     </div>
 </div>

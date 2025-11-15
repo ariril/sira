@@ -38,7 +38,9 @@ class AdditionalTaskController extends Controller
 
         $periods = collect();
         if (Schema::hasTable('assessment_periods')) {
-            $periods = DB::table('assessment_periods')->orderByDesc('is_active')->orderByDesc('id')->get();
+            $periods = DB::table('assessment_periods')
+                ->orderByDesc(DB::raw("status = 'active'"))
+                ->orderByDesc('id')->get();
         }
 
         if ($unitId && Schema::hasTable('additional_tasks')) {
@@ -86,7 +88,9 @@ class AdditionalTaskController extends Controller
         $this->authorizeAccess();
         $periods = collect();
         if (Schema::hasTable('assessment_periods')) {
-            $periods = DB::table('assessment_periods')->orderByDesc('is_active')->orderByDesc('id')->get();
+            $periods = DB::table('assessment_periods')
+                ->orderByDesc(DB::raw("status = 'active'"))
+                ->orderByDesc('id')->get();
         }
         return view('kepala_unit.additional_tasks.create', [ 'periods' => $periods ]);
     }
@@ -147,7 +151,9 @@ class AdditionalTaskController extends Controller
         if ((int)$row->unit_id !== (int)$me->unit_id) abort(403);
         $periods = collect();
         if (Schema::hasTable('assessment_periods')) {
-            $periods = DB::table('assessment_periods')->orderByDesc('is_active')->orderByDesc('id')->get();
+            $periods = DB::table('assessment_periods')
+                ->orderByDesc(DB::raw("status = 'active'"))
+                ->orderByDesc('id')->get();
         }
         return view('kepala_unit.additional_tasks.edit', [ 'item' => $row, 'periods' => $periods ]);
     }

@@ -5,6 +5,11 @@ namespace App\Http\Controllers\Web\AdminHospital;
 use App\Http\Controllers\Controller;
 use App\Models\AssessmentPeriod;
 use App\Models\Remuneration;
+use App\Models\PerformanceAssessment;
+use App\Models\PerformanceAssessmentDetail;
+use App\Models\PerformanceCriteria;
+use App\Models\UnitCriteriaWeight;
+use App\Enums\PerformanceCriteriaType;
 use App\Models\UnitRemunerationAllocation as Allocation;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -152,8 +157,11 @@ class RemunerationController extends Controller
      */
     public function show(Remuneration $remuneration): View
     {
+        $remuneration->load(['user:id,name,unit_id','assessmentPeriod:id,name']);
+        $wsm = $this->buildWsmBreakdown($remuneration);
         return view('admin_rs.remunerations.show', [
-            'item' => $remuneration->load(['user:id,name,unit_id','assessmentPeriod:id,name']),
+            'item' => $remuneration,
+            'wsm'  => $wsm,
         ]);
     }
 
@@ -182,4 +190,93 @@ class RemunerationController extends Controller
      * Remove the specified resource from storage.
      */
     public function destroy(string $id) {}
+
+    /**
+     * Build WSM breakdown for a user's assessment in the same period as the remuneration.
+     * Normalization:
+     *  - benefit: score / max(score)
+     *  - cost:    min(score) / score
+     * Weights are taken from UnitCriteriaWeight with status ACTIVE for the user's unit and period.
+     * Returns null if data not available.
+     */
+    private function buildWsmBreakdown(Remuneration $rem): ?array
+    {
+        $userId = $rem->user_id;
+        $periodId = $rem->assessment_period_id;
+        $unitId = $rem->user->unit_id ?? null;
+        if (!$unitId) return null;
+
+        $assessment = PerformanceAssessment::with(['details.performanceCriteria:id,name,type'])
+            ->where('user_id', $userId)
+            ->where('assessment_period_id', $periodId)
+            ->first();
+        if (!$assessment) return null;
+
+        $detailByCrit = [];
+        $criteriaIds = [];
+        foreach ($assessment->details as $d) {
+            $cid = $d->performance_criteria_id;
+            $criteriaIds[] = $cid;
+            $detailByCrit[$cid] = [
+                'score'    => (float) $d->score,
+                'criteria' => $d->performanceCriteria,
+            ];
+        }
+        if (!$criteriaIds) return null;
+
+        // Fetch ACTIVE weights for this unit & period
+        $weights = UnitCriteriaWeight::query()
+            ->where('unit_id', $unitId)
+            ->whereIn('performance_criteria_id', $criteriaIds)
+            ->where('assessment_period_id', $periodId)
+            ->where('status', 'active')
+            ->get(['performance_criteria_id','weight'])
+            ->keyBy('performance_criteria_id');
+
+        // Compute min/max per criteria in this period for normalization
+        $minMax = PerformanceAssessmentDetail::query()
+            ->selectRaw('performance_criteria_id, MIN(score) as min_score, MAX(score) as max_score')
+            ->whereIn('performance_criteria_id', $criteriaIds)
+            ->whereHas('performanceAssessment', function ($q) use ($periodId) {
+                $q->where('assessment_period_id', $periodId);
+            })
+            ->groupBy('performance_criteria_id')
+            ->get()
+            ->keyBy('performance_criteria_id');
+
+        $rows = [];
+        $total = 0.0;
+        foreach ($criteriaIds as $cid) {
+            $crit = $detailByCrit[$cid]['criteria'];
+            $score = $detailByCrit[$cid]['score'];
+            $w    = (float) ($weights[$cid]->weight ?? 0); // percent
+            $mm   = $minMax[$cid] ?? null;
+            $min  = $mm ? (float)$mm->min_score : 0.0;
+            $max  = $mm ? (float)$mm->max_score : 0.0;
+            $norm = 0.0;
+            if ($crit && $crit->type === PerformanceCriteriaType::BENEFIT) {
+                $norm = $max > 0 ? ($score / $max) : 0.0;
+            } else {
+                $norm = ($score > 0 && $min > 0) ? ($min / $score) : 0.0;
+            }
+            if ($norm < 0) $norm = 0.0; if ($norm > 1) $norm = 1.0;
+            $contrib = $norm * ($w / 100.0);
+            $total += $contrib;
+            $rows[] = [
+                'criteria_name' => $crit?->name ?? ('Kriteria #'.$cid),
+                'type'          => $crit?->type?->value ?? '-',
+                'weight'        => $w,
+                'score'         => $score,
+                'min'           => $min,
+                'max'           => $max,
+                'normalized'    => round($norm, 4),
+                'contribution'  => round($contrib, 4),
+            ];
+        }
+
+        return [
+            'rows'  => $rows,
+            'total' => round($total, 4),
+        ];
+    }
 }

@@ -1,6 +1,6 @@
-<x-app-layout title="Tambah Profession">
+<x-app-layout title="Tambah Profesi">
     <x-slot name="header">
-        <h1 class="text-2xl font-semibold">Tambah Profession</h1>
+        <h1 class="text-2xl font-semibold">Tambah Profesi</h1>
     </x-slot>
 
     <div class="container-px py-6">

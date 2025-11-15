@@ -17,7 +17,7 @@ class RemunerationDataController extends Controller
             $selectedPeriod = AssessmentPeriod::find($req->integer('periode_id'));
         }
         if (!$selectedPeriod) {
-            $selectedPeriod = AssessmentPeriod::where('is_active', 1)->first()
+            $selectedPeriod = AssessmentPeriod::where('status', 'active')->first()
                 ?: AssessmentPeriod::orderByDesc('start_date')->first();
         }
 
@@ -65,7 +65,7 @@ class RemunerationDataController extends Controller
         $rows = $base->orderBy('users.name')->paginate($perPage)->withQueryString();
 
         // --- Data filter dropdown ---
-        $periodes = AssessmentPeriod::orderByDesc('start_date')->get(['id','name','is_active']);
+    $periodes = AssessmentPeriod::orderByDesc('start_date')->get(['id','name','status']);
         $units    = Unit::orderBy('name')->get(['id','name as nama_unit']);
         $profesis = Profession::orderBy('name')->get(['id','name as nama']);
 

@@ -3,10 +3,10 @@
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Rekap Absensi</h1>
             <div class="flex items-center gap-2">
-                <x-ui.button as="a" href="{{ route('admin_rs.attendances.import.form') }}" class="h-12 px-6 text-base">
+                <x-ui.button as="a" href="{{ route('admin_rs.attendances.import.form') }}" variant="success" class="h-12 px-6 text-base">
                     <i class="fa-solid fa-file-arrow-up mr-2"></i> Upload CSV
                 </x-ui.button>
-                <x-ui.button as="a" href="{{ route('admin_rs.attendances.batches') }}" class="h-12 px-6 text-base">
+                <x-ui.button as="a" href="{{ route('admin_rs.attendances.batches') }}" variant="success" class="h-12 px-6 text-base">
                     <i class="fa-solid fa-database mr-2"></i> Batch Import
                 </x-ui.button>
             </div>
@@ -49,49 +49,45 @@
         </form>
 
         {{-- TABLE --}}
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <table class="min-w-full">
-                <thead class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
-                    <tr>
-                        <th class="px-6 py-4 text-left">Nama</th>
-                        <th class="px-6 py-4 text-left">NIP</th>
-                        <th class="px-6 py-4 text-left">Unit</th>
-                        <th class="px-6 py-4 text-left">Tanggal</th>
-                        <th class="px-6 py-4 text-left">Masuk</th>
-                        <th class="px-6 py-4 text-left">Pulang</th>
-                        <th class="px-6 py-4 text-left">Status</th>
-                        <th class="px-6 py-4 text-left">Sumber</th>
-                        <th class="px-6 py-4 text-right">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm">
-                    @forelse($items as $it)
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-6 py-4">{{ $it->user->name ?? '-' }}</td>
-                            <td class="px-6 py-4">{{ $it->user->employee_number ?? '-' }}</td>
-                            <td class="px-6 py-4">{{ $it->user->unit->name ?? '-' }}</td>
-                            <td class="px-6 py-4">{{ $it->attendance_date?->format('d M Y') }}</td>
-                            <td class="px-6 py-4">{{ $it->check_in ? \Carbon\Carbon::parse($it->check_in)->format('H:i') : '-' }}</td>
-                            <td class="px-6 py-4">{{ $it->check_out ? \Carbon\Carbon::parse($it->check_out)->format('H:i') : '-' }}</td>
-                            <td class="px-6 py-4">{{ $it->attendance_status?->value }}</td>
-                            <td class="px-6 py-4">{{ $it->source?->value }}</td>
-                            <td class="px-6 py-4 text-right">
-                                <div class="inline-flex gap-2">
-                                    <x-ui.icon-button as="a" href="{{ route('admin_rs.attendances.show', $it) }}" icon="fa-eye" />
-                                    <form method="POST" action="{{ route('admin_rs.attendances.destroy', $it) }}" onsubmit="return confirm('Hapus record ini?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <x-ui.icon-button icon="fa-trash" variant="danger" />
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="9" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+        <x-ui.table min-width="1100px">
+            <x-slot name="head">
+                <tr>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Nama</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">NIP</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Unit</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Tanggal</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Masuk</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Pulang</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Sumber</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
+                </tr>
+            </x-slot>
+            @forelse($items as $it)
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4">{{ $it->user->name ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->user->employee_number ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->user->unit->name ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->attendance_date?->format('d M Y') }}</td>
+                    <td class="px-6 py-4">{{ $it->check_in ? \Carbon\Carbon::parse($it->check_in)->format('H:i') : '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->check_out ? \Carbon\Carbon::parse($it->check_out)->format('H:i') : '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->attendance_status?->value }}</td>
+                    <td class="px-6 py-4">{{ $it->source?->value }}</td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="inline-flex gap-2">
+                            <x-ui.icon-button as="a" href="{{ route('admin_rs.attendances.show', $it) }}" icon="fa-eye" />
+                            <form method="POST" action="{{ route('admin_rs.attendances.destroy', $it) }}" onsubmit="return confirm('Hapus record ini?')">
+                                @csrf
+                                @method('DELETE')
+                                <x-ui.icon-button icon="fa-trash" variant="danger" />
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="9" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
+            @endforelse
+        </x-ui.table>
 
         <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div class="text-sm text-slate-600">

@@ -46,34 +46,30 @@
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <table class="min-w-full">
-                <thead class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
-                    <tr>
-                        <th class="px-6 py-4 text-left">Pegawai</th>
-                        <th class="px-6 py-4 text-left">NIP</th>
-                        <th class="px-6 py-4 text-left">Tanggal</th>
-                        <th class="px-6 py-4 text-left">Masuk</th>
-                        <th class="px-6 py-4 text-left">Pulang</th>
-                        <th class="px-6 py-4 text-left">Status</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm">
-                    @forelse($rows as $r)
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-6 py-4">{{ $r->user->name ?? '-' }}</td>
-                            <td class="px-6 py-4">{{ $r->user->employee_number ?? '-' }}</td>
-                            <td class="px-6 py-4">{{ $r->attendance_date?->format('d M Y') }}</td>
-                            <td class="px-6 py-4">{{ $r->check_in ? \Carbon\Carbon::parse($r->check_in)->format('H:i') : '-' }}</td>
-                            <td class="px-6 py-4">{{ $r->check_out ? \Carbon\Carbon::parse($r->check_out)->format('H:i') : '-' }}</td>
-                            <td class="px-6 py-4">{{ (string)$r->attendance_status }}</td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+        <x-ui.table min-width="900px">
+            <x-slot name="head">
+                <tr>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Pegawai</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">NIP</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Tanggal</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Masuk</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Pulang</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                </tr>
+            </x-slot>
+            @forelse($rows as $r)
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4">{{ $r->user->name ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $r->user->employee_number ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $r->attendance_date?->format('d M Y') }}</td>
+                    <td class="px-6 py-4">{{ $r->check_in ? \Carbon\Carbon::parse($r->check_in)->format('H:i') : '-' }}</td>
+                    <td class="px-6 py-4">{{ $r->check_out ? \Carbon\Carbon::parse($r->check_out)->format('H:i') : '-' }}</td>
+                    <td class="px-6 py-4">{{ $r->attendance_status?->value }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
+            @endforelse
+        </x-ui.table>
 
         <div class="pt-2 flex justify-end">{{ $rows->links() }}</div>
     </div>

@@ -6,9 +6,9 @@
     ];
 @endphp
 
-<x-app-layout title="System Health">
+<x-app-layout title="Kesehatan Sistem">
     <div class="max-w-5xl mx-auto py-8">
-        <h1 class="text-2xl font-semibold mb-6">System Health</h1>
+        <h1 class="text-2xl font-semibold mb-6">Kesehatan Sistem</h1>
 
         <div class="grid md:grid-cols-2 gap-6">
             <div class="space-y-2">
@@ -44,7 +44,7 @@
         </div>
 
         <div class="mt-8 text-gray-500 text-sm">
-            <p>This page helps Super Admin quickly verify that the app is configured correctly (database, cache, storage, etc.).</p>
+            <p>Halaman ini membantu Super Admin memverifikasi dengan cepat bahwa aplikasi sudah dikonfigurasi dengan benar (database, cache, penyimpanan, dan lainnya).</p>
         </div>
     </div>
 </x-app-layout>

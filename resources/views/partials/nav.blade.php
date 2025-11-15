@@ -1,3 +1,26 @@
+@php
+    // Siapkan data dropdown Profil agar selalu ada; aman saat tabel belum ada saat testing
+    if (!isset($profilPages)) {
+        try {
+            $profilPages = [];
+            if (\Illuminate\Support\Facades\Schema::hasTable('about_pages')) {
+                $map = [
+                    'profil_rs'    => 'Profil RSUD',
+                    'visi'         => 'Visi',
+                    'misi'         => 'Misi',
+                    'struktur'     => 'Struktur Organisasi',
+                    'tugas_fungsi' => 'Tugas & Fungsi',
+                ];
+                foreach ($map as $type => $label) {
+                    $profilPages[] = ['type' => $type, 'label' => $label];
+                }
+            }
+        } catch (\Throwable $e) {
+            $profilPages = [];
+        }
+    }
+@endphp
+
 <nav x-data="{ open:false }" class="bg-slate-800 sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6">
         <div class="flex items-center justify-between">
@@ -30,17 +53,12 @@
                     </ul>
                 </li>
 
-                <li>
-                    <a href="{{ route('remuneration.data') }}"
-                       class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400 {{ request()->routeIs('remuneration.data')?'bg-slate-700 text-blue-400 border-blue-400':'' }}">
-                        <i class="fa-solid fa-database"></i> Data Remunerasi
-                    </a>
-                </li>
+                
 
                 <li>
                     <a href="{{ route('announcements.index') }}"
                        class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400">
-                        <i class="fa-regular fa-newspaper"></i> Berita
+                        <i class="fa-regular fa-newspaper"></i> Pengumuman
                     </a>
                 </li>
                 <li>
@@ -50,7 +68,13 @@
                     </a>
                 </li>
                 <li>
-                    <a href="{{ route('about_pages.show','profil_rs') }}"
+                    <a href="{{ route('reviews.create') }}"
+                       class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400">
+                        <i class="fa-solid fa-star"></i> Ulasan
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ route('contact') }}"
                        class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400">
                         <i class="fa-solid fa-phone"></i> Kontak
                     </a>
@@ -78,10 +102,11 @@
                     @endforelse
                 </ul>
             </li>
-            <li><a href="{{ route('remuneration.data') }}" class="px-4 py-3 hover:bg-slate-700">Data Remunerasi</a></li>
-            <li><a href="{{ route('announcements.index') }}" class="px-4 py-3 hover:bg-slate-700">Berita</a></li>
+            
+            <li><a href="{{ route('announcements.index') }}" class="px-4 py-3 hover:bg-slate-700">Pengumuman</a></li>
             <li><a href="{{ route('faqs.index') }}" class="px-4 py-3 hover:bg-slate-700">FAQ</a></li>
-            <li><a href="{{ route('about_pages.show','profil_rs') }}" class="px-4 py-3 hover:bg-slate-700">Kontak</a></li>
+            <li><a href="{{ route('reviews.create') }}" class="px-4 py-3 hover:bg-slate-700">Ulasan</a></li>
+            <li><a href="{{ route('contact') }}" class="px-4 py-3 hover:bg-slate-700">Kontak</a></li>
         </ul>
     </div>
 </nav>

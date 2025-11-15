@@ -40,6 +40,18 @@ class LoginRequest extends FormRequest
         ];
     }
 
+    public function messages(): array
+    {
+        return [
+            'profession_id.required_if' => 'Silakan pilih profesi Anda saat login sebagai Pegawai Medis.',
+            'profession_id.exists'      => 'Profesi yang dipilih tidak ditemukan. Pilih dari daftar yang tersedia.',
+            'email.required'            => 'Masukkan email Anda.',
+            'email.email'               => 'Format email tidak valid.',
+            'password.required'         => 'Masukkan kata sandi Anda.',
+            'role.required'             => 'Pilih peran Anda untuk login.',
+        ];
+    }
+
     protected function prepareForValidation(): void
     {
         // Backward compatibility: map legacy values/keys to new ones
@@ -60,7 +72,8 @@ class LoginRequest extends FormRequest
         if (!Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
             throw ValidationException::withMessages([
-                'email' => __('Email or password is incorrect.'),
+                // Bahasa Indonesia yang lebih umum
+                'email' => 'Email atau kata sandi salah.',
             ]);
         }
 
@@ -72,11 +85,12 @@ class LoginRequest extends FormRequest
         if ($user->role !== $chosenRole) {
             Auth::logout();
 
-            $actual = str_replace('_', ' ', $user->role);
-            $chosen = str_replace('_', ' ', $chosenRole);
+            // Gunakan bahasa manusia (judul-kapital) tanpa tanda petik atau titik dua
+            $actualLabel = Str::headline($user->role);
+            $chosenLabel = Str::headline($chosenRole);
 
             throw ValidationException::withMessages([
-                'role' => __('Your account is registered as ":actual", not ":chosen".', compact('actual', 'chosen')),
+                'role' => 'Akun Anda terdaftar sebagai ' . $actualLabel . ', bukan ' . $chosenLabel . '.',
             ])->redirectTo(url()->previous());
         }
 
@@ -86,7 +100,7 @@ class LoginRequest extends FormRequest
 
             Auth::logout();
             throw ValidationException::withMessages([
-                'profesi_id' => __('The selected profession does not match your account.'),
+                'profesi_id' => 'Profesi yang dipilih tidak sesuai dengan akun Anda.',
             ])->redirectTo(url()->previous());
         }
     }

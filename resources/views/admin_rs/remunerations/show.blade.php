@@ -9,7 +9,7 @@
                     <x-ui.button type="submit" variant="success" class="h-10 px-4 text-sm">Publish</x-ui.button>
                 </form>
                 @endif
-                <x-ui.button as="a" href="{{ route('admin_rs.remunerations.index') }}" class="h-10 px-4 text-sm">Kembali</x-ui.button>
+                <x-ui.button as="a" href="{{ route('admin_rs.remunerations.index') }}" variant="success" class="h-10 px-4 text-sm">Kembali</x-ui.button>
             </div>
         </div>
     </x-slot>
@@ -39,10 +39,54 @@
                         @endif
                     </dd>
                 </div>
+                @if(!empty($wsm['rows']))
+                <div class="md:col-span-2">
+                    <dt class="text-slate-500 mb-1">Ringkasan Perhitungan (WSM)</dt>
+                    <dd>
+                        <div class="overflow-auto rounded-xl border border-slate-200">
+                            <table class="min-w-[760px] w-full text-sm">
+                                <thead class="bg-slate-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left">Kriteria</th>
+                                        <th class="px-4 py-3 text-left">Tipe</th>
+                                        <th class="px-4 py-3 text-right">Bobot (%)</th>
+                                        <th class="px-4 py-3 text-right">Nilai</th>
+                                        <th class="px-4 py-3 text-right">Min</th>
+                                        <th class="px-4 py-3 text-right">Max</th>
+                                        <th class="px-4 py-3 text-right">Ternormalisasi</th>
+                                        <th class="px-4 py-3 text-right">Kontribusi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($wsm['rows'] as $row)
+                                        <tr class="border-t border-slate-100">
+                                            <td class="px-4 py-2">{{ $row['criteria_name'] }}</td>
+                                            <td class="px-4 py-2">{{ $row['type'] }}</td>
+                                            <td class="px-4 py-2 text-right">{{ number_format($row['weight'], 2) }}</td>
+                                            <td class="px-4 py-2 text-right">{{ number_format($row['score'], 2) }}</td>
+                                            <td class="px-4 py-2 text-right">{{ number_format($row['min'], 2) }}</td>
+                                            <td class="px-4 py-2 text-right">{{ number_format($row['max'], 2) }}</td>
+                                            <td class="px-4 py-2 text-right">{{ number_format($row['normalized'], 4) }}</td>
+                                            <td class="px-4 py-2 text-right">{{ number_format($row['contribution'], 4) }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                                <tfoot>
+                                    <tr class="bg-slate-50 border-t border-slate-200">
+                                        <td colspan="7" class="px-4 py-2 text-right font-medium">Total Skor WSM</td>
+                                        <td class="px-4 py-2 text-right font-semibold">{{ number_format($wsm['total'], 4) }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </dd>
+                </div>
+                @endif
+
                 <div class="md:col-span-2">
                     <dt class="text-slate-500 mb-1">Catatan Perhitungan</dt>
                     <dd>
-                        <pre class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[13px] overflow-auto">{{ json_encode($item->calculation_details, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                        <x-remunerations.calculation-details :details="$item->calculation_details" />
                     </dd>
                 </div>
             </dl>
@@ -59,7 +103,12 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-slate-600 mb-1">Status Pembayaran</label>
-                        <x-ui.select name="payment_status" :options="['pending'=>'Pending','paid'=>'Paid','failed'=>'Failed']" :value="(string)$item->payment_status" placeholder="(Pilih)" />
+                        {{-- Sinkronisasi dengan enum RemunerationPaymentStatus (UNPAID/PAID/WITHHELD) yang bernilai: Belum Dibayar, Dibayar, Ditahan --}}
+                        <x-ui.select name="payment_status" :options="[
+                            'Belum Dibayar' => 'Belum Dibayar',
+                            'Dibayar' => 'Dibayar',
+                            'Ditahan' => 'Ditahan',
+                        ]" :value="$item->payment_status?->value" placeholder="(Pilih)" />
                     </div>
                 </div>
                 <div class="flex justify-end">

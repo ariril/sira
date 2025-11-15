@@ -1,7 +1,7 @@
-<x-app-layout title="Site Settings">
+<x-app-layout title="Pengaturan Situs">
     <x-slot name="header">
         <div class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold text-slate-800">Site Settings</h1>
+            <h1 class="text-2xl font-semibold text-slate-800">Pengaturan Situs</h1>
         </div>
     </x-slot>
 

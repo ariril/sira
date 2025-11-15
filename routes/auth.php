@@ -56,4 +56,9 @@ Route::middleware(['web','auth'])->group(function () {
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');
+
+    // Tambahkan dukungan GET /logout agar klik tautan langsung tidak memicu 419 (Page Expired)
+    // Tetap berada dalam middleware auth untuk keamanan.
+    Route::get('logout', [AuthenticatedSessionController::class, 'destroy'])
+        ->name('logout.get');
 });

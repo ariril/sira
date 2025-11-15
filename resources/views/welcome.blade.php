@@ -20,21 +20,16 @@
                     <a href="#announcements" class="btn-primary">
                         Lihat Pengumuman
                     </a>
-                    <a href="{{ route('remuneration.data') }}" class="btn-outline">
-                        Akses Data
+                    <a href="{{ route('reviews.create') }}" class="btn-outline">
+                        Berikan Ulasan
                     </a>
                 </div>
 
-                @isset($jadwalDokterBesok)
-                    <p class="mt-6 text-sm text-slate-500">
-                        Jadwal tenaga medis besok:
-                        <span class="font-semibold text-slate-700">{{ $jadwalDokterBesok }}</span> slot.
-                    </p>
-                @endisset
+                
             </div>
             <div>
                 <img class="w-full h-auto rounded-xl shadow-2xl"
-                     src="{{ $site?->favicon_path ? Storage::url($site?->favicon_path) : asset('images/hero.jpeg') }}"
+                     src="{{ $site?->hero_path ? Storage::url($site?->hero_path) : Storage::url('images/hero.jpeg') }}"
                      alt="{{ $site?->name ?? 'Portal Remuneration' }}">
             </div>
         </section>

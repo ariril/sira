@@ -1,6 +1,6 @@
-<x-app-layout title="Edit Profession">
+<x-app-layout title="Edit Profesi">
     <x-slot name="header">
-        <h1 class="text-2xl font-semibold">Edit Profession</h1>
+        <h1 class="text-2xl font-semibold">Edit Profesi</h1>
     </x-slot>
 
     <div class="container-px py-6">

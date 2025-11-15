@@ -13,17 +13,18 @@ class AuthenticationTest extends TestCase
     public function test_login_screen_can_be_rendered(): void
     {
         $response = $this->get('/login');
-
-        $response->assertStatus(200);
+        // Login page now redirects to home with ?modal=1 to show the login modal
+        $response->assertRedirect(route('home', ['modal' => 1], false));
     }
 
     public function test_users_can_authenticate_using_the_login_screen(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['role' => \App\Models\User::ROLE_SUPER_ADMIN]);
 
         $response = $this->post('/login', [
             'email' => $user->email,
             'password' => 'password',
+            'role' => \App\Models\User::ROLE_SUPER_ADMIN,
         ]);
 
         $this->assertAuthenticated();

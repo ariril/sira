@@ -25,50 +25,46 @@
                 </div>
             </div>
             <div class="mt-4 flex justify-end gap-3">
-                <a href="{{ route('kepala_unit.additional_task_claims.index') }}" class="inline-flex items-center gap-2 h-10 px-4 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
+                <a href="{{ route('kepala_unit.additional_task_claims.index') }}" class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 text-base">
                     <i class="fa-solid fa-rotate-left"></i> Reset
                 </a>
-                <x-ui.button type="submit" class="h-10 px-4">Terapkan</x-ui.button>
+                <x-ui.button type="submit" variant="orange" class="h-12 px-6 text-[15px]"> <i class="fa-solid fa-filter"></i> Terapkan</x-ui.button>
             </div>
         </form>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <table class="min-w-full">
-                <thead class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
-                    <tr>
-                        <th class="px-6 py-4 text-left">Pegawai</th>
-                        <th class="px-6 py-4 text-left">Tugas</th>
-                        <th class="px-6 py-4 text-left">Periode</th>
-                        <th class="px-6 py-4 text-left">Claimed</th>
-                        <th class="px-6 py-4 text-left">Deadline Cancel</th>
-                        <th class="px-6 py-4 text-left">Status</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm">
-                    @forelse($items as $it)
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-6 py-4">{{ $it->user_name }}</td>
-                            <td class="px-6 py-4">{{ $it->task_title }}</td>
-                            <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
-                            <td class="px-6 py-4">{{ $it->claimed_at }}</td>
-                            <td class="px-6 py-4">{{ $it->cancel_deadline_at ?? '-' }}</td>
-                            <td class="px-6 py-4">
-                                @php($st = $it->status)
-                                @if($st==='completed')
-                                    <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">Completed</span>
-                                @elseif($st==='cancelled')
-                                    <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Cancelled</span>
-                                @else
-                                    <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Active</span>
-                                @endif
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Belum ada data.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+        <x-ui.table min-width="980px">
+            <x-slot name="head">
+                <tr>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Pegawai</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Tugas</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Claimed</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Deadline Cancel</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                </tr>
+            </x-slot>
+            @forelse($items as $it)
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4">{{ $it->user_name }}</td>
+                    <td class="px-6 py-4">{{ $it->task_title }}</td>
+                    <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->claimed_at }}</td>
+                    <td class="px-6 py-4">{{ $it->cancel_deadline_at ?? '-' }}</td>
+                    <td class="px-6 py-4">
+                        @php($st = $it->status)
+                        @if($st==='completed')
+                            <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">Completed</span>
+                        @elseif($st==='cancelled')
+                            <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Cancelled</span>
+                        @else
+                            <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Active</span>
+                        @endif
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Belum ada data.</td></tr>
+            @endforelse
+        </x-ui.table>
 
         <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div class="text-sm text-slate-600">

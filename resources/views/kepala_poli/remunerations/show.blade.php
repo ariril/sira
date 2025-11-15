@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Detail Remunerasi</h1>
-            <x-ui.button as="a" href="{{ route('kepala_poliklinik.remunerations.index') }}" class="h-10 px-4 text-sm">Kembali</x-ui.button>
+            <x-ui.button as="a" href="{{ route('kepala_poliklinik.remunerations.index') }}" variant="success" class="h-10 px-4 text-sm">Kembali</x-ui.button>
         </div>
     </x-slot>
 
@@ -37,7 +37,7 @@
                 </div>
                 <div>
                     <dt class="text-slate-500">Status Pembayaran</dt>
-                    <dd class="text-slate-800 font-medium">{{ (string)$item->payment_status }}</dd>
+                    <dd class="text-slate-800 font-medium">{{ $item->payment_status?->value }}</dd>
                 </div>
                 <div>
                     <dt class="text-slate-500">Tanggal Pembayaran</dt>

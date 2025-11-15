@@ -74,7 +74,7 @@ class DashboardController extends Controller
 
         if (Schema::hasTable('assessment_periods')) {
             $kinerja['periode_aktif'] = DB::table('assessment_periods')
-                ->orderByDesc('is_active')
+                ->orderByDesc(DB::raw("status = 'active'"))
                 ->orderByDesc('id')
                 ->first();
         }

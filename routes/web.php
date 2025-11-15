@@ -9,6 +9,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Web\AnnouncementController;
 use App\Http\Controllers\Web\FaqController;
 use App\Http\Controllers\Web\AboutPageController;
+use App\Http\Controllers\Web\ContactController;
 use App\Http\Controllers\Web\RemunerationDataController;
 use App\Http\Controllers\Web\PublicReviewController;
 
@@ -30,8 +31,10 @@ Route::get('/announcements/{slug}', [AnnouncementController::class, 'show'])->na
 Route::get('/faqs',                 [FaqController::class, 'index'])->name('faqs.index');
 
 Route::get('/about-pages/{type}',   [AboutPageController::class, 'show'])->name('about_pages.show');
+Route::get('/contact',              [ContactController::class, 'index'])->name('contact');
 
-Route::get('/remuneration-data',    [RemunerationDataController::class, 'index'])->name('remuneration.data');
+// Dipindahkan ke area pegawai_medis (tidak publik lagi)
+// Route::get('/remuneration-data',    [RemunerationDataController::class, 'index'])->name('remuneration.data');
 
 // Public review form (English slug)
 Route::get('/reviews',              [PublicReviewController::class, 'create'])->name('reviews.create');
@@ -144,11 +147,17 @@ Route::middleware(['auth','verified','role:admin_rs'])
         // Kinerja (dipindahkan dari Super Admin)
         Route::resource('performance-criterias', \App\Http\Controllers\Web\AdminHospital\PerformanceCriteriaController::class);
 
+    // Approval usulan kriteria baru
+    Route::get('criteria-proposals', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'index'])->name('criteria_proposals.index');
+    Route::post('criteria-proposals/{proposal}/approve', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'approve'])->name('criteria_proposals.approve');
+    Route::post('criteria-proposals/{proposal}/reject', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'reject'])->name('criteria_proposals.reject');
+
         // Periode Penilaian (assessment_periods)
         Route::resource('assessment-periods', \App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class)
             ->parameters(['assessment-periods' => 'period']);
         Route::post('assessment-periods/{period}/activate', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'activate'])->name('assessment_periods.activate');
         Route::post('assessment-periods/{period}/lock',     [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'lock'])->name('assessment_periods.lock');
+        Route::post('assessment-periods/{period}/close',    [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'close'])->name('assessment_periods.close');
 
         // Bobot Kriteria Unit (setup awal/push draft per unit)
         Route::resource('unit-criteria-weights', \App\Http\Controllers\Web\AdminHospital\UnitCriteriaWeightController::class)
@@ -179,6 +188,12 @@ Route::middleware(['auth','verified','role:kepala_unit'])
             ->only(['index','create','store','edit','update','destroy','show']);
         Route::post('unit-criteria-weights/{weight}/submit', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'submitForApproval'])
             ->name('unit_criteria_weights.submit');
+        Route::post('unit-criteria-weights/submit-all', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'submitAll'])
+            ->name('unit_criteria_weights.submit_all');
+
+        // Usulan kriteria baru
+        Route::get('criteria-proposals', [\App\Http\Controllers\Web\UnitHead\CriteriaProposalController::class,'index'])->name('criteria_proposals.index');
+        Route::post('criteria-proposals', [\App\Http\Controllers\Web\UnitHead\CriteriaProposalController::class,'store'])->name('criteria_proposals.store');
 
         // Tugas Tambahan untuk unit
         Route::resource('additional-tasks', \App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class);
@@ -211,6 +226,9 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
         Route::get('unit-criteria-weights', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'index'])->name('unit_criteria_weights.index');
         Route::post('unit-criteria-weights/{weight}/approve', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'approve'])->name('unit_criteria_weights.approve');
         Route::post('unit-criteria-weights/{weight}/reject',  [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'reject'])->name('unit_criteria_weights.reject');
+    // Read-only list per unit & detail
+    Route::get('unit-criteria-weights/units', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'units'])->name('unit_criteria_weights.units');
+    Route::get('unit-criteria-weights/units/{unitId}', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'unit'])->name('unit_criteria_weights.unit');
 
         // Approval final penilaian – Level 3
         Route::get('assessments/pending',   [\App\Http\Controllers\Web\PolyclinicHead\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
@@ -248,6 +266,12 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
         // Lihat remunerasi pribadi
         Route::get('remunerations',       [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'index'])->name('remunerations.index');
         Route::get('remunerations/{id}',  [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'show'])->name('remunerations.show');
+
+        // Data remunerasi (versi internal untuk pegawai medis) – pindahan dari halaman publik
+        Route::get('remuneration-data', [\App\Http\Controllers\Web\MedicalStaff\RemunerationDataController::class, 'index'])->name('remuneration_data.index');
+
+        // Lihat kriteria & bobot aktif untuk unit sendiri pada periode aktif
+        Route::get('unit-criteria-weights', [\App\Http\Controllers\Web\MedicalStaff\UnitCriteriaWeightViewController::class, 'index'])->name('unit_criteria_weights.index');
     });
 
 /**

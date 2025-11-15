@@ -58,6 +58,7 @@ class SiteSettingController extends Controller
             'footer_text'       => ['nullable','string','max:255'],
             'logo'              => ['sometimes','file','image','max:4096'],
             'favicon'           => ['sometimes','file','mimes:ico,png','max:1024'],
+            'hero'              => ['sometimes','file','image','max:6144'],
         ]);
 
         $setting = SiteSetting::first() ?? new SiteSetting();
@@ -68,6 +69,9 @@ class SiteSettingController extends Controller
         }
         if ($request->hasFile('favicon')) {
             $data['favicon_path'] = $request->file('favicon')->store('site', 'public');
+        }
+        if ($request->hasFile('hero')) {
+            $data['hero_path'] = $request->file('hero')->store('site', 'public');
         }
 
         $setting->fill($data);

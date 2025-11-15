@@ -9,8 +9,8 @@
         <div class="space-y-4">
             @forelse($items as $faq)
                 <div class="bg-white rounded-lg shadow p-6">
-                    <h2 class="font-semibold text-lg mb-2">{{ $faq->pertanyaan }}</h2>
-                    <p class="text-slate-600">{{ $faq->jawaban }}</p>
+                    <h2 class="font-semibold text-lg mb-2">{{ $faq->question }}</h2>
+                    <div class="text-slate-600">{!! $faq->answer !!}</div>
                 </div>
             @empty
                 <p class="text-slate-500">Belum ada pertanyaan umum.</p>

@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold">Tugas Tambahan Unit</h1>
-            <x-ui.button as="a" href="{{ route('kepala_unit.additional-tasks.create') }}" class="h-10 px-4 text-sm">
+            <x-ui.button as="a" href="{{ route('kepala_unit.additional-tasks.create') }}" variant="orange" class="h-12 px-6 text-base">
                 <i class="fa-solid fa-plus mr-2"></i> Buat Tugas
             </x-ui.button>
         </div>
@@ -20,77 +20,78 @@
                     <x-ui.select name="status" :value="$status" :options="['draft'=>'Draft','open'=>'Open','closed'=>'Closed','cancelled'=>'Cancelled']" placeholder="(Semua)" />
                 </div>
                 <div class="md:col-span-4">
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1">
+                        Filter Periode
+                        <span class="inline-block ml-1 text-amber-600 cursor-help" title="Gunakan untuk menampilkan daftar tugas pada periode tertentu.">!</span>
+                    </label>
                     <x-ui.select name="period_id" :options="$periods->pluck('name','id')" :value="$periodId" placeholder="(Semua)" />
                 </div>
             </div>
             <div class="mt-4 flex justify-end gap-3">
-                <a href="{{ route('kepala_unit.additional-tasks.index') }}" class="inline-flex items-center gap-2 h-10 px-4 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
+                <a href="{{ route('kepala_unit.additional-tasks.index') }}" class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 text-base">
                     <i class="fa-solid fa-rotate-left"></i> Reset
                 </a>
-                <x-ui.button type="submit" class="h-10 px-4">Terapkan</x-ui.button>
+                <button type="submit" class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm text-base">
+                    <i class="fa-solid fa-filter"></i> Terapkan
+                </button>
             </div>
         </form>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <table class="min-w-full">
-                <thead class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
-                    <tr>
-                        <th class="px-6 py-4 text-left">Judul</th>
-                        <th class="px-6 py-4 text-left">Periode</th>
-                        <th class="px-6 py-4 text-left">Tanggal</th>
-                        <th class="px-6 py-4 text-right">Poin/Bonus</th>
-                        <th class="px-6 py-4 text-left">Status</th>
-                        <th class="px-6 py-4 text-right">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm">
-                @forelse($items as $it)
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-6 py-4">{{ $it->title }}</td>
-                        <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $it->start_date }} s/d {{ $it->due_date }}</td>
-                        <td class="px-6 py-4 text-right">{{ number_format((float)($it->points ?? 0),2) }} / {{ number_format((float)($it->bonus_amount ?? 0),2) }}</td>
-                        <td class="px-6 py-4">
-                            @php($st = $it->status)
-                            @if($st==='open')
-                                <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">Open</span>
-                            @elseif($st==='closed')
-                                <span class="px-2 py-1 rounded text-xs bg-slate-200 text-slate-700">Closed</span>
-                            @elseif($st==='cancelled')
-                                <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Cancelled</span>
-                            @else
-                                <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Draft</span>
-                            @endif
-                        </td>
-                        <td class="px-6 py-4 text-right">
-                            <div class="inline-flex gap-2">
-                                <x-ui.icon-button as="a" href="{{ route('kepala_unit.additional-tasks.edit', $it->id) }}" icon="fa-pen-to-square" />
-                                <form method="POST" action="{{ route('kepala_unit.additional_tasks.open', $it->id) }}">
-                                    @csrf @method('PATCH')
-                                    <x-ui.button class="h-9 px-3 text-xs" :disabled="$st==='open'">Open</x-ui.button>
-                                </form>
-                                <form method="POST" action="{{ route('kepala_unit.additional_tasks.close', $it->id) }}">
-                                    @csrf @method('PATCH')
-                                    <x-ui.button class="h-9 px-3 text-xs" :disabled="$st==='closed'">Close</x-ui.button>
-                                </form>
-                                <form method="POST" action="{{ route('kepala_unit.additional_tasks.cancel', $it->id) }}" onsubmit="return confirm('Batalkan tugas ini?')">
-                                    @csrf @method('PATCH')
-                                    <x-ui.button variant="outline" class="h-9 px-3 text-xs" :disabled="$st==='cancelled'">Cancel</x-ui.button>
-                                </form>
-                                <form method="POST" action="{{ route('kepala_unit.additional-tasks.destroy', $it->id) }}" onsubmit="return confirm('Hapus tugas ini?')">
-                                    @csrf @method('DELETE')
-                                    <x-ui.icon-button icon="fa-trash" />
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Belum ada data.</td></tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
+        <x-ui.table min-width="1000px">
+            <x-slot name="head">
+                <tr>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Judul</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Tanggal</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Poin/Bonus</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
+                </tr>
+            </x-slot>
+            @forelse($items as $it)
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4">{{ $it->title }}</td>
+                    <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->start_date }} s/d {{ $it->due_date }}</td>
+                    <td class="px-6 py-4 text-right">{{ number_format((float)($it->points ?? 0),2) }} / {{ number_format((float)($it->bonus_amount ?? 0),2) }}</td>
+                    <td class="px-6 py-4">
+                        @php($st = $it->status)
+                        @if($st==='open')
+                            <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">Open</span>
+                        @elseif($st==='closed')
+                            <span class="px-2 py-1 rounded text-xs bg-slate-200 text-slate-700">Closed</span>
+                        @elseif($st==='cancelled')
+                            <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Cancelled</span>
+                        @else
+                            <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Draft</span>
+                        @endif
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="inline-flex gap-2">
+                            <x-ui.icon-button as="a" href="{{ route('kepala_unit.additional-tasks.edit', $it->id) }}" icon="fa-pen-to-square" />
+                            <form method="POST" action="{{ route('kepala_unit.additional_tasks.open', $it->id) }}">
+                                @csrf @method('PATCH')
+                                <x-ui.button variant="orange" class="h-9 px-3 text-xs" :disabled="$st==='open'">Open</x-ui.button>
+                            </form>
+                            <form method="POST" action="{{ route('kepala_unit.additional_tasks.close', $it->id) }}">
+                                @csrf @method('PATCH')
+                                <x-ui.button variant="orange" class="h-9 px-3 text-xs" :disabled="$st==='closed'">Close</x-ui.button>
+                            </form>
+                            <form method="POST" action="{{ route('kepala_unit.additional_tasks.cancel', $it->id) }}" onsubmit="return confirm('Batalkan tugas ini?')">
+                                @csrf @method('PATCH')
+                                <x-ui.button variant="outline" class="h-9 px-3 text-xs" :disabled="$st==='cancelled'">Cancel</x-ui.button>
+                            </form>
+                            <form method="POST" action="{{ route('kepala_unit.additional-tasks.destroy', $it->id) }}" onsubmit="return confirm('Hapus tugas ini?')">
+                                @csrf @method('DELETE')
+                                <x-ui.icon-button icon="fa-trash" />
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Belum ada data.</td></tr>
+            @endforelse
+        </x-ui.table>
 
         <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div class="text-sm text-slate-600">

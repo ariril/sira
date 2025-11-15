@@ -3,109 +3,104 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use App\Models\{Review, ReviewDetail, User, Unit};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\View\View;
+use Illuminate\Http\RedirectResponse;
+use Carbon\Carbon;
 
 class PublicReviewController extends Controller
 {
-    /**
-     * Tampilkan form ulasan (publik).
-     * Terima query: ?ticket=ABC123&unit=7
-     * Catatan: di DB, "registration_ref" dan "unit_id".
-     */
-    public function create(Request $request)
+    public function create(Request $request): View
     {
-        return view('pages.ulasan-form', [
-            'ticket_code'  => $request->get('ticket'),           // dipertahankan utk UI lama
-            'unit_kerja_id'=> $request->integer('unit'),         // dipertahankan utk UI lama
-        ]);
+        $units = DB::table('units')->orderBy('name')->get(['id','name']);
+        $staff = DB::table('users')
+            ->where('role', 'pegawai_medis')
+            ->orderBy('name')
+            ->get(['id','name','unit_id']);
+
+        return view('pages.reviews.create', compact('units','staff'));
     }
 
-    /**
-     * Simpan 1 ulasan.
-     * Payload disesuaikan ke skema baru:
-     *  - registration_ref (required, unique)
-     *  - unit_id (nullable, exists:units,id)
-     *  - overall_rating (nullable, 1..5)
-     *  - comment (nullable)
-     *  - patient_name, contact (nullable)
-     *  - items (opsional):
-     *      items[]: [{profession_id, rating, comment?}, ...]
-     *      Jika TIDAK dikirim, sistem akan membuat stub review_details
-     *      untuk setiap profesi yang ada di unit tsb (distinct dari users).
-     */
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
-        $data = $request->validate([
-            'registration_ref'            => ['required', 'string', 'max:50', 'unique:reviews,registration_ref'],
-            'unit_id'                     => ['nullable', 'exists:units,id'],
-            'overall_rating'              => ['nullable', 'integer', 'between:1,5'],
-            'comment'                     => ['nullable', 'string', 'max:2000'],
-            'patient_name'                => ['nullable', 'string', 'max:255'],
-            'contact'                     => ['nullable', 'string', 'max:255'],
+        $data = $request->all();
 
-            'items'                       => ['nullable', 'array', 'min:1'],
-            'items.*.profession_id'       => ['required_with:items', 'exists:professions,id'],
-            'items.*.rating'              => ['required_with:items', 'integer', 'between:1,5'],
-            'items.*.comment'             => ['nullable', 'string', 'max:2000'],
+        Validator::make($data, [
+            'type'      => 'required|in:individual,overall',
+            'unit_id'   => 'required_if:type,overall|nullable|exists:units,id',
+            'staff_id'  => 'required_if:type,individual|nullable|exists:users,id',
+            'rating'    => 'required|integer|min:1|max:5',
+            'comment'   => 'required|string|min:5|max:2000',
+            'patient_name' => 'nullable|string|max:200',
+            'contact'      => 'nullable|string|max:100',
+        ], [
+            'unit_id.required_if'  => 'Silakan pilih unit untuk ulasan keseluruhan.',
+            'staff_id.required_if' => 'Silakan pilih pegawai untuk ulasan per orang.',
+        ])->validate();
+
+        $now = Carbon::now();
+        $reviewId = DB::table('reviews')->insertGetId([
+            'unit_id'       => $data['type']==='overall' ? $request->integer('unit_id') : null,
+            'overall_rating'=> (int)$data['rating'],
+            'comment'       => (string)$data['comment'],
+            'patient_name'  => $request->get('patient_name'),
+            'contact'       => $request->get('contact'),
+            'client_ip'     => $request->ip(),
+            'user_agent'    => substr((string)$request->header('User-Agent'),0,255),
+            'created_at'    => $now,
+            'updated_at'    => $now,
         ]);
 
-        DB::transaction(function () use ($request, $data) {
-            // Buat review utama
-            $review = Review::create([
-                'registration_ref' => $data['registration_ref'],
-                'unit_id'          => $data['unit_id'] ?? null,
-                'overall_rating'   => $data['overall_rating'] ?? null,
-                'comment'          => $data['comment'] ?? null,
-                'patient_name'     => $data['patient_name'] ?? null,
-                'contact'          => $data['contact'] ?? null,
-                'client_ip'        => $request->ip(),
-                'user_agent'       => substr((string) $request->userAgent(), 0, 255),
-            ]);
+        // Helper untuk mapping role per staf (dokter/perawat)
+        $roleFor = function ($professionName) {
+            $name = strtolower((string)$professionName);
+            if (str_contains($name, 'dokter')) return 'dokter';
+            if (str_contains($name, 'perawat')) return 'perawat';
+            return 'nakes';
+        };
 
-            // 1) Jika item rating per-profesi sudah dikirim => langsung simpan
-            if (!empty($data['items'])) {
-                $payload = collect($data['items'])->map(function ($it) use ($review) {
-                    return [
-                        'review_id'     => $review->id,
-                        'profession_id' => $it['profession_id'],
-                        'rating'        => (int) $it['rating'],
-                        'comment'       => $it['comment'] ?? null,
-                        'created_at'    => now(),
-                        'updated_at'    => now(),
-                    ];
-                })->all();
+        if ($data['type'] === 'individual') {
+            $staff = DB::table('users as u')
+                ->leftJoin('professions as p', 'p.id', '=', 'u.profession_id')
+                ->where('u.id', $request->integer('staff_id'))
+                ->first(['u.id','p.name as profesi']);
 
-                ReviewDetail::insert($payload);
-                return;
+            if ($staff) {
+                DB::table('review_details')->insert([
+                    'review_id'        => $reviewId,
+                    'medical_staff_id' => $staff->id,
+                    'role'             => $roleFor($staff->profesi),
+                    'rating'           => (int)$data['rating'],
+                    'comment'          => (string)$data['comment'],
+                    'created_at'       => $now,
+                    'updated_at'       => $now,
+                ]);
             }
+        } else {
+            // overall: distribusikan ke semua pegawai medis pada unit terpilih
+            $unitId = $request->integer('unit_id');
+            $staffs = DB::table('users as u')
+                ->leftJoin('professions as p', 'p.id', '=', 'u.profession_id')
+                ->where('u.role', 'pegawai_medis')
+                ->where('u.unit_id', $unitId)
+                ->get(['u.id','p.name as profesi']);
 
-            // 2) Jika items tidak dikirim => generate stub per profesi di unit
-            if ($review->unit_id) {
-                $professionIds = User::query()
-                    ->where('unit_id', $review->unit_id)
-                    ->whereNotNull('profession_id')
-                    ->distinct()
-                    ->pluck('profession_id')
-                    ->filter()
-                    ->values();
-
-                if ($professionIds->isNotEmpty()) {
-                    $payload = $professionIds->map(fn ($pid) => [
-                        'review_id'     => $review->id,
-                        'profession_id' => $pid,
-                        'rating'        => 0,      // boleh 0/null sesuai preferensi UI
-                        'comment'       => null,
-                        'created_at'    => now(),
-                        'updated_at'    => now(),
-                    ])->all();
-
-                    ReviewDetail::insert($payload);
-                }
+            foreach ($staffs as $s) {
+                DB::table('review_details')->insert([
+                    'review_id'        => $reviewId,
+                    'medical_staff_id' => $s->id,
+                    'role'             => $roleFor($s->profesi),
+                    'rating'           => (int)$data['rating'],
+                    'comment'          => (string)$data['comment'],
+                    'created_at'       => $now,
+                    'updated_at'       => $now,
+                ]);
             }
-        });
+        }
 
-        return redirect()->route('home')->with('status', 'Terima kasih atas ulasan Anda!');
+        return back()->with('status','Terima kasih, ulasan Anda telah direkam.');
     }
 }
+

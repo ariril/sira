@@ -50,63 +50,59 @@
             </form>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <table class="min-w-full">
-                <thead class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
+        <x-ui.table min-width="900px">
+            <x-slot name="head">
                 <tr>
-                        <th class="px-6 py-4 text-left">Periode</th>
-                        <th class="px-6 py-4 text-left">Pegawai</th>
-                        <th class="px-6 py-4 text-left">Skor</th>
-                        <th class="px-6 py-4 text-left">Level</th>
-                        <th class="px-6 py-4 text-left">Status</th>
-                        <th class="px-6 py-4 text-right">Aksi</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Pegawai</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Skor</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Level</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                 </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm">
-                @forelse($items as $it)
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $it->user_name ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $it->total_wsm_score ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $it->level ?? '-' }}</td>
-                        <td class="px-6 py-4">
-                            @php($st = $it->status ?? 'pending')
-                            @if($st==='approved')
-                                <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">{{ ucfirst($st) }}</span>
-                            @elseif($st==='rejected')
-                                <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">{{ ucfirst($st) }}</span>
-                            @else
-                                <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">{{ ucfirst($st) }}</span>
-                            @endif
-                        </td>
-                        <td class="px-6 py-4 text-right">
-                            @php($st = $it->status ?? 'pending')
-                            <div class="inline-flex gap-2">
-                                @if($st !== 'approved')
-                                    <form method="POST" action="{{ route('kepala_poliklinik.assessments.approve', $it->id) }}">
-                                        @csrf
-                                        <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Approve</x-ui.button>
-                                    </form>
-                                @endif
-
-                                <form method="POST" action="{{ route('kepala_poliklinik.assessments.reject', $it->id) }}" onsubmit="return confirm('Tolak penilaian ini?')">
+            </x-slot>
+            @forelse($items as $it)
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->user_name ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->total_wsm_score ?? '-' }}</td>
+                    <td class="px-6 py-4">{{ $it->level ?? '-' }}</td>
+                    <td class="px-6 py-4">
+                        @php($st = $it->status ?? 'pending')
+                        @if($st==='approved')
+                            <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">{{ ucfirst($st) }}</span>
+                        @elseif($st==='rejected')
+                            <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">{{ ucfirst($st) }}</span>
+                        @else
+                            <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">{{ ucfirst($st) }}</span>
+                        @endif
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        @php($st = $it->status ?? 'pending')
+                        <div class="inline-flex gap-2">
+                            @if($st !== 'approved')
+                                <form method="POST" action="{{ route('kepala_poliklinik.assessments.approve', $it->id) }}">
                                     @csrf
-                                    <input type="hidden" name="note" value="Ditolak oleh Kepala Poliklinik">
-                                    <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">
-                                        Reject
-                                    </x-ui.button>
+                                    <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Approve</x-ui.button>
                                 </form>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="6" class="px-6 py-8 text-center text-slate-500">Belum ada data.</td>
-                    </tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
+                            @endif
+
+                            <form method="POST" action="{{ route('kepala_poliklinik.assessments.reject', $it->id) }}" onsubmit="return confirm('Tolak penilaian ini?')">
+                                @csrf
+                                <input type="hidden" name="note" value="Ditolak oleh Kepala Poliklinik">
+                                <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">
+                                    Reject
+                                </x-ui.button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-slate-500">Belum ada data.</td>
+                </tr>
+            @endforelse
+        </x-ui.table>
 
         {{-- FOOTER PAGINATION --}}
         <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

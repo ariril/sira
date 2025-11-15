@@ -37,7 +37,7 @@
 
             <x-ui.button type="submit" variant="{{ $faq->exists ? 'success' : 'primary' }}">
                 <i class="fa-solid fa-floppy-disk"></i>
-                {{ $faq->exists ? 'Update' : 'Create' }}
+                {{ $faq->exists ? 'Perbarui' : 'Simpan' }}
             </x-ui.button>
         </div>
     </div>

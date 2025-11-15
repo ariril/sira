@@ -14,6 +14,8 @@ return new class extends Migration
             $table->enum('type', ['benefit', 'cost']);
             $table->text('description')->nullable();
             $table->boolean('is_active')->default(true);
+            // Default usulan bobot (opsional), dipindahkan dari migrasi tambahan (2025_11_03_000020)
+            $table->decimal('suggested_weight', 5, 2)->nullable();
             $table->timestamps();
         });
     }

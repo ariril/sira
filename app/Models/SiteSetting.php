@@ -18,6 +18,7 @@ class SiteSetting extends Model
         'email',
         'logo_path',
         'favicon_path',
+    'hero_path',
         'facebook_url',
         'instagram_url',
         'twitter_url',

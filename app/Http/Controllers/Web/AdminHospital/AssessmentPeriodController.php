@@ -7,6 +7,8 @@ use App\Models\AssessmentPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
+use Carbon\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -16,27 +18,25 @@ class AssessmentPeriodController extends Controller
 
     public function index(Request $request): View
     {
+        // Sinkronkan status & periode aktif berdasarkan tanggal sekarang
+        AssessmentPeriod::syncByNow();
+
         $perPageOptions = $this->perPageOptions();
         $data = $request->validate([
             'q'        => ['nullable','string','max:100'],
-            'active'   => ['nullable','in:yes,no'],
-            'locked'   => ['nullable','in:yes,no'],
+            'status'   => ['nullable','in:draft,active,locked,closed'],
             'per_page' => ['nullable','integer','in:' . implode(',', $perPageOptions)],
         ]);
 
         $q       = $data['q'] ?? null;
-        $active  = $data['active'] ?? null;
-        $locked  = $data['locked'] ?? null;
+        $status  = $data['status'] ?? null;
         $perPage = (int)($data['per_page'] ?? 12);
 
         $items = AssessmentPeriod::query()
             ->when($q, function($w) use($q){
                 $w->where('name','like',"%{$q}%");
             })
-            ->when($active === 'yes', fn($w) => $w->where('is_active', true))
-            ->when($active === 'no',  fn($w) => $w->where('is_active', false))
-            ->when($locked === 'yes', fn($w) => $w->whereNotNull('locked_at'))
-            ->when($locked === 'no',  fn($w) => $w->whereNull('locked_at'))
+            ->when($status, fn($w) => $w->where('status', $status))
             ->orderByDesc('start_date')
             ->paginate($perPage)
             ->withQueryString();
@@ -47,8 +47,7 @@ class AssessmentPeriodController extends Controller
             'perPageOptions' => $perPageOptions,
             'filters'        => [
                 'q'      => $q,
-                'active' => $active,
-                'locked' => $locked,
+                'status' => $status,
             ],
         ]);
     }
@@ -56,16 +55,15 @@ class AssessmentPeriodController extends Controller
     public function create(): View
     {
         return view('admin_rs.assessment_periods.create', [
-            'item' => new AssessmentPeriod([
-                'is_active' => false,
-            ]),
+            'item' => new AssessmentPeriod(),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);
-        $data['is_active'] = (bool)($data['is_active'] ?? false);
+        // pastikan tidak ada injeksi status / is_active dari form
+        unset($data['status']);
         $period = AssessmentPeriod::create($data);
         return redirect()->route('admin_rs.assessment-periods.index')->with('status','Periode dibuat.');
     }
@@ -80,7 +78,7 @@ class AssessmentPeriodController extends Controller
     public function update(Request $request, AssessmentPeriod $period): RedirectResponse
     {
         $data = $this->validateData($request, isUpdate: true, current: $period);
-        $data['is_active'] = (bool)($data['is_active'] ?? false);
+        unset($data['status']);
         $period->update($data);
         return redirect()->route('admin_rs.assessment-periods.index')->with('status','Periode diperbarui.');
     }
@@ -96,49 +94,75 @@ class AssessmentPeriodController extends Controller
 
     public function activate(AssessmentPeriod $period): RedirectResponse
     {
-        // Matikan periode lain jika kolom is_active ada
-        if (Schema::hasColumn('assessment_periods','is_active')) {
-            AssessmentPeriod::where('id','!=',$period->id)->update(['is_active' => false]);
-            $period->is_active = true;
+        // Hanya boleh aktifkan periode yang masih "draft" dan belum lewat dari tanggal selesai
+        $today = Carbon::today();
+        if ($period->status !== AssessmentPeriod::STATUS_DRAFT) {
+            return back()->withErrors(['status' => 'Hanya periode berstatus Draft yang bisa diaktifkan.']);
         }
-        // Ubah status jika kolom status ada
-        if (Schema::hasColumn('assessment_periods','status')) {
-            $period->status = 'active';
+        if ($period->end_date && $today->gt($period->end_date)) {
+            return back()->withErrors(['status' => 'Periode sudah berakhir sehingga tidak dapat diaktifkan.']);
         }
-        // Unlock jika ada locked_at
-        if (Schema::hasColumn('assessment_periods','locked_at')) {
-            $period->locked_at = null;
-        }
-        $period->save();
+        $period->activate(auth()->id());
         return back()->with('status','Periode diaktifkan.');
     }
 
     public function lock(AssessmentPeriod $period): RedirectResponse
     {
-        if (Schema::hasColumn('assessment_periods','locked_at')) {
-            $period->locked_at = now();
+        // Hanya dari status Active ke Locked
+        if ($period->status !== AssessmentPeriod::STATUS_ACTIVE) {
+            return back()->withErrors(['status' => 'Periode harus dalam status Aktif sebelum dapat dikunci.']);
         }
-        if (Schema::hasColumn('assessment_periods','status')) {
-            $period->status = 'locked';
-        }
-        if (Schema::hasColumn('assessment_periods','is_active')) {
-            $period->is_active = false;
-        }
-        $period->save();
+        $period->lock(auth()->id());
         return back()->with('status','Periode dikunci.');
+    }
+
+    public function close(AssessmentPeriod $period): RedirectResponse
+    {
+        // Tutup hanya dari Locked dan setelah tanggal selesai
+        $today = Carbon::today();
+        if ($period->status !== AssessmentPeriod::STATUS_LOCKED) {
+            return back()->withErrors(['status' => 'Tutup hanya bisa dilakukan setelah periode dikunci.']);
+        }
+        if ($period->end_date && $today->lt($period->end_date)) {
+            return back()->withErrors(['status' => 'Periode belum berakhir. Tutup setelah tanggal selesai.']);
+        }
+        $period->close(auth()->id());
+        return back()->with('status','Periode ditutup.');
     }
 
     protected function validateData(Request $request, bool $isUpdate = false, ?AssessmentPeriod $current = null): array
     {
         $uniqueName = Rule::unique('assessment_periods','name');
         if ($isUpdate && $current) { $uniqueName = $uniqueName->ignore($current->id); }
-        return $request->validate([
+
+        $rules = [
             'name'       => ['required','string','max:255',$uniqueName],
             'start_date' => ['required','date'],
             'end_date'   => ['required','date','after_or_equal:start_date'],
-            'cycle'      => ['nullable','string','max:50'],
-            'status'     => ['nullable','string','max:50'],
-            'is_active'  => ['nullable','boolean'],
-        ]);
+        ];
+
+        $validator = Validator::make($request->all(), $rules);
+
+        // Cek tidak boleh overlap dengan periode lain
+        $validator->after(function ($v) use ($request, $isUpdate, $current) {
+            try {
+                $start = Carbon::parse($request->input('start_date'))->toDateString();
+                $end   = Carbon::parse($request->input('end_date'))->toDateString();
+            } catch (\Throwable $e) {
+                return; // format tanggal salah akan tertangkap di rules di atas
+            }
+
+            $query = AssessmentPeriod::query()
+                ->whereDate('start_date', '<=', $end)
+                ->whereDate('end_date', '>=', $start);
+            if ($isUpdate && $current) {
+                $query->where('id', '!=', $current->id);
+            }
+            if ($query->exists()) {
+                $v->errors()->add('start_date', 'Tanggal periode bersinggungan dengan periode lain. Harap pilih rentang yang berbeda.');
+            }
+        });
+
+        return $validator->validate();
     }
 }

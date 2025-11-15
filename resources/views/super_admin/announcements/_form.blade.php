@@ -43,18 +43,18 @@
 
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Publish At</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Waktu Publikasi</label>
                 <x-ui.input type="datetime-local" name="published_at" :value="old('published_at', optional($announcement->published_at)->format('Y-m-d\TH:i'))" />
             </div>
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Expired At</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Waktu Berakhir</label>
                 <x-ui.input type="datetime-local" name="expired_at" :value="old('expired_at', optional($announcement->expired_at)->format('Y-m-d\TH:i'))" />
             </div>
         </div>
 
         <div class="flex items-center gap-2">
             <input type="checkbox" name="is_featured" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" {{ old('is_featured', $announcement->is_featured) ? 'checked' : '' }}>
-            <span class="text-sm text-slate-700">Tandai sebagai Featured</span>
+            <span class="text-sm text-slate-700">Tandai sebagai Sorotan</span>
         </div>
 
         <div>
@@ -72,7 +72,7 @@
 
             <x-ui.button type="submit" variant="{{ $announcement->exists ? 'success' : 'primary' }}">
                 <i class="fa-solid fa-floppy-disk"></i>
-                {{ $announcement->exists ? 'Update' : 'Create' }}
+                {{ $announcement->exists ? 'Perbarui' : 'Simpan' }}
             </x-ui.button>
         </div>
     </div>
