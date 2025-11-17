@@ -78,7 +78,7 @@ class DatabaseSeeder extends Seeder
             // =========================================================
             DB::table('users')->insert([
                 [
-                    'employee_number' => '000000000000000001',
+                    'employee_number' => '197909102008032001',
                     'name' => 'Super Admin',
                     'start_date' => '2020-01-01',
                     'gender' => 'Laki-laki',
@@ -402,43 +402,43 @@ class DatabaseSeeder extends Seeder
                 ],
             ]);
 
-            // =========================================================
-            // 11) ATTENDANCE IMPORT BATCH + ATTENDANCES
-            // =========================================================
-            $batchId = DB::table('attendance_import_batches')->insertGetId([
-                'file_name' => 'simrs_khanza_' . date('Y-m-d') . '.xlsx',
-                'imported_by' => $superAdminId,
-                'imported_at' => $now,
-                'total_rows' => 2,
-                'success_rows' => 2,
-                'failed_rows' => 0,
-                'created_at' => $now, 'updated_at' => $now,
-            ]);
+            // // =========================================================
+            // // 11) ATTENDANCE IMPORT BATCH + ATTENDANCES
+            // // =========================================================
+            // $batchId = DB::table('attendance_import_batches')->insertGetId([
+            //     'file_name' => 'simrs_khanza_' . date('Y-m-d') . '.xlsx',
+            //     'imported_by' => $superAdminId,
+            //     'imported_at' => $now,
+            //     'total_rows' => 2,
+            //     'success_rows' => 2,
+            //     'failed_rows' => 0,
+            //     'created_at' => $now, 'updated_at' => $now,
+            // ]);
 
-            DB::table('attendances')->insert([
-                [
-                    'user_id' => $doctorId,
-                    'attendance_date' => $now->toDateString(),
-                    'check_in' => '07:45:00',
-                    'check_out' => '14:30:00',
-                    'attendance_status' => 'Hadir',
-                    'overtime_note' => null,
-                    'source' => 'import',
-                    'import_batch_id' => $batchId,
-                    'created_at' => $now, 'updated_at' => $now,
-                ],
-                [
-                    'user_id' => $nurseId,
-                    'attendance_date' => $now->toDateString(),
-                    'check_in' => '07:30:00',
-                    'check_out' => '15:00:00',
-                    'attendance_status' => 'Hadir',
-                    'overtime_note' => null,
-                    'source' => 'import',
-                    'import_batch_id' => $batchId,
-                    'created_at' => $now, 'updated_at' => $now,
-                ],
-            ]);
+            // DB::table('attendances')->insert([
+            //     [
+            //         'user_id' => $doctorId,
+            //         'attendance_date' => $now->toDateString(),
+            //         'check_in' => '07:45:00',
+            //         'check_out' => '14:30:00',
+            //         'attendance_status' => 'Hadir',
+            //         'overtime_note' => null,
+            //         'source' => 'import',
+            //         'import_batch_id' => $batchId,
+            //         'created_at' => $now, 'updated_at' => $now,
+            //     ],
+            //     [
+            //         'user_id' => $nurseId,
+            //         'attendance_date' => $now->toDateString(),
+            //         'check_in' => '07:30:00',
+            //         'check_out' => '15:00:00',
+            //         'attendance_status' => 'Hadir',
+            //         'overtime_note' => null,
+            //         'source' => 'import',
+            //         'import_batch_id' => $batchId,
+            //         'created_at' => $now, 'updated_at' => $now,
+            //     ],
+            // ]);
 
             // =========================================================
             // 12) ADDITIONAL CONTRIBUTIONS

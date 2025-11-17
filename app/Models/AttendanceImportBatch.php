@@ -11,11 +11,14 @@ class AttendanceImportBatch extends Model
 
     protected $fillable = [
         'file_name',
+        'assessment_period_id',
         'imported_by',
         'imported_at',
         'total_rows',
         'success_rows',
         'failed_rows',
+        'is_superseded',
+        'previous_batch_id',
     ];
 
     protected $casts = [
@@ -32,8 +35,23 @@ class AttendanceImportBatch extends Model
         return $this->belongsTo(User::class, 'imported_by');
     }
 
+    public function period()
+    {
+        return $this->belongsTo(\App\Models\AssessmentPeriod::class, 'assessment_period_id');
+    }
+
+    public function previous()
+    {
+        return $this->belongsTo(self::class, 'previous_batch_id');
+    }
+
     public function attendances()
     {
         return $this->hasMany(Attendance::class, 'import_batch_id');
+    }
+
+    public function rows()
+    {
+        return $this->hasMany(AttendanceImportRow::class, 'batch_id');
     }
 }

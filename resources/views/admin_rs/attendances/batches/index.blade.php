@@ -22,9 +22,14 @@
                 </tr>
             </x-slot>
             @forelse($items as $it)
-                <tr class="hover:bg-slate-50">
+                <tr class="{{ $it->is_superseded ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50' }}">
                     <td class="px-6 py-4">{{ $it->imported_at?->format('d M Y H:i') }}</td>
-                    <td class="px-6 py-4">{{ $it->file_name }}</td>
+                    <td class="px-6 py-4">
+                        {{ $it->file_name }}
+                        @if($it->is_superseded)
+                            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 align-middle">Digantikan</span>
+                        @endif
+                    </td>
                     <td class="px-6 py-4">{{ $it->importer->name ?? '-' }}</td>
                     <td class="px-6 py-4 text-center">{{ $it->total_rows }}</td>
                     <td class="px-6 py-4 text-center text-emerald-700">{{ $it->success_rows }}</td>

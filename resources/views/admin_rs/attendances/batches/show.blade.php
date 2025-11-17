@@ -9,9 +9,10 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
-        @if(session('status'))
-            <div class="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl px-4 py-3">
-                {{ session('status') }}
+
+        @if($batch->is_superseded)
+            <div class="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 px-4 py-3">
+                Batch ini telah digantikan oleh upload berikutnya pada periode yang sama. Datanya disimpan sebagai riwayat dan tidak dipakai untuk perhitungan.
             </div>
         @endif
 
@@ -27,7 +28,12 @@
                 </div>
                 <div>
                     <div class="text-slate-500">File</div>
-                    <div class="font-medium text-slate-800">{{ $batch->file_name }}</div>
+                    <div class="font-medium text-slate-800">
+                        {{ $batch->file_name }}
+                        @if($batch->is_superseded)
+                            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Digantikan</span>
+                        @endif
+                    </div>
                 </div>
                 <div class="grid grid-cols-3 gap-3">
                     <div>
@@ -72,5 +78,39 @@
         </x-ui.table>
 
         <div class="pt-2 flex justify-end">{{ $rows->links() }}</div>
+
+        {{-- Preview hasil impor (baris gagal diwarnai) --}}
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-slate-800">Preview Unggahan</h2>
+                <div class="text-sm text-slate-600">Gagal: <span class="text-rose-700 font-medium">{{ $previewFailed }}</span> • Berhasil: <span class="text-emerald-700 font-medium">{{ $previewSuccess }}</span></div>
+            </div>
+            <x-ui.table min-width="1100px">
+                <x-slot name="head">
+                    <tr>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Row</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Employee Number</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Tanggal</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Scan Masuk</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Scan Keluar</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Alasan</th>
+                    </tr>
+                </x-slot>
+                @forelse($preview as $p)
+                    @php($raw=$p->raw_data ?? [])
+                    <tr class="{{ $p->success ? 'hover:bg-slate-50' : 'bg-rose-50' }}">
+                        <td class="px-6 py-4">{{ $p->row_no }}</td>
+                        <td class="px-6 py-4">{{ $p->employee_number ?? '-' }}</td>
+                        <td class="px-6 py-4">{{ $raw['attendance_date'] ?? $raw['tanggal'] ?? '-' }}</td>
+                        <td class="px-6 py-4">{{ $raw['check_in'] ?? $raw['scan masuk'] ?? '-' }}</td>
+                        <td class="px-6 py-4">{{ $raw['check_out'] ?? $raw['scan keluar'] ?? '-' }}</td>
+                        <td class="px-6 py-4 text-rose-700">{{ $p->success ? '-' : ($p->error_message ?? 'Gagal') }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Tidak ada data preview.</td></tr>
+                @endforelse
+            </x-ui.table>
+            <div class="pt-2 flex justify-end">{{ $preview->links() }}</div>
+        </div>
     </div>
 </x-app-layout>

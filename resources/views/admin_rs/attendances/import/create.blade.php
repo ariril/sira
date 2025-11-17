@@ -41,6 +41,10 @@
                         });
                     </script>
                 </div>
+                <div class="flex items-start gap-3">
+                    <input type="checkbox" id="replace_existing" name="replace_existing" value="1" class="mt-1">
+                    <label for="replace_existing" class="text-sm text-slate-700">Timpa import pada periode yang sama bila sudah ada. Pastikan file ini lengkap untuk seluruh pegawai.</label>
+                </div>
                 <div class="flex justify-end">
                     <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base">
                         <i class="fa-solid fa-file-arrow-up mr-2"></i> Unggah & Import

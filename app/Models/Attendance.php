@@ -37,9 +37,7 @@ class Attendance extends Model
 
     protected $casts = [
         'attendance_date'   => 'date',
-        'check_in'          => 'datetime:H:i',
-        'check_out'         => 'datetime:H:i',
-    // scheduled_in/out & overtime_end are TIME columns; keep as raw string
+        // check_in/check_out are TIME columns; keep raw string (no cast)
         'holiday_public'    => 'boolean',
         'holiday_regular'   => 'boolean',
         'overtime_shift'    => 'boolean',

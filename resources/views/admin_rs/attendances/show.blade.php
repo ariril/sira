@@ -7,11 +7,6 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
-        @if(session('status'))
-            <div class="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl px-4 py-3">
-                {{ session('status') }}
-            </div>
-        @endif
 
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <dl class="grid md:grid-cols-2 gap-y-4 gap-x-8 text-sm">
