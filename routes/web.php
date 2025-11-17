@@ -147,6 +147,16 @@ Route::middleware(['auth','verified','role:admin_rs'])
         // Kinerja (dipindahkan dari Super Admin)
         Route::resource('performance-criterias', \App\Http\Controllers\Web\AdminHospital\PerformanceCriteriaController::class);
 
+        // Manual Criteria Metrics (input + upload CSV)
+        Route::get('metrics', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'index'])->name('metrics.index');
+        Route::get('metrics/create', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'create'])->name('metrics.create');
+        Route::post('metrics', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'store'])->name('metrics.store');
+        Route::post('metrics/upload-csv', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'uploadCsv'])->name('metrics.upload_csv');
+
+        // 360 Invitations management
+        Route::get('assessments/360', [\App\Http\Controllers\Web\AdminHospital\MultiRaterController::class, 'index'])->name('multi_rater.index');
+        Route::post('assessments/360/generate', [\App\Http\Controllers\Web\AdminHospital\MultiRaterController::class, 'generate'])->name('multi_rater.generate');
+
     // Approval usulan kriteria baru
     Route::get('criteria-proposals', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'index'])->name('criteria_proposals.index');
     Route::post('criteria-proposals/{proposal}/approve', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'approve'])->name('criteria_proposals.approve');
@@ -208,6 +218,11 @@ Route::middleware(['auth','verified','role:kepala_unit'])
         Route::get('assessments/pending',   [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
         Route::post('assessments/{assessment}/approve', [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'approve'])->name('assessments.approve');
         Route::post('assessments/{assessment}/reject',  [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'reject'])->name('assessments.reject');
+
+        // 360 submissions (if assigned as assessor)
+        Route::get('assessments/360', [\App\Http\Controllers\Web\UnitHead\MultiRaterSubmissionController::class, 'index'])->name('multi_rater.index');
+        Route::get('assessments/360/{assessment}', [\App\Http\Controllers\Web\UnitHead\MultiRaterSubmissionController::class, 'show'])->name('multi_rater.show');
+        Route::post('assessments/360/{assessment}', [\App\Http\Controllers\Web\UnitHead\MultiRaterSubmissionController::class, 'submit'])->name('multi_rater.submit');
     });
 
 /**
@@ -238,6 +253,11 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
         // Monitoring remunerasi
         Route::get('remunerations', [\App\Http\Controllers\Web\PolyclinicHead\RemunerationMonitorController::class, 'index'])->name('remunerations.index');
         Route::get('remunerations/{remuneration}', [\App\Http\Controllers\Web\PolyclinicHead\RemunerationMonitorController::class, 'show'])->name('remunerations.show');
+
+        // 360 submissions (if assigned as assessor)
+        Route::get('assessments/360', [\App\Http\Controllers\Web\PolyclinicHead\MultiRaterSubmissionController::class, 'index'])->name('multi_rater.index');
+        Route::get('assessments/360/{assessment}', [\App\Http\Controllers\Web\PolyclinicHead\MultiRaterSubmissionController::class, 'show'])->name('multi_rater.show');
+        Route::post('assessments/360/{assessment}', [\App\Http\Controllers\Web\PolyclinicHead\MultiRaterSubmissionController::class, 'submit'])->name('multi_rater.submit');
     });
 
 /**
@@ -250,6 +270,11 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
  */
 Route::middleware(['auth','verified','role:pegawai_medis'])
     ->prefix('pegawai-medis')->name('pegawai_medis.')->group(function () {
+
+        // 360 submissions (place BEFORE resource to avoid route conflicts)
+        Route::get('assessments-360', [\App\Http\Controllers\Web\MedicalStaff\MultiRaterSubmissionController::class, 'index'])->name('multi_rater.index');
+        Route::get('assessments-360/{assessment}', [\App\Http\Controllers\Web\MedicalStaff\MultiRaterSubmissionController::class, 'show'])->name('multi_rater.show');
+        Route::post('assessments-360/{assessment}', [\App\Http\Controllers\Web\MedicalStaff\MultiRaterSubmissionController::class, 'submit'])->name('multi_rater.submit');
 
         // Penilaian kinerja: hanya index & show (dibuat oleh sistem)
         Route::resource('assessments', \App\Http\Controllers\Web\MedicalStaff\PerformanceAssessmentController::class)
@@ -272,6 +297,8 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
 
         // Lihat kriteria & bobot aktif untuk unit sendiri pada periode aktif
         Route::get('unit-criteria-weights', [\App\Http\Controllers\Web\MedicalStaff\UnitCriteriaWeightViewController::class, 'index'])->name('unit_criteria_weights.index');
+
+        // (moved to assessments-360 above to avoid collision with resource route)
     });
 
 /**

@@ -86,6 +86,9 @@
         ['label'=>'Approval (Level 1)','icon'=>'fa-list-check',
          'href'=>$href('admin_rs.assessments.pending','/admin-rs/assessments/pending'),
          'active'=>request()->is('admin-rs/assessments/pending*')],
+        ['label'=>'Undangan 360','icon'=>'fa-people-arrows',
+         'href'=>$href('admin_rs.multi_rater.index','/admin-rs/assessments/360'),
+         'active'=>request()->routeIs('admin_rs.multi_rater.index')],
       ]],
       ['heading'=>'Kinerja','items'=>[
         ['label'=>'Kriteria Kinerja','icon'=>'fa-list-check',
@@ -97,6 +100,9 @@
         ['label'=>'Periode Penilaian','icon'=>'fa-calendar-days',
          'href'=>$href('admin_rs.assessment-periods.index','/admin-rs/assessment-periods'),
          'active'=>request()->routeIs('admin_rs.assessment-periods.*')],
+        ['label'=>'Data Metrics','icon'=>'fa-chart-line',
+         'href'=>$href('admin_rs.metrics.index','/admin-rs/metrics'),
+         'active'=>request()->routeIs('admin_rs.metrics.*')],
       ]],
       ['heading'=>'Remunerasi','items'=>[
         ['label'=>'Alokasi per Unit','icon'=>'fa-diagram-project',
@@ -137,6 +143,9 @@
         ['label'=>'Approval (Level 2)','icon'=>'fa-list-check',
          'href'=>$href('kepala_unit.assessments.pending','/kepala-unit/assessments/pending'),
          'active'=>request()->is('kepala-unit/assessments/pending*')],
+        ['label'=>'Penilaian 360','icon'=>'fa-people-arrows',
+        'href'=>$href('kepala_unit.multi_rater.index','/kepala-unit/assessments/360'),
+        'active'=>request()->routeIs('kepala_unit.multi_rater.*')],
       ]],
     ];
 
@@ -185,6 +194,9 @@
         ['label'=>'Kontribusi Tambahan','icon'=>'fa-hand-holding-heart',
          'href'=>$href('pegawai_medis.additional-contributions.index','/pegawai-medis/additional-contributions'),
          'active'=>request()->routeIs('pegawai_medis.additional-contributions.*')],
+        ['label'=>'Penilaian 360','icon'=>'fa-people-arrows',
+         'href'=>$href('pegawai_medis.multi_rater.index','/pegawai-medis/assessments-360'),
+        'active'=>request()->routeIs('pegawai_medis.multi_rater.*')],
       ]],
       ['heading'=>'Remunerasi','items'=>[
         ['label'=>'Remunerasi Saya','icon'=>'fa-money-bill-trend-up',

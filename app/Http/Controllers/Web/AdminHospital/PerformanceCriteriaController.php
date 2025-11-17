@@ -92,7 +92,9 @@ class PerformanceCriteriaController extends Controller
     {
         $data = $this->validateData($request);
         $data['is_active'] = (bool)($data['is_active'] ?? false);
-        PerformanceCriteria::create($data);
+        $data['is_360_based'] = (bool)($request->boolean('is_360_based'));
+        $item = PerformanceCriteria::create($data);
+        $this->syncRaterWeights($request, $item);
         return redirect()->route('admin_rs.performance-criterias.index')
             ->with('status', 'Kriteria berhasil dibuat.');
     }
@@ -109,7 +111,9 @@ class PerformanceCriteriaController extends Controller
     {
         $data = $this->validateData($request, isUpdate: true);
         $data['is_active'] = (bool)($data['is_active'] ?? false);
+        $data['is_360_based'] = (bool)($request->boolean('is_360_based'));
         $performance_criteria->update($data);
+        $this->syncRaterWeights($request, $performance_criteria);
         return redirect()->route('admin_rs.performance-criterias.index')
             ->with('status', 'Kriteria diperbarui.');
     }
@@ -129,9 +133,27 @@ class PerformanceCriteriaController extends Controller
         return $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'type'        => ['required', 'in:' . implode(',', array_keys($this->types()))],
+            'data_type'   => ['nullable','in:numeric,percentage,boolean,datetime,text'],
+            'input_method'=> ['nullable','in:system,manual,import,360'],
+            'aggregation_method' => ['nullable','in:sum,avg,count,latest,custom'],
             'description' => ['nullable', 'string'],
             'is_active'   => ['nullable', 'boolean'],
+            'is_360_based'=> ['nullable','boolean'],
             'suggested_weight' => ['nullable','numeric','min:0','max:100'],
         ]);
+    }
+
+    private function syncRaterWeights(\Illuminate\Http\Request $request, \App\Models\PerformanceCriteria $criteria): void
+    {
+        if (!$criteria->is_360_based) return;
+        $weights = $request->input('rater_weights', []);
+        foreach (['supervisor','peer','subordinate','self','patient','other'] as $type) {
+            $val = $weights[$type] ?? null;
+            if ($val === null || $val === '') { $criteria->raterWeights()->where('assessor_type',$type)->delete(); continue; }
+            \App\Models\RaterTypeWeight::updateOrCreate(
+                ['performance_criteria_id' => $criteria->id, 'assessor_type' => $type],
+                ['weight' => (float)$val]
+            );
+        }
     }
 }

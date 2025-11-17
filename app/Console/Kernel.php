@@ -10,6 +10,7 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         \App\Console\Commands\AggregateCriteriaMetrics::class,
         \App\Console\Commands\ImportCriteriaMetricsCsv::class,
+        \App\Console\Commands\GenerateMultiRaterInvites::class,
     ];
 
     protected function schedule(Schedule $schedule): void

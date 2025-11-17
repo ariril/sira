@@ -51,7 +51,11 @@
 
     {{-- Konten utama --}}
     <main class="py-6 flex-1"> {{-- flex-1 pushes footer to bottom when content is short --}}
-        {{ $slot }}
+        @hasSection('content')
+            @yield('content')
+        @else
+            {{ $slot ?? '' }}
+        @endif
     </main>
 
     {{-- Footer --}}
