@@ -320,15 +320,25 @@ class DatabaseSeeder extends Seeder
             // 7) PERFORMANCE CRITERIAS
             // =========================================================
             $criterias = [
-                ['name' => 'Kedisiplinan', 'type' => 'benefit', 'description' => null, 'is_active' => 1],
-                ['name' => 'Pelayanan Pasien', 'type' => 'benefit', 'description' => null, 'is_active' => 1],
-                ['name' => 'Kepatuhan Prosedur', 'type' => 'benefit', 'description' => null, 'is_active' => 1],
+                ['name' => 'Kedisiplinan', 'type' => 'benefit', 'data_type' => 'percentage', 'input_method' => 'system', 'aggregation_method' => 'avg', 'description' => null, 'is_active' => 1, 'is_360_based' => 0],
+                ['name' => 'Pelayanan Pasien', 'type' => 'benefit', 'data_type' => 'percentage', 'input_method' => '360', 'aggregation_method' => 'avg', 'description' => null, 'is_active' => 1, 'is_360_based' => 1],
+                ['name' => 'Kepatuhan Prosedur', 'type' => 'benefit', 'data_type' => 'percentage', 'input_method' => 'manual', 'aggregation_method' => 'avg', 'description' => null, 'is_active' => 1, 'is_360_based' => 0],
             ];
             foreach ($criterias as &$k) {
                 $k['created_at'] = $now;
                 $k['updated_at'] = $now;
             }
             DB::table('performance_criterias')->insert($criterias);
+            // Seed default rater weights for criteria that are 360-based
+            $pcIds360 = DB::table('performance_criterias')->where('is_360_based', 1)->pluck('id');
+            foreach ($pcIds360 as $cid) {
+                DB::table('rater_type_weights')->upsert([
+                    ['performance_criteria_id' => $cid, 'assessor_type' => 'supervisor', 'weight' => 40.00, 'created_at' => $now, 'updated_at' => $now],
+                    ['performance_criteria_id' => $cid, 'assessor_type' => 'peer',       'weight' => 30.00, 'created_at' => $now, 'updated_at' => $now],
+                    ['performance_criteria_id' => $cid, 'assessor_type' => 'subordinate','weight' => 20.00, 'created_at' => $now, 'updated_at' => $now],
+                    ['performance_criteria_id' => $cid, 'assessor_type' => 'self',       'weight' => 10.00, 'created_at' => $now, 'updated_at' => $now],
+                ], ['performance_criteria_id','assessor_type'], ['weight','updated_at']);
+            }
 
             $criteriaId = fn(string $name) => DB::table('performance_criterias')->where('name', $name)->value('id');
 

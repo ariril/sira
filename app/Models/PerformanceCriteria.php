@@ -13,13 +13,18 @@ class PerformanceCriteria extends Model
     protected $fillable = [
         'name',
         'type',
+        'data_type',
+        'input_method',
+        'aggregation_method',
         'description',
         'is_active',
+        'is_360_based',
         'suggested_weight',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_360_based' => 'boolean',
         'type'      => PerformanceCriteriaType::class,
         'suggested_weight' => 'decimal:2',
     ];
@@ -37,5 +42,15 @@ class PerformanceCriteria extends Model
     public function assessmentDetails()
     {
         return $this->hasMany(PerformanceAssessmentDetail::class, 'performance_criteria_id');
+    }
+
+    public function metrics()
+    {
+        return $this->hasMany(CriteriaMetric::class, 'performance_criteria_id');
+    }
+
+    public function raterWeights()
+    {
+        return $this->hasMany(RaterTypeWeight::class, 'performance_criteria_id');
     }
 }

@@ -12,6 +12,7 @@ class PerformanceAssessmentDetail extends Model
     protected $fillable = [
         'performance_assessment_id',
         'performance_criteria_id',
+        'criteria_metric_id',
         'score',
     ];
 
@@ -32,5 +33,10 @@ class PerformanceAssessmentDetail extends Model
     public function performanceCriteria()
     {
         return $this->belongsTo(PerformanceCriteria::class, 'performance_criteria_id');
+    }
+
+    public function metric()
+    {
+        return $this->belongsTo(CriteriaMetric::class, 'criteria_metric_id');
     }
 }
