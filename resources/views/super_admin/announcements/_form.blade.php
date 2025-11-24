@@ -1,6 +1,15 @@
 @php /** @var \App\Models\Announcement $announcement */ @endphp
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+    {{-- WYSIWYG & Attachments styling specific to announcement form --}}
+    {{-- Quill WYSIWYG editor assets & styles (replaces broken Trix) --}}
+    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" />
+    <style>
+        .file-box-announcement input[type=file]{background:#f5f7fa;border:1px dashed #cbd5e1;padding:.65rem;border-radius:.75rem;font-size:.8rem;color:#334155;width:100%;}
+        .file-box-announcement input[type=file]:hover{background:#eef2f6;}
+        #editor-container{min-height:14rem;background:#ffffff;border:1px solid #cbd5e1;border-radius:.75rem;}
+        .ql-toolbar{border-radius:.75rem;border:1px solid #cbd5e1;background:#f8fafc;}
+    </style>
     <div class="space-y-4">
         <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Judul *</label>
@@ -18,8 +27,25 @@
         </div>
 
         <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Konten</label>
-            <x-ui.textarea name="content" rows="8" :value="old('content', $announcement->content)" placeholder="Markdown/HTML sederhana" />
+            <label class="block text-xs font-medium text-slate-600 mb-1">Konten *</label>
+            <input type="hidden" id="content_hidden" name="content" value="{{ old('content', $announcement->content) }}" required>
+            <div id="toolbar-container" class="mb-2">
+                <span class="ql-formats">
+                    <button class="ql-bold"></button>
+                    <button class="ql-italic"></button>
+                    <button class="ql-underline"></button>
+                    <button class="ql-link"></button>
+                </span>
+                <span class="ql-formats">
+                    <button class="ql-list" value="ordered"></button>
+                    <button class="ql-list" value="bullet"></button>
+                </span>
+                <span class="ql-formats">
+                    <button class="ql-clean"></button>
+                </span>
+            </div>
+            <div id="editor-container">{!! old('content', $announcement->content) !!}</div>
+            <p class="mt-1 text-[11px] text-slate-500">Gunakan toolbar untuk format dasar (tebal, miring, daftar, tautan). Editor otomatis menyimpan konten.</p>
         </div>
     </div>
 
@@ -59,10 +85,13 @@
 
         <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Lampiran (opsional)</label>
-            <x-ui.input name="attachments[]" type="file" multiple />
+            <div class="file-box-announcement">
+                <input name="attachments[]" type="file" multiple />
+            </div>
             @if($announcement->attachments)
                 <div class="mt-2 text-xs text-slate-600">{{ count($announcement->attachments) }} file terunggah.</div>
             @endif
+            <p class="mt-1 text-[11px] text-slate-500">Anda dapat memilih beberapa file sekaligus (PDF, DOCX, XLSX, JPG, PNG).</p>
         </div>
 
         <div class="pt-2 flex items-center justify-between">
@@ -77,3 +106,24 @@
         </div>
     </div>
 </div>
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script>
+    (function(){
+        const editorEl = document.getElementById('editor-container');
+        if(!editorEl) return;
+        const quill = new Quill('#editor-container', {
+            theme: 'snow',
+            modules: { toolbar: '#toolbar-container' }
+        });
+        const hiddenInput = document.getElementById('content_hidden');
+        quill.on('text-change', function(){
+            hiddenInput.value = editorEl.querySelector('.ql-editor').innerHTML.trim();
+        });
+        // Ensure initial value captured if existing content
+        hiddenInput.value = editorEl.querySelector('.ql-editor').innerHTML.trim();
+        // Form submit safety
+        editorEl.closest('form')?.addEventListener('submit', function(){
+            hiddenInput.value = editorEl.querySelector('.ql-editor').innerHTML.trim();
+        });
+    })();
+</script>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Unit;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -83,18 +84,22 @@ class UnitController extends Controller
     {
         $validated = $request->validate([
             'name'               => ['required','string','max:255'],
-            'slug'               => ['required','string','max:255','unique:units,slug'],
+            'slug'               => ['nullable','string','max:255','unique:units,slug'],
             'code'               => ['nullable','string','max:20'],
             'type'               => ['required', Rule::in(['manajemen','admin_rs','penunjang','rawat_inap','igd','poliklinik','lainnya'])],
             'parent_id'          => ['nullable','exists:units,id'],
             'location'           => ['nullable','string','max:255'],
             'phone'              => ['nullable','string','max:30'],
             'email'              => ['nullable','email','max:150'],
-            'remuneration_ratio' => ['nullable','numeric','between:0,999.99'],
             'is_active'          => ['nullable','boolean'],
         ]);
 
         $validated['is_active'] = (bool)($request->boolean('is_active'));
+
+        // Auto generate slug if missing
+        if (empty($validated['slug'])) {
+            $validated['slug'] = $this->uniqueSlug($validated['name']);
+        }
 
         Unit::create($validated);
 
@@ -122,18 +127,21 @@ class UnitController extends Controller
     {
         $validated = $request->validate([
             'name'               => ['required','string','max:255'],
-            'slug'               => ['required','string','max:255','unique:units,slug,'.$unit->id],
+            'slug'               => ['nullable','string','max:255','unique:units,slug,'.$unit->id],
             'code'               => ['nullable','string','max:20'],
             'type'               => ['required', Rule::in(['manajemen','admin_rs','penunjang','rawat_inap','igd','poliklinik','lainnya'])],
             'parent_id'          => ['nullable','exists:units,id'],
             'location'           => ['nullable','string','max:255'],
             'phone'              => ['nullable','string','max:30'],
             'email'              => ['nullable','email','max:150'],
-            'remuneration_ratio' => ['nullable','numeric','between:0,999.99'],
             'is_active'          => ['nullable','boolean'],
         ]);
 
         $validated['is_active'] = (bool)($request->boolean('is_active'));
+
+        if (empty($validated['slug'])) {
+            $validated['slug'] = $unit->slug ?: $this->uniqueSlug($validated['name']);
+        }
 
         $unit->update($validated);
 
@@ -145,5 +153,18 @@ class UnitController extends Controller
     {
         $unit->delete();
         return back()->with('status', 'Unit dihapus.');
+    }
+
+    // Helper to generate unique slugs for units (moved inside class)
+    protected function uniqueSlug(string $name): string
+    {
+        $base = Str::slug($name);
+        $slug = $base;
+        $i = 2;
+        while (Unit::where('slug', $slug)->exists()) {
+            $slug = $base.'-'.$i;
+            $i++;
+        }
+        return $slug;
     }
 }

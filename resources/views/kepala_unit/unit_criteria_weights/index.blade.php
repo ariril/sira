@@ -32,24 +32,40 @@
                 <h3 class="text-slate-800 font-semibold">Tambah Bobot (Draft){{ $activePeriod ? ' - Periode '.$activePeriod->name : '' }}</h3>
                 <a href="{{ route('kepala_unit.criteria_proposals.index') }}" class="text-amber-700 hover:underline text-sm">Usulkan kriteria baru</a>
             </div>
-            @php($roundedTotal = (int) round($currentTotal))
             @if(session('danger'))
                 <div class="mb-4 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm">
                     {{ session('danger') }}
                 </div>
-            @elseif($roundedTotal < 100)
-                <div class="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-                    Total bobot draft saat ini <span class="font-semibold">{{ number_format($currentTotal,2) }}%</span>. Diperlukan tepat <strong>100%</strong> sebelum pengajuan massal.
+            @elseif(($pendingCount ?? 0) > 0)
+                <div class="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm">
+                    Pengajuan bobot sedang menunggu persetujuan Kepala Poliklinik.
+                    <span class="font-semibold">{{ number_format($pendingTotal ?? 0, 2) }}%</span>
+                    telah diajukan.
                 </div>
-            @elseif($roundedTotal === 100)
-                <div class="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between">
-                    <span>Bobot lengkap 100%. Silakan ajukan untuk persetujuan.</span>
-                    <form method="POST" action="{{ route('kepala_unit.unit_criteria_weights.submit_all') }}">
-                        @csrf
-                        <input type="hidden" name="period_id" value="{{ $periodId }}" />
-                        <x-ui.button type="submit" variant="orange" class="h-10 px-6">Ajukan Semua</x-ui.button>
-                    </form>
-                </div>
+            @else
+                @php($roundedDraft = (int) round($currentTotal))
+                @php($committed = (float) ($committedTotal ?? 0))
+                @php($required = max(0, (int) round($requiredTotal ?? 100)))
+                @php($draftMeetsRequirement = $required > 0 && $roundedDraft === $required)
+                @if($required === 0)
+                    <div class="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
+                        Seluruh bobot aktif/pending telah mencapai 100%.
+                    </div>
+                @elseif($draftMeetsRequirement)
+                    <div class="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between">
+                        <span>Sisa {{ number_format($required, 2) }}% siap diajukan untuk melengkapi total 100%.</span>
+                        <form method="POST" action="{{ route('kepala_unit.unit_criteria_weights.submit_all') }}">
+                            @csrf
+                            <input type="hidden" name="period_id" value="{{ $periodId ?? $targetPeriodId }}" />
+                            <x-ui.button type="submit" variant="orange" class="h-10 px-6">Ajukan Semua</x-ui.button>
+                        </form>
+                    </div>
+                @else
+                    <div class="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                        Total bobot aktif/pending saat ini <span class="font-semibold">{{ number_format($committed,2) }}%</span>. Draf yang siap diajukan baru <span class="font-semibold">{{ number_format($currentTotal,2) }}%</span>.
+                        Butuh <strong>{{ number_format(max(0, $required - $roundedDraft), 2) }}%</strong> lagi agar dapat diajukan.
+                    </div>
+                @endif
             @endif
             <form method="POST" action="{{ route('kepala_unit.unit-criteria-weights.store') }}" class="grid md:grid-cols-12 gap-4 items-end">
                 @csrf

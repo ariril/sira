@@ -20,14 +20,14 @@ return new class extends Migration
             ])->default('poliklinik');
 
             $table->foreignId('parent_id')->nullable()
-                ->constrained('units')->nullOnDelete(); // relasi ke tabel yang sama
+                ->constrained('units')->nullOnDelete(); 
 
             $table->string('location')->nullable(); // lokasi gedung/lantai
             $table->string('phone', 30)->nullable();
             $table->string('email', 150)->nullable();
 
-            // proporsi remunerasi per unit
-            $table->decimal('remuneration_ratio', 5, 2)->default(0.00);
+            // // proporsi remunerasi per unit
+            // $table->decimal('remuneration_ratio', 5, 2)->default(0.00);
 
             $table->boolean('is_active')->default(true);
             $table->timestamps();

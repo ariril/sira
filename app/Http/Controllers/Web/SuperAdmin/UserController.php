@@ -44,7 +44,7 @@ class UserController extends Controller
         $perPage  = (int)($data['per_page'] ?? 12);
 
         $users = User::query()
-            ->with(['unit:id,name', 'profession:id,name'])
+            ->with(['unit:id,name', 'profession:id,name', 'roles'])
             ->when($q, function ($qBuilder) use ($q) {
                 $qBuilder->where(function ($x) use ($q) {
                     $x->where('name', 'like', "%{$q}%")
@@ -53,7 +53,7 @@ class UserController extends Controller
                         ->orWhere('phone', 'like', "%{$q}%");
                 });
             })
-            ->when($role, fn ($w) => $w->where('role', $role))
+            ->when($role, fn ($w) => $w->whereHas('roles', fn($q) => $q->where('slug', $role)))
             ->when($unitId, fn ($w) => $w->where('unit_id', $unitId))
             ->when($verified === 'yes', fn ($w) => $w->whereNotNull('email_verified_at'))
             ->when($verified === 'no',  fn ($w) => $w->whereNull('email_verified_at'))
@@ -96,7 +96,20 @@ class UserController extends Controller
         // set password
         $data['password'] = Hash::make($data['password']);
 
+        // Extract selected roles (array of slugs)
+        $roleSlugs = collect($data['roles'] ?? [])->filter()->unique()->values();
+        unset($data['roles']);
+
         $user = User::create($data);
+
+        // Attach roles (at least one ensured by validation)
+        if ($roleSlugs->isNotEmpty()) {
+            $roleIds = \DB::table('roles')->whereIn('slug', $roleSlugs)->pluck('id')->all();
+            foreach ($roleIds as $rid) {
+                \DB::table('role_user')->insertOrIgnore(['user_id' => $user->id, 'role_id' => $rid]);
+            }
+            $user->forceFill(['last_role' => (string)$roleSlugs->first()])->save();
+        }
 
         // optional: langsung verifikasi jika diminta
         if ($request->boolean('verify_now')) {
@@ -112,7 +125,7 @@ class UserController extends Controller
     public function edit(User $user): View
     {
         return view('super_admin.users.edit', [
-            'user'        => $user,
+            'user'        => $user->load('roles'),
             'roles'       => $this->roles(),
             'units'       => Unit::orderBy('name')->get(['id', 'name']),
             'professions' => Profession::orderBy('name')->get(['id', 'name']),
@@ -124,6 +137,10 @@ class UserController extends Controller
     {
         $data = $this->validateData($request, isCreate: false, userId: $user->id);
 
+        // split roles for syncing
+        $roleSlugs = collect($data['roles'] ?? [])->filter()->unique()->values();
+        unset($data['roles']);
+
         // password opsional saat edit
         if (!empty($data['password'] ?? null)) {
             $data['password'] = Hash::make($data['password']);
@@ -132,6 +149,17 @@ class UserController extends Controller
         }
 
         $user->update($data);
+
+        // sync roles (replace pivot)
+        $roleIds = \DB::table('roles')->whereIn('slug', $roleSlugs)->pluck('id')->all();
+        \DB::table('role_user')->where('user_id', $user->id)->delete();
+        foreach ($roleIds as $rid) {
+            \DB::table('role_user')->insertOrIgnore(['user_id' => $user->id, 'role_id' => $rid]);
+        }
+        // keep last_role if still valid, else first selected
+        if (!$user->last_role || !$roleSlugs->contains($user->last_role)) {
+            $user->forceFill(['last_role' => (string)($roleSlugs->first() ?? $user->last_role)])->save();
+        }
 
         // atur verifikasi email sesuai input toggle
         if ($request->has('verify_now')) {
@@ -176,11 +204,14 @@ class UserController extends Controller
             $empRule   = $empRule->ignore($userId);
         }
 
+        $roleSlugs = array_keys($this->roles());
+
         return $request->validate([
             'employee_number' => ['nullable', 'string', 'max:255', $empRule],
             'name'            => ['required', 'string', 'max:255'],
             'email'           => ['required', 'email', 'max:255', $emailRule],
-            'role'            => ['required', Rule::in(array_keys($this->roles()))],
+            'roles'           => ['required', 'array', 'min:1'],
+            'roles.*'         => ['string', Rule::in($roleSlugs)],
             'unit_id'         => ['nullable', 'exists:units,id'],
             'profession_id'   => ['nullable', 'exists:professions,id'],
             'position'        => ['nullable', 'string', 'max:255'],

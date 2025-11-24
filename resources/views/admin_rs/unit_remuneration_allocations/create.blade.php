@@ -19,24 +19,20 @@
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Periode</label>
                         <x-ui.select name="assessment_period_id" :options="$periods->pluck('name','id')" placeholder="Pilih periode" />
-                        @error('assessment_period_id')<div class="text-rose-600 text-xs mt-1">{{ $message }}</div>@enderror
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Unit</label>
                         <x-ui.select name="unit_id" :options="$units->pluck('name','id')" placeholder="Pilih unit" />
-                        @error('unit_id')<div class="text-rose-600 text-xs mt-1">{{ $message }}</div>@enderror
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Jumlah</label>
                         <x-ui.input name="amount" type="number" step="0.01" min="0" value="{{ old('amount', $item->amount) }}" />
-                        @error('amount')<div class="text-rose-600 text-xs mt-1">{{ $message }}</div>@enderror
                     </div>
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Catatan</label>
                     <x-ui.textarea name="note" rows="4" value="{{ old('note', $item->note) }}" placeholder="Opsional" />
-                    @error('note')<div class="text-rose-600 text-xs mt-1">{{ $message }}</div>@enderror
                 </div>
 
                 <div class="flex items-center gap-3">

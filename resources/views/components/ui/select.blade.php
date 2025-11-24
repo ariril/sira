@@ -21,4 +21,4 @@
     </select>
     <i class="fa-solid fa-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
 </div>
-@error($name)<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+{{-- Inline error dihapus: sekarang hanya tampil global di layout --}}

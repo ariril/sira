@@ -19,6 +19,10 @@ return new class extends Migration
                 ->constrained('performance_criterias')
                 ->onDelete('cascade');
 
+            // Optional link to criteria metric (merged from later alter migration)
+            $table->foreignId('criteria_metric_id')->nullable()
+                ->constrained('criteria_metrics')->nullOnDelete();
+
             $table->decimal('score', 10, 2); // nilai
 
             $table->timestamps();

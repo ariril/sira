@@ -94,10 +94,10 @@ class AssessmentPeriodController extends Controller
 
     public function activate(AssessmentPeriod $period): RedirectResponse
     {
-        // Hanya boleh aktifkan periode yang masih "draft" dan belum lewat dari tanggal selesai
+        // Boleh aktifkan ulang selama periode belum ditutup dan belum lewat dari tanggal selesai
         $today = Carbon::today();
-        if ($period->status !== AssessmentPeriod::STATUS_DRAFT) {
-            return back()->withErrors(['status' => 'Hanya periode berstatus Draft yang bisa diaktifkan.']);
+        if ($period->status === AssessmentPeriod::STATUS_CLOSED) {
+            return back()->withErrors(['status' => 'Periode yang sudah ditutup tidak dapat diaktifkan.']);
         }
         if ($period->end_date && $today->gt($period->end_date)) {
             return back()->withErrors(['status' => 'Periode sudah berakhir sehingga tidak dapat diaktifkan.']);

@@ -19,19 +19,16 @@
                         <div>
                             <label for="email" class="block text-[15px] font-medium text-slate-700">Email</label>
                             <x-ui.input id="email" name="email" type="email" :value="old('email', request()->email)" required autofocus autocomplete="username" />
-                            @error('email')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                         </div>
 
                         <div>
                             <label for="password" class="block text-[15px] font-medium text-slate-700">Password Baru</label>
                             <x-ui.input id="password" name="password" type="password" required autocomplete="new-password" />
-                            @error('password')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                         </div>
 
                         <div>
                             <label for="password_confirmation" class="block text-[15px] font-medium text-slate-700">Konfirmasi Password</label>
                             <x-ui.input id="password_confirmation" name="password_confirmation" type="password" required autocomplete="new-password" />
-                            @error('password_confirmation')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                         </div>
 
                         <div class="flex items-center gap-3">

@@ -46,7 +46,8 @@
                     <td class="px-6 py-4">{{ $it->performanceCriteria->name ?? '-' }}</td>
                     <td class="px-6 py-4 text-right">{{ number_format((float)($it->weight ?? 0), 2) }}</td>
                     <td class="px-6 py-4">
-                        @switch((string)$it->status)
+                        @php($status = $it->status?->value ?? (string) $it->status ?? 'draft')
+                        @switch($status)
                             @case('active')
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Active</span>
                                 @break
@@ -61,7 +62,7 @@
                         @endswitch
                     </td>
                     <td class="px-6 py-4 text-right">
-                        @if((string)$it->status === 'pending')
+                        @if($status === 'pending')
                             <div class="inline-flex gap-2">
                                 <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.approve', $it) }}">
                                     @csrf

@@ -24,32 +24,39 @@ class GenerateMultiRaterInvites extends Command
             MultiRaterAssessment::where('assessment_period_id', $periodId)->delete();
         }
 
-        $users = User::query()->get(['id','role','unit_id']);
+        // Eager load roles pivot; 'role' kolom lama sudah dihapus.
+        $users = User::with('roles:id,slug')->get(['id','unit_id','last_role']);
         $byUnit = $users->groupBy('unit_id');
 
         $count = 0;
         foreach ($users as $u) {
-            // Only assessee for medis and kepala_unit (both get assessed)
-            if (!in_array($u->role, ['pegawai_medis','kepala_unit'])) continue;
+            $isMedis = $u->hasRole('pegawai_medis');
+            $isKepalaUnit = $u->hasRole('kepala_unit');
+            if (!$isMedis && !$isKepalaUnit) continue; // only assess medis or kepala_unit
 
-            // Self
+            // Self assessment
             $count += $this->ensureInvite($u->id, $u->id, 'self', $periodId);
 
-            // Supervisor: kepala_unit of the same unit (if assessee is medis)
-            if ($u->role === 'pegawai_medis') {
-                $supervisor = $users->firstWhere(fn($x) => $x->unit_id === $u->unit_id && $x->role === 'kepala_unit');
+            // Supervisor: kepala_unit of same unit when assessee is medis
+            if ($isMedis) {
+                $supervisor = $users->first(fn($x) => $x->unit_id === $u->unit_id && $x->hasRole('kepala_unit'));
                 if ($supervisor) $count += $this->ensureInvite($u->id, $supervisor->id, 'supervisor', $periodId);
             }
 
-            // Kepala Poliklinik as additional supervisor for all medis in poliklinik-type units (best-effort)
-            $polichief = $users->firstWhere('role','kepala_poliklinik');
+            // Kepala Poliklinik as additional supervisor (if exists)
+            $polichief = $users->first(fn($x) => $x->hasRole('kepala_poliklinik'));
             if ($polichief) $count += $this->ensureInvite($u->id, $polichief->id, 'supervisor', $periodId);
 
-            // Simple peer: another medis in same unit (if exists)
-            $peers = ($byUnit[$u->unit_id] ?? collect())->where('role','pegawai_medis')->where('id','!=',$u->id)->take(2);
-            foreach ($peers as $peer) { $count += $this->ensureInvite($u->id, $peer->id, 'peer', $periodId); }
-
-            // Subordinate: none by default (optional future mapping)
+            // Peer medis in same unit (exclude self)
+            if ($isMedis) {
+                $peers = ($byUnit[$u->unit_id] ?? collect())
+                    ->filter(fn($x) => $x->hasRole('pegawai_medis') && $x->id !== $u->id)
+                    ->take(2);
+                foreach ($peers as $peer) {
+                    $count += $this->ensureInvite($u->id, $peer->id, 'peer', $periodId);
+                }
+            }
+            // Subordinate mapping reserved for future
         }
 
         $this->info("Generated/ensured {$count} invitations for period {$periodId}.");

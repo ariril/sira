@@ -27,12 +27,11 @@ class DashboardController extends Controller
         ];
 
         $userDistribution = [
-            'pegawai_medis' => User::where('role', 'pegawai_medis')->count(),
-            'kepala_unit' => User::where('role', 'kepala_unit')->count(),
-            'kepala_poliklinik' => User::where('role', 'kepala_poliklinik')->count(),
-            // Backward-compatible count, but normalize to 'admin_rs'
-            'admin_rs' => User::where('role', 'admin_rs')->orWhere('role', 'administrasi')->count(),
-            'super_admin' => User::where('role', 'super_admin')->count(),
+            'pegawai_medis'     => User::role('pegawai_medis')->count(),
+            'kepala_unit'       => User::role('kepala_unit')->count(),
+            'kepala_poliklinik' => User::role('kepala_poliklinik')->count(),
+            'admin_rs'          => User::role('admin_rs')->count(),
+            'super_admin'       => User::role('super_admin')->count(),
         ];
 
         // ====== RINGKASAN SISTEM ======
@@ -97,10 +96,14 @@ class DashboardController extends Controller
 
         // ====== USER TERBARU ======
         $recentUsers = User::query()
-            ->select(['id', 'name', 'email', 'role', 'created_at'])
+            ->select(['id','name','email','last_role','created_at'])
             ->latest('id')
-            ->limit(8)
-            ->get();
+            ->with('roles')
+            ->limit(8)->get()
+            ->map(function($u){
+                $u->display_role = $u->getActiveRoleSlug();
+                return $u;
+            });
 
         return view('super_admin.dashboard', compact(
             'stats',

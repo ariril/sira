@@ -23,7 +23,6 @@
                         <div>
                             <label for="email" class="block text-[15px] font-medium text-slate-700">Email</label>
                             <x-ui.input id="email" name="email" type="email" :value="old('email')" required autofocus />
-                            @error('email')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                         </div>
 
                         <div class="flex items-center gap-3">

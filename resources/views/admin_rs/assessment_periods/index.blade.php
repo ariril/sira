@@ -12,9 +12,7 @@
             @if ($errors->any())
                 <div class="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{{ $errors->first() }}</div>
             @endif
-            @if (session('status'))
-                <div class="rounded-lg bg-emerald-50 text-emerald-700 text-sm px-3 py-2">{{ session('status') }}</div>
-            @endif
+            {{-- Flash status sudah ditampilkan di layout utama, hindari duplikasi di sini --}}
         {{-- FILTERS --}}
         <form method="GET" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="grid gap-5 md:grid-cols-12">
@@ -84,25 +82,31 @@
                     </td>
                     <td class="px-6 py-4 text-right">
                         <div class="inline-flex gap-2">
-                            <x-ui.icon-button as="a" href="{{ route('admin_rs.assessment-periods.edit', $it) }}" icon="fa-pen-to-square" />
-                            <form method="POST" action="{{ route('admin_rs.assessment-periods.destroy', $it) }}" onsubmit="return confirm('Hapus periode ini?')">
-                                @csrf
-                                @method('DELETE')
-                                <x-ui.icon-button icon="fa-trash" variant="danger" />
-                            </form>
                             @php($today = \Carbon\Carbon::today())
-                            @if($it->status === 'draft' && (!$it->end_date || $today->lte($it->end_date)))
-                                <form method="POST" action="{{ route('admin_rs.assessment_periods.activate', $it) }}">
+                            {{-- Sembunyikan edit & delete jika periode sudah dikunci atau ditutup --}}
+                            @if(!in_array($it->status, ['locked','closed']))
+                                <x-ui.icon-button as="a" href="{{ route('admin_rs.assessment-periods.edit', $it) }}" icon="fa-pen-to-square" />
+                                <form method="POST" action="{{ route('admin_rs.assessment-periods.destroy', $it) }}" onsubmit="return confirm('Hapus periode ini?')">
                                     @csrf
-                                    <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Aktifkan</x-ui.button>
+                                    @method('DELETE')
+                                    <x-ui.icon-button icon="fa-trash" variant="danger" />
                                 </form>
                             @endif
+                            {{-- Tombol kunci hanya saat status aktif --}}
                             @if($it->status === 'active')
                                 <form method="POST" action="{{ route('admin_rs.assessment_periods.lock', $it) }}" onsubmit="return confirm('Kunci periode ini?')">
                                     @csrf
                                     <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Kunci</x-ui.button>
                                 </form>
                             @endif
+                            {{-- Tombol aktifkan kembali muncul saat status locked (human error recovery) --}}
+                            @if($it->status === 'locked')
+                                <form method="POST" action="{{ route('admin_rs.assessment_periods.activate', $it) }}" onsubmit="return confirm('Aktifkan kembali periode ini?')">
+                                    @csrf
+                                    <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Aktifkan</x-ui.button>
+                                </form>
+                            @endif
+                            {{-- Tombol tutup hanya saat status locked dan sudah melewati tanggal akhir --}}
                             @if($it->status === 'locked' && $it->end_date && $today->gte($it->end_date))
                                 <form method="POST" action="{{ route('admin_rs.assessment_periods.close', $it) }}" onsubmit="return confirm('Tutup periode ini?')">
                                     @csrf

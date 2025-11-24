@@ -165,7 +165,8 @@ class AnnouncementManageController extends Controller
             'title'        => ['required', 'string', 'max:255'],
             'slug'         => ['nullable', 'string', 'max:255', Rule::unique('announcements','slug')->ignore($ignoreId)],
             'summary'      => ['nullable', 'string'],
-            'content'      => ['nullable', 'string'],
+            // content must not be null to satisfy DB NOT NULL constraint
+            'content'      => ['required', 'string'],
             'category'     => ['nullable', "in:$categoryValues"],
             'label'        => ['nullable', "in:$labelValues"],
             'is_featured'  => ['sometimes', 'boolean'],

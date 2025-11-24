@@ -77,7 +77,7 @@ class RemunerationController extends Controller
         $totals = [];
         foreach ($allocations as $alloc) {
             $users = User::query()->where('unit_id', $alloc->unit_id)
-                ->where('role', User::ROLE_PEGAWAI_MEDIS)
+                ->role(User::ROLE_PEGAWAI_MEDIS)
                 ->get(['id']);
             $count = $users->count();
             if ($count <= 0) continue;

@@ -47,6 +47,7 @@ class UnitCriteriaWeightController extends Controller
             $activePeriod = DB::table('assessment_periods')->where('status', 'active')->first();
         }
         $activePeriodId = $activePeriod?->id;
+        $targetPeriodId = !empty($periodId) ? (int) $periodId : ($activePeriodId ?? null);
         if (Schema::hasTable('performance_criterias')) {
             // Sembunyikan kriteria yang sudah diajukan/aktif pada periode aktif untuk unit ini
             $usedIds = collect();
@@ -65,6 +66,10 @@ class UnitCriteriaWeightController extends Controller
 
         // Listing weights for this unit (+ optional period)
         $currentTotal = 0; // total bobot draft/rejected yang akan diajukan massal
+        $pendingTotal = 0; // total bobot yang sedang menunggu persetujuan
+        $pendingCount = 0;
+        $committedTotal = 0; // total bobot active+pending
+        $requiredTotal = 100; // sisa bobot yang harus diajukan
         if ($unitId && Schema::hasTable('unit_criteria_weights')) {
             $builder = DB::table('unit_criteria_weights as w')
                 ->join('performance_criterias as pc', 'pc.id', '=', 'w.performance_criteria_id')
@@ -79,9 +84,22 @@ class UnitCriteriaWeightController extends Controller
             $sumQuery = DB::table('unit_criteria_weights')
                 ->where('unit_id', $unitId)
                 ->whereIn('status', ['draft','rejected']);
-            $targetPeriodId = !empty($periodId) ? (int)$periodId : ($activePeriodId ?? null);
             if (!empty($targetPeriodId)) $sumQuery->where('assessment_period_id', $targetPeriodId);
             $currentTotal = (float) $sumQuery->sum('weight');
+
+            $pendingQuery = DB::table('unit_criteria_weights')
+                ->where('unit_id', $unitId)
+                ->where('status', 'pending');
+            if (!empty($targetPeriodId)) $pendingQuery->where('assessment_period_id', $targetPeriodId);
+            $pendingCount = (int) $pendingQuery->count();
+            $pendingTotal = (float) $pendingQuery->sum('weight');
+
+            $committedQuery = DB::table('unit_criteria_weights')
+                ->where('unit_id', $unitId)
+                ->whereIn('status', ['pending','active']);
+            if (!empty($targetPeriodId)) $committedQuery->where('assessment_period_id', $targetPeriodId);
+            $committedTotal = (float) $committedQuery->sum('weight');
+            $requiredTotal = max(0, 100 - $committedTotal);
         } else {
             $items = new LengthAwarePaginator(
                 collect(),
@@ -104,6 +122,11 @@ class UnitCriteriaWeightController extends Controller
             'perPageOptions' => $perPageOptions,
             'currentTotal' => $currentTotal,
             'activePeriod' => $activePeriod,
+            'committedTotal' => $committedTotal,
+            'requiredTotal' => $requiredTotal,
+            'pendingCount' => $pendingCount,
+            'pendingTotal' => $pendingTotal,
+            'targetPeriodId' => $targetPeriodId,
         ]);
     }
 
@@ -260,15 +283,29 @@ class UnitCriteriaWeightController extends Controller
         $unitId = $me->unit_id;
         if (!$unitId) abort(403);
 
-        $periodId = $request->integer('period_id'); // opsional
+        $periodId = $request->integer('period_id') ?: DB::table('assessment_periods')->where('status','active')->value('id');
+        if (!$periodId) {
+            return back()->withErrors(['period_id' => 'Tidak ada periode aktif untuk diajukan.']);
+        }
+
         $query = UnitCriteriaWeight::query()
             ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $periodId)
             ->whereIn('status', ['draft','rejected']);
-        if ($periodId) $query->where('assessment_period_id', $periodId);
         $weights = $query->get();
         $total = (float) $weights->sum('weight');
-        if ((int) round($total) !== 100) {
-            return back()->withErrors(['total' => 'Total bobot saat ini '.number_format($total,2).'%. Harus tepat 100% sebelum pengajuan massal.']);
+
+        $committed = (float) UnitCriteriaWeight::query()
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $periodId)
+            ->whereIn('status', ['pending','active'])
+            ->sum('weight');
+        $required = max(0, 100 - $committed);
+        if ($required <= 0) {
+            return back()->withErrors(['total' => 'Semua bobot untuk periode ini sudah 100%.']);
+        }
+        if ((int) round($total) !== (int) round($required)) {
+            return back()->withErrors(['total' => 'Draft siap diajukan '.number_format($total,2).'%, sedangkan kebutuhan tersisa '.number_format($required,2).'%. Sesuaikan agar sama.']);
         }
         foreach ($weights as $w) {
             $w->status = 'pending';

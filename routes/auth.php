@@ -61,4 +61,8 @@ Route::middleware(['web','auth'])->group(function () {
     // Tetap berada dalam middleware auth untuk keamanan.
     Route::get('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout.get');
+
+    // Switch active role and remember as last_role on the user
+    Route::post('switch-role', [\App\Http\Controllers\Auth\ActiveRoleController::class, 'update'])
+        ->name('role.switch');
 });

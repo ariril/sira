@@ -39,12 +39,7 @@
             </div>
         </div>
 
-        <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Rasio Remunerasi (%)</label>
-            <x-ui.input type="number" step="0.01" min="0" max="100"
-                        name="remuneration_ratio"
-                        :value="old('remuneration_ratio', $unit->remuneration_ratio)" />
-        </div>
+        {{-- Field Rasio Remunerasi dihapus sesuai permintaan --}}
 
         <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>

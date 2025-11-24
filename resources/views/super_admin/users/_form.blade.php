@@ -19,12 +19,21 @@
         </div>
 
         <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Role *</label>
-            <x-ui.select name="role"
-                         :options="$roles"
-                         :value="old('role', $user->role)"
-                         required
-                         placeholder="Pilih role" />
+            <label class="block text-xs font-medium text-slate-600 mb-2">Role *</label>
+            @php
+                $selectedRoles = collect(old('roles', $user->exists ? $user->roles()->pluck('slug')->all() : []));
+            @endphp
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                @foreach($roles as $slug => $label)
+                    <label class="inline-flex items-center gap-2 p-2 rounded-lg border border-slate-200 hover:bg-slate-50">
+                        <input type="checkbox" name="roles[]" value="{{ $slug }}"
+                               @checked($selectedRoles->contains($slug))
+                               class="h-4 w-4 rounded border-slate-300 text-blue-600">
+                        <span class="text-sm text-slate-700">{{ $label }}</span>
+                    </label>
+                @endforeach
+            </div>
+            {{-- Inline error dihapus: gunakan pesan global di layout --}}
         </div>
 
         <div>

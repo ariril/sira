@@ -19,7 +19,7 @@
     @vite(['resources/css/app.css','resources/js/app.js'])
 </head>
 @php
-    $role = auth()->user()->role ?? null;
+    $role = auth()->user()?->getActiveRoleSlug();
     // layout ini untuk semua role selain pegawai_medis
 @endphp
 <body class="font-sans antialiased bg-gray-100 min-h-screen pt-14">
@@ -45,6 +45,15 @@
                 <div class="rounded-lg bg-green-50 text-green-800 px-4 py-3 text-sm">
                     {{ session('status') }}
                 </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Global single error (tampilkan hanya pesan pertama) --}}
+    @if ($errors->any())
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+            <div class="rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">
+                {{ $errors->first() }}
             </div>
         </div>
     @endif

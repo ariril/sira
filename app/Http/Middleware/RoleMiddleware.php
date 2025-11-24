@@ -26,10 +26,9 @@ class RoleMiddleware
             return redirect()->route('login');
         }
 
-        if (!in_array($user->role, $roles, true)) {
-            // Bisa abort(403) atau redirect kemana pun
-            abort(403, 'Anda tidak berhak mengakses halaman ini.');
-        }
+        // Izinkan jika user memiliki salah satu role yang diminta
+        $has = collect($roles)->some(fn($r) => $user->hasRole((string)$r));
+        if (!$has) abort(403, 'Anda tidak berhak mengakses halaman ini.');
 
         return $next($request);
     }

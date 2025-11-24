@@ -33,9 +33,9 @@ class DashboardController extends Controller
             'total_pegawai' => User::whereIn('unit_id', $scopeUnitIds)->count(),
             'total_dokter'  => User::whereIn('unit_id', $scopeUnitIds)
                 ->whereNotNull('profession_id')
-                ->where('role', 'pegawai_medis')->count(),
+                ->role('pegawai_medis')->count(),
             'total_admin'   => User::whereIn('unit_id', $scopeUnitIds)
-                ->where('role', 'admin_rs')->count(),
+                ->role('admin_rs')->count(),
         ];
 
         $review = [
@@ -93,11 +93,18 @@ class DashboardController extends Controller
                 ->first();
         }
 
-        if ($scopeUnitIds->isNotEmpty() && Schema::hasTable('performance_assessments') && Schema::hasTable('users')) {
-            $kinerja['penilaian_pending'] = DB::table('performance_assessments as pa')
+        if (
+            $scopeUnitIds->isNotEmpty() &&
+            Schema::hasTable('assessment_approvals') &&
+            Schema::hasTable('performance_assessments') &&
+            Schema::hasTable('users')
+        ) {
+            $kinerja['penilaian_pending'] = DB::table('assessment_approvals as aa')
+                ->join('performance_assessments as pa', 'pa.id', '=', 'aa.performance_assessment_id')
                 ->join('users as u', 'u.id', '=', 'pa.user_id')
+                ->where('aa.level', 3)
+                ->where('aa.status', 'pending')
                 ->whereIn('u.unit_id', $scopeUnitIds)
-                ->where('pa.validation_status', 'Menunggu Validasi')
                 ->count();
         }
 
@@ -109,9 +116,42 @@ class DashboardController extends Controller
             'pending_assess' => $kinerja['penilaian_pending'] ?? 0,
         ];
 
+        $notifications = [];
+        if ($scopeUnitIds->isNotEmpty() && Schema::hasTable('unit_criteria_weights')) {
+            $pendingUnitCount = DB::table('unit_criteria_weights')
+                ->whereIn('unit_id', $scopeUnitIds)
+                ->where('status', 'pending')
+                ->distinct('unit_id')
+                ->count('unit_id');
+            if ($pendingUnitCount > 0) {
+                $notifications[] = [
+                    'type' => 'warning',
+                    'text' => $pendingUnitCount . ' unit menunggu persetujuan bobot.',
+                    'href' => route('kepala_poliklinik.unit_criteria_weights.index', [], false) . '?status=pending',
+                ];
+            }
+        }
+
+        if (($summary['pending_assess'] ?? 0) > 0) {
+            $notifications[] = [
+                'type' => 'info',
+                'text' => $summary['pending_assess'] . ' penilaian menunggu persetujuan Level 3.',
+                'href' => route('kepala_poliklinik.assessments.pending', [], false) . '?status=pending_l3',
+            ];
+        }
+
+        if (!$kinerja['periode_aktif']) {
+            $notifications[] = [
+                'type' => 'error',
+                'text' => 'Tidak ada periode penilaian aktif. Koordinasikan dengan Admin RS untuk mengaktifkan periode.',
+                'href' => null,
+            ];
+        }
+
         return view('kepala_poli.dashboard', [
             'stats'         => $summary,
             'approvalsList' => null,
+            'notifications' => $notifications,
         ]);
     }
 }

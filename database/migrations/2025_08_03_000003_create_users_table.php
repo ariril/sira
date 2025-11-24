@@ -29,8 +29,8 @@ return new class extends Migration
 
             $table->string('password');
 
-            $table->enum('role', ['pegawai_medis', 'kepala_unit', 'kepala_poliklinik', 'admin_rs', 'super_admin'])
-                ->default('pegawai_medis')->nullable();
+            // Multi-role support: remove single enum role and keep last chosen role for redirecting
+            $table->string('last_role')->nullable();
 
             $table->index('name');
 

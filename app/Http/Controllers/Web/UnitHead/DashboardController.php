@@ -20,9 +20,9 @@ class DashboardController extends Controller
             'total_pegawai' => User::where('unit_id', $unitId)->count(),
             'total_dokter'  => User::where('unit_id', $unitId)
                 ->whereNotNull('profession_id')
-                ->where('role', 'pegawai_medis')->count(),
+                ->role('pegawai_medis')->count(),
             'total_admin'   => User::where('unit_id', $unitId)
-                ->where('role', 'admin_rs')->count(),
+                ->role('admin_rs')->count(),
         ];
 
         $review = [
@@ -87,6 +87,68 @@ class DashboardController extends Controller
                 ->count();
         }
 
-        return view('kepala_unit.dashboard', compact('stats', 'review', 'kinerja'));
+        $notifications = [];
+        if ($unitId && Schema::hasTable('unit_criteria_weights')) {
+            $rejectedCount = DB::table('unit_criteria_weights')
+                ->where('unit_id', $unitId)
+                ->where('status', 'rejected')
+                ->count();
+            if ($rejectedCount > 0) {
+                $notifications[] = [
+                    'type' => 'warning',
+                    'text' => $rejectedCount . ' bobot ditolak. Revisi kemudian ajukan kembali.',
+                    'href' => route('kepala_unit.unit-criteria-weights.index'),
+                ];
+            }
+
+            $activePeriod = $kinerja['periode_aktif'];
+            if ($activePeriod) {
+                $periodId = $activePeriod->id;
+                $committed = (float) DB::table('unit_criteria_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $periodId)
+                    ->whereIn('status', ['active','pending'])
+                    ->sum('weight');
+                if ($committed < 100) {
+                    $notifications[] = [
+                        'type' => 'warning',
+                        'text' => 'Bobot periode ' . ($activePeriod->name ?? '') . ' baru mencapai ' . number_format($committed,2) . '%. Lengkapi hingga 100%.',
+                        'href' => route('kepala_unit.unit-criteria-weights.index', ['period_id' => $periodId]),
+                    ];
+                }
+
+                $draftTotal = (float) DB::table('unit_criteria_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $periodId)
+                    ->whereIn('status', ['draft','rejected'])
+                    ->sum('weight');
+                if ($draftTotal > 0) {
+                    $notifications[] = [
+                        'type' => 'info',
+                        'text' => 'Masih ada ' . number_format($draftTotal,2) . '% bobot draft/revisi yang belum diajukan.',
+                        'href' => route('kepala_unit.unit-criteria-weights.index', ['period_id' => $periodId]),
+                    ];
+                }
+            }
+        }
+
+        if ($unitId && Schema::hasTable('assessment_approvals') && Schema::hasTable('performance_assessments') && Schema::hasTable('users')) {
+            $pendingApprovals = DB::table('assessment_approvals as aa')
+                ->join('performance_assessments as pa', 'pa.id', '=', 'aa.performance_assessment_id')
+                ->join('users as u', 'u.id', '=', 'pa.user_id')
+                ->where('aa.level', 2)
+                ->where('aa.status', 'pending')
+                ->where('u.unit_id', $unitId)
+                ->count();
+            if ($pendingApprovals > 0) {
+                $notifications[] = [
+                    'type' => 'warning',
+                    'text' => $pendingApprovals . ' penilaian menunggu persetujuan Level 2.',
+                    'href' => route('kepala_unit.assessments.pending', ['status' => 'pending_l2']),
+                ];
+            }
+        }
+
+        return view('kepala_unit.dashboard', compact('stats', 'review', 'kinerja', 'notifications'));
     }
 }

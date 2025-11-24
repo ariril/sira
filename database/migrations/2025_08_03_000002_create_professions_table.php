@@ -19,9 +19,7 @@ return new class extends Migration {
 
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropConstrainedForeignId('profession_id');
-        });
+        // Users table will handle dropping its own foreign key; avoid double-drop errors
         Schema::dropIfExists('professions');
     }
 };

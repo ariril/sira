@@ -8,22 +8,40 @@
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <form method="GET">
                 <div class="grid gap-5 md:grid-cols-12">
-                    <div class="md:col-span-6">
+                    <div class="md:col-span-4">
                         <label class="block text-sm font-medium text-slate-600 mb-1">Cari</label>
                         <x-ui.input name="q" placeholder="Nama pegawai / periode" addonLeft="fa-magnifying-glass"
                                     :value="$q" class="focus:border-emerald-500 focus:ring-emerald-500" />
                     </div>
 
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-4">
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
+                        <x-ui.select
+                            name="period_id"
+                            :options="$periodOptions"
+                            :value="request('period_id', $periodId)"
+                            class="focus:border-emerald-500 focus:ring-emerald-500"
+                        />
+                    </div>
+
+                    <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
+                        @php($statusOptions = [
+                            '' => '(Semua)',
+                            'pending_l2'   => 'Pending (Level 2)',
+                            'approved_l2'  => 'Approved (Level 2)',
+                            'rejected_l2'  => 'Rejected (Level 2)',
+                            'pending_all'  => 'Pending (Semua)',
+                            'approved_all' => 'Approved (Semua)',
+                            'rejected_all' => 'Rejected (Semua)'
+                        ])
                         <x-ui.select name="status"
-                                     :options="['pending'=>'Pending','approved'=>'Approved','rejected'=>'Rejected']"
+                                     :options="$statusOptions"
                                      :value="request('status', $status)"
-                                     placeholder="(Semua)"
                                      class="focus:border-emerald-500 focus:ring-emerald-500" />
                     </div>
 
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-slate-600 mb-1">Tampil</label>
                         <x-ui.select name="per_page"
                             :options="collect($perPageOptions)->mapWithKeys(fn($n) => [$n => $n.' / halaman'])->all()"
@@ -51,6 +69,7 @@
                     <th class="px-6 py-4 text-left whitespace-nowrap">Pegawai</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Skor</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Level</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Waktu</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
                     <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                 </tr>
@@ -61,8 +80,16 @@
                     <td class="px-6 py-4">{{ $it->user_name ?? '-' }}</td>
                     <td class="px-6 py-4">{{ $it->total_wsm_score ?? '-' }}</td>
                     <td class="px-6 py-4">{{ $it->level ?? '-' }}</td>
+                    @php
+                        $st = $it->status ?? 'pending';
+                        $submittedAt = $it->created_at ? \Illuminate\Support\Carbon::parse($it->created_at)->format('d M Y H:i') : '-';
+                        $processedAt = $it->acted_at ? \Illuminate\Support\Carbon::parse($it->acted_at)->format('d M Y H:i') : ($st === 'pending' ? 'Menunggu' : '-');
+                    @endphp
+                    <td class="px-6 py-4 text-sm text-slate-600">
+                        <div>Diajukan: <span class="font-medium text-slate-800">{{ $submittedAt }}</span></div>
+                        <div>Diproses: <span class="font-medium text-slate-800">{{ $processedAt }}</span></div>
+                    </td>
                     <td class="px-6 py-4">
-                        @php($st = $it->status ?? 'pending')
                         @if($st==='approved')
                             <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">{{ ucfirst($st) }}</span>
                         @elseif($st==='rejected')
@@ -91,7 +118,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6" class="px-6 py-8 text-center text-slate-500">Belum ada data.</td>
+                    <td colspan="7" class="px-6 py-8 text-center text-slate-500">Belum ada data.</td>
                 </tr>
             @endforelse
         </x-ui.table>

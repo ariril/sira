@@ -21,6 +21,81 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## Multi-Role Implementation (Project Specific)
+
+This application extends the default Laravel auth model to allow each user to hold multiple roles simultaneously.
+
+### Schema Changes
+- `roles` table: defines role records (`slug`, `name`).
+- `role_user` pivot: many-to-many between users and roles.
+- `users.last_role`: remembers the last active role for a user.
+- Removed legacy single `users.role` column (queries must use pivot now).
+
+### Active Role Resolution
+The active role used for authorization/UI is determined in order:
+1. `session('active_role')` if present and user still has that role.
+2. `users.last_role` if valid.
+3. Priority fallback sequence: super_admin → admin_rs → kepala_poliklinik → kepala_unit → pegawai_medis.
+4. First attached role if none of the above apply.
+
+Helper: `$user->getActiveRoleSlug()` (also exposed as `$user->role` for backward compatibility) and `$user->role_label` for display.
+
+### Eloquent Helpers
+Added to `App\Models\User`:
+- `roles()` relation.
+- Scope: `scopeRole($query, $slug)` and `scopeRoles($query, $slugsArray)`.
+- Checks: `hasRole($slug)`, `hasAnyRole($array)`, `hasAllRoles($array)`, `listRoleSlugs()`.
+
+### Blade Directives
+Registered in `AppServiceProvider`:
+```php
+@role('super_admin') ... @endrole
+@anyrole('admin_rs','super_admin') ... @endanyrole
+@allroles('kepala_unit','pegawai_medis') ... @endallroles
+```
+
+### Session Role Switching
+Dropdown in `partials/nonpublic/navigation.blade.php` allows multi-role users to switch roles (`POST /switch-role`) updating the session and persisting `last_role`.
+
+### Refactoring Notes
+All former usages of `where('role', ...)` or `users.role` replaced with pivot-based queries:
+```php
+User::query()->role('pegawai_medis')->get();
+// or manual when using Query Builder:
+->whereExists(function($q){
+		$q->select(DB::raw(1))
+			->from('role_user as ru')
+			->join('roles as r','r.id','=','ru.role_id')
+			->whereColumn('ru.user_id','users.id')
+			->where('r.slug','pegawai_medis');
+})
+```
+
+### Seeder
+Primary user and sample accounts attach multiple roles with `$user->roles()->attach([...])`.
+
+### Updating Legacy Code
+Search patterns to eliminate:
+- `users.role`
+- `->where('role', '...')`
+- Blade conditions `auth()->user()->role === '...'`
+
+Use helpers instead:
+```php
+auth()->user()->hasRole('pegawai_medis');
+auth()->user()->hasAnyRole(['admin_rs','super_admin']);
+```
+
+### Why Keep Profession Separate?
+`profession_id` remains a single classification (e.g., Dokter, Perawat) while roles govern access level and responsibilities. This separation avoids overloading the role system with HR taxonomy.
+
+### Future Extension Ideas
+- Cache role slug list per user to reduce pivot queries.
+- Add permission matrix per role.
+- Event dispatch on role switch for audit logging.
+
+---
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.

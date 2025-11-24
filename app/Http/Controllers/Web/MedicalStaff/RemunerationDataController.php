@@ -26,8 +26,14 @@ class RemunerationDataController extends Controller
         $q          = trim((string) $req->get('q', ''));
 
         $base = User::query()
-            // Hanya tampilkan pegawai dengan role Pegawai Medis
-            ->where('users.role', User::ROLE_PEGAWAI_MEDIS)
+            // Hanya tampilkan pegawai yang memiliki role Pegawai Medis (via pivot)
+            ->whereExists(function($q){
+                $q->selectRaw(1)
+                  ->from('role_user as ru')
+                  ->join('roles as r','r.id','=','ru.role_id')
+                  ->whereColumn('ru.user_id','users.id')
+                  ->where('r.slug', User::ROLE_PEGAWAI_MEDIS);
+            })
             ->leftJoin('units as u', 'u.id', '=', 'users.unit_id')
             ->leftJoin('professions as p', 'p.id', '=', 'users.profession_id')
             ->leftJoin('remunerations as r', function ($j) use ($selectedPeriod) {

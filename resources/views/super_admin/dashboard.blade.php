@@ -121,7 +121,7 @@
                     <div class="py-2 flex items-center justify-between">
                         <div>
                             <div class="font-medium">{{ $u->name }}</div>
-                            <div class="text-xs text-slate-500">{{ $u->email }} • {{ \Illuminate\Support\Str::headline(str_replace('_',' ', $u->role)) }}</div>
+                            <div class="text-xs text-slate-500">{{ $u->email }} • {{ $u->role_label }}</div>
                         </div>
                         <div class="text-xs text-slate-500">{{ $u->created_at->diffForHumans() }}</div>
                     </div>

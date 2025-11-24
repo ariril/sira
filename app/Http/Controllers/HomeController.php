@@ -23,7 +23,7 @@ class HomeController extends Controller
     public function index(): View|RedirectResponse
     {
         if (Auth::check()) {
-            $role = Auth::user()->role;
+            $role = session('active_role') ?: Auth::user()->getActiveRoleSlug();
 
             return match ($role) {
                 'super_admin'        => redirect()->route('super_admin.dashboard'),

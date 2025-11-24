@@ -27,28 +27,23 @@ class DatabaseSeeder extends Seeder
                 'location' => 'Kantor Direksi',
                 'phone' => null,
                 'email' => null,
-                'remuneration_ratio' => 0.00,
                 'is_active' => 1,
-                'created_at' => $now, 'updated_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
 
             $units = [
-                // Hanya unit manajemen dan poliklinik sesuai kebutuhan RS
-                // Manajemen (untuk Super Admin, Admin RS, dan Kepala Poliklinik)
-                // Catatan: kepala poliklinik ditempatkan di Manajemen RS sesuai instruksi
-
                 // Poliklinik (sesuai daftar pada lampiran)
-                ['name' => 'Poliklinik Umum',       'slug' => 'poliklinik-umum',      'code' => 'POL-UM',  'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
-                ['name' => 'Poliklinik Gigi & Mulut','slug' => 'poliklinik-gigi',      'code' => 'POL-GG',  'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
-                ['name' => 'Poli KIA/KB',           'slug' => 'poli-kia',             'code' => 'POL-KIA', 'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
-                ['name' => 'Poli Anak',             'slug' => 'poli-anak',            'code' => 'POL-AN',  'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
-                ['name' => 'Poli Bedah',            'slug' => 'poli-bedah',           'code' => 'POL-BD',  'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
-                ['name' => 'Poli Interna',          'slug' => 'poli-interna',         'code' => 'POL-INT', 'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
-                ['name' => 'Poli Fisioterapi',      'slug' => 'poli-fisioterapi',     'code' => 'POL-FIS', 'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
-                ['name' => 'Poli Hemodialisa',      'slug' => 'poli-hemodialisa',     'code' => 'POL-HEM', 'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
+                ['name' => 'Poliklinik Umum', 'slug' => 'poliklinik-umum', 'code' => 'POL-UM', 'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
+                ['name' => 'Poliklinik Gigi & Mulut', 'slug' => 'poliklinik-gigi', 'code' => 'POL-GG', 'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
+                ['name' => 'Poli KIA/KB', 'slug' => 'poli-kia', 'code' => 'POL-KIA', 'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
+                ['name' => 'Poli Anak', 'slug' => 'poli-anak', 'code' => 'POL-AN', 'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
+                ['name' => 'Poli Bedah', 'slug' => 'poli-bedah', 'code' => 'POL-BD', 'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
+                ['name' => 'Poli Interna', 'slug' => 'poli-interna', 'code' => 'POL-INT', 'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
+                ['name' => 'Poli Fisioterapi', 'slug' => 'poli-fisioterapi', 'code' => 'POL-FIS', 'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
+                ['name' => 'Poli Hemodialisa', 'slug' => 'poli-hemodialisa', 'code' => 'POL-HEM', 'type' => 'poliklinik', 'parent_id' => null, 'location' => 'Gedung Poli', 'phone' => null, 'email' => null],
             ];
             foreach ($units as &$u) {
-                $u['remuneration_ratio'] = 0.00;
                 $u['is_active'] = 1;
                 $u['created_at'] = $now;
                 $u['updated_at'] = $now;
@@ -61,9 +56,9 @@ class DatabaseSeeder extends Seeder
             // 2) PROFESSIONS
             // =========================================================
             $professions = [
-                // Profesi khusus pegawai medis untuk skenario ini
                 ['name' => 'Dokter Umum', 'code' => 'DOK-UM', 'description' => 'Dokter layanan primer'],
-                ['name' => 'Perawat',     'code' => 'PRW',    'description' => 'Tenaga keperawatan'],
+                ['name' => 'Perawat', 'code' => 'PRW', 'description' => 'Tenaga keperawatan'],
+                ['name' => 'Dokter Bedah', 'code' => 'DOK-SP', 'description' => 'Dokter Spesialis'],
             ];
             foreach ($professions as &$p) {
                 $p['created_at'] = $now;
@@ -78,7 +73,7 @@ class DatabaseSeeder extends Seeder
             // =========================================================
             DB::table('users')->insert([
                 [
-                    'employee_number' => '197909102008032001',
+                    'employee_number' => '000000000000000001',
                     'name' => 'Super Admin',
                     'start_date' => '2020-01-01',
                     'gender' => 'Laki-laki',
@@ -91,12 +86,12 @@ class DatabaseSeeder extends Seeder
                     'unit_id' => $unitId('manajemen-rumah-sakit'),
                     'profession_id' => null,
                     'password' => Hash::make('password'),
-                    'role' => 'super_admin',
+                    'last_role' => 'super_admin',
                     'email_verified_at' => $now,
                     'remember_token' => Str::random(10),
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
-                // >>> Kepala Poliklinik (baru)
                 [
                     'employee_number' => '000000000000000002',
                     'name' => 'dr. Kepala Poliklinik',
@@ -108,36 +103,17 @@ class DatabaseSeeder extends Seeder
                     'email' => 'kepala.poliklinik@rsud.local',
                     'last_education' => 'Sp.',
                     'position' => 'Kepala Poliklinik',
-                    'unit_id' => $managementId, // ditempatkan di Manajemen RS
+                    'unit_id' => $managementId,
                     'profession_id' => $professionId('DOK-UM'),
                     'password' => Hash::make('password'),
-                    'role' => 'kepala_poliklinik',
+                    'last_role' => 'kepala_poliklinik',
                     'email_verified_at' => $now,
                     'remember_token' => Str::random(10),
-                    'created_at' => $now, 'updated_at' => $now,
-                ],
-                // >>> Kepala Unit – ganti jadi Kepala Poli Gigi
-                [
-                    'employee_number' => '000000000000000003',
-                    'name' => 'drg. Kepala Poli Gigi',
-                    'start_date' => '2017-03-12',
-                    'gender' => 'Perempuan',
-                    'nationality' => 'Indonesia',
-                    'address' => 'Atambua',
-                    'phone' => '0812-2467-11027',
-                    'email' => 'kepala.gigi@rsud.local',
-                    'last_education' => 'Sp.KG',
-                    'position' => 'Kepala Poli Gigi',
-                    'unit_id' => $unitId('poliklinik-gigi'),
-                    'profession_id' => $professionId('DOK-UM'),
-                    'password' => Hash::make('password'),
-                    'role' => 'kepala_unit',
-                    'email_verified_at' => $now,
-                    'remember_token' => Str::random(10),
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '000000000000000004',
+                    'employee_number' => '00000000000000003',
                     'name' => 'Admin RS',
                     'start_date' => '2019-07-01',
                     'gender' => 'Laki-laki',
@@ -150,14 +126,58 @@ class DatabaseSeeder extends Seeder
                     'unit_id' => $managementId,
                     'profession_id' => null,
                     'password' => Hash::make('password'),
-                    'role' => 'admin_rs',
+                    'last_role' => 'admin_rs',
                     'email_verified_at' => $now,
                     'remember_token' => Str::random(10),
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+
+
+                // 3a) USERS (data user Penerima remun)
+                [
+                    'employee_number' => '02.0003',
+                    'name' => 'dr. Felix Christian Tjiptadi',
+                    'start_date' => '2022-01-15',
+                    'gender' => 'Laki-laki',
+                    'nationality' => 'Indonesia',
+                    'address' => 'Atambua',
+                    'phone' => '0816-7777-7777',
+                    'email' => 'kepala.unit.medis@rsud.local',
+                    'last_education' => 'Sp.',
+                    'position' => 'Kepala Unit / Dokter',
+                    'unit_id' => $unitId('poliklinik-umum'),
+                    'profession_id' => $professionId('DOK-UM'),
+                    'password' => Hash::make('password'),
+                    'last_role' => 'kepala_unit',
+                    'email_verified_at' => $now,
+                    'remember_token' => Str::random(10),
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '000000000000000005',
-                    'name' => 'dr. Umum Poliklinik',
+                    'employee_number' => '197203302006042019',
+                    'name' => 'Fransisca Tjitra N. Seran, SE',
+                    'start_date' => '2018-11-05',
+                    'gender' => 'Perempuan',
+                    'nationality' => 'Indonesia',
+                    'address' => 'Atambua',
+                    'phone' => '0815-5555-5555',
+                    'email' => 'perawat@rsud.local',
+                    'last_education' => 'D3 Keperawatan',
+                    'position' => 'Perawat Poli Umum',
+                    'unit_id' => $unitId('poliklinik-umum'),
+                    'profession_id' => $professionId('PRW'),
+                    'password' => Hash::make('password'),
+                    'last_role' => 'pegawai_medis',
+                    'email_verified_at' => $now,
+                    'remember_token' => Str::random(10),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                [
+                    'employee_number' => '197511132008031001',
+                    'name' => 'dr. Theodorus L. Mau bere',
                     'start_date' => '2021-02-10',
                     'gender' => 'Laki-laki',
                     'nationality' => 'Indonesia',
@@ -169,31 +189,67 @@ class DatabaseSeeder extends Seeder
                     'unit_id' => $unitId('poliklinik-umum'),
                     'profession_id' => $professionId('DOK-UM'),
                     'password' => Hash::make('password'),
-                    'role' => 'pegawai_medis',
+                    'last_role' => 'pegawai_medis',
                     'email_verified_at' => $now,
                     'remember_token' => Str::random(10),
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '000000000000000006',
-                    'name' => 'Perawat Poli Umum',
-                    'start_date' => '2018-11-05',
+                    'employee_number' => '197909102008032001',
+                    'name' => 'dr Melriawati Gunawan',
+                    'start_date' => '2017-03-12',
                     'gender' => 'Perempuan',
                     'nationality' => 'Indonesia',
                     'address' => 'Atambua',
-                    'phone' => '0815-5555-5555',
-                    'email' => 'perawat@rsud.local',
-                    'last_education' => 'D3 Keperawatan',
-                    'position' => 'Perawat',
-                    'unit_id' => $unitId('poliklinik-umum'),
-                    'profession_id' => $professionId('PRW'),
+                    'phone' => '0812-2467-11027',
+                    'email' => 'kepala.gigi@rsud.local',
+                    'last_education' => 'Sp.KG',
+                    'position' => 'Kepala Poli Gigi',
+                    'unit_id' => $unitId('poliklinik-gigi'),
+                    'profession_id' => $professionId('DOK-UM'),
                     'password' => Hash::make('password'),
-                    'role' => 'pegawai_medis',
+                    'last_role' => 'kepala_unit',
                     'email_verified_at' => $now,
                     'remember_token' => Str::random(10),
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                [
+                    'employee_number' => '161',
+                    'name' => 'dr. Januario E. Bria M.Kes, Sp.B',
+                    'start_date' => '2021-05-01', 
+                    'gender' => 'Laki-laki',
+                    'nationality' => 'Indonesia',
+                    'address' => 'Atambua',
+                    'phone' => '0812-0000-0161',
+                    'email' => 'januario.bria@rsud.local',
+                    'last_education' => 'Sp.B',
+                    'position' => 'Dokter Spesialis',
+                    'unit_id' => $unitId('poliklinik-gigi'), 
+                    'profession_id' => $professionId('DOK-SP'), 
+                    'password' => Hash::make('password'),
+                    'last_role' => 'pegawai_medis',
+                    'email_verified_at' => $now,
+                    'remember_token' => Str::random(10),
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
             ]);
+
+            // 3b) ROLES & ASSIGNMENTS (many-to-many)
+            $roles = [
+                ['slug' => 'super_admin', 'name' => 'Super Admin'],
+                ['slug' => 'admin_rs', 'name' => 'Admin RS'],
+                ['slug' => 'kepala_poliklinik', 'name' => 'Kepala Poliklinik'],
+                ['slug' => 'kepala_unit', 'name' => 'Kepala Unit'],
+                ['slug' => 'pegawai_medis', 'name' => 'Pegawai Medis'],
+            ];
+            foreach ($roles as &$r) {
+                $r['created_at'] = $now;
+                $r['updated_at'] = $now;
+            }
+            DB::table('roles')->insert($roles);
 
             $userId = fn(string $email) => DB::table('users')->where('email', $email)->value('id');
 
@@ -206,8 +262,47 @@ class DatabaseSeeder extends Seeder
             // yang baru:
             $polyclinicHeadId = $userId('kepala.poliklinik@rsud.local');
             $unitHeadGigiId = $userId('kepala.gigi@rsud.local');
+            $medisUnitHeadId = $userId('kepala.unit.medis@rsud.local');
 
             $poliklinikUmumId = $unitId('poliklinik-umum');
+
+            // Assign roles to users via pivot (single role each, except user id 7 dual head+medis)
+            $roleId = fn(string $slug) => DB::table('roles')->where('slug', $slug)->value('id');
+            $attach = function ($uid, array $slugs) use ($roleId) {
+                foreach ($slugs as $slug) {
+                    DB::table('role_user')->updateOrInsert([
+                        'user_id' => $uid,
+                        'role_id' => $roleId($slug),
+                    ], []);
+                }
+            };
+
+            // Bersihkan pivot lama (jika seeder dijalankan ulang tanpa migrate:fresh)
+            DB::table('role_user')->whereIn('user_id', [
+                $superAdminId,
+                $polyclinicHeadId,
+                $unitHeadGigiId,
+                $adminRsId,
+                $doctorId,
+                $nurseId,
+                $medisUnitHeadId
+            ])->delete();
+
+            // Single-role assignments
+            $attach($superAdminId, ['super_admin']);
+            $attach($polyclinicHeadId, ['kepala_poliklinik']);
+            $attach($unitHeadGigiId, ['kepala_unit']);
+            $attach($adminRsId, ['admin_rs']);
+            $attach($doctorId, ['pegawai_medis']);
+            $attach($nurseId, ['pegawai_medis']);
+
+            // Only user id 7 (kepala.unit.medis) has dual roles
+            if ($medisUnitHeadId) {
+                $attach($medisUnitHeadId, ['kepala_unit', 'pegawai_medis']);
+            }
+
+            // Pastikan last_role tidak diubah ke role lain secara otomatis
+            // Super Admin tetap 'super_admin' (sudah diset di array insert)
 
 
             // =========================================================
@@ -314,7 +409,7 @@ class DatabaseSeeder extends Seeder
                 ],
             ]);
             $periodSeptId = DB::table('assessment_periods')->where('name', 'September 2025')->value('id');
-            $periodOctId  = DB::table('assessment_periods')->where('name', 'Oktober 2025')->value('id');
+            $periodOctId = DB::table('assessment_periods')->where('name', 'Oktober 2025')->value('id');
 
             // =========================================================
             // 7) PERFORMANCE CRITERIAS
@@ -334,10 +429,10 @@ class DatabaseSeeder extends Seeder
             foreach ($pcIds360 as $cid) {
                 DB::table('rater_type_weights')->upsert([
                     ['performance_criteria_id' => $cid, 'assessor_type' => 'supervisor', 'weight' => 40.00, 'created_at' => $now, 'updated_at' => $now],
-                    ['performance_criteria_id' => $cid, 'assessor_type' => 'peer',       'weight' => 30.00, 'created_at' => $now, 'updated_at' => $now],
-                    ['performance_criteria_id' => $cid, 'assessor_type' => 'subordinate','weight' => 20.00, 'created_at' => $now, 'updated_at' => $now],
-                    ['performance_criteria_id' => $cid, 'assessor_type' => 'self',       'weight' => 10.00, 'created_at' => $now, 'updated_at' => $now],
-                ], ['performance_criteria_id','assessor_type'], ['weight','updated_at']);
+                    ['performance_criteria_id' => $cid, 'assessor_type' => 'peer', 'weight' => 30.00, 'created_at' => $now, 'updated_at' => $now],
+                    ['performance_criteria_id' => $cid, 'assessor_type' => 'subordinate', 'weight' => 20.00, 'created_at' => $now, 'updated_at' => $now],
+                    ['performance_criteria_id' => $cid, 'assessor_type' => 'self', 'weight' => 10.00, 'created_at' => $now, 'updated_at' => $now],
+                ], ['performance_criteria_id', 'assessor_type'], ['weight', 'updated_at']);
             }
 
             $criteriaId = fn(string $name) => DB::table('performance_criterias')->where('name', $name)->value('id');
@@ -350,19 +445,22 @@ class DatabaseSeeder extends Seeder
                     'unit_id' => $poliklinikUmumId,
                     'performance_criteria_id' => $criteriaId('Kedisiplinan'),
                     'weight' => 40.00,
-                    'created_at' => $now, 'updated_at' => $now
+                    'created_at' => $now,
+                    'updated_at' => $now
                 ],
                 [
                     'unit_id' => $poliklinikUmumId,
                     'performance_criteria_id' => $criteriaId('Pelayanan Pasien'),
                     'weight' => 40.00,
-                    'created_at' => $now, 'updated_at' => $now
+                    'created_at' => $now,
+                    'updated_at' => $now
                 ],
                 [
                     'unit_id' => $poliklinikUmumId,
                     'performance_criteria_id' => $criteriaId('Kepatuhan Prosedur'),
                     'weight' => 20.00,
-                    'created_at' => $now, 'updated_at' => $now
+                    'created_at' => $now,
+                    'updated_at' => $now
                 ],
             ]);
 
@@ -392,23 +490,32 @@ class DatabaseSeeder extends Seeder
                 [
                     'question' => 'Jam operasional IGD?',
                     'answer' => 'IGD melayani 24 jam, 7 hari seminggu.',
-                    'order' => 1, 'is_active' => 1, 'category' => 'layanan',
+                    'order' => 1,
+                    'is_active' => 1,
+                    'category' => 'layanan',
                     'user_id' => $superAdminId,
-                    'created_at' => $now, 'updated_at' => $now
+                    'created_at' => $now,
+                    'updated_at' => $now
                 ],
                 [
                     'question' => 'Cara ambil nomor antrian poli?',
                     'answer' => 'Datang ke loket pendaftaran atau gunakan aplikasi internal bila tersedia.',
-                    'order' => 2, 'is_active' => 1, 'category' => 'antrian',
+                    'order' => 2,
+                    'is_active' => 1,
+                    'category' => 'antrian',
                     'user_id' => $superAdminId,
-                    'created_at' => $now, 'updated_at' => $now
+                    'created_at' => $now,
+                    'updated_at' => $now
                 ],
                 [
                     'question' => 'Kontak RS?',
                     'answer' => 'Telepon (0389)2513137, Email rsudatambua66@gmail.com.',
-                    'order' => 3, 'is_active' => 1, 'category' => 'kontak',
+                    'order' => 3,
+                    'is_active' => 1,
+                    'category' => 'kontak',
                     'user_id' => $superAdminId,
-                    'created_at' => $now, 'updated_at' => $now
+                    'created_at' => $now,
+                    'updated_at' => $now
                 ],
             ]);
 
@@ -463,7 +570,8 @@ class DatabaseSeeder extends Seeder
                     'validation_status' => 'Menunggu Persetujuan',
                     'supervisor_comment' => null,
                     'assessment_period_id' => $periodOctId,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'user_id' => $doctorId,
@@ -474,7 +582,8 @@ class DatabaseSeeder extends Seeder
                     'validation_status' => 'Disetujui',
                     'supervisor_comment' => 'Bagus, lanjutkan implementasi.',
                     'assessment_period_id' => $periodOctId,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
             ]);
 
@@ -489,7 +598,8 @@ class DatabaseSeeder extends Seeder
                 'total_wsm_score' => 86.50,
                 'validation_status' => 'Menunggu Validasi',
                 'supervisor_comment' => null,
-                'created_at' => $now, 'updated_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
             $pkNurseOctId = DB::table('performance_assessments')->insertGetId([
                 'user_id' => $nurseId,
@@ -498,7 +608,8 @@ class DatabaseSeeder extends Seeder
                 'total_wsm_score' => 78.25,
                 'validation_status' => 'Menunggu Validasi',
                 'supervisor_comment' => null,
-                'created_at' => $now, 'updated_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
 
             // =========================================================
@@ -509,37 +620,43 @@ class DatabaseSeeder extends Seeder
                     'performance_assessment_id' => $pkDoctorOctId,
                     'performance_criteria_id' => $criteriaId('Kedisiplinan'),
                     'score' => 90.00,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkDoctorOctId,
                     'performance_criteria_id' => $criteriaId('Pelayanan Pasien'),
                     'score' => 85.00,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkDoctorOctId,
                     'performance_criteria_id' => $criteriaId('Kepatuhan Prosedur'),
                     'score' => 80.00,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkNurseOctId,
                     'performance_criteria_id' => $criteriaId('Kedisiplinan'),
                     'score' => 82.00,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkNurseOctId,
                     'performance_criteria_id' => $criteriaId('Pelayanan Pasien'),
                     'score' => 79.00,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkNurseOctId,
                     'performance_criteria_id' => $criteriaId('Kepatuhan Prosedur'),
                     'score' => 74.00,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
             ]);
 
@@ -556,7 +673,8 @@ class DatabaseSeeder extends Seeder
                     'status' => 'approved',
                     'note' => 'Disetujui, lanjut ke manajemen.',
                     'acted_at' => $now,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkDoctorOctId,
@@ -565,7 +683,8 @@ class DatabaseSeeder extends Seeder
                     'status' => 'pending',
                     'note' => null,
                     'acted_at' => null,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkNurseOctId,
@@ -574,7 +693,8 @@ class DatabaseSeeder extends Seeder
                     'status' => 'approved',
                     'note' => 'Disetujui.',
                     'acted_at' => $now,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkNurseOctId,
@@ -583,7 +703,8 @@ class DatabaseSeeder extends Seeder
                     'status' => 'pending',
                     'note' => null,
                     'acted_at' => null,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
             ]);
 
@@ -602,7 +723,7 @@ class DatabaseSeeder extends Seeder
                         'komponen' => [
                             'dasar' => 2800000,
                             'pasien_ditangani' => ['jumlah' => 95, 'nilai' => 285000],
-                            'review_pelanggan' => ['jumlah' => 8,  'nilai' => 80000],
+                            'review_pelanggan' => ['jumlah' => 8, 'nilai' => 80000],
                             'kontribusi_tambahan' => ['jumlah' => 1, 'nilai' => 35000],
                         ],
                         'rincian' => [
@@ -613,7 +734,8 @@ class DatabaseSeeder extends Seeder
                     'published_at' => null,
                     'calculated_at' => $now,
                     'revised_by' => null,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'user_id' => $doctorId,
@@ -625,7 +747,7 @@ class DatabaseSeeder extends Seeder
                         'komponen' => [
                             'dasar' => 3000000,
                             'pasien_ditangani' => ['jumlah' => 120, 'nilai' => 360000],
-                            'review_pelanggan' => ['jumlah' => 12,  'nilai' => 120000],
+                            'review_pelanggan' => ['jumlah' => 12, 'nilai' => 120000],
                             'kontribusi_tambahan' => ['jumlah' => 1, 'nilai' => 40000],
                         ],
                         'rincian' => [
@@ -636,7 +758,8 @@ class DatabaseSeeder extends Seeder
                     'published_at' => null,
                     'calculated_at' => $now,
                     'revised_by' => null,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'user_id' => $nurseId,
@@ -648,7 +771,7 @@ class DatabaseSeeder extends Seeder
                         'komponen' => [
                             'dasar' => 1900000,
                             'pasien_ditangani' => ['jumlah' => 140, 'nilai' => 140000],
-                            'review_pelanggan' => ['jumlah' => 10,  'nilai' => 50000],
+                            'review_pelanggan' => ['jumlah' => 10, 'nilai' => 50000],
                             'kontribusi_tambahan' => ['jumlah' => 1, 'nilai' => 10000],
                         ],
                         'rincian' => [
@@ -659,7 +782,8 @@ class DatabaseSeeder extends Seeder
                     'published_at' => null,
                     'calculated_at' => $now,
                     'revised_by' => null,
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
             ]);
 
@@ -675,7 +799,8 @@ class DatabaseSeeder extends Seeder
                 'contact' => '08xxxxxxxxxx',
                 'client_ip' => '127.0.0.1',
                 'user_agent' => 'Seeder',
-                'created_at' => $now, 'updated_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
             $reviewId2 = DB::table('reviews')->insertGetId([
                 'registration_ref' => 'REG-' . date('Ymd') . '-0002',
@@ -686,7 +811,8 @@ class DatabaseSeeder extends Seeder
                 'contact' => '08xxxxxxxxxx',
                 'client_ip' => '127.0.0.1',
                 'user_agent' => 'Seeder',
-                'created_at' => $now, 'updated_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
 
             // =========================================================
@@ -699,7 +825,8 @@ class DatabaseSeeder extends Seeder
                     'role' => 'dokter',
                     'rating' => 5,
                     'comment' => 'Dokter komunikatif.',
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'review_id' => $reviewId,
@@ -707,7 +834,8 @@ class DatabaseSeeder extends Seeder
                     'role' => 'perawat',
                     'rating' => 5,
                     'comment' => 'Perawat membantu dengan sigap.',
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
                 [
                     'review_id' => $reviewId2,
@@ -715,7 +843,8 @@ class DatabaseSeeder extends Seeder
                     'role' => 'dokter',
                     'rating' => 4,
                     'comment' => 'Penjelasan jelas.',
-                    'created_at' => $now, 'updated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ],
             ]);
         });

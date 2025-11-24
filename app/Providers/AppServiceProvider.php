@@ -4,7 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\{DB, Log, View, Cache, Schema};
+use Illuminate\Support\Facades\{DB, Log, View, Cache, Schema, Blade};
 use App\Models\{Profession, SiteSetting, AboutPage};
 
 class AppServiceProvider extends ServiceProvider
@@ -27,21 +27,24 @@ class AppServiceProvider extends ServiceProvider
             return;
         }
 
-        /**
-         * ===== Modal Login: daftar profesi =====
-         * Blade lama mengakses $p->nama, jadi kita aliases name AS nama
-         */
-        View::composer('partials.login-modal', function ($view) {
-            $profesis = collect();
+        // Login modal tidak lagi memerlukan data profesi/role
 
-            if (Schema::hasTable('professions')) {
-                $profesis = Profession::query()
-                    ->selectRaw('id, name as nama')
-                    ->orderBy('name')
-                    ->get();
-            }
-
-            $view->with('profesis', $profesis);
+        // Blade directives untuk multi-role
+        Blade::if('role', function (string $slug) {
+            $u = auth()->user();
+            return $u && $u->hasRole($slug);
+        });
+        Blade::if('anyrole', function (...$slugs) {
+            $u = auth()->user();
+            if (!$u) return false;
+            foreach ($slugs as $s) { if ($u->hasRole($s)) return true; }
+            return false;
+        });
+        Blade::if('allroles', function (...$slugs) {
+            $u = auth()->user();
+            if (!$u) return false;
+            foreach ($slugs as $s) { if (!$u->hasRole($s)) return false; }
+            return true;
         });
 
         /**

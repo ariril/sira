@@ -2,9 +2,14 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Pengguna</h1>
-            <x-ui.button as="a" href="{{ route('super_admin.users.create') }}" variant="primary" class="h-12 px-6 text-base">
-                <i class="fa-solid fa-plus mr-2"></i> Tambah Pengguna
-            </x-ui.button>
+            <div class="flex items-center gap-3">
+                <x-ui.button as="a" href="{{ route('super_admin.users.import.form') }}" variant="outline" class="h-12 px-5 text-base">
+                    <i class="fa-solid fa-file-arrow-up mr-2"></i> Import Pengguna
+                </x-ui.button>
+                <x-ui.button as="a" href="{{ route('super_admin.users.create') }}" variant="primary" class="h-12 px-6 text-base">
+                    <i class="fa-solid fa-plus mr-2"></i> Tambah Pengguna
+                </x-ui.button>
+            </div>
         </div>
     </x-slot>
 
@@ -82,9 +87,20 @@
                         @endif
                     </td>
                     <td class="px-6 py-4">
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
-              {{ \Illuminate\Support\Str::headline(str_replace('_',' ',$u->role)) }}
-            </span>
+                        @php $r = $u->relationLoaded('roles') ? $u->roles : collect(); @endphp
+                        @if($r->count())
+                            <div class="flex flex-wrap gap-1.5">
+                                @foreach($r as $ur)
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                        {{ \Illuminate\Support\Str::headline(str_replace('_',' ', $ur->slug)) }}
+                                    </span>
+                                @endforeach
+                            </div>
+                        @else
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-100">
+                                {{ $u->role_label }}
+                            </span>
+                        @endif
                     </td>
                     <td class="px-6 py-4">{{ $u->unit->name ?? '-' }}</td>
                     <td class="px-6 py-4">{{ $u->profession->name ?? '-' }}</td>

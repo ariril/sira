@@ -8,13 +8,23 @@
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <form method="GET">
                 <div class="grid gap-5 md:grid-cols-12">
-                    <div class="md:col-span-6">
+                    <div class="md:col-span-4">
                         <label class="block text-sm font-medium text-slate-600 mb-1">Cari</label>
                         <x-ui.input name="q" placeholder="Nama pegawai / periode" addonLeft="fa-magnifying-glass"
                                     :value="$q" class="focus:border-emerald-500 focus:ring-emerald-500" />
                     </div>
 
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-4">
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
+                        <x-ui.select
+                            name="period_id"
+                            :options="$periodOptions"
+                            :value="request('period_id', $periodId)"
+                            class="focus:border-emerald-500 focus:ring-emerald-500"
+                        />
+                    </div>
+
+                    <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
                         @php($statusOptions = [
                             '' => '(Semua)',
@@ -31,7 +41,7 @@
                                      class="focus:border-emerald-500 focus:ring-emerald-500" />
                     </div>
 
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-slate-600 mb-1">Tampil</label>
                         <x-ui.select
                             name="per_page"

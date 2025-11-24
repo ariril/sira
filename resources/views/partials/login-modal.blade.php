@@ -15,12 +15,12 @@
         }
     }
 
-    $oldRole  = old('role', ''); // default kosong -> paksa user pilih role
+    $oldRole  = '';
 @endphp
 
 <div
     x-cloak
-    x-data="{ role: '{{ $oldRole }}', showPass: false }"
+    x-data="{ showPass: false }"
     x-show="$store.authModal.open"
     x-transition.opacity
     @keydown.escape.window="$store.authModal.hide()"
@@ -87,32 +87,7 @@
                     </div>
                 </div>
 
-                {{-- Role --}}
-                <div>
-                    <label for="role" class="block text-[15px] font-medium text-slate-700">Login sebagai</label>
-                    <select id="role" name="role" x-model="role" required
-                            class="mt-1 w-full h-12 px-4 rounded-xl border-slate-300 text-[15px] shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="" disabled {{ $oldRole==='' ? 'selected' : '' }}>— Pilih Role —</option>
-                        <option value="pegawai_medis">Pegawai Medis</option>
-                        <option value="kepala_unit">Kepala Unit</option>
-                        <option value="kepala_poliklinik">Kepala Poliklinik</option>
-                        <option value="admin_rs">Admin RS</option>
-                        <option value="super_admin">Super Admin</option>
-                    </select>
-                    {{-- Pesan error untuk role cukup ditampilkan di alert paling atas --}}
-                </div>
-
-                {{-- Profession (muncul jika pegawai medis) --}}
-                <div x-show="role === 'pegawai_medis'">
-                    <label for="profession_id" class="block text-[15px] font-medium text-slate-700">Profesi</label>
-                    <select id="profession_id" name="profession_id"
-                            class="mt-1 w-full h-12 px-4 rounded-xl border-slate-300 text-[15px] shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">— Pilih Profesi —</option>
-                        @foreach($profesis as $p)
-                            <option value="{{ $p->id }}" @selected(old('profession_id')==$p->id)>{{ $p->nama }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                {{-- Role & Profesi tidak diperlukan lagi pada login --}}
 
                 {{-- Remember & Forgot --}}
                 <div class="flex items-center justify-between">

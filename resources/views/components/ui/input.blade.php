@@ -27,4 +27,4 @@
             value="{{ old($name, $value) }}" placeholder="{{ $placeholder }}" @required($required) />
     </div>
 @endif
-@error($name)<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+{{-- Inline error dihapus: sekarang hanya tampil global di layout --}}

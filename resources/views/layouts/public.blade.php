@@ -22,6 +22,12 @@
 @include('partials.nav')
 
 <main class="min-h-[60vh]">
+    {{-- Global single error (public layout) --}}
+    @if ($errors->any())
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+            <div class="rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">{{ $errors->first() }}</div>
+        </div>
+    @endif
     @yield('content')
 </main>
 

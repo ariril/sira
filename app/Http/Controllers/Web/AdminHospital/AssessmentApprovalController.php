@@ -6,6 +6,7 @@ use App\Enums\AssessmentApprovalStatus as AStatus;
 use App\Http\Controllers\Controller;
 use App\Models\AssessmentApproval;
 use App\Models\PerformanceAssessment;
+use App\Services\AssessmentApprovalFlow;
 use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,12 +29,22 @@ class AssessmentApprovalController extends Controller
 
         // Validate inputs (status handled manually to allow "Semua"/empty)
         $data = $request->validate([
-            'q'        => ['nullable', 'string', 'max:100'],
-            'per_page' => ['nullable', 'integer', 'in:' . implode(',', $perPageOptions)],
+            'q'         => ['nullable', 'string', 'max:100'],
+            'per_page'  => ['nullable', 'integer', 'in:' . implode(',', $perPageOptions)],
+            'period_id' => ['nullable','integer','exists:assessment_periods,id'],
         ]);
 
         $q = (string) ($data['q'] ?? '');
         $perPage = (int) ($data['per_page'] ?? 10); // keep existing default 10
+
+        $periodOptions = Schema::hasTable('assessment_periods')
+            ? DB::table('assessment_periods')->orderByDesc('start_date')->pluck('name','id')
+            : collect();
+        $periodOptions = $periodOptions->prepend('(Semua)', '')->toArray();
+        $activePeriodId = Schema::hasTable('assessment_periods')
+            ? DB::table('assessment_periods')->where('status','active')->value('id')
+            : null;
+        $periodId = $request->filled('period_id') ? (int) $request->input('period_id') : ($activePeriodId ?? null);
 
         // Composite filter values covering status and level scopes
         // Values: '', 'pending_l1','approved_l1','rejected_l1','pending_all','approved_all','rejected_all'
@@ -45,7 +56,7 @@ class AssessmentApprovalController extends Controller
                 ->join('performance_assessments as pa', 'pa.id', '=', 'aa.performance_assessment_id')
                 ->leftJoin('users as u', 'u.id', '=', 'pa.user_id')
                 ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'pa.assessment_period_id')
-                ->selectRaw("aa.id, aa.status, aa.level, aa.note, aa.created_at, u.name as user_name, ap.name as period_name, pa.total_wsm_score,
+                ->selectRaw("aa.id, aa.status, aa.level, aa.note, aa.created_at, aa.acted_at, u.name as user_name, ap.name as period_name, pa.total_wsm_score,
                               EXISTS(SELECT 1 FROM assessment_approvals aa2 WHERE aa2.performance_assessment_id = aa.performance_assessment_id AND aa2.level = 2 AND aa2.status = 'approved') as has_lvl2_approved")
                 ->orderByDesc('aa.id');
 
@@ -80,6 +91,9 @@ class AssessmentApprovalController extends Controller
                       ->orWhere('ap.name', 'like', "%$q%");
                 });
             }
+            if ($periodId) {
+                $builder->where('pa.assessment_period_id', $periodId);
+            }
             $items = $builder->paginate($perPage)->withQueryString();
         } else {
             // Ensure the view can still call ->links() even when the table doesn't exist yet
@@ -101,6 +115,8 @@ class AssessmentApprovalController extends Controller
             'status'  => $status,
             'perPage' => $perPage,
             'perPageOptions' => $perPageOptions,
+            'periodOptions' => $periodOptions,
+            'periodId' => $periodId,
         ]);
     }
 
@@ -116,13 +132,14 @@ class AssessmentApprovalController extends Controller
             return back()->with('status', 'Penilaian sudah disetujui.');
         }
         if ($assessment->status !== AStatus::PENDING->value) {
-            return back()->withErrors(['status' => 'Status tidak valid untuk disetujui.']);
+            return back()->withErrors(['status' => 'Status saat ini tidak dapat disetujui.']);
         }
         $assessment->update([
             'status'   => AStatus::APPROVED->value,
             'note'     => (string) $request->input('note'),
             'acted_at' => now(),
         ]);
+        AssessmentApprovalFlow::ensureNextLevel($assessment, Auth::id());
         return back()->with('status', 'Penilaian disetujui.');
     }
 
@@ -131,6 +148,9 @@ class AssessmentApprovalController extends Controller
     {
         $this->authorizeAccess();
         $request->validate(['note' => ['required','string','max:500']]);
+        if ($assessment->status !== AStatus::PENDING->value) {
+            return back()->withErrors(['status' => 'Tidak dapat menolak karena status sudah ' . $assessment->status . '.']);
+        }
         // Disallow reject if already approved at level 2 for the same assessment
         $hasLvl2Approved = DB::table('assessment_approvals')
             ->where('performance_assessment_id', $assessment->performance_assessment_id)
@@ -145,6 +165,7 @@ class AssessmentApprovalController extends Controller
             'note'     => (string) $request->input('note'),
             'acted_at' => now(),
         ]);
+        AssessmentApprovalFlow::removeFutureLevels($assessment);
         return back()->with('status', 'Penilaian ditolak.');
     }
 

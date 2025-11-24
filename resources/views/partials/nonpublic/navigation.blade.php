@@ -2,7 +2,7 @@
     use Illuminate\Support\Facades\Route;
 
     $user = auth()->user();
-    $role = $user?->role ?? 'admin_rs';
+    $role = session('active_role') ?? $user?->getActiveRoleSlug() ?? 'admin_rs';
     $site = \App\Models\SiteSetting::first();
 
     // Accent per role (gunakan key sesuai kolom users.role)
@@ -86,9 +86,9 @@
         ['label'=>'Approval (Level 1)','icon'=>'fa-list-check',
          'href'=>$href('admin_rs.assessments.pending','/admin-rs/assessments/pending'),
          'active'=>request()->is('admin-rs/assessments/pending*')],
-        ['label'=>'Undangan 360','icon'=>'fa-people-arrows',
-         'href'=>$href('admin_rs.multi_rater.index','/admin-rs/assessments/360'),
-         'active'=>request()->routeIs('admin_rs.multi_rater.index')],
+        ['label'=>'Penilaian 360','icon'=>'fa-people-arrows',
+         'href'=>$href('admin_rs.multi_rater.index','/admin-rs/multi-rater'),
+         'active'=>request()->routeIs('admin_rs.multi_rater.*')],
       ]],
       ['heading'=>'Kinerja','items'=>[
         ['label'=>'Kriteria Kinerja','icon'=>'fa-list-check',
@@ -144,7 +144,7 @@
          'href'=>$href('kepala_unit.assessments.pending','/kepala-unit/assessments/pending'),
          'active'=>request()->is('kepala-unit/assessments/pending*')],
         ['label'=>'Penilaian 360','icon'=>'fa-people-arrows',
-        'href'=>$href('kepala_unit.multi_rater.index','/kepala-unit/assessments/360'),
+        'href'=>$href('kepala_unit.multi_rater.index','/kepala-unit/multi-rater'),
         'active'=>request()->routeIs('kepala_unit.multi_rater.*')],
       ]],
     ];
@@ -195,7 +195,7 @@
          'href'=>$href('pegawai_medis.additional-contributions.index','/pegawai-medis/additional-contributions'),
          'active'=>request()->routeIs('pegawai_medis.additional-contributions.*')],
         ['label'=>'Penilaian 360','icon'=>'fa-people-arrows',
-         'href'=>$href('pegawai_medis.multi_rater.index','/pegawai-medis/assessments-360'),
+         'href'=>$href('pegawai_medis.multi_rater.index','/pegawai-medis/multi-rater'),
         'active'=>request()->routeIs('pegawai_medis.multi_rater.*')],
       ]],
       ['heading'=>'Remunerasi','items'=>[
@@ -253,12 +253,32 @@
                         <i class="fa-solid fa-chevron-down text-xs text-slate-500"></i>
                     </button>
                     <div x-show="open" @click.outside="open=false" x-transition
-                         class="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow border p-1">
-                        <a href="{{ route('profile.edit') }}" class="block px-3 py-2 rounded hover:bg-slate-50 text-sm">Profil</a>
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <button class="w-full text-left px-3 py-2 rounded hover:bg-slate-50 text-sm">Keluar</button>
-                        </form>
+                       class="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow border p-1 space-y-1">
+                      <a href="{{ route('profile.edit') }}" class="block px-3 py-2 rounded hover:bg-slate-50 text-sm">Profil</a>
+                      @if($user && $user->roles->count() > 1)
+                        <div class="px-3 pt-2 border-t text-[11px] font-semibold uppercase tracking-wide text-slate-400">Ganti Peran</div>
+                        <div class="max-h-48 overflow-auto py-1">
+                          @foreach($user->roles as $r)
+                            @php $isActive = ($role === $r->slug); @endphp
+                            <form method="POST" action="{{ route('auth.switch-role') }}" class="mb-1 last:mb-0">
+                              @csrf
+                              <input type="hidden" name="role" value="{{ $r->slug }}">
+                              <button class="w-full flex items-center gap-2 px-3 py-1.5 rounded text-sm border
+                                {{ $isActive ? 'bg-slate-100 border-slate-200 font-semibold' : 'hover:bg-slate-50 border-transparent' }}">
+                                <i class="fa-solid fa-repeat text-xs"></i>
+                                <span>{{ \Illuminate\Support\Str::headline(str_replace('_',' ',$r->slug)) }}</span>
+                                @if($isActive)
+                                  <i class="fa-solid fa-check text-green-600 ml-auto"></i>
+                                @endif
+                              </button>
+                            </form>
+                          @endforeach
+                        </div>
+                      @endif
+                      <form method="POST" action="{{ route('logout') }}" class="border-t pt-1">
+                        @csrf
+                        <button class="w-full text-left px-3 py-2 rounded hover:bg-slate-50 text-sm">Keluar</button>
+                      </form>
                     </div>
                 </div>
             </div>

@@ -9,24 +9,37 @@ use Illuminate\Support\Carbon;
 use App\Models\MultiRaterAssessment;
 use App\Models\MultiRaterAssessmentDetail;
 use App\Models\PerformanceCriteria;
+use App\Models\Assessment360Window;
 
 class MultiRaterSubmissionController extends Controller
 {
     public function index()
     {
-        $assessments = MultiRaterAssessment::where('assessor_id', Auth::id())
-            ->whereIn('status', ['invited','in_progress'])
-            ->orderByDesc('id')
-            ->get();
-        return view('kepala_poli.multi_rater.index', compact('assessments'));
+        $window = Assessment360Window::where('is_active', true)
+            ->whereDate('end_date', '>=', now()->toDateString())
+            ->orderByDesc('end_date')->first();
+        $assessments = collect();
+        if ($window) {
+            $assessments = MultiRaterAssessment::where('assessor_id', Auth::id())
+                ->where('assessment_period_id', $window->assessment_period_id)
+                ->whereIn('status', ['invited','in_progress'])
+                ->orderByDesc('id')
+                ->get();
+        }
+        return view('kepala_poli.multi_rater.index', compact('assessments','window'));
     }
 
     public function show(MultiRaterAssessment $assessment)
     {
         abort_unless($assessment->assessor_id === Auth::id(), 403);
+        $window = Assessment360Window::where('assessment_period_id', $assessment->assessment_period_id)
+            ->where('is_active', true)
+            ->whereDate('end_date', '>=', now()->toDateString())
+            ->first();
+        if (!$window) return redirect()->route('kepala_poliklinik.multi_rater.index')->with('error','Penilaian 360 belum dibuka.');
         $criterias = PerformanceCriteria::where('is_360_based', true)->where('is_active', true)->get();
         $details = $assessment->details()->get()->keyBy('performance_criteria_id');
-        return view('kepala_poli.multi_rater.show', compact('assessment','criterias','details'));
+        return view('kepala_poli.multi_rater.show', compact('assessment','criterias','details','window'));
     }
 
     public function submit(Request $request, MultiRaterAssessment $assessment)

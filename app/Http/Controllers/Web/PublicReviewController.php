@@ -15,8 +15,9 @@ class PublicReviewController extends Controller
     public function create(Request $request): View
     {
         $units = DB::table('units')->orderBy('name')->get(['id','name']);
-        $staff = DB::table('users')
-            ->where('role', 'pegawai_medis')
+        // Pivot-based filter: semua user dengan role pegawai_medis
+        $staff = \App\Models\User::query()
+            ->role('pegawai_medis')
             ->orderBy('name')
             ->get(['id','name','unit_id']);
 
@@ -83,8 +84,14 @@ class PublicReviewController extends Controller
             $unitId = $request->integer('unit_id');
             $staffs = DB::table('users as u')
                 ->leftJoin('professions as p', 'p.id', '=', 'u.profession_id')
-                ->where('u.role', 'pegawai_medis')
                 ->where('u.unit_id', $unitId)
+                ->whereExists(function($q){
+                    $q->select(DB::raw(1))
+                      ->from('role_user as ru')
+                      ->join('roles as r','r.id','=','ru.role_id')
+                      ->whereColumn('ru.user_id','u.id')
+                      ->where('r.slug','pegawai_medis');
+                })
                 ->get(['u.id','p.name as profesi']);
 
             foreach ($staffs as $s) {

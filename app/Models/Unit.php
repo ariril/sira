@@ -19,13 +19,11 @@ class Unit extends Model
         'location',
         'phone',
         'email',
-        'remuneration_ratio',
         'is_active',
     ];
 
     protected $casts = [
         'is_active'          => 'boolean',
-        'remuneration_ratio' => 'decimal:2',
         'type'               => UnitType::class,
     ];
 
