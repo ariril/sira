@@ -176,7 +176,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const openFromQuery = new URLSearchParams(window.location.search).get('modal') === '1';
-            const hasServerFlag = @json($errors->any() || session('status'));
+            const hasServerFlag = @json($errors->any());
             if (openFromQuery || hasServerFlag) {
                 if (window.Alpine?.store) Alpine.store('authModal').show();
             }

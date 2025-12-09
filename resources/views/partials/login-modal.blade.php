@@ -112,7 +112,7 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const hasServerFlag = @json($errors->any() || session('status'));
+            const hasServerFlag = @json($errors->any());
             if (hasServerFlag && window.Alpine?.store) Alpine.store('authModal').show();
         });
     </script>

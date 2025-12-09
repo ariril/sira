@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Detail Bobot Kriteria — {{ $unit->name ?? '-' }}</h1>
-            <x-ui.button as="a" href="{{ route('kepala_poliklinik.unit_criteria_weights.units') }}" class="h-12 px-6 text-base">Kembali</x-ui.button>
+            <x-ui.button as="a" href="{{ route('kepala_poliklinik.unit_criteria_weights.units') }}" variant="violet" class="h-12 px-6 text-base">Kembali</x-ui.button>
         </div>
     </x-slot>
 

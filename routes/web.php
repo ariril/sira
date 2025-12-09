@@ -16,9 +16,11 @@ use App\Http\Controllers\Web\PublicReviewController;
 // Dashboards per role
 use App\Http\Controllers\Web\SuperAdmin\DashboardController as SADashboard;
 use App\Http\Controllers\Web\UnitHead\DashboardController as KUDashboard;             // kepala_unit
+use App\Http\Controllers\Web\UnitHead\ReviewApprovalController;
 use App\Http\Controllers\Web\AdminHospital\DashboardController as AdminDashboard;             // admin_rs (baru)
 use App\Http\Controllers\Web\MedicalStaff\DashboardController as PMDashboard;         // pegawai_medis
 use App\Http\Controllers\Web\PolyclinicHead\DashboardController as KPDashboard;       // kepala_poliklinik
+use App\Http\Controllers\Web\MultiRater\StoreController as MRStoreController;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
@@ -155,6 +157,7 @@ Route::middleware(['auth','verified','role:admin_rs'])
         Route::get('metrics', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'index'])->name('metrics.index');
         Route::get('metrics/create', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'create'])->name('metrics.create');
         Route::post('metrics', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'store'])->name('metrics.store');
+        Route::post('metrics/template', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'downloadTemplate'])->name('metrics.template');
         Route::post('metrics/upload-csv', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'uploadCsv'])->name('metrics.upload_csv');
 
         // 360 Invitations management (URL diselaraskan dengan folder view: admin_rs/multi_rater)
@@ -206,6 +209,8 @@ Route::middleware(['auth','verified','role:kepala_unit'])
             ->name('unit_criteria_weights.submit');
         Route::post('unit-criteria-weights/submit-all', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'submitAll'])
             ->name('unit_criteria_weights.submit_all');
+        Route::post('unit-criteria-weights/request-change', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'requestChange'])
+            ->name('unit_criteria_weights.request_change');
 
         // Usulan kriteria baru
         Route::get('criteria-proposals', [\App\Http\Controllers\Web\UnitHead\CriteriaProposalController::class,'index'])->name('criteria_proposals.index');
@@ -219,6 +224,22 @@ Route::middleware(['auth','verified','role:kepala_unit'])
 
         // Monitoring klaim
         Route::get('additional-task-claims', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskClaimController::class, 'index'])->name('additional_task_claims.index');
+        // Review kontribusi tambahan
+        Route::get('additional-contributions', [\App\Http\Controllers\Web\UnitHead\AdditionalContributionReviewController::class,'index'])->name('additional_contributions.index');
+        Route::get('additional-contributions/{additionalContribution}', [\App\Http\Controllers\Web\UnitHead\AdditionalContributionReviewController::class,'show'])->name('additional_contributions.show');
+        Route::post('additional-contributions/{additionalContribution}/approve', [\App\Http\Controllers\Web\UnitHead\AdditionalContributionReviewController::class,'approve'])->name('additional_contributions.approve');
+        Route::post('additional-contributions/{additionalContribution}/reject', [\App\Http\Controllers\Web\UnitHead\AdditionalContributionReviewController::class,'reject'])->name('additional_contributions.reject');
+        Route::get('additional-contributions/{additionalContribution}/download', [\App\Http\Controllers\Web\UnitHead\AdditionalContributionReviewController::class,'download'])->name('additional_contributions.download');
+
+        // Approval ulasan pasien publik
+        Route::get('reviews', [ReviewApprovalController::class, 'index'])->name('reviews.index');
+        Route::post('reviews/approve-all', [ReviewApprovalController::class, 'approveAll'])->name('reviews.approve-all');
+        Route::post('reviews/{review}/approve', [ReviewApprovalController::class, 'approve'])->name('reviews.approve');
+        Route::post('reviews/{review}/reject', [ReviewApprovalController::class, 'reject'])->name('reviews.reject');
+
+        // Review klaim tugas tambahan (submitted/validated -> validated/approved/rejected)
+        Route::get('additional-task-claims/review', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskClaimReviewController::class,'index'])->name('additional_task_claims.review_index');
+        Route::post('additional-task-claims/{claim}/review', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskClaimReviewController::class,'update'])->name('additional_task_claims.review_update');
 
         // Review & validasi penilaian – Level 2
         Route::get('assessments/pending',   [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
@@ -227,6 +248,8 @@ Route::middleware(['auth','verified','role:kepala_unit'])
 
         // 360 submissions (if assigned as assessor) – selaraskan dengan multi-rater
         Route::get('multi-rater', [\App\Http\Controllers\Web\UnitHead\MultiRaterSubmissionController::class, 'index'])->name('multi_rater.index');
+        // Place the specific store route BEFORE the parameterized route to avoid binding 'store' as {assessment}
+        Route::post('multi-rater/store', [MRStoreController::class, 'store'])->name('multi_rater.store');
         Route::get('multi-rater/{assessment}', [\App\Http\Controllers\Web\UnitHead\MultiRaterSubmissionController::class, 'show'])->name('multi_rater.show');
         Route::post('multi-rater/{assessment}', [\App\Http\Controllers\Web\UnitHead\MultiRaterSubmissionController::class, 'submit'])->name('multi_rater.submit');
     });
@@ -262,6 +285,8 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
 
         // 360 submissions (if assigned as assessor)
         Route::get('multi-rater', [\App\Http\Controllers\Web\PolyclinicHead\MultiRaterSubmissionController::class, 'index'])->name('multi_rater.index');
+        // Specific store route BEFORE parameterized route
+        Route::post('multi-rater/store', [MRStoreController::class, 'store'])->name('multi_rater.store');
         Route::get('multi-rater/{assessment}', [\App\Http\Controllers\Web\PolyclinicHead\MultiRaterSubmissionController::class, 'show'])->name('multi_rater.show');
         Route::post('multi-rater/{assessment}', [\App\Http\Controllers\Web\PolyclinicHead\MultiRaterSubmissionController::class, 'submit'])->name('multi_rater.submit');
     });
@@ -279,6 +304,8 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
 
         // 360 submissions (place BEFORE resource to avoid route conflicts) – seragam: multi-rater
         Route::get('multi-rater', [\App\Http\Controllers\Web\MedicalStaff\MultiRaterSubmissionController::class, 'index'])->name('multi_rater.index');
+        // Specific store route BEFORE parameterized route
+        Route::post('multi-rater/store', [MRStoreController::class, 'store'])->name('multi_rater.store');
         Route::get('multi-rater/{assessment}', [\App\Http\Controllers\Web\MedicalStaff\MultiRaterSubmissionController::class, 'show'])->name('multi_rater.show');
         Route::post('multi-rater/{assessment}', [\App\Http\Controllers\Web\MedicalStaff\MultiRaterSubmissionController::class, 'submit'])->name('multi_rater.submit');
 
@@ -287,9 +314,11 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
             ->only(['index','show']);
 
         // Klaim & tugas tambahan
+        Route::get('additional-tasks', [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskController::class, 'index'])->name('additional_tasks.index');
         Route::post('additional-tasks/{task}/claim',    [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'claim'])->name('additional_tasks.claim');
         Route::post('additional-task-claims/{claim}/cancel', [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'cancel'])->name('additional_task_claims.cancel');
         Route::post('additional-task-claims/{claim}/complete',[\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'complete'])->name('additional_task_claims.complete');
+        Route::post('additional-task-claims/{claim}/submit',[\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'submit'])->name('additional_task_claims.submit');
 
         // Submit hasil kontribusi (bukti/evidence)
         Route::resource('additional-contributions', \App\Http\Controllers\Web\MedicalStaff\AdditionalContributionController::class);

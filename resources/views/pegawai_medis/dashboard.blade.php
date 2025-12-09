@@ -2,6 +2,31 @@
     <div class="container-px py-6">
         <h1 class="text-2xl font-semibold mb-4">Dashboard Pegawai Medis</h1>
 
+        @if(!empty($approvalBanner) || !empty($rejectedClaim) || !empty($criteriaNotice))
+            <div class="mb-4 space-y-2" aria-live="polite">
+                @if(!empty($approvalBanner))
+                    <div class="rounded-lg px-4 py-3 text-sm bg-rose-50 text-rose-800 flex items-center justify-between gap-3">
+                        <span>Penilaian periode {{ $approvalBanner['period_name'] }} telah disetujui.</span>
+                        <a href="{{ $approvalBanner['ack_url'] }}" class="underline font-medium text-rose-800">Lihat</a>
+                    </div>
+                @endif
+
+                @if(!empty($rejectedClaim))
+                    <div class="rounded-lg px-4 py-3 text-sm bg-rose-50 text-rose-800 flex items-center justify-between gap-3">
+                        <span>Klaim tambahan {{ $rejectedClaim->title ?? 'tugas' }} ditolak @if($rejectedClaim->period_name) ({{ $rejectedClaim->period_name }}) @endif.</span>
+                        <a href="{{ $rejectedClaim->ack_url }}" class="underline font-medium text-rose-800">Lihat</a>
+                    </div>
+                @endif
+
+                @if(!empty($criteriaNotice))
+                    <div class="rounded-lg px-4 py-3 text-sm bg-amber-50 text-amber-800 flex items-center justify-between gap-3">
+                        <span>Kepala Unit mengubah bobot kriteria @if($criteriaNotice->period_name) ({{ $criteriaNotice->period_name }}) @endif.</span>
+                        <a href="{{ $criteriaNotice->ack_url }}" class="underline font-medium text-amber-800">Lihat</a>
+                    </div>
+                @endif
+            </div>
+        @endif
+
         {{-- KPI cards (samakan gaya dengan Admin RS / Super Admin) --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <x-stat-card label="Avg Rating (30 hari)" value="{{ number_format($me['avg_rating_30d'] ?? 0, 2) }}" icon="fa-star" accent="from-cyan-500 to-sky-600" />

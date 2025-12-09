@@ -27,6 +27,9 @@ class AdditionalTaskClaim extends Model
         'penalty_applied_at',
         'penalty_amount',
         'penalty_note',
+        'is_violation',
+        'result_file_path',
+        'result_note',
     ];
 
     protected $casts = [
@@ -38,6 +41,7 @@ class AdditionalTaskClaim extends Model
         'penalty_value'      => 'decimal:2',
         'penalty_amount'     => 'decimal:2',
         'penalty_applied'    => 'boolean',
+        'is_violation'       => 'boolean',
     ];
 
     /* =========================================================================
@@ -114,7 +118,6 @@ class AdditionalTaskClaim extends Model
     {
         $this->penalty_applied   = true;
         $this->penalty_applied_at = now();
-        $this->penalty_amount     = $this->calculatePenalty();
         $this->penalty_note       = $note ?? 'Sanksi otomatis karena lewat tenggat cancel';
         $this->save();
     }
@@ -123,13 +126,15 @@ class AdditionalTaskClaim extends Model
     public function cancel(string $reason = null): bool
     {
         if (!$this->canCancel()) {
-            // otomatis kenakan sanksi bila lewat tenggat
+            // batal lewat tenggat -> violation & sanksi default bila belum ada
             $this->status = 'cancelled';
             $this->cancelled_at = now();
             $this->cancel_reason = $reason;
+            $this->is_violation = true;
             $this->penalty_type  = $this->penalty_type === 'none' ? 'percent' : $this->penalty_type;
             $this->penalty_value = $this->penalty_value ?: 10; // default 10%
             $this->applyPenalty('Batal lewat tenggat waktu');
+            $this->save();
             return true;
         }
 
@@ -137,7 +142,40 @@ class AdditionalTaskClaim extends Model
             'status'        => 'cancelled',
             'cancelled_at'  => now(),
             'cancel_reason' => $reason,
+            'is_violation'  => false,
         ]);
+        return true;
+    }
+
+    // Submit hasil tugas oleh user (transisi active -> submitted)
+    public function submitResult(): bool
+    {
+        if ($this->status !== 'active') return false;
+        $this->update(['status' => 'submitted']);
+        return true;
+    }
+
+    // Validasi awal oleh kepala unit (submitted -> validated)
+    public function validateTask(): bool
+    {
+        if ($this->status !== 'submitted') return false;
+        $this->update(['status' => 'validated']);
+        return true;
+    }
+
+    // Approve (validated -> approved)
+    public function approve(): bool
+    {
+        if (!in_array($this->status, ['validated','submitted'])) return false;
+        $this->update(['status' => 'approved', 'completed_at' => now()]);
+        return true;
+    }
+
+    // Reject (validated/submitted -> rejected)
+    public function reject(string $note = null): bool
+    {
+        if (!in_array($this->status, ['validated','submitted'])) return false;
+        $this->update(['status' => 'rejected', 'penalty_note' => $note]);
         return true;
     }
 }

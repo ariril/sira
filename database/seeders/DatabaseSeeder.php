@@ -93,26 +93,6 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '000000000000000002',
-                    'name' => 'dr. Kepala Poliklinik',
-                    'start_date' => '2016-06-01',
-                    'gender' => 'Laki-laki',
-                    'nationality' => 'Indonesia',
-                    'address' => 'Atambua',
-                    'phone' => '0812-0000-0002',
-                    'email' => 'kepala.poliklinik@rsud.local',
-                    'last_education' => 'Sp.',
-                    'position' => 'Kepala Poliklinik',
-                    'unit_id' => $managementId,
-                    'profession_id' => $professionId('DOK-UM'),
-                    'password' => Hash::make('password'),
-                    'last_role' => 'kepala_poliklinik',
-                    'email_verified_at' => $now,
-                    'remember_token' => Str::random(10),
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
                     'employee_number' => '00000000000000003',
                     'name' => 'Admin RS',
                     'start_date' => '2019-07-01',
@@ -127,6 +107,26 @@ class DatabaseSeeder extends Seeder
                     'profession_id' => null,
                     'password' => Hash::make('password'),
                     'last_role' => 'admin_rs',
+                    'email_verified_at' => $now,
+                    'remember_token' => Str::random(10),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                [
+                    'employee_number' => '000000000000000002',
+                    'name' => 'dr. Kepala Poliklinik',
+                    'start_date' => '2016-06-01',
+                    'gender' => 'Laki-laki',
+                    'nationality' => 'Indonesia',
+                    'address' => 'Atambua',
+                    'phone' => '0812-0000-0002',
+                    'email' => 'kepala.poliklinik@rsud.local',
+                    'last_education' => 'Sp.',
+                    'position' => 'Kepala Poliklinik',
+                    'unit_id' => $managementId,
+                    'profession_id' => $professionId('DOK-UM'),
+                    'password' => Hash::make('password'),
+                    'last_role' => 'kepala_poliklinik',
                     'email_verified_at' => $now,
                     'remember_token' => Str::random(10),
                     'created_at' => $now,
@@ -218,7 +218,7 @@ class DatabaseSeeder extends Seeder
                 [
                     'employee_number' => '161',
                     'name' => 'dr. Januario E. Bria M.Kes, Sp.B',
-                    'start_date' => '2021-05-01', 
+                    'start_date' => '2021-05-01',
                     'gender' => 'Laki-laki',
                     'nationality' => 'Indonesia',
                     'address' => 'Atambua',
@@ -226,8 +226,8 @@ class DatabaseSeeder extends Seeder
                     'email' => 'januario.bria@rsud.local',
                     'last_education' => 'Sp.B',
                     'position' => 'Dokter Spesialis',
-                    'unit_id' => $unitId('poliklinik-gigi'), 
-                    'profession_id' => $professionId('DOK-SP'), 
+                    'unit_id' => $unitId('poliklinik-gigi'),
+                    'profession_id' => $professionId('DOK-SP'),
                     'password' => Hash::make('password'),
                     'last_role' => 'pegawai_medis',
                     'email_verified_at' => $now,
@@ -440,29 +440,29 @@ class DatabaseSeeder extends Seeder
             // =========================================================
             // 8) UNIT CRITERIA WEIGHTS (contoh Poli Umum)
             // =========================================================
-            DB::table('unit_criteria_weights')->insert([
-                [
-                    'unit_id' => $poliklinikUmumId,
-                    'performance_criteria_id' => $criteriaId('Kedisiplinan'),
-                    'weight' => 40.00,
-                    'created_at' => $now,
-                    'updated_at' => $now
-                ],
-                [
-                    'unit_id' => $poliklinikUmumId,
-                    'performance_criteria_id' => $criteriaId('Pelayanan Pasien'),
-                    'weight' => 40.00,
-                    'created_at' => $now,
-                    'updated_at' => $now
-                ],
-                [
-                    'unit_id' => $poliklinikUmumId,
-                    'performance_criteria_id' => $criteriaId('Kepatuhan Prosedur'),
-                    'weight' => 20.00,
-                    'created_at' => $now,
-                    'updated_at' => $now
-                ],
-            ]);
+            // DB::table('unit_criteria_weights')->insert([
+            //     [
+            //         'unit_id' => $poliklinikUmumId,
+            //         'performance_criteria_id' => $criteriaId('Kedisiplinan'),
+            //         'weight' => 40.00,
+            //         'created_at' => $now,
+            //         'updated_at' => $now
+            //     ],
+            //     [
+            //         'unit_id' => $poliklinikUmumId,
+            //         'performance_criteria_id' => $criteriaId('Pelayanan Pasien'),
+            //         'weight' => 40.00,
+            //         'created_at' => $now,
+            //         'updated_at' => $now
+            //     ],
+            //     [
+            //         'unit_id' => $poliklinikUmumId,
+            //         'performance_criteria_id' => $criteriaId('Kepatuhan Prosedur'),
+            //         'weight' => 20.00,
+            //         'created_at' => $now,
+            //         'updated_at' => $now
+            //     ],
+            // ]);
 
             // =========================================================
             // 9) ANNOUNCEMENTS
@@ -663,23 +663,13 @@ class DatabaseSeeder extends Seeder
             // =========================================================
             // 15) ASSESSMENT APPROVALS (dengan snapshot profesi - opsional)
             // =========================================================
-            $firstApproverId = $unitHeadGigiId ?? $polyclinicHeadId ?? $adminRsId ?? $superAdminId;
+            $firstApproverId = $adminRsId; // Wajib Admin RS
 
             DB::table('assessment_approvals')->insert([
                 [
                     'performance_assessment_id' => $pkDoctorOctId,
                     'approver_id' => $firstApproverId,
                     'level' => 1,
-                    'status' => 'approved',
-                    'note' => 'Disetujui, lanjut ke manajemen.',
-                    'acted_at' => $now,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
-                    'performance_assessment_id' => $pkDoctorOctId,
-                    'approver_id' => $superAdminId,
-                    'level' => 2,
                     'status' => 'pending',
                     'note' => null,
                     'acted_at' => null,
@@ -690,16 +680,6 @@ class DatabaseSeeder extends Seeder
                     'performance_assessment_id' => $pkNurseOctId,
                     'approver_id' => $firstApproverId,
                     'level' => 1,
-                    'status' => 'approved',
-                    'note' => 'Disetujui.',
-                    'acted_at' => $now,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
-                    'performance_assessment_id' => $pkNurseOctId,
-                    'approver_id' => $superAdminId,
-                    'level' => 2,
                     'status' => 'pending',
                     'note' => null,
                     'acted_at' => null,
@@ -799,6 +779,10 @@ class DatabaseSeeder extends Seeder
                 'contact' => '08xxxxxxxxxx',
                 'client_ip' => '127.0.0.1',
                 'user_agent' => 'Seeder',
+                'status' => 'approved',
+                'decision_note' => 'Data contoh disetujui otomatis.',
+                'decided_by' => $medisUnitHeadId,
+                'decided_at' => $now,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
@@ -811,6 +795,10 @@ class DatabaseSeeder extends Seeder
                 'contact' => '08xxxxxxxxxx',
                 'client_ip' => '127.0.0.1',
                 'user_agent' => 'Seeder',
+                'status' => 'approved',
+                'decision_note' => 'Data contoh disetujui otomatis.',
+                'decided_by' => $medisUnitHeadId,
+                'decided_at' => $now,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
@@ -848,5 +836,7 @@ class DatabaseSeeder extends Seeder
                 ],
             ]);
         });
+
+        $this->call(AssessmentTimelineSeeder::class);
     }
 }

@@ -137,7 +137,10 @@
          'active'=>request()->routeIs('kepala_unit.additional-tasks.*')],
         ['label'=>'Klaim Tugas (Monitor)','icon'=>'fa-user-check',
          'href'=>$href('kepala_unit.additional_task_claims.index','/kepala-unit/additional-task-claims'),
-         'active'=>request()->routeIs('kepala_unit.additional_task_claims.*')],
+         'active'=>request()->routeIs('kepala_unit.additional_task_claims.index')],
+        ['label'=>'Review Klaim','icon'=>'fa-clipboard-check',
+         'href'=>$href('kepala_unit.additional_task_claims.review_index','/kepala-unit/additional-task-claims/review'),
+          'active'=>request()->routeIs('kepala_unit.additional_task_claims.review_*')],
       ]],
       ['heading'=>'Penilaian Kinerja','items'=>[
         ['label'=>'Approval (Level 2)','icon'=>'fa-list-check',
@@ -146,6 +149,11 @@
         ['label'=>'Penilaian 360','icon'=>'fa-people-arrows',
         'href'=>$href('kepala_unit.multi_rater.index','/kepala-unit/multi-rater'),
         'active'=>request()->routeIs('kepala_unit.multi_rater.*')],
+      ]],
+      ['heading'=>'Ulasan Pasien','items'=>[
+        ['label'=>'Approval Ulasan','icon'=>'fa-star',
+         'href'=>$href('kepala_unit.reviews.index','/kepala-unit/reviews'),
+         'active'=>request()->routeIs('kepala_unit.reviews.*')],
       ]],
     ];
 
@@ -166,7 +174,10 @@
       ['heading'=>'Penilaian Kinerja','items'=>[
         ['label'=>'Approval Final (Lv.3)','icon'=>'fa-list-check',
          'href'=>$href('kepala_poliklinik.assessments.pending','/kepala-poliklinik/assessments/pending'),
-         'active'=>request()->is('kepala-poliklinik/assessments/pending*')],
+        'active'=>request()->is('kepala-poliklinik/assessments/pending*')],
+        ['label'=>'Penilaian 360','icon'=>'fa-people-arrows',
+        'href'=>$href('kepala_poliklinik.multi_rater.index','/kepala-poliklinik/multi-rater'),
+        'active'=>request()->routeIs('kepala_poliklinik.multi_rater.*')],
       ]],
       ['heading'=>'Remunerasi','items'=>[
         ['label'=>'Monitoring Remunerasi','icon'=>'fa-money-bill-trend-up',
@@ -202,9 +213,9 @@
         ['label'=>'Remunerasi Saya','icon'=>'fa-money-bill-trend-up',
          'href'=>$href('pegawai_medis.remunerations.index','/pegawai-medis/remunerations'),
          'active'=>request()->routeIs('pegawai_medis.remunerations.*')],
-        ['label'=>'Data Remunerasi','icon'=>'fa-database',
-         'href'=>$href('pegawai_medis.remuneration_data.index','/pegawai-medis/remuneration-data'),
-         'active'=>request()->routeIs('pegawai_medis.remuneration_data.*')],
+        // ['label'=>'Data Remunerasi','icon'=>'fa-database',
+        //  'href'=>$href('pegawai_medis.remuneration_data.index','/pegawai-medis/remuneration-data'),
+        //  'active'=>request()->routeIs('pegawai_medis.remuneration_data.*')],
       ]],
     ];
 

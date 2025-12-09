@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Carbon;
+use App\Services\AdditionalTaskStatusService;
 
 class AdditionalTask extends Model
 {
@@ -162,5 +163,11 @@ class AdditionalTask extends Model
     public function getFormattedDueDateAttribute(): string
     {
         return Carbon::parse($this->due_date)->translatedFormat('d F Y');
+    }
+
+    public function refreshLifecycleStatus(): void
+    {
+        $latest = $this->fresh() ?? $this;
+        AdditionalTaskStatusService::sync($latest);
     }
 }

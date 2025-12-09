@@ -3,17 +3,18 @@
   'name' => null,
   'value' => null,
   'placeholder' => 'Ketik di sini…',
-  'id' => $name,
+  'id' => null,
   'addonLeft' => null, // icon class FA
   'required' => false,
 ])
+@php($inputValue = $name ? old($name, $value) : $value)
 @if($type === 'checkbox')
     <input
         {{ $attributes->merge([
           'class' => 'h-5 w-5 text-blue-600 border-slate-300 focus:ring-blue-500 rounded'
         ]) }}
-        type="checkbox" name="{{ $name }}" id="{{ $id }}"
-        value="{{ $value ?? 1 }}" @checked(old($name, $value)) />
+        type="checkbox" name="{{ $name }}" id="{{ $id ?? $name ?? '' }}"
+        value="{{ $value ?? 1 }}" @checked($name ? old($name, $value) : $value) />
 @else
     <div class="relative">
         @if($addonLeft)
@@ -23,8 +24,8 @@
             {{ $attributes->merge([
               'class' => 'w-full h-12 '.($addonLeft ? 'pl-10' : 'pl-4').' pr-4 rounded-xl border-slate-300 text-[15px] shadow-sm focus:border-blue-500 focus:ring-blue-500'
             ]) }}
-            type="{{ $type }}" name="{{ $name }}" id="{{ $id }}"
-            value="{{ old($name, $value) }}" placeholder="{{ $placeholder }}" @required($required) />
+            type="{{ $type }}" name="{{ $name }}" id="{{ $id ?? $name ?? '' }}"
+            value="{{ $inputValue }}" placeholder="{{ $placeholder }}" @required($required) />
     </div>
 @endif
 {{-- Inline error dihapus: sekarang hanya tampil global di layout --}}

@@ -22,6 +22,18 @@ return new class extends Migration {
             $t->unsignedTinyInteger('overall_rating')->nullable();
             $t->text('comment')->nullable();
 
+            $t->enum('status', ['pending','approved','rejected'])
+                ->default('pending');
+
+            $t->text('decision_note')->nullable();
+
+            $t->foreignId('decided_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
+            $t->timestamp('decided_at')->nullable();
+
             // identitas ringan (tanpa akun pasien)
             $t->string('patient_name')->nullable();
             $t->string('contact')->nullable();

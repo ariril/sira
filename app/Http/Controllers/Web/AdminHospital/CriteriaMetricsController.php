@@ -11,6 +11,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class CriteriaMetricsController extends Controller
 {
@@ -23,53 +26,30 @@ class CriteriaMetricsController extends Controller
             ->orderByDesc('id')->paginate(15)->withQueryString();
 
         $periods = AssessmentPeriod::orderByDesc('start_date')->pluck('name','id');
-        $criterias = PerformanceCriteria::where('is_active', true)->orderBy('name')->pluck('name','id');
-        return view('admin_rs.metrics.index', compact('items','periods','criterias','periodId'));
+        $criterias = PerformanceCriteria::where('is_active', true)->orderBy('name')->get(['id','name','data_type']);
+        $criteriaOptions = $criterias->pluck('name','id');
+        return view('admin_rs.metrics.index', compact('items','periods','criterias','criteriaOptions','periodId'));
     }
 
     public function create(): View
     {
-        $periods = AssessmentPeriod::orderByDesc('start_date')->pluck('name','id');
-        $criterias = PerformanceCriteria::where('is_active', true)->orderBy('name')->get(['id','name','input_method']);
-        $users = User::orderBy('name')->get(['id','name','employee_number']);
-        return view('admin_rs.metrics.create', compact('periods','criterias','users'));
+        abort(404);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'assessment_period_id' => 'required|exists:assessment_periods,id',
-            'performance_criteria_id' => 'required|exists:performance_criterias,id',
-            'value_numeric' => 'nullable|numeric',
-            'value_datetime' => 'nullable|date',
-            'value_text' => 'nullable|string',
-            'source_type' => 'nullable|in:system,manual,import',
-        ]);
-        CriteriaMetric::updateOrCreate(
-            [
-                'user_id' => $data['user_id'],
-                'assessment_period_id' => $data['assessment_period_id'],
-                'performance_criteria_id' => $data['performance_criteria_id'],
-            ],
-            [
-                'value_numeric' => $data['value_numeric'] ?? null,
-                'value_datetime'=> $data['value_datetime'] ?? null,
-                'value_text'    => $data['value_text'] ?? null,
-                'source_type'   => $data['source_type'] ?? 'manual',
-                'source_table'  => 'form',
-            ]
-        );
-
-        return redirect()->route('admin_rs.metrics.index')->with('status','Metric disimpan');
+        abort(404);
     }
 
     public function uploadCsv(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'file' => 'required|file|mimes:csv,txt,xls,xlsx|max:5120',
+            'performance_criteria_id' => 'required|exists:performance_criterias,id',
             'replace_existing' => 'nullable|boolean',
         ]);
+
+        $criteria = PerformanceCriteria::findOrFail($validated['performance_criteria_id']);
 
         // Periode aktif wajib ada
         $active = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
@@ -129,12 +109,24 @@ class CriteriaMetricsController extends Controller
             ];
         };
 
+        $dataType = (string)($criteria->data_type ?? 'numeric');
+
         try {
             [$header, $rows, $src] = $readTabular(Storage::path($path), $request->file('file')->getClientOriginalExtension());
             if (!$header) return back()->withErrors(['file' => 'File kosong atau header tidak ditemukan.']);
             $map = $mapHeader($header);
         } catch (\Throwable $e) {
             return back()->withErrors(['file' => 'Import gagal: '.$e->getMessage()]);
+        }
+
+        $requiredKey = match ($dataType) {
+            'datetime' => 'value_datetime',
+            'text'     => 'value_text',
+            default    => 'value_numeric',
+        };
+
+        if ($map[$requiredKey] === false) {
+            return back()->withErrors(['file' => 'Header tidak sesuai template untuk kriteria ini. Unduh ulang template dan coba lagi.']);
         }
 
         $created = 0; $updated = 0; $skipped = 0;
@@ -147,23 +139,8 @@ class CriteriaMetricsController extends Controller
             $user = User::where('employee_number', $emp)->first();
             if (!$user) { $skipped++; continue; }
 
-            // Criteria id (atau nama)
-            $critId = null;
-            if ($map['criteria_id'] !== false) {
-                $critId = (int)($row[$map['criteria_id']] ?? 0) ?: null;
-            }
-            $criteria = null;
-            if ($critId) {
-                $criteria = PerformanceCriteria::find($critId);
-            } elseif ($map['criteria_name'] !== false) {
-                $name = trim((string)($row[$map['criteria_name']] ?? ''));
-                if ($name !== '') $criteria = PerformanceCriteria::where('name',$name)->first();
-            }
-            if (!$criteria) { $skipped++; continue; }
-
             // Tentukan kolom nilai berdasarkan data_type
             $valueNum = null; $valueDt = null; $valueTxt = null;
-            $dataType = (string)($criteria->data_type ?? 'numeric');
             $getVal = function($key) use ($map, $row) {
                 if ($map[$key] === false) return null;
                 return $row[$map[$key]] ?? null;
@@ -219,5 +196,67 @@ class CriteriaMetricsController extends Controller
 
         $msg = "Import selesai: dibuat {$created}, diperbarui {$updated}, dilewati {$skipped}.";
         return back()->with('status', $msg);
+    }
+
+    public function downloadTemplate(Request $request)
+    {
+        $data = $request->validate([
+            'performance_criteria_id' => 'required|exists:performance_criterias,id',
+            'period_id' => 'nullable|exists:assessment_periods,id',
+        ]);
+
+        $criteria = PerformanceCriteria::findOrFail($data['performance_criteria_id']);
+        $period = isset($data['period_id'])
+            ? AssessmentPeriod::find($data['period_id'])
+            : AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
+
+        if (!$period) {
+            return back()->withErrors(['performance_criteria_id' => 'Periode aktif tidak ditemukan. Aktifkan periode terlebih dahulu.']);
+        }
+
+        $valueColumn = match ($criteria->data_type ?? 'numeric') {
+            'datetime'   => 'nilai_tanggal',
+            'text'       => 'nilai_teks',
+            default      => 'nilai',
+        };
+
+        $sheet = new Spreadsheet();
+        $sheet->getProperties()
+            ->setCreator('SIRA')
+            ->setTitle('Template Metrics '.$criteria->name);
+        $ws = $sheet->getActiveSheet();
+        $ws->setTitle('Template');
+
+        $headers = ['nip','nama','periode','id_kriteria','kriteria','tipe_data', $valueColumn];
+        foreach ($headers as $idx => $head) {
+            $col = Coordinate::stringFromColumnIndex($idx + 1);
+            $ws->setCellValue($col.'1', $head);
+        }
+
+        $users = User::orderBy('name')->get(['name','employee_number']);
+        $row = 2;
+        foreach ($users as $user) {
+            $ws->setCellValue('A'.$row, $user->employee_number);
+            $ws->setCellValue('B'.$row, $user->name);
+            $ws->setCellValue('C'.$row, $period->name);
+            $ws->setCellValue('D'.$row, $criteria->id);
+            $ws->setCellValue('E'.$row, $criteria->name);
+            $ws->setCellValue('F'.$row, $criteria->data_type);
+            $ws->setCellValue('G'.$row, '');
+            $row++;
+        }
+
+        // hint baris pertama data jika tidak ada user
+        if ($row === 2) {
+            $ws->setCellValue('A2', 'ISI_NIP');
+            $ws->setCellValue('B2', 'Nama Pegawai');
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'metric_tpl_');
+        $writer = new Xlsx($sheet);
+        $writer->save($tmp);
+
+        $filename = 'template-metrics-'.$criteria->id.'-'.$period->id.'.xlsx';
+        return response()->download($tmp, $filename)->deleteFileAfterSend(true);
     }
 }

@@ -49,13 +49,20 @@
                 </tr>
             </x-slot>
             @forelse($items as $it)
+                @php
+                    $st = $it->status;
+                    $duePast = $it->due_date
+                        ? \Illuminate\Support\Carbon::parse($it->due_date, 'Asia/Jakarta')->endOfDay()->isPast()
+                        : false;
+                    $canOpen = in_array($st, ['draft','cancelled','closed']) && !$duePast;
+                    $showDueWarning = $st === 'closed' && $duePast;
+                @endphp
                 <tr class="hover:bg-slate-50">
                     <td class="px-6 py-4">{{ $it->title }}</td>
                     <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
                     <td class="px-6 py-4">{{ $it->start_date }} s/d {{ $it->due_date }}</td>
                     <td class="px-6 py-4 text-right">{{ number_format((float)($it->points ?? 0),2) }} / {{ number_format((float)($it->bonus_amount ?? 0),2) }}</td>
                     <td class="px-6 py-4">
-                        @php($st = $it->status)
                         @if($st==='open')
                             <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">Open</span>
                         @elseif($st==='closed')
@@ -67,25 +74,36 @@
                         @endif
                     </td>
                     <td class="px-6 py-4 text-right">
-                        <div class="inline-flex gap-2">
+                        <div class="inline-flex gap-2 flex-wrap justify-end">
                             <x-ui.icon-button as="a" href="{{ route('kepala_unit.additional-tasks.edit', $it->id) }}" icon="fa-pen-to-square" />
-                            <form method="POST" action="{{ route('kepala_unit.additional_tasks.open', $it->id) }}">
-                                @csrf @method('PATCH')
-                                <x-ui.button variant="orange" class="h-9 px-3 text-xs" :disabled="$st==='open'">Open</x-ui.button>
-                            </form>
-                            <form method="POST" action="{{ route('kepala_unit.additional_tasks.close', $it->id) }}">
-                                @csrf @method('PATCH')
-                                <x-ui.button variant="orange" class="h-9 px-3 text-xs" :disabled="$st==='closed'">Close</x-ui.button>
-                            </form>
-                            <form method="POST" action="{{ route('kepala_unit.additional_tasks.cancel', $it->id) }}" onsubmit="return confirm('Batalkan tugas ini?')">
-                                @csrf @method('PATCH')
-                                <x-ui.button variant="outline" class="h-9 px-3 text-xs" :disabled="$st==='cancelled'">Cancel</x-ui.button>
-                            </form>
+
+                            @if($st !== 'closed')
+                                @if(in_array($st, ['draft','cancelled']) && !$duePast)
+                                    <form method="POST" action="{{ route('kepala_unit.additional_tasks.open', $it->id) }}">
+                                        @csrf @method('PATCH')
+                                        <x-ui.button variant="orange" class="h-9 px-3 text-xs">Open</x-ui.button>
+                                    </form>
+                                @endif
+
+                                <form method="POST" action="{{ route('kepala_unit.additional_tasks.close', $it->id) }}">
+                                    @csrf @method('PATCH')
+                                    <x-ui.button variant="orange" class="h-9 px-3 text-xs" :disabled="$st!=='open'">Close</x-ui.button>
+                                </form>
+
+                                <form method="POST" action="{{ route('kepala_unit.additional_tasks.cancel', $it->id) }}" onsubmit="return confirm('Batalkan tugas ini?')">
+                                    @csrf @method('PATCH')
+                                    <x-ui.button variant="outline" class="h-9 px-3 text-xs" :disabled="!in_array($st,['open','draft'])">Cancel</x-ui.button>
+                                </form>
+                            @endif
+
                             <form method="POST" action="{{ route('kepala_unit.additional-tasks.destroy', $it->id) }}" onsubmit="return confirm('Hapus tugas ini?')">
                                 @csrf @method('DELETE')
                                 <x-ui.icon-button icon="fa-trash" />
                             </form>
                         </div>
+                        @if($showDueWarning && $st!=='closed')
+                            <p class="mt-2 text-[11px] text-amber-600">Jatuh tempo sudah lewat. Edit tanggal untuk membuka kembali.</p>
+                        @endif
                     </td>
                 </tr>
             @empty

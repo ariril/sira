@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\PolyclinicHead;
 
+use App\Enums\ReviewStatus;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
@@ -45,25 +46,26 @@ class DashboardController extends Controller
             'recent_comments'       => collect(),
         ];
 
-        if ($scopeUnitIds->isNotEmpty() && Schema::hasTable('review_details') && Schema::hasTable('users')) {
+        if ($scopeUnitIds->isNotEmpty() && Schema::hasTable('review_details') && Schema::hasTable('reviews') && Schema::hasTable('users')) {
             $from = Carbon::now()->subDays(30)->toDateTimeString();
 
-            // Gunakan user.unit_id untuk scope unit, karena struktur review tidak memiliki unit_id
             $base = DB::table('review_details as rd')
-                ->join('users as u', 'u.id', '=', 'rd.medical_staff_id')
-                ->whereIn('u.unit_id', $scopeUnitIds)
-                ->where('rd.created_at', '>=', $from);
+                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
+                ->whereIn('r.unit_id', $scopeUnitIds)
+                ->where('r.status', ReviewStatus::APPROVED->value)
+                ->where('r.created_at', '>=', $from);
 
             $review['avg_rating_unit_30d']   = (clone $base)->avg('rd.rating');
             $review['total_ulasan_unit_30d'] = (clone $base)->count();
 
-            // Top staf (berdasar user), sertakan nama profesi jika tabel professions tersedia
             $top = DB::table('review_details as rd')
+                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
                 ->join('users as u', 'u.id', '=', 'rd.medical_staff_id')
                 ->leftJoin('professions as p', 'p.id', '=', 'u.profession_id')
                 ->select('u.id', DB::raw('u.name as nama'), DB::raw('COALESCE(p.name, NULL) as jabatan'),
                     DB::raw('AVG(rd.rating) as avg_rating'), DB::raw('COUNT(*) as total'))
-                ->whereIn('u.unit_id', $scopeUnitIds)
+                ->whereIn('r.unit_id', $scopeUnitIds)
+                ->where('r.status', ReviewStatus::APPROVED->value)
                 ->groupBy('u.id', 'u.name', 'p.name')
                 ->havingRaw('COUNT(*) >= 5')
                 ->orderByDesc('avg_rating')
@@ -71,10 +73,12 @@ class DashboardController extends Controller
             $review['top_staff'] = $top;
 
             $recent = DB::table('review_details as rd')
+                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
                 ->join('users as u', 'u.id', '=', 'rd.medical_staff_id')
                 ->leftJoin('professions as p', 'p.id', '=', 'u.profession_id')
                 ->select('u.name as nama', 'rd.rating', 'rd.comment as komentar', 'rd.created_at')
-                ->whereIn('u.unit_id', $scopeUnitIds)
+                ->whereIn('r.unit_id', $scopeUnitIds)
+                ->where('r.status', ReviewStatus::APPROVED->value)
                 ->whereNotNull('rd.comment')
                 ->orderByDesc('rd.created_at')
                 ->limit(10)->get();

@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Approval Bobot Kriteria</h1>
-            <x-ui.button as="a" href="{{ route('kepala_poliklinik.unit_criteria_weights.units') }}" class="h-10 px-4 text-sm">Lihat per Unit</x-ui.button>
+            <x-ui.button as="a" href="{{ route('kepala_poliklinik.unit_criteria_weights.units') }}" variant="violet" class="h-10 px-4 text-sm">Lihat per Unit</x-ui.button>
         </div>
     </x-slot>
 
@@ -66,12 +66,12 @@
                             <div class="inline-flex gap-2">
                                 <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.approve', $it) }}">
                                     @csrf
-                                    <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Approve</x-ui.button>
+                                    <x-ui.button type="submit" variant="violet" class="h-9 px-3 text-xs">Approve</x-ui.button>
                                 </form>
                                 <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.reject', $it) }}" onsubmit="return confirm('Tolak bobot ini?');">
                                     @csrf
                                     <input type="hidden" name="reason" value="Tidak sesuai kebijakan" />
-                                    <x-ui.button type="submit" variant="danger" class="h-9 px-3 text-xs">Reject</x-ui.button>
+                                    <x-ui.button type="submit" variant="violet" class="h-9 px-3 text-xs">Reject</x-ui.button>
                                 </form>
                             </div>
                         @else

@@ -30,6 +30,10 @@ return new class extends Migration
             $table->timestamp('submitted_at')->nullable();
 
             $table->string('evidence_file')->nullable();
+            // Metadata lampiran bukti (untuk UX & validasi file)
+            $table->string('attachment_original_name')->nullable();
+            $table->string('attachment_mime', 120)->nullable();
+            $table->unsignedBigInteger('attachment_size')->nullable();
 
             $table->enum('validation_status', [
                 'Menunggu Persetujuan',

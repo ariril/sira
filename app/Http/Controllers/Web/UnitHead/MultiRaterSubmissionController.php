@@ -10,23 +10,120 @@ use App\Models\MultiRaterAssessment;
 use App\Models\MultiRaterAssessmentDetail;
 use App\Models\PerformanceCriteria;
 use App\Models\Assessment360Window;
+use App\Models\User;
+use App\Services\MultiRater\CriteriaResolver;
+use App\Services\MultiRater\SimpleFormData;
+use App\Services\MultiRater\SummaryService;
 
 class MultiRaterSubmissionController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $window = Assessment360Window::where('is_active', true)
             ->whereDate('end_date', '>=', now()->toDateString())
             ->orderByDesc('end_date')->first();
-        $assessments = collect();
         if ($window) {
+            $window->loadMissing('period');
+        }
+        $assessments = collect();
+        $periodId = null;
+        $unitId = \Auth::user()?->unit_id;
+        $savedScores = collect();
+        $criteriaOptions = collect();
+        $unitStaff = collect();
+        $totalAssignments = 0;
+        $completedAssignments = 0;
+        $remainingAssignments = 0;
+        $windowEndsAt = null;
+        $windowIsActive = false;
+        $activePeriod = null;
+        if ($window) {
+            $periodId = $window->assessment_period_id;
+            $windowStartsAt = optional($window->start_date)?->copy()->startOfDay();
+            $windowEndsAt = optional($window->end_date)?->copy()->endOfDay();
+            if ($windowStartsAt && $windowEndsAt) {
+                $windowIsActive = now()->between($windowStartsAt, $windowEndsAt, true);
+            }
+            $activePeriod = $window->period;
             $assessments = MultiRaterAssessment::where('assessor_id', Auth::id())
                 ->where('assessment_period_id', $window->assessment_period_id)
                 ->whereIn('status', ['invited','in_progress'])
                 ->orderByDesc('id')
                 ->get();
+            if ($unitId && $windowIsActive) {
+                $criteriaList = CriteriaResolver::forUnit($unitId, $periodId);
+
+                $rawStaff = User::query()
+                    ->role('pegawai_medis')
+                    ->where('unit_id', $unitId)
+                    ->where('id', '!=', Auth::id())
+                    ->with(['profession','unit'])
+                    ->orderBy('name')
+                    ->get()
+                    ->map(function ($u) {
+                        $roles = method_exists($u, 'getRoleNames') ? $u->getRoleNames()->toArray() : [];
+                        $profession = $u->profession->name ?? null;
+                        $parts = [];
+                        foreach ($roles as $r) {
+                            if ($r === 'kepala_unit' && $u->unit?->name) {
+                                $parts[] = 'Kepala Poli ' . $u->unit->name;
+                            } else {
+                                $parts[] = ucwords(str_replace('_',' ', $r));
+                            }
+                        }
+                        if ($profession) $parts[] = $profession;
+                        $label = $parts ? ($u->name . ' (' . implode(', ', $parts) . ')') : $u->name;
+                        $u->label = $label;
+                        return $u;
+                    })
+                    ->map(function ($u) {
+                        return (object) [
+                            'id' => $u->id,
+                            'name' => $u->name,
+                            'label' => $u->label,
+                            'unit_name' => $u->unit->name ?? null,
+                            'employee_number' => $u->employee_number,
+                        ];
+                    });
+
+                $formData = SimpleFormData::build($periodId, Auth::id(), $rawStaff, fn () => $criteriaList);
+                $unitStaff = collect($formData['targets']);
+                $criteriaOptions = collect($formData['criteria_catalog']);
+                $remainingAssignments = $formData['remaining_assignments'];
+                $completedAssignments = $formData['completed_assignments'];
+                $totalAssignments = $formData['total_assignments'];
+            }
+            // Saved simple 360 scores for this rater & period (limit to current unit)
+            if ($periodId && $unitId) {
+                $criteriaTable = (new PerformanceCriteria())->getTable();
+                $savedScores = \App\Models\MultiRaterScore::query()
+                    ->where('period_id', $periodId)
+                    ->where('rater_user_id', Auth::id())
+                    ->join('users as u', 'u.id', '=', 'multi_rater_scores.target_user_id')
+                    ->leftJoin($criteriaTable . ' as pc', 'pc.id', '=', 'multi_rater_scores.performance_criteria_id')
+                    ->where('u.unit_id', $unitId)
+                    ->orderBy('u.name')
+                    ->get(['multi_rater_scores.*','u.name as target_name','pc.name as criteria_name','pc.type as criteria_type']);
+            }
         }
-        return view('kepala_unit.multi_rater.index', compact('assessments','window'));
+        $summary = SummaryService::build(Auth::id(), $request->get('summary_period_id'));
+
+        return view('kepala_unit.multi_rater.index', compact(
+            'assessments',
+            'window',
+            'unitStaff',
+            'periodId',
+            'unitId',
+            'savedScores',
+            'windowEndsAt',
+            'criteriaOptions',
+            'totalAssignments',
+            'completedAssignments',
+            'remainingAssignments',
+            'summary',
+            'activePeriod',
+            'windowIsActive'
+        ));
     }
 
     public function show(MultiRaterAssessment $assessment)

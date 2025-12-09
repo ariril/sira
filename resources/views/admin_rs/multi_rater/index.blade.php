@@ -28,6 +28,22 @@
                     ({{ $period->start_date->format('d M Y') }} – {{ $period->end_date->format('d M Y') }})
                 </div>
 
+                {{-- Banner status jadwal aktif --}}
+                @if($window)
+                    <div class="mt-3 rounded-xl ring-1 ring-emerald-100 bg-gradient-to-r from-emerald-50 to-white p-4 flex items-start gap-3">
+                        <i class="fa-solid fa-bullhorn text-emerald-600 mt-0.5"></i>
+                        <div class="flex-1">
+                            <div class="font-medium text-emerald-800">Penilaian 360° AKTIF</div>
+                            <div class="text-sm text-emerald-700">
+                                Jadwal: <b>{{ optional($window->start_date)->format('d M Y') }}</b>
+                                – <b>{{ optional($window->end_date)->format('d M Y') }}</b>
+                                • Kriteria aktif 360: <b>{{ $summary['active360Criteria'] ?? 0 }}</b>
+                                • Unit: <b>{{ $summary['unitCount'] ?? 0 }}</b>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
                 @php
                     $today   = now()->toDateString();
                     $minDate = max($period->start_date->toDateString(), $today);
@@ -72,14 +88,19 @@
                     </div>
                 </form>
                 
-                {{-- Ringkasan --}}
+                {{-- Ringkasan & Cakupan Penilaian 360 --}}
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mt-6">
-                    <div class="mb-3 font-medium">
-                        Ringkasan Periode {{ $period->name }}
-                    </div>
+                    <div class="mb-3 font-medium">Status & Cakupan Penilaian 360 – {{ $period->name }}</div>
 
                     @if (empty($stats))
-                        <p class="text-slate-600">Belum ada undangan.</p>
+                        <p class="text-slate-600">
+                            Belum ada data penilaian 360 untuk periode ini.
+                            @if($window)
+                                <br>Jadwal sudah aktif — gunakan tombol "Generate" di bawah untuk menyiapkan cakupan penilai berdasarkan unit dan kriteria aktif.
+                            @else
+                                <br>Aktifkan jadwal terlebih dahulu untuk memulai penilaian 360.
+                            @endif
+                        </p>
                     @else
                         <div class="overflow-x-auto">
                             <table class="min-w-full border">
@@ -99,6 +120,27 @@
                                 </tbody>
                             </table>
                         </div>
+                    @endif
+                </div>
+
+                {{-- Actions: Generate & Tutup jadwal --}}
+                <div class="mt-4 flex gap-3">
+                    <form method="POST" action="{{ route('admin_rs.multi_rater.generate') }}">
+                        @csrf
+                        <input type="hidden" name="assessment_period_id" value="{{ $period->id }}">
+                        <x-ui.button type="submit" variant="primary" class="h-10 px-4">
+                            Generate Cakupan 360
+                        </x-ui.button>
+                    </form>
+
+                    @if($window)
+                        <form method="POST" action="{{ route('admin_rs.multi_rater.close') }}" onsubmit="return confirm('Tutup jadwal 360 untuk periode ini?')">
+                            @csrf
+                            <input type="hidden" name="assessment_period_id" value="{{ $period->id }}">
+                            <x-ui.button type="submit" variant="outline" class="h-10 px-4">
+                                Tutup Jadwal
+                            </x-ui.button>
+                        </form>
                     @endif
                 </div>
             @endif

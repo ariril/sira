@@ -128,10 +128,11 @@ class AssessmentApprovalController extends Controller
         if ((int)($assessment->level ?? 0) !== 1) {
             return back()->withErrors(['status' => 'Tidak dapat menyetujui: bukan level 1.']);
         }
-        if ($assessment->status === AStatus::APPROVED->value) {
+        // Dengan casts, status adalah instance enum; samakan dengan Level 2
+        if ($assessment->status === AStatus::APPROVED) {
             return back()->with('status', 'Penilaian sudah disetujui.');
         }
-        if ($assessment->status !== AStatus::PENDING->value) {
+        if ($assessment->status !== AStatus::PENDING) {
             return back()->withErrors(['status' => 'Status saat ini tidak dapat disetujui.']);
         }
         $assessment->update([
@@ -148,8 +149,8 @@ class AssessmentApprovalController extends Controller
     {
         $this->authorizeAccess();
         $request->validate(['note' => ['required','string','max:500']]);
-        if ($assessment->status !== AStatus::PENDING->value) {
-            return back()->withErrors(['status' => 'Tidak dapat menolak karena status sudah ' . $assessment->status . '.']);
+        if ($assessment->status !== AStatus::PENDING) {
+            return back()->withErrors(['status' => 'Tidak dapat menolak karena status sudah ' . $assessment->status->value . '.']);
         }
         // Disallow reject if already approved at level 2 for the same assessment
         $hasLvl2Approved = DB::table('assessment_approvals')

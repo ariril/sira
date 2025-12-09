@@ -13,8 +13,13 @@ class PerformanceAssessmentController extends Controller
     /**
      * List assessments owned by the logged-in medical staff.
      */
-    public function index(Request $request): View
+    public function index(Request $request)
     {
+        // Acknowledge approval banner (one-time, no DB change)
+        if ($request->boolean('ack_approval') && $request->filled('assessment_id')) {
+            session(['approval_seen_' . (int)$request->input('assessment_id') => true]);
+            return redirect()->route('pegawai_medis.assessments.index');
+        }
         $assessments = PerformanceAssessment::with('assessmentPeriod')
             ->where('user_id', Auth::id())
             ->orderByDesc('id')

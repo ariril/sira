@@ -25,10 +25,12 @@
                 </div>
             </div>
             <div class="mt-4 flex justify-end gap-3">
-                <a href="{{ route('kepala_unit.additional_task_claims.index') }}" class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 text-base">
+                <a href="{{ route('kepala_unit.additional_task_claims.index') }}" class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 transition-colors">
                     <i class="fa-solid fa-rotate-left"></i> Reset
                 </a>
-                <x-ui.button type="submit" variant="orange" class="h-12 px-6 text-[15px]"> <i class="fa-solid fa-filter"></i> Terapkan</x-ui.button>
+                <button type="submit" class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm text-base">
+                    <i class="fa-solid fa-filter"></i> Terapkan
+                </button>
             </div>
         </form>
 

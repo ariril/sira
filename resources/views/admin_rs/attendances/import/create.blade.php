@@ -24,10 +24,15 @@
                 @csrf
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-2">File Excel/CSV</label>
-                    <label class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 border-slate-200">
-                        <div class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-600">
-                            <i class="fa-solid fa-file-excel text-3xl mb-2 text-emerald-500"></i>
-                            <p class="text-sm"><span class="font-semibold">Klik untuk pilih</span> atau tarik & lepas</p>
+                    <label id="dropzone" class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 border-slate-200 transition duration-200">
+                        <div id="drop-label" class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-600 transition duration-200">
+                            <i id="drop-icon" class="fa-solid fa-file-excel text-3xl mb-2 text-emerald-500 transition duration-200"></i>
+                            <p class="text-sm" id="drop-default"><span class="font-semibold">Klik untuk pilih</span> atau tarik & lepas</p>
+                            <p class="text-sm hidden text-center" id="drop-selected">
+                                <span class="font-semibold">File dipilih:</span>
+                                <span id="drop-selected-name"></span>
+                                <span class="block text-xs text-slate-500 mt-1">Klik untuk pilih ulang atau tarik & lepas file lainnya</span>
+                            </p>
                             <p class="text-xs text-slate-500">.xlsx, .xls, .csv • Maks. 5 MB</p>
                         </div>
                         <input id="file" type="file" name="file" accept=".xlsx,.xls,.csv,text/csv" class="hidden" required />
@@ -37,7 +42,58 @@
                         document.addEventListener('DOMContentLoaded', function(){
                             const input = document.getElementById('file');
                             const nameEl = document.getElementById('file-name');
-                            input.addEventListener('change', () => { nameEl.textContent = input.files[0] ? 'Dipilih: '+ input.files[0].name : ''; });
+                            const defaultPrompt = document.getElementById('drop-default');
+                            const selectedPrompt = document.getElementById('drop-selected');
+                            const selectedName = document.getElementById('drop-selected-name');
+                            const dropzone = document.getElementById('dropzone');
+                            const dropLabel = document.getElementById('drop-label');
+                            const dropIcon = document.getElementById('drop-icon');
+                            if (!input) return;
+
+                            const resetState = () => {
+                                if (defaultPrompt) defaultPrompt.classList.remove('hidden');
+                                if (selectedPrompt) selectedPrompt.classList.add('hidden');
+                                if (selectedName) selectedName.textContent = '';
+                                if (nameEl) nameEl.textContent = '';
+                                if (dropzone) {
+                                    dropzone.classList.remove('bg-emerald-50','border-emerald-300','shadow-inner');
+                                    dropzone.classList.add('bg-slate-50','border-slate-200');
+                                }
+                                if (dropLabel) {
+                                    dropLabel.classList.remove('text-emerald-700');
+                                    dropLabel.classList.add('text-slate-600');
+                                }
+                                if (dropIcon) {
+                                    dropIcon.classList.remove('text-emerald-600');
+                                    dropIcon.classList.add('text-emerald-500');
+                                }
+                            };
+
+                            input.addEventListener('change', () => {
+                                const file = input.files && input.files.length ? input.files[0] : null;
+                                if (file) {
+                                    if (defaultPrompt) defaultPrompt.classList.add('hidden');
+                                    if (selectedPrompt) selectedPrompt.classList.remove('hidden');
+                                    if (selectedName) selectedName.textContent = file.name;
+                                    if (nameEl) nameEl.textContent = 'Dipilih: ' + file.name;
+                                    if (dropzone) {
+                                        dropzone.classList.remove('bg-slate-50','border-slate-200');
+                                        dropzone.classList.add('bg-emerald-50','border-emerald-300','shadow-inner');
+                                    }
+                                    if (dropLabel) {
+                                        dropLabel.classList.remove('text-slate-600');
+                                        dropLabel.classList.add('text-emerald-700');
+                                    }
+                                    if (dropIcon) {
+                                        dropIcon.classList.remove('text-emerald-500');
+                                        dropIcon.classList.add('text-emerald-600');
+                                    }
+                                } else {
+                                    resetState();
+                                }
+                            });
+
+                            resetState();
                         });
                     </script>
                 </div>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\UnitHead;
 
+use App\Enums\ReviewStatus;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
@@ -32,25 +33,27 @@ class DashboardController extends Controller
             'recent_comments'       => collect(),
         ];
 
-        if ($unitId && Schema::hasTable('review_details') && Schema::hasTable('users')) {
+        if ($unitId && Schema::hasTable('review_details') && Schema::hasTable('reviews') && Schema::hasTable('users')) {
             $from = Carbon::now()->subDays(30)->toDateTimeString();
 
-            // Basis ulasan per unit: scope via users.unit_id (rd.medical_staff_id -> users.id)
             $base = DB::table('review_details as rd')
-                ->join('users as u', 'u.id', '=', 'rd.medical_staff_id')
-                ->where('u.unit_id', $unitId)
-                ->where('rd.created_at', '>=', $from);
+                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
+                ->where('r.unit_id', $unitId)
+                ->where('r.status', ReviewStatus::APPROVED->value)
+                ->where('r.created_at', '>=', $from);
 
             $review['avg_rating_unit_30d']   = (clone $base)->avg('rd.rating');
             $review['total_ulasan_unit_30d'] = (clone $base)->count();
 
             // "top_staff" → top staff within unit (min 3 review), include profession if available
             $review['top_staff'] = DB::table('review_details as rd')
+                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
                 ->join('users as u', 'u.id', '=', 'rd.medical_staff_id')
                 ->leftJoin('professions as p', 'p.id', '=', 'u.profession_id')
                 ->select('u.id', DB::raw('u.name as nama'), DB::raw('COALESCE(p.name, NULL) as jabatan'),
                     DB::raw('AVG(rd.rating) as avg_rating'), DB::raw('COUNT(*) as total'))
-                ->where('u.unit_id', $unitId)
+                ->where('r.unit_id', $unitId)
+                ->where('r.status', ReviewStatus::APPROVED->value)
                 ->groupBy('u.id', 'u.name', 'p.name')
                 ->havingRaw('COUNT(*) >= 3')
                 ->orderByDesc('avg_rating')
@@ -58,10 +61,12 @@ class DashboardController extends Controller
 
             // Komentar terbaru
             $review['recent_comments'] = DB::table('review_details as rd')
+                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
                 ->join('users as u', 'u.id', '=', 'rd.medical_staff_id')
                 ->leftJoin('professions as p', 'p.id', '=', 'u.profession_id')
                 ->select('u.name as nama', 'rd.rating', 'rd.comment as komentar', 'rd.created_at')
-                ->where('u.unit_id', $unitId)
+                ->where('r.unit_id', $unitId)
+                ->where('r.status', ReviewStatus::APPROVED->value)
                 ->whereNotNull('rd.comment')
                 ->orderByDesc('rd.created_at')
                 ->limit(10)->get();
@@ -145,6 +150,36 @@ class DashboardController extends Controller
                     'type' => 'warning',
                     'text' => $pendingApprovals . ' penilaian menunggu persetujuan Level 2.',
                     'href' => route('kepala_unit.assessments.pending', ['status' => 'pending_l2']),
+                ];
+            }
+        }
+
+        if ($unitId && Schema::hasTable('reviews')) {
+            $pendingReviews = DB::table('reviews')
+                ->where('unit_id', $unitId)
+                ->where('status', ReviewStatus::PENDING->value)
+                ->count();
+            if ($pendingReviews > 0) {
+                $notifications[] = [
+                    'type' => 'info',
+                    'text' => $pendingReviews . ' ulasan pasien menunggu approval.',
+                    'href' => route('kepala_unit.reviews.index', ['status' => ReviewStatus::PENDING->value]),
+                ];
+            }
+        }
+
+        if ($unitId && Schema::hasTable('additional_task_claims') && Schema::hasTable('additional_tasks')) {
+            $pendingTaskClaims = DB::table('additional_task_claims as c')
+                ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
+                ->where('t.unit_id', $unitId)
+                ->whereIn('c.status', ['submitted', 'validated'])
+                ->count();
+
+            if ($pendingTaskClaims > 0) {
+                $notifications[] = [
+                    'type' => 'info',
+                    'text' => $pendingTaskClaims . ' klaim tugas tambahan menunggu review.',
+                    'href' => route('kepala_unit.additional_task_claims.review_index'),
                 ];
             }
         }

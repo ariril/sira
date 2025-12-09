@@ -23,15 +23,28 @@ class MultiRaterController extends Controller
             ->first() : null;
 
         $stats = [];
+        $summary = [
+            'active360Criteria' => 0,
+            'unitCount' => 0,
+            'isActiveWindow' => (bool) $window,
+        ];
         if ($period) {
             $stats = MultiRaterAssessment::selectRaw('status, COUNT(*) as total')
                 ->where('assessment_period_id', $period->id)
                 ->groupBy('status')
                 ->pluck('total','status')
                 ->toArray();
+
+            // Active 360 criteria within this period
+            $summary['active360Criteria'] = \App\Models\PerformanceCriteria::query()
+                ->where('is_active', true)
+                ->where('is_360_based', true)
+                ->count();
+            // Unit count under hospital
+            $summary['unitCount'] = \DB::table('units')->count();
         }
 
-        return view('admin_rs.multi_rater.index', compact('periods','period','window','stats'));
+        return view('admin_rs.multi_rater.index', compact('periods','period','window','stats','summary'));
     }
 
     public function openWindow(Request $request)

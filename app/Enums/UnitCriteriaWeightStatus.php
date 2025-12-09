@@ -8,4 +8,5 @@ enum UnitCriteriaWeightStatus: string
     case PENDING = 'pending';
     case ACTIVE  = 'active';
     case REJECTED = 'rejected';
+    case ARCHIVED = 'archived';
 }

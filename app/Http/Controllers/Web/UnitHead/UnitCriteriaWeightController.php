@@ -12,6 +12,8 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class UnitCriteriaWeightController extends Controller
@@ -27,11 +29,27 @@ class UnitCriteriaWeightController extends Controller
 
         // Filters
         $perPageOptions = [10, 20, 30, 50];
-        $data = $request->validate([
-            'period_id' => ['nullable','integer'],
-            'per_page'  => ['nullable','integer','in:' . implode(',', $perPageOptions)],
-        ]);
-        $periodId = $data['period_id'] ?? null;
+        $rawFilters = [
+            'period_id' => $request->input('period_id'),
+            'per_page'  => $request->input('per_page'),
+        ];
+
+        if (array_key_exists('period_id', $rawFilters) && $rawFilters['period_id'] === '') {
+            $rawFilters['period_id'] = null;
+        }
+        if (array_key_exists('per_page', $rawFilters) && $rawFilters['per_page'] === '') {
+            $rawFilters['per_page'] = null;
+        }
+
+        $data = Validator::make($rawFilters, [
+            'period_id' => ['nullable', 'integer'],
+            'per_page'  => ['nullable', 'integer', Rule::in($perPageOptions)],
+        ])->validate();
+
+        $periodId = null;
+        if (array_key_exists('period_id', $data) && $data['period_id'] !== null) {
+            $periodId = (int) $data['period_id'];
+        }
         $perPage  = (int) ($data['per_page'] ?? 20);
 
         // Options: periods and criteria
@@ -70,15 +88,27 @@ class UnitCriteriaWeightController extends Controller
         $pendingCount = 0;
         $committedTotal = 0; // total bobot active+pending
         $requiredTotal = 100; // sisa bobot yang harus diajukan
+        $activeTotal = 0; // total bobot aktif
+        $hasDraftOrRejected = false;
+        $itemsWorking = collect();
+        $itemsHistory = collect();
         if ($unitId && Schema::hasTable('unit_criteria_weights')) {
-            $builder = DB::table('unit_criteria_weights as w')
+            $baseBuilder = DB::table('unit_criteria_weights as w')
                 ->join('performance_criterias as pc', 'pc.id', '=', 'w.performance_criteria_id')
                 ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'w.assessment_period_id')
                 ->selectRaw('w.id, w.weight, w.status, w.assessment_period_id, ap.name as period_name, pc.name as criteria_name, pc.type as criteria_type')
-                ->where('w.unit_id', $unitId)
-                ->orderBy('pc.name');
-            if (!empty($periodId)) $builder->where('w.assessment_period_id', (int) $periodId);
-            $items = $builder->paginate($perPage)->withQueryString();
+                ->where('w.unit_id', $unitId);
+            if (!empty($periodId)) $baseBuilder->where('w.assessment_period_id', (int) $periodId);
+
+            $itemsWorking = (clone $baseBuilder)
+                ->where('w.status','!=','archived')
+                ->orderBy('pc.name')
+                ->get();
+
+            $itemsHistory = (clone $baseBuilder)
+                ->where('w.status','archived')
+                ->orderBy('pc.name')
+                ->get();
 
             // Hitung total bobot (draft + rejected) untuk validasi 100%
             $sumQuery = DB::table('unit_criteria_weights')
@@ -100,21 +130,26 @@ class UnitCriteriaWeightController extends Controller
             if (!empty($targetPeriodId)) $committedQuery->where('assessment_period_id', $targetPeriodId);
             $committedTotal = (float) $committedQuery->sum('weight');
             $requiredTotal = max(0, 100 - $committedTotal);
+
+            $activeQuery = DB::table('unit_criteria_weights')
+                ->where('unit_id', $unitId)
+                ->where('status', 'active');
+            if (!empty($targetPeriodId)) $activeQuery->where('assessment_period_id', $targetPeriodId);
+            $activeTotal = (float) $activeQuery->sum('weight');
+
+            $hasDraftOrRejected = DB::table('unit_criteria_weights')
+                ->where('unit_id', $unitId)
+                ->whereIn('status', ['draft','rejected'])
+                ->when(!empty($targetPeriodId), fn($q) => $q->where('assessment_period_id', $targetPeriodId))
+                ->exists();
         } else {
-            $items = new LengthAwarePaginator(
-                collect(),
-                0,
-                $perPage,
-                (int) $request->integer('page', 1),
-                [
-                    'path' => $request->url(),
-                    'query' => $request->query(),
-                ]
-            );
+            $itemsWorking = collect();
+            $itemsHistory = collect();
         }
 
         return view('kepala_unit.unit_criteria_weights.index', [
-            'items'     => $items,
+            'itemsWorking'     => $itemsWorking,
+            'itemsHistory'     => $itemsHistory,
             'periods'   => $periods,
             'criteria'  => $criteria,
             'periodId'  => $periodId,
@@ -127,6 +162,8 @@ class UnitCriteriaWeightController extends Controller
             'pendingCount' => $pendingCount,
             'pendingTotal' => $pendingTotal,
             'targetPeriodId' => $targetPeriodId,
+            'activeTotal' => $activeTotal,
+            'hasDraftOrRejected' => $hasDraftOrRejected,
         ]);
     }
 
@@ -314,6 +351,69 @@ class UnitCriteriaWeightController extends Controller
             $w->save();
         }
         return back()->with('status', 'Seluruh bobot diajukan untuk persetujuan.');
+    }
+
+    /**
+     * Create draft copies from current active weights to request mid-period changes.
+     */
+    public function requestChange(Request $request): RedirectResponse
+    {
+        $this->authorizeAccess();
+        $me = Auth::user();
+        $unitId = $me?->unit_id;
+        if (!$unitId) abort(403);
+
+        $periodId = $request->integer('period_id') ?: DB::table('assessment_periods')->where('status','active')->value('id');
+        if (!$periodId) {
+            return back()->withErrors(['period_id' => 'Tidak ada periode aktif untuk diajukan ulang.']);
+        }
+
+        $activeRows = DB::table('unit_criteria_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $periodId)
+            ->where('status', 'active')
+            ->get();
+
+        if ($activeRows->isEmpty()) {
+            return back()->withErrors(['status' => 'Tidak ada bobot aktif yang bisa diajukan ulang.']);
+        }
+
+        $activeTotal = (float) $activeRows->sum('weight');
+        if ((int) round($activeTotal) !== 100) {
+            return back()->withErrors(['status' => 'Total bobot aktif belum 100%. Tidak dapat mengajukan perubahan.']);
+        }
+
+        $hasPendingOrDraft = DB::table('unit_criteria_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $periodId)
+            ->whereIn('status', ['draft','pending','rejected'])
+            ->exists();
+        if ($hasPendingOrDraft) {
+            return back()->withErrors(['status' => 'Masih ada bobot draft/pending. Selesaikan terlebih dahulu sebelum mengajukan perubahan.']);
+        }
+
+        DB::transaction(function () use ($activeRows, $me, $periodId) {
+            foreach ($activeRows as $row) {
+                DB::table('unit_criteria_weights')->where('id', $row->id)->update([
+                    'status' => 'archived',
+                    'updated_at' => now(),
+                ]);
+
+                DB::table('unit_criteria_weights')->insert([
+                    'unit_id' => $row->unit_id,
+                    'performance_criteria_id' => $row->performance_criteria_id,
+                    'assessment_period_id' => $row->assessment_period_id,
+                    'weight' => $row->weight,
+                    'status' => 'draft',
+                    'unit_head_id' => $me->id,
+                    'unit_head_note' => 'Pengajuan perubahan tengah periode',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        });
+
+        return back()->with('status', 'Perubahan diajukan. Bobot baru dibuat sebagai draft.');
     }
 
     private function authorizeAccess(): void

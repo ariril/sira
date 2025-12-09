@@ -2,7 +2,7 @@
     'as'      => 'button',     // 'button' | 'a'
     'href'    => '#',          // untuk link
     'type'    => 'button',     // dipakai jika as='button'
-    'variant' => 'primary',    // primary | success | danger | outline
+    'variant' => 'primary',    // primary | success | danger | orange | sky | outline
 ])
 
 @php
@@ -13,6 +13,9 @@
         'success' => 'text-white bg-gradient-to-tr from-emerald-500 to-teal-600 hover:brightness-110 focus:ring-emerald-500',
         'danger'  => 'text-white bg-gradient-to-tr from-rose-500 to-red-600 hover:brightness-110 focus:ring-rose-500',
         'orange'  => 'text-white bg-gradient-to-tr from-amber-500 to-orange-600 hover:brightness-110 focus:ring-amber-500',
+        // Biru muda untuk nuansa Pegawai Medis
+        'sky'     => 'text-white bg-gradient-to-tr from-sky-400 to-blue-500 hover:brightness-110 focus:ring-sky-400',
+        'violet'  => 'text-white bg-gradient-to-tr from-fuchsia-500 to-violet-600 hover:brightness-110 focus:ring-fuchsia-500',
         'outline' => 'border border-slate-300 text-slate-700 hover:bg-slate-50 focus:ring-slate-300',
         default   => 'text-white bg-gradient-to-tr from-blue-500 to-indigo-600 hover:brightness-110 focus:ring-indigo-500',
     };

@@ -14,10 +14,10 @@
                 </div>
             </div>
             <div class="mt-6 flex justify-end gap-3">
-                <x-ui.button as="a" href="{{ route('kepala_poliklinik.unit_criteria_weights.units') }}" variant="success" class="h-12 px-6 text-base">
+                <x-ui.button as="a" href="{{ route('kepala_poliklinik.unit_criteria_weights.units') }}" variant="violet" class="h-12 px-6 text-base">
                     <i class="fa-solid fa-rotate-left mr-2"></i> Reset
                 </x-ui.button>
-                <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base">
+                <x-ui.button type="submit" variant="violet" class="h-12 px-6 text-base">
                     <i class="fa-solid fa-filter mr-2"></i> Terapkan
                 </x-ui.button>
             </div>
@@ -38,7 +38,7 @@
                     <td class="px-6 py-4">{{ $u->code }}</td>
                     <td class="px-6 py-4 capitalize">{{ $u->type }}</td>
                     <td class="px-6 py-4 text-right">
-                        <x-ui.button as="a" href="{{ route('kepala_poliklinik.unit_criteria_weights.unit', $u->id) }}" variant="success" class="h-9 px-3 text-sm">Detail</x-ui.button>
+                        <x-ui.button as="a" href="{{ route('kepala_poliklinik.unit_criteria_weights.unit', $u->id) }}" variant="violet" class="h-9 px-3 text-sm">Detail</x-ui.button>
                     </td>
                 </tr>
             @empty

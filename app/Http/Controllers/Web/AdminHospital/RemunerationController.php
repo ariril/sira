@@ -87,20 +87,31 @@ class RemunerationController extends Controller
             }
         }
 
-        DB::transaction(function () use ($totals, $periodId) {
-            foreach ($totals as $userId => $amount) {
+        // Tambah kontribusi tambahan yang disetujui (bonus_awarded) pada periode ini
+        $approvedContribs = DB::table('additional_contributions')
+            ->selectRaw('user_id, COALESCE(SUM(bonus_awarded),0) as total_bonus')
+            ->where('assessment_period_id', $periodId)
+            ->where('validation_status', 'Disetujui')
+            ->groupBy('user_id')
+            ->pluck('total_bonus', 'user_id');
+
+        DB::transaction(function () use ($totals, $periodId, $approvedContribs) {
+            foreach ($totals as $userId => $baseAmount) {
+                $bonus = (float) ($approvedContribs[$userId] ?? 0);
+                $final = round(((float)$baseAmount + $bonus), 2);
                 $rem = Remuneration::firstOrNew([
                     'user_id' => $userId,
                     'assessment_period_id' => $periodId,
                 ]);
-                // Preserve published_at if already published
-                $publishedAt = $rem->published_at;
-                $rem->amount = round((float)$amount, 2);
+                $publishedAt = $rem->published_at; // Preserve if already published
+                $rem->amount = $final;
                 $rem->calculated_at = now();
                 $rem->calculation_details = [
-                    'method'     => 'equal_share_by_published_unit_allocation',
+                    'method'     => 'equal_share_plus_approved_contributions',
                     'period_id'  => $periodId,
                     'generated'  => now()->toDateTimeString(),
+                    'base_amount'=> (float)$baseAmount,
+                    'approved_contribution_bonus' => $bonus,
                 ];
                 if ($publishedAt) $rem->published_at = $publishedAt;
                 $rem->save();

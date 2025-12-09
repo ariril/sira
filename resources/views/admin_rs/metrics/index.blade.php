@@ -2,13 +2,131 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Manual Metrics</h1>
-            <div class="flex gap-3">
-                <x-ui.button as="a" href="{{ route('admin_rs.metrics.create') }}" variant="success" class="h-12 px-6 text-base">Tambah</x-ui.button>
-            </div>
         </div>
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+            <div class="font-medium">Unduh Template Excel per Kriteria</div>
+            <form method="POST" action="{{ route('admin_rs.metrics.template') }}" class="space-y-4">
+                @csrf
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
+                        <x-ui.select name="performance_criteria_id" :options="$criteriaOptions" placeholder="Pilih kriteria" required />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Periode (opsional)</label>
+                        <x-ui.select name="period_id" :options="$periods" placeholder="Pakai Periode Aktif" />
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500">Template memuat daftar pegawai dan kolom nilai yang mengikuti tipe data kriteria.</p>
+                <x-ui.button type="submit" variant="success" class="h-11 px-5">Generate Excel</x-ui.button>
+            </form>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+            <div class="font-medium">Upload Excel/CSV</div>
+            <form method="POST" action="{{ route('admin_rs.metrics.upload_csv') }}" enctype="multipart/form-data" class="space-y-4">
+                @csrf
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
+                        <x-ui.select name="performance_criteria_id" :options="$criteriaOptions" placeholder="Pilih kriteria" required />
+                    </div>
+                    <div class="flex items-end">
+                        <div class="flex items-start gap-3">
+                            <input type="checkbox" id="replace_existing" name="replace_existing" value="1" class="mt-1">
+                            <label for="replace_existing" class="text-sm text-slate-700">Timpa nilai pada periode aktif bila sudah ada. Sistem akan memakai Periode Aktif secara otomatis.</label>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-2">File Excel/CSV</label>
+                    <label id="metrics-dropzone" class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 border-slate-200 transition duration-200">
+                        <div id="metrics-drop-label" class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-600 transition duration-200">
+                            <i id="metrics-drop-icon" class="fa-solid fa-file-excel text-3xl mb-2 text-emerald-500 transition duration-200"></i>
+                            <p class="text-sm" id="metrics-drop-default"><span class="font-semibold">Klik untuk pilih</span> atau tarik & lepas</p>
+                            <p class="text-sm hidden text-center" id="metrics-drop-selected">
+                                <span class="font-semibold">File dipilih:</span>
+                                <span id="metrics-drop-selected-name"></span>
+                                <span class="block text-xs text-slate-500 mt-1">Klik untuk pilih ulang atau tarik & lepas file lainnya</span>
+                            </p>
+                            <p class="text-xs text-slate-500">.xlsx, .xls, .csv • Maks. 5 MB</p>
+                        </div>
+                        <input id="metrics-file" type="file" name="file" accept=".xlsx,.xls,.csv,text/csv" class="hidden" required />
+                    </label>
+                    <p class="mt-2 text-xs text-slate-500" id="metrics-file-name"></p>
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function(){
+                            const input = document.getElementById('metrics-file');
+                            const nameEl = document.getElementById('metrics-file-name');
+                            const defaultPrompt = document.getElementById('metrics-drop-default');
+                            const selectedPrompt = document.getElementById('metrics-drop-selected');
+                            const selectedName = document.getElementById('metrics-drop-selected-name');
+                            const dropzone = document.getElementById('metrics-dropzone');
+                            const dropLabel = document.getElementById('metrics-drop-label');
+                            const dropIcon = document.getElementById('metrics-drop-icon');
+                            if (!input) return;
+
+                            const resetState = () => {
+                                if (defaultPrompt) defaultPrompt.classList.remove('hidden');
+                                if (selectedPrompt) selectedPrompt.classList.add('hidden');
+                                if (selectedName) selectedName.textContent = '';
+                                if (nameEl) nameEl.textContent = '';
+                                if (dropzone) {
+                                    dropzone.classList.remove('bg-emerald-50','border-emerald-300','shadow-inner');
+                                    dropzone.classList.add('bg-slate-50','border-slate-200');
+                                }
+                                if (dropLabel) {
+                                    dropLabel.classList.remove('text-emerald-700');
+                                    dropLabel.classList.add('text-slate-600');
+                                }
+                                if (dropIcon) {
+                                    dropIcon.classList.remove('text-emerald-600');
+                                    dropIcon.classList.add('text-emerald-500');
+                                }
+                            };
+
+                            input.addEventListener('change', () => {
+                                const file = input.files && input.files.length ? input.files[0] : null;
+                                if (file) {
+                                    if (defaultPrompt) defaultPrompt.classList.add('hidden');
+                                    if (selectedPrompt) selectedPrompt.classList.remove('hidden');
+                                    if (selectedName) selectedName.textContent = file.name;
+                                    if (nameEl) nameEl.textContent = 'Dipilih: ' + file.name;
+                                    if (dropzone) {
+                                        dropzone.classList.remove('bg-slate-50','border-slate-200');
+                                        dropzone.classList.add('bg-emerald-50','border-emerald-300','shadow-inner');
+                                    }
+                                    if (dropLabel) {
+                                        dropLabel.classList.remove('text-slate-600');
+                                        dropLabel.classList.add('text-emerald-700');
+                                    }
+                                    if (dropIcon) {
+                                        dropIcon.classList.remove('text-emerald-500');
+                                        dropIcon.classList.add('text-emerald-600');
+                                    }
+                                } else {
+                                    resetState();
+                                }
+                            });
+
+                            resetState();
+                        });
+                    </script>
+                </div>
+                <div class="flex justify-end">
+                    <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base">
+                        <i class="fa-solid fa-file-arrow-up mr-2"></i> Unggah & Import
+                    </x-ui.button>
+                </div>
+            </form>
+            <div class="text-xs text-slate-500 mt-1">
+                Gunakan template agar header sesuai tipe data kriteria. Periode otomatis memakai Periode Aktif.
+            </div>
+        </div>
+
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <form method="GET" class="grid md:grid-cols-4 gap-4">
                 <div>
@@ -17,36 +135,6 @@
                 </div>
                 <div class="flex items-end"><x-ui.button type="submit" variant="success">Filter</x-ui.button></div>
             </form>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <div class="mb-4 font-medium">Upload Excel/CSV</div>
-            <form method="POST" action="{{ route('admin_rs.metrics.upload_csv') }}" enctype="multipart/form-data" class="space-y-4">
-                @csrf
-                <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-2">File Excel/CSV</label>
-                    <label class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 border-slate-200">
-                        <div class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-600">
-                            <i class="fa-solid fa-file-excel text-3xl mb-2 text-emerald-500"></i>
-                            <p class="text-sm"><span class="font-semibold">Klik untuk pilih</span> atau tarik & lepas</p>
-                            <p class="text-xs text-slate-500">.xlsx, .xls, .csv • Maks. 5 MB</p>
-                        </div>
-                        <input type="file" name="file" accept=".xlsx,.xls,.csv,text/csv" class="hidden" required />
-                    </label>
-                </div>
-                <div class="flex items-start gap-3">
-                    <input type="checkbox" id="replace_existing" name="replace_existing" value="1" class="mt-1">
-                    <label for="replace_existing" class="text-sm text-slate-700">Timpa nilai pada periode aktif bila sudah ada. Sistem akan memakai Periode Aktif secara otomatis.</label>
-                </div>
-                <div class="flex">
-                    <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base">
-                        <i class="fa-solid fa-file-arrow-up mr-2"></i> Unggah & Import
-                    </x-ui.button>
-                </div>
-            </form>
-            <div class="text-xs text-slate-500 mt-3">
-                Header (Indonesia) yang didukung: <span class="font-medium">nip</span>, <span class="font-medium">id_kriteria</span> atau <span class="font-medium">kriteria</span>, dan nilai sesuai tipe data (<span class="font-medium">nilai</span> untuk angka/percent/boolean, <span class="font-medium">nilai_tanggal</span> untuk tanggal/waktu, <span class="font-medium">nilai_teks</span> untuk teks). Periode akan otomatis diisi dengan Periode Aktif.
-            </div>
         </div>
 
         <x-ui.table min-width="980px">
@@ -66,7 +154,9 @@
                     <td class="px-6 py-4">{{ $it->user->employee_number ?? '-' }}</td>
                     <td class="px-6 py-4">{{ $it->criteria->name ?? '-' }}</td>
                     <td class="px-6 py-4">{{ $it->period->name ?? '-' }}</td>
-                    <td class="px-6 py-4">{{ $it->value_numeric ?? $it->value_text ?? '-' }}</td>
+                    <td class="px-6 py-4">
+                        {{ $it->value_numeric ?? ($it->value_datetime ? \Illuminate\Support\Carbon::parse($it->value_datetime)->format('d M Y H:i') : ($it->value_text ?? '-')) }}
+                    </td>
                     <td class="px-6 py-4">{{ $it->source_type }}</td>
                 </tr>
             @empty

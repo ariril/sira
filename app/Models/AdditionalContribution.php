@@ -16,9 +16,18 @@ class AdditionalContribution extends Model
         'description',
         'submission_date',
         'evidence_file',
+        'attachment_original_name',
+        'attachment_mime',
+        'attachment_size',
         'validation_status',
         'supervisor_comment',
         'assessment_period_id',
+        'task_id',
+        'submitted_at',
+        'claimed_at',
+        'reviewer_id',
+        'score',
+        'bonus_awarded',
     ];
 
     protected $casts = [
@@ -39,5 +48,10 @@ class AdditionalContribution extends Model
     public function assessmentPeriod()
     {
         return $this->belongsTo(AssessmentPeriod::class);
+    }
+
+    public function task()
+    {
+        return $this->belongsTo(AdditionalTask::class, 'task_id');
     }
 }

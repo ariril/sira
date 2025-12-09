@@ -63,22 +63,23 @@
                     </div>
 
                     <div class="flex flex-wrap gap-3">
-                        <button type="submit"
-                                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white bg-gradient-to-tr from-cyan-500 to-sky-600 hover:-translate-y-0.5 transition">
-                            <i class="fa-solid fa-magnifying-glass"></i> Terapkan
-                        </button>
-                        <a href="{{ route('pegawai_medis.remuneration_data.index') }}" class="btn-outline">
-                            <i class="fa-solid fa-rotate-right"></i> Reset
+                        <a href="{{ route('pegawai_medis.remuneration_data.index') }}"
+                           class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 transition-colors">
+                            <i class="fa-solid fa-rotate-left"></i> Reset
                         </a>
+                        <button type="submit"
+                                class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm text-base">
+                            <i class="fa-solid fa-filter"></i> Terapkan
+                        </button>
                         <button type="button"
-                                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white bg-gradient-to-tr from-cyan-500 to-sky-600 hover:-translate-y-0.5 transition">
+                                class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm text-base">
                             <i class="fa-solid fa-download"></i> Export
                         </button>
 
                         <!-- Per page -->
                         <div class="ml-auto">
                             <select name="per_page"
-                                    class="rounded-lg border px-3 py-2">
+                                    class="rounded-xl border border-slate-300 px-3 py-2 bg-white">
                                 @foreach([10,25,50,100] as $pp)
                                     <option value="{{ $pp }}" {{ (int)($filters['per_page'] ?? 25) === $pp ? 'selected' : '' }}>
                                         {{ $pp }} per halaman

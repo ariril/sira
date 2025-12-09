@@ -43,12 +43,10 @@ class AssessmentApprovalController extends Controller
         $periodOptions = Schema::hasTable('assessment_periods')
             ? DB::table('assessment_periods')->orderByDesc('start_date')->pluck('name', 'id')->prepend('(Semua)', '')
             : collect(['' => '(Semua)']);
-        $activePeriodId = Schema::hasTable('assessment_periods')
-            ? DB::table('assessment_periods')->where('status', 'active')->value('id')
-            : null;
+        // Default: tampilkan semua periode (requirement baru). Hanya terapkan filter jika user memilih.
         $periodId = $periodFilterRequested
             ? ($data['period_id'] ?? null)
-            : ($activePeriodId ?? null);
+            : null;
 
         $me = Auth::user();
         $unitId = $me?->unit_id;
@@ -62,48 +60,11 @@ class AssessmentApprovalController extends Controller
                               EXISTS(SELECT 1 FROM assessment_approvals aa1 WHERE aa1.performance_assessment_id = aa.performance_assessment_id AND aa1.level = 1 AND aa1.status = 'approved') as has_lvl1_approved")
                 ->orderByDesc('aa.id');
 
-            // Level 2 only
-            $builder->where('aa.level', 2);
             // Scope to Kepala Unit's unit
             if ($unitId) {
                 $builder->where('u.unit_id', $unitId);
             }
-
-            $builder->when($status === 'pending_l2', function ($q) {
-                $q->where('aa.status', 'pending')
-                  ->whereExists(function ($sub) {
-                      $sub->select(DB::raw(1))
-                          ->from('assessment_approvals as aa1')
-                          ->whereColumn('aa1.performance_assessment_id', 'aa.performance_assessment_id')
-                          ->where('aa1.level', 1)
-                          ->where('aa1.status', 'approved');
-                  });
-            });
-
-            switch ($status) {
-                case 'approved_l2':
-                    $builder->where('aa.status', 'approved');
-                    break;
-                case 'rejected_l2':
-                    $builder->where('aa.status', 'rejected');
-                    break;
-                case 'pending_all':
-                    $builder->where('aa.status', 'pending');
-                    break;
-                case 'approved_all':
-                    $builder->where('aa.status', 'approved');
-                    break;
-                case 'rejected_all':
-                    $builder->where('aa.status', 'rejected');
-                    break;
-                case 'pending_l2':
-                    // handled by when() above
-                    break;
-                case '':
-                default:
-                    // tampilkan semua status level 2
-                    break;
-            }
+            $builder = $this->applyStatusFilter($builder, $status);
             if ($q !== '') {
                 $builder->where(function ($w) use ($q) {
                     $w->where('u.name', 'like', "%$q%")
@@ -147,10 +108,11 @@ class AssessmentApprovalController extends Controller
         if (!$hasLvl1Approved) {
             return back()->withErrors(['status' => 'Belum dapat menyetujui: menunggu persetujuan Level 1.']);
         }
-        if ($assessment->status === AssessmentApprovalStatus::APPROVED->value) {
+        // Dengan cast enum, $assessment->status adalah instance enum.
+        if ($assessment->status === AssessmentApprovalStatus::APPROVED) {
             return back()->with('status', 'Penilaian sudah disetujui.');
         }
-        if ($assessment->status !== AssessmentApprovalStatus::PENDING->value) {
+        if ($assessment->status !== AssessmentApprovalStatus::PENDING) {
             return back()->withErrors(['status' => 'Status saat ini tidak dapat disetujui.']);
         }
         $assessment->update([
@@ -168,7 +130,7 @@ class AssessmentApprovalController extends Controller
         $this->authorizeAccess();
         if ((int) ($assessment->level ?? 0) !== 2) abort(403);
         $request->validate(['note' => ['required','string','max:500']]);
-        if ($assessment->status !== AssessmentApprovalStatus::PENDING->value) {
+        if ($assessment->status !== AssessmentApprovalStatus::PENDING) {
             return back()->withErrors(['status' => 'Tidak dapat menolak karena status sudah ' . $assessment->status . '.']);
         }
         $hasLvl3Approved = DB::table('assessment_approvals')
@@ -193,5 +155,45 @@ class AssessmentApprovalController extends Controller
     {
         $user = Auth::user();
         if (!$user || $user->role !== 'kepala_unit') abort(403);
+    }
+
+    private function applyStatusFilter($builder, string $status)
+    {
+        $pending  = AssessmentApprovalStatus::PENDING->value;
+        $approved = AssessmentApprovalStatus::APPROVED->value;
+        $rejected = AssessmentApprovalStatus::REJECTED->value;
+        switch ($status) {
+            case 'pending_l2':
+                $builder->where('aa.level', 2)
+                    ->where('aa.status', $pending)
+                    ->whereExists(function ($sub) {
+                        $sub->select(DB::raw(1))
+                            ->from('assessment_approvals as aa1')
+                            ->whereColumn('aa1.performance_assessment_id', 'aa.performance_assessment_id')
+                            ->where('aa1.level', 1)
+                            ->where('aa1.status', AssessmentApprovalStatus::APPROVED->value);
+                    });
+                break;
+            case 'approved_l2':
+                $builder->where('aa.level', 2)->where('aa.status', $approved);
+                break;
+            case 'rejected_l2':
+                $builder->where('aa.level', 2)->where('aa.status', $rejected);
+                break;
+            case 'pending_all':
+                $builder->where('aa.status', $pending);
+                break;
+            case 'approved_all':
+                $builder->where('aa.status', $approved);
+                break;
+            case 'rejected_all':
+                $builder->where('aa.status', $rejected);
+                break;
+            default:
+                // '' => tampilkan semua level tanpa filter tambahan
+                break;
+        }
+
+        return $builder;
     }
 }

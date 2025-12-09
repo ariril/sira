@@ -7,12 +7,18 @@
 
     <div class="container-px py-6 space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <form method="POST" action="{{ route('kepala_unit.additional-tasks.update', $item->id) }}" class="grid md:grid-cols-2 gap-5">
+            <form
+                method="POST"
+                action="{{ route('kepala_unit.additional-tasks.update', $item->id) }}"
+                enctype="multipart/form-data"
+                class="grid md:grid-cols-2 gap-5"
+                x-data="{ bonus: @js($item->bonus_amount), points: @js($item->points) }"
+            >
                 @csrf
                 @method('PUT')
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
-                    <x-ui.select name="assessment_period_id" :options="$periods->pluck('name','id')" :value="$item->assessment_period_id" placeholder="(Opsional)" />
+                    <x-ui.select name="assessment_period_id" :options="$periods->pluck('name','id')" :value="$item->assessment_period_id" placeholder="Pilih periode" required />
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Judul</label>
@@ -31,26 +37,38 @@
                     <x-ui.input type="date" name="due_date" :value="\Carbon\Carbon::parse($item->due_date)->format('Y-m-d')" required />
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Bonus (Rp)</label>
-                    <x-ui.input type="number" step="0.01" name="bonus_amount" :value="$item->bonus_amount" />
+                    <label class="block text-sm font-medium text-slate-600 mb-1">
+                        Bonus (Rp)
+                        <span class="ml-1 text-amber-600 cursor-help" title="Nilai rupiah remunerasi. Tidak dapat diisi bersamaan dengan poin.">!</span>
+                    </label>
+                    <x-ui.input type="number" step="0.01" name="bonus_amount" :value="$item->bonus_amount" x-model="bonus" x-bind:disabled="points && points > 0" />
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Poin</label>
-                    <x-ui.input type="number" step="0.01" name="points" :value="$item->points" />
+                    <label class="block text-sm font-medium text-slate-600 mb-1">
+                        Poin
+                        <span class="ml-1 text-amber-600 cursor-help" title="Poin kinerja sebagai alternatif bonus. Tidak dapat diisi bersamaan dengan bonus.">!</span>
+                    </label>
+                    <x-ui.input type="number" step="0.01" name="points" :value="$item->points" x-model="points" x-bind:disabled="bonus && bonus > 0" />
+                </div>
+                <div class="md:col-span-2 -mt-2">
+                    <p class="text-xs text-slate-500">Isi salah satu: Bonus atau Poin.</p>
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">File Pendukung (Word/Excel/PPT)</label>
+                    <input type="file" name="supporting_file" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="block w-full text-sm text-slate-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100" />
+                    @if($item->policy_doc_path)
+                        <p class="mt-1 text-xs text-slate-500">File saat ini: <a href="{{ asset('storage/'.$item->policy_doc_path) }}" class="text-amber-600 hover:underline" target="_blank">Download</a></p>
+                    @endif
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Maks. Klaim</label>
                     <x-ui.input type="number" name="max_claims" :value="$item->max_claims" />
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
-                    <x-ui.select name="status" :options="['draft'=>'Draft','open'=>'Open','closed'=>'Closed','cancelled'=>'Cancelled']" :value="$item->status" />
-                </div>
                 <div class="md:col-span-2 flex items-center justify-between pt-2">
                     <x-ui.button as="a" href="{{ route('kepala_unit.additional-tasks.index') }}" variant="outline">
                         <i class="fa-solid fa-arrow-left"></i> Kembali
                     </x-ui.button>
-                    <x-ui.button type="submit" class="text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:brightness-110 focus:ring-amber-500 border-0">
+                    <x-ui.button type="submit" variant="orange" class="h-12 px-6 text-base">
                         <i class="fa-solid fa-floppy-disk"></i> Simpan
                     </x-ui.button>
                 </div>

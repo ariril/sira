@@ -34,15 +34,20 @@
             @csrf
             <div>
                 <label class="block text-sm font-medium text-slate-600 mb-2">File Excel/CSV</label>
-                <label id="drop-zone" class="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 border-slate-200 transition">
-                    <div class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-600">
-                        <i class="fa-solid fa-file-excel text-4xl mb-3 text-indigo-500"></i>
-                        <p class="text-sm"><span class="font-semibold">Klik untuk pilih</span> atau tarik & lepas</p>
+                <label id="user-dropzone" class="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 border-slate-200 transition duration-200">
+                    <div id="user-drop-label" class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-600 transition duration-200">
+                        <i id="user-drop-icon" class="fa-solid fa-file-excel text-4xl mb-3 text-indigo-500 transition duration-200"></i>
+                        <p class="text-sm" id="user-drop-default"><span class="font-semibold">Klik untuk pilih</span> atau tarik & lepas</p>
+                        <p class="text-sm hidden text-center" id="user-drop-selected">
+                            <span class="font-semibold">File dipilih:</span>
+                            <span id="user-drop-selected-name"></span>
+                            <span class="block text-xs text-slate-500 mt-1">Klik untuk pilih ulang atau tarik & lepas file lainnya</span>
+                        </p>
                         <p class="text-xs text-slate-500">.xlsx, .xls, .csv • Maks. 5 MB</p>
                     </div>
-                    <input type="file" name="file" id="file-input" accept=".csv,.xlsx,.xls,text/csv" required class="hidden">
+                    <input type="file" name="file" id="user-file" accept=".csv,.xlsx,.xls,text/csv" required class="hidden">
                 </label>
-                <p class="mt-2 text-xs text-slate-600" id="selected-file"></p>
+                <p class="mt-2 text-xs text-slate-600" id="user-file-name"></p>
                 @error('file')<div class="text-xs text-rose-600 mt-1">{{ $message }}</div>@enderror
             </div>
             <div class="flex justify-end">
@@ -68,20 +73,76 @@ Kepala Unit B,kepala.unitb@example.com,kepala_unit,5,KUB555,7,password</pre>
     </div>
 </div>
 <script>
-    (function(){
-        const input = document.getElementById('file-input');
-        const zone = document.getElementById('drop-zone');
-        const info = document.getElementById('selected-file');
-        function showFileName(){
-            if(input.files.length){
-                info.textContent = 'Dipilih: ' + input.files[0].name;
-            } else { info.textContent = ''; }
-        }
-        zone.addEventListener('click', ()=> input.click());
-        input.addEventListener('change', showFileName);
-        zone.addEventListener('dragover', e=>{e.preventDefault(); zone.classList.add('ring-2','ring-indigo-400');});
-        zone.addEventListener('dragleave', e=>{zone.classList.remove('ring-2','ring-indigo-400');});
-        zone.addEventListener('drop', e=>{e.preventDefault(); zone.classList.remove('ring-2','ring-indigo-400'); input.files = e.dataTransfer.files; showFileName();});
-    })();
+    document.addEventListener('DOMContentLoaded', function(){
+        const input = document.getElementById('user-file');
+        const nameEl = document.getElementById('user-file-name');
+        const defaultPrompt = document.getElementById('user-drop-default');
+        const selectedPrompt = document.getElementById('user-drop-selected');
+        const selectedName = document.getElementById('user-drop-selected-name');
+        const dropzone = document.getElementById('user-dropzone');
+        const dropLabel = document.getElementById('user-drop-label');
+        const dropIcon = document.getElementById('user-drop-icon');
+        if (!input) return;
+
+        const resetState = () => {
+            if (defaultPrompt) defaultPrompt.classList.remove('hidden');
+            if (selectedPrompt) selectedPrompt.classList.add('hidden');
+            if (selectedName) selectedName.textContent = '';
+            if (nameEl) nameEl.textContent = '';
+            if (dropzone) {
+                dropzone.classList.remove('bg-blue-50','border-blue-300','shadow-inner');
+                dropzone.classList.add('bg-slate-50','border-slate-200');
+            }
+            if (dropLabel) {
+                dropLabel.classList.remove('text-blue-700');
+                dropLabel.classList.add('text-slate-600');
+            }
+            if (dropIcon) {
+                dropIcon.classList.remove('text-blue-600');
+                dropIcon.classList.add('text-indigo-500');
+            }
+        };
+
+        input.addEventListener('change', () => {
+            const file = input.files && input.files.length ? input.files[0] : null;
+            if (file) {
+                if (defaultPrompt) defaultPrompt.classList.add('hidden');
+                if (selectedPrompt) selectedPrompt.classList.remove('hidden');
+                if (selectedName) selectedName.textContent = file.name;
+                if (nameEl) nameEl.textContent = 'Dipilih: ' + file.name;
+                if (dropzone) {
+                    dropzone.classList.remove('bg-slate-50','border-slate-200');
+                    dropzone.classList.add('bg-blue-50','border-blue-300','shadow-inner');
+                }
+                if (dropLabel) {
+                    dropLabel.classList.remove('text-slate-600');
+                    dropLabel.classList.add('text-blue-700');
+                }
+                if (dropIcon) {
+                    dropIcon.classList.remove('text-indigo-500');
+                    dropIcon.classList.add('text-blue-600');
+                }
+            } else {
+                resetState();
+            }
+        });
+
+        dropzone?.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            dropzone.classList.add('border-blue-300');
+        });
+        dropzone?.addEventListener('dragleave', () => {
+            dropzone.classList.remove('border-blue-300');
+        });
+        dropzone?.addEventListener('drop', (event) => {
+            event.preventDefault();
+            dropzone.classList.remove('border-blue-300');
+            if (!event.dataTransfer) return;
+            input.files = event.dataTransfer.files;
+            input.dispatchEvent(new Event('change'));
+        });
+
+        resetState();
+    });
 </script>
 @endsection

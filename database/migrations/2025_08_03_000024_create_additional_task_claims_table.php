@@ -20,12 +20,16 @@ return new class extends Migration {
             ->constrained('users')
                 ->cascadeOnDelete();
 
-            // Status siklus klaim
+            // Status siklus klaim (diperluas)
             // active: sedang dipegang user
+            // submitted: hasil tugas dikirim, menunggu validasi
+            // validated: diverifikasi oleh sistem/penilai awal
+            // approved: disetujui oleh atasan
+            // rejected: ditolak oleh atasan
+            // completed: selesai
             // cancelled: user batal (dalam/di luar tenggat)
-            // completed: hasil tugas sudah dikirim/selesai
             // auto_unclaim: dilepas otomatis oleh sistem (mis. kadaluarsa)
-            $table->enum('status', ['active', 'cancelled', 'completed', 'auto_unclaim'])
+            $table->enum('status', ['active','submitted','validated','approved','rejected','completed','cancelled','auto_unclaim'])
                 ->default('active')
                 ->index();
 
@@ -55,6 +59,11 @@ return new class extends Migration {
             $table->timestamp('penalty_applied_at')->nullable();
             $table->decimal('penalty_amount', 14, 2)->nullable(); // jumlah potongan yang benar-benar dikenakan
             $table->string('penalty_note')->nullable();
+
+            $table->string('result_file_path')->nullable();
+            $table->text('result_note')->nullable();
+            // Pelanggaran
+            $table->boolean('is_violation')->default(false)->index();
 
             $table->timestamps();
 
