@@ -263,6 +263,7 @@ class DatabaseSeeder extends Seeder
             $polyclinicHeadId = $userId('kepala.poliklinik@rsud.local');
             $unitHeadGigiId = $userId('kepala.gigi@rsud.local');
             $medisUnitHeadId = $userId('kepala.unit.medis@rsud.local');
+            $janBeriaId = $userId('januario.bria@rsud.local');
 
             $poliklinikUmumId = $unitId('poliklinik-umum');
 
@@ -285,7 +286,8 @@ class DatabaseSeeder extends Seeder
                 $adminRsId,
                 $doctorId,
                 $nurseId,
-                $medisUnitHeadId
+                $medisUnitHeadId,
+                $janBeriaId,
             ])->delete();
 
             // Single-role assignments
@@ -295,6 +297,9 @@ class DatabaseSeeder extends Seeder
             $attach($adminRsId, ['admin_rs']);
             $attach($doctorId, ['pegawai_medis']);
             $attach($nurseId, ['pegawai_medis']);
+            if ($janBeriaId) {
+                $attach($janBeriaId, ['pegawai_medis']);
+            }
 
             // Only user id 7 (kepala.unit.medis) has dual roles
             if ($medisUnitHeadId) {
@@ -402,7 +407,15 @@ class DatabaseSeeder extends Seeder
                     'name' => 'Oktober 2025',
                     'start_date' => '2025-10-01',
                     'end_date' => '2025-10-31',
-                    'status' => 'active',
+                    'status' => 'closed',
+                    'locked_at' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                'November 2025' => [
+                    'start' => '2025-11-01',
+                    'end' => '2025-11-30',
+                    'status' => 'closed',
                     'locked_at' => null,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -415,24 +428,27 @@ class DatabaseSeeder extends Seeder
             // 7) PERFORMANCE CRITERIAS
             // =========================================================
             $criterias = [
-                ['name' => 'Kedisiplinan', 'type' => 'benefit', 'data_type' => 'percentage', 'input_method' => 'system', 'aggregation_method' => 'avg', 'description' => null, 'is_active' => 1, 'is_360_based' => 0],
-                ['name' => 'Pelayanan Pasien', 'type' => 'benefit', 'data_type' => 'percentage', 'input_method' => '360', 'aggregation_method' => 'avg', 'description' => null, 'is_active' => 1, 'is_360_based' => 1],
-                ['name' => 'Kepatuhan Prosedur', 'type' => 'benefit', 'data_type' => 'percentage', 'input_method' => 'manual', 'aggregation_method' => 'avg', 'description' => null, 'is_active' => 1, 'is_360_based' => 0],
+                ['name' => 'Absensi', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'description' => 'Total hadir dalam periode', 'is_active' => 1, 'is_360_based' => 0],
+                ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kedisiplinan', 'is_active' => 1, 'is_360_based' => 1],
+                ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'aggregation_method' => 'sum', 'description' => 'Poin tugas / kontribusi tambahan dari modul tugas/kontribusi', 'is_active' => 1, 'is_360_based' => 0],
+                ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'description' => 'Total pasien ditangani', 'is_active' => 1, 'is_360_based' => 0],
+                ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'aggregation_method' => 'avg', 'description' => 'Rerata rating pasien', 'is_active' => 1, 'is_360_based' => 0],
             ];
             foreach ($criterias as &$k) {
                 $k['created_at'] = $now;
                 $k['updated_at'] = $now;
             }
-            DB::table('performance_criterias')->insert($criterias);
-            // Seed default rater weights for criteria that are 360-based
-            $pcIds360 = DB::table('performance_criterias')->where('is_360_based', 1)->pluck('id');
-            foreach ($pcIds360 as $cid) {
+            DB::table('performance_criterias')->upsert($criterias, ['name'], ['type','data_type','input_method','aggregation_method','description','is_active','is_360_based','updated_at']);
+
+            // Seed default rater weights for kedisiplinan (360)
+            $kedisId = DB::table('performance_criterias')->where('name', 'Kedisiplinan (360)')->value('id');
+            if ($kedisId) {
                 DB::table('rater_type_weights')->upsert([
-                    ['performance_criteria_id' => $cid, 'assessor_type' => 'supervisor', 'weight' => 40.00, 'created_at' => $now, 'updated_at' => $now],
-                    ['performance_criteria_id' => $cid, 'assessor_type' => 'peer', 'weight' => 30.00, 'created_at' => $now, 'updated_at' => $now],
-                    ['performance_criteria_id' => $cid, 'assessor_type' => 'subordinate', 'weight' => 20.00, 'created_at' => $now, 'updated_at' => $now],
-                    ['performance_criteria_id' => $cid, 'assessor_type' => 'self', 'weight' => 10.00, 'created_at' => $now, 'updated_at' => $now],
-                ], ['performance_criteria_id', 'assessor_type'], ['weight', 'updated_at']);
+                    ['performance_criteria_id' => $kedisId, 'assessor_type' => 'supervisor', 'weight' => 40.00, 'created_at' => $now, 'updated_at' => $now],
+                    ['performance_criteria_id' => $kedisId, 'assessor_type' => 'peer', 'weight' => 30.00, 'created_at' => $now, 'updated_at' => $now],
+                    ['performance_criteria_id' => $kedisId, 'assessor_type' => 'subordinate', 'weight' => 20.00, 'created_at' => $now, 'updated_at' => $now],
+                    ['performance_criteria_id' => $kedisId, 'assessor_type' => 'self', 'weight' => 10.00, 'created_at' => $now, 'updated_at' => $now],
+                ], ['performance_criteria_id', 'assessor_type'], ['weight','updated_at']);
             }
 
             $criteriaId = fn(string $name) => DB::table('performance_criterias')->where('name', $name)->value('id');
@@ -522,40 +538,7 @@ class DatabaseSeeder extends Seeder
             // // =========================================================
             // // 11) ATTENDANCE IMPORT BATCH + ATTENDANCES
             // // =========================================================
-            // $batchId = DB::table('attendance_import_batches')->insertGetId([
-            //     'file_name' => 'simrs_khanza_' . date('Y-m-d') . '.xlsx',
-            //     'imported_by' => $superAdminId,
-            //     'imported_at' => $now,
-            //     'total_rows' => 2,
-            //     'success_rows' => 2,
-            //     'failed_rows' => 0,
-            //     'created_at' => $now, 'updated_at' => $now,
-            // ]);
-
-            // DB::table('attendances')->insert([
-            //     [
-            //         'user_id' => $doctorId,
-            //         'attendance_date' => $now->toDateString(),
-            //         'check_in' => '07:45:00',
-            //         'check_out' => '14:30:00',
-            //         'attendance_status' => 'Hadir',
-            //         'overtime_note' => null,
-            //         'source' => 'import',
-            //         'import_batch_id' => $batchId,
-            //         'created_at' => $now, 'updated_at' => $now,
-            //     ],
-            //     [
-            //         'user_id' => $nurseId,
-            //         'attendance_date' => $now->toDateString(),
-            //         'check_in' => '07:30:00',
-            //         'check_out' => '15:00:00',
-            //         'attendance_status' => 'Hadir',
-            //         'overtime_note' => null,
-            //         'source' => 'import',
-            //         'import_batch_id' => $batchId,
-            //         'created_at' => $now, 'updated_at' => $now,
-            //     ],
-            // ]);
+            
 
             // =========================================================
             // 12) ADDITIONAL CONTRIBUTIONS
@@ -618,42 +601,42 @@ class DatabaseSeeder extends Seeder
             DB::table('performance_assessment_details')->insert([
                 [
                     'performance_assessment_id' => $pkDoctorOctId,
-                    'performance_criteria_id' => $criteriaId('Kedisiplinan'),
+                    'performance_criteria_id' => $criteriaId('Kedisiplinan (360)'),
                     'score' => 90.00,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkDoctorOctId,
-                    'performance_criteria_id' => $criteriaId('Pelayanan Pasien'),
+                    'performance_criteria_id' => $criteriaId('Absensi'),
                     'score' => 85.00,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkDoctorOctId,
-                    'performance_criteria_id' => $criteriaId('Kepatuhan Prosedur'),
+                    'performance_criteria_id' => $criteriaId('Jumlah Pasien Ditangani'),
                     'score' => 80.00,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkNurseOctId,
-                    'performance_criteria_id' => $criteriaId('Kedisiplinan'),
+                    'performance_criteria_id' => $criteriaId('Kedisiplinan (360)'),
                     'score' => 82.00,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkNurseOctId,
-                    'performance_criteria_id' => $criteriaId('Pelayanan Pasien'),
+                    'performance_criteria_id' => $criteriaId('Absensi'),
                     'score' => 79.00,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
                 [
                     'performance_assessment_id' => $pkNurseOctId,
-                    'performance_criteria_id' => $criteriaId('Kepatuhan Prosedur'),
+                    'performance_criteria_id' => $criteriaId('Jumlah Pasien Ditangani'),
                     'score' => 74.00,
                     'created_at' => $now,
                     'updated_at' => $now,

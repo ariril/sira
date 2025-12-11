@@ -27,7 +27,7 @@ return new class extends Migration
                 ->constrained('assessment_periods')
                 ->nullOnDelete();
 
-            $table->enum('status', ['draft','pending','active','rejected'])
+            $table->enum('status', ['draft','pending','active','rejected','archived'])
                 ->default('draft');
 
             $table->string('policy_doc_path')->nullable();

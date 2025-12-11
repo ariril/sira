@@ -128,12 +128,53 @@
         </div>
 
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
-            <form method="GET" class="grid md:grid-cols-4 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
-                    <x-ui.select name="period_id" :options="$periods" :value="$periodId" placeholder="(Semua)" />
+            <form method="GET">
+                @php
+                    $perPageSelectOptions = [];
+                    if (isset($perPageOptions) && is_iterable($perPageOptions)) {
+                        foreach ($perPageOptions as $n) {
+                            $perPageSelectOptions[$n] = $n . ' / halaman';
+                        }
+                    }
+                @endphp
+                <div class="grid gap-5 md:grid-cols-12">
+                    <div class="md:col-span-4">
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Cari</label>
+                        <x-ui.input name="q" placeholder="Nama pegawai / periode / kriteria" addonLeft="fa-magnifying-glass"
+                            :value="$q" class="focus:border-emerald-500 focus:ring-emerald-500" />
+                    </div>
+
+                    <div class="md:col-span-3">
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
+                        <x-ui.select name="period_id" :options="$periods" :value="$periodId" placeholder="(Semua)"
+                            class="focus:border-emerald-500 focus:ring-emerald-500" />
+                    </div>
+
+                    <div class="md:col-span-3">
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
+                        <x-ui.select name="criteria_id" :options="$criteriaOptions" :value="$criteriaId" placeholder="(Semua)"
+                            class="focus:border-emerald-500 focus:ring-emerald-500" />
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Tampil</label>
+                        <x-ui.select name="per_page" :options="$perPageSelectOptions" :value="$perPage"
+                            class="focus:border-emerald-500 focus:ring-emerald-500" />
+                    </div>
                 </div>
-                <div class="flex items-end"><x-ui.button type="submit" variant="success">Filter</x-ui.button></div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <a href="{{ route('admin_rs.metrics.index') }}"
+                        class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        Reset
+                    </a>
+
+                    <button type="submit"
+                        class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm">
+                        <i class="fa-solid fa-filter"></i> Terapkan
+                    </button>
+                </div>
             </form>
         </div>
 
@@ -155,7 +196,17 @@
                     <td class="px-6 py-4">{{ $it->criteria->name ?? '-' }}</td>
                     <td class="px-6 py-4">{{ $it->period->name ?? '-' }}</td>
                     <td class="px-6 py-4">
-                        {{ $it->value_numeric ?? ($it->value_datetime ? \Illuminate\Support\Carbon::parse($it->value_datetime)->format('d M Y H:i') : ($it->value_text ?? '-')) }}
+                        @php
+                            $valueDisplay = '-';
+                            if (!is_null($it->value_numeric)) {
+                                $valueDisplay = (int) $it->value_numeric;
+                            } elseif (!empty($it->value_datetime)) {
+                                $valueDisplay = \Illuminate\Support\Carbon::parse($it->value_datetime)->format('d M Y H:i');
+                            } elseif (!empty($it->value_text)) {
+                                $valueDisplay = $it->value_text;
+                            }
+                        @endphp
+                        {{ $valueDisplay }}
                     </td>
                     <td class="px-6 py-4">{{ $it->source_type }}</td>
                 </tr>

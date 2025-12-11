@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -19,16 +20,48 @@ class CriteriaMetricsController extends Controller
 {
     public function index(Request $request): View
     {
-        $periodId = (int)$request->query('period_id');
+        $periodId = (int) $request->query('period_id');
+        $criteriaId = (int) $request->query('criteria_id');
+        $q = trim((string) $request->query('q', ''));
+
+        $perPageOptions = [10, 25, 50, 100];
+        $perPage = (int) $request->query('per_page', 10);
+        if (!in_array($perPage, $perPageOptions, true)) {
+            $perPage = 10;
+        }
+
         $items = CriteriaMetric::query()
             ->when($periodId, fn($w) => $w->where('assessment_period_id', $periodId))
+            ->when($criteriaId, fn($w) => $w->where('performance_criteria_id', $criteriaId))
+            ->when($q !== '', function ($w) use ($q) {
+                $w->where(function ($sub) use ($q) {
+                    $sub->whereHas('user', function ($uq) use ($q) {
+                        $uq->where('name', 'like', "%{$q}%")
+                            ->orWhere('employee_number', 'like', "%{$q}%");
+                    })
+                    ->orWhereHas('period', fn($pq) => $pq->where('name', 'like', "%{$q}%"))
+                    ->orWhereHas('criteria', fn($cq) => $cq->where('name', 'like', "%{$q}%"));
+                });
+            })
             ->with(['user:id,name,employee_number','criteria:id,name','period:id,name'])
-            ->orderByDesc('id')->paginate(15)->withQueryString();
+            ->orderByDesc('id')
+            ->paginate($perPage)
+            ->withQueryString();
 
         $periods = AssessmentPeriod::orderByDesc('start_date')->pluck('name','id');
         $criterias = PerformanceCriteria::where('is_active', true)->orderBy('name')->get(['id','name','data_type']);
         $criteriaOptions = $criterias->pluck('name','id');
-        return view('admin_rs.metrics.index', compact('items','periods','criterias','criteriaOptions','periodId'));
+        return view('admin_rs.metrics.index', compact(
+            'items',
+            'periods',
+            'criterias',
+            'criteriaOptions',
+            'periodId',
+            'criteriaId',
+            'q',
+            'perPage',
+            'perPageOptions'
+        ));
     }
 
     public function create(): View
@@ -117,6 +150,40 @@ class CriteriaMetricsController extends Controller
             $map = $mapHeader($header);
         } catch (\Throwable $e) {
             return back()->withErrors(['file' => 'Import gagal: '.$e->getMessage()]);
+        }
+
+        // Pastikan file yang diunggah memang untuk kriteria yang dipilih
+        $uploadedCriteriaId = null;
+        $uploadedCriteriaName = null;
+        if ($map['criteria_id'] !== false || $map['criteria_name'] !== false) {
+            foreach ($rows as $row) {
+                if ($uploadedCriteriaId === null && $map['criteria_id'] !== false) {
+                    $cid = trim((string)($row[$map['criteria_id']] ?? ''));
+                    if ($cid !== '') {
+                        $uploadedCriteriaId = $cid;
+                    }
+                }
+                if ($uploadedCriteriaName === null && $map['criteria_name'] !== false) {
+                    $cname = trim((string)($row[$map['criteria_name']] ?? ''));
+                    if ($cname !== '') {
+                        $uploadedCriteriaName = $cname;
+                    }
+                }
+                if ($uploadedCriteriaId !== null && $uploadedCriteriaName !== null) {
+                    break;
+                }
+            }
+        }
+
+        $mismatchMessage = null;
+        if ($uploadedCriteriaId !== null && (string)$uploadedCriteriaId !== (string)$criteria->id) {
+            $mismatchMessage = "File ini untuk kriteria ID {$uploadedCriteriaId}, sedangkan Anda memilih {$criteria->name}.";
+        }
+        if ($mismatchMessage === null && $uploadedCriteriaName !== null && strcasecmp($uploadedCriteriaName, $criteria->name) !== 0) {
+            $mismatchMessage = "File ini untuk kriteria \"{$uploadedCriteriaName}\", sedangkan Anda memilih \"{$criteria->name}\".";
+        }
+        if ($mismatchMessage !== null) {
+            return back()->withErrors(['file' => $mismatchMessage.' Pilih kriteria yang sesuai atau unduh template baru.']);
         }
 
         $requiredKey = match ($dataType) {
@@ -233,10 +300,12 @@ class CriteriaMetricsController extends Controller
             $ws->setCellValue($col.'1', $head);
         }
 
-        $users = User::orderBy('name')->get(['name','employee_number']);
+        $users = User::role(User::ROLE_PEGAWAI_MEDIS)
+            ->orderBy('name')
+            ->get(['name','employee_number']);
         $row = 2;
         foreach ($users as $user) {
-            $ws->setCellValue('A'.$row, $user->employee_number);
+            $ws->setCellValueExplicit('A'.$row, (string)$user->employee_number, DataType::TYPE_STRING);
             $ws->setCellValue('B'.$row, $user->name);
             $ws->setCellValue('C'.$row, $period->name);
             $ws->setCellValue('D'.$row, $criteria->id);
@@ -250,6 +319,17 @@ class CriteriaMetricsController extends Controller
         if ($row === 2) {
             $ws->setCellValue('A2', 'ISI_NIP');
             $ws->setCellValue('B2', 'Nama Pegawai');
+        }
+
+        // Pastikan kolom NIP disimpan sebagai teks agar tidak berubah ke notasi ilmiah
+        $lastRow = max(2, $row - 1);
+        $ws->getStyle('A2:A'.$lastRow)->getNumberFormat()->setFormatCode('@');
+
+        // Untuk tipe numeric, pakai format angka bulat tanpa pemisah ribuan/decimal
+        if (($criteria->data_type ?? 'numeric') === 'numeric') {
+            $valueColLetter = Coordinate::stringFromColumnIndex(7); // kolom nilai (header ke-7)
+            $ws->getStyle($valueColLetter.'2:'.$valueColLetter.$lastRow)
+                ->getNumberFormat()->setFormatCode('0');
         }
 
         $tmp = tempnam(sys_get_temp_dir(), 'metric_tpl_');

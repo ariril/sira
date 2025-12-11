@@ -19,6 +19,12 @@ return new class extends Migration
                 ->constrained('units')
                 ->onDelete('cascade');
 
+            // Opsional pembagian per profesi (single-table design)
+            $table->foreignId('profession_id')
+                ->nullable()
+                ->constrained('professions')
+                ->onDelete('cascade');
+
             // Jumlah alokasi uang untuk unit tersebut
             $table->decimal('amount', 15, 2)->default(0);
 
@@ -35,8 +41,8 @@ return new class extends Migration
 
             $table->timestamps();
 
-            // Satu unit hanya boleh punya 1 alokasi per periode
-            $table->unique(['unit_id', 'assessment_period_id'], 'uniq_unit_period');
+            // Satu kombinasi periode + unit + profesi hanya boleh satu baris
+            $table->unique(['assessment_period_id', 'unit_id', 'profession_id'], 'uniq_period_unit_profession');
         });
     }
 

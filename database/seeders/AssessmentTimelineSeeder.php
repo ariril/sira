@@ -15,11 +15,6 @@ class AssessmentTimelineSeeder extends Seeder
             $now = Carbon::now();
 
             $periodConfigs = [
-                'November 2025' => [
-                    'start' => '2025-11-01',
-                    'end' => '2025-11-30',
-                    'status' => 'closed',
-                ],
                 'Desember 2025' => [
                     'start' => '2025-12-01',
                     'end' => '2025-12-31',

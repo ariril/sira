@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Detail Batch Import</h1>
-            <x-ui.button as="a" href="{{ route('admin_rs.attendances.batches') }}" class="h-12 px-6 text-base">
+            <x-ui.button as="a" href="{{ route('admin_rs.attendances.batches') }}" variant="success" class="h-12 px-6 text-base">
                 <i class="fa-solid fa-database mr-2"></i> Semua Batch
             </x-ui.button>
         </div>
@@ -52,65 +52,117 @@
             </div>
         </div>
 
-        <x-ui.table min-width="900px">
-            <x-slot name="head">
-                <tr>
-                    <th class="px-6 py-4 text-left whitespace-nowrap">Pegawai</th>
-                    <th class="px-6 py-4 text-left whitespace-nowrap">NIP</th>
-                    <th class="px-6 py-4 text-left whitespace-nowrap">Tanggal</th>
-                    <th class="px-6 py-4 text-left whitespace-nowrap">Masuk</th>
-                    <th class="px-6 py-4 text-left whitespace-nowrap">Pulang</th>
-                    <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
-                </tr>
-            </x-slot>
-            @forelse($rows as $r)
-                <tr class="hover:bg-slate-50">
-                    <td class="px-6 py-4">{{ $r->user->name ?? '-' }}</td>
-                    <td class="px-6 py-4">{{ $r->user->employee_number ?? '-' }}</td>
-                    <td class="px-6 py-4">{{ $r->attendance_date?->format('d M Y') }}</td>
-                    <td class="px-6 py-4">{{ $r->check_in ? \Carbon\Carbon::parse($r->check_in)->format('H:i') : '-' }}</td>
-                    <td class="px-6 py-4">{{ $r->check_out ? \Carbon\Carbon::parse($r->check_out)->format('H:i') : '-' }}</td>
-                    <td class="px-6 py-4">{{ $r->attendance_status?->value }}</td>
-                </tr>
-            @empty
-                <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
-            @endforelse
-        </x-ui.table>
-
-        <div class="pt-2 flex justify-end">{{ $rows->links() }}</div>
-
-        {{-- Preview hasil impor (baris gagal diwarnai) --}}
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold text-slate-800">Preview Unggahan</h2>
-                <div class="text-sm text-slate-600">Gagal: <span class="text-rose-700 font-medium">{{ $previewFailed }}</span> • Berhasil: <span class="text-emerald-700 font-medium">{{ $previewSuccess }}</span></div>
+            <form method="GET">
+                <div class="grid gap-5 md:grid-cols-12">
+                    <div class="md:col-span-4">
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Cari</label>
+                        <x-ui.input name="q" placeholder="Nama pegawai / NIP" addonLeft="fa-magnifying-glass"
+                            :value="$q" class="focus:border-emerald-500 focus:ring-emerald-500" />
+                    </div>
+
+                    <div class="md:col-span-4">
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Hasil import</label>
+                        @php
+                            $resultOptions = [
+                                'all' => 'Semua',
+                                'success' => 'Berhasil',
+                                'failed' => 'Gagal',
+                            ];
+                        @endphp
+                        <x-ui.select id="result" name="result" :options="$resultOptions" :value="$result"
+                            class="focus:border-emerald-500 focus:ring-emerald-500" />
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Jumlah per halaman</label>
+                        @php
+                            $perPageSelectOptions = [];
+                            foreach ($perPageOptions as $option) {
+                                $perPageSelectOptions[$option] = $option.' / halaman';
+                            }
+                        @endphp
+                        <x-ui.select id="per_page" name="per_page" :options="$perPageSelectOptions" :value="$perPage"
+                            class="focus:border-emerald-500 focus:ring-emerald-500" />
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <a href="{{ route('admin_rs.attendances.batches.show', $batch) }}"
+                        class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        Reset
+                    </a>
+                    <button type="submit"
+                        class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm">
+                        <i class="fa-solid fa-filter"></i> Terapkan
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-slate-800">Data Absensi Hasil Import</h2>
+                <div class="text-sm text-slate-600">Total baris: <span class="font-medium text-slate-800">{{ $rows->total() }}</span></div>
             </div>
-            <x-ui.table min-width="1100px">
+
+            <x-ui.table min-width="900px">
                 <x-slot name="head">
                     <tr>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Row</th>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Employee Number</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Pegawai</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">NIP</th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Tanggal</th>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Scan Masuk</th>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Scan Keluar</th>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Alasan</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Masuk</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Pulang</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
                     </tr>
                 </x-slot>
-                @forelse($preview as $p)
-                    @php($raw=$p->raw_data ?? [])
-                    <tr class="{{ $p->success ? 'hover:bg-slate-50' : 'bg-rose-50' }}">
-                        <td class="px-6 py-4">{{ $p->row_no }}</td>
-                        <td class="px-6 py-4">{{ $p->employee_number ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $raw['attendance_date'] ?? $raw['tanggal'] ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $raw['check_in'] ?? $raw['scan masuk'] ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $raw['check_out'] ?? $raw['scan keluar'] ?? '-' }}</td>
-                        <td class="px-6 py-4 text-rose-700">{{ $p->success ? '-' : ($p->error_message ?? 'Gagal') }}</td>
+                @forelse($rows as $r)
+                    @php
+                        $parsed = $r->parsed_data ?? [];
+                        $raw = $r->raw_data ?? [];
+
+                        $rawDate = $parsed['attendance_date'] ?? ($raw['attendance_date'] ?? ($raw['tanggal'] ?? null));
+                        $dateKey = null;
+                        $dateLabel = '-';
+                        if ($rawDate) {
+                            try {
+                                $dateKey = \Carbon\Carbon::parse($rawDate)->format('Y-m-d');
+                                $dateLabel = \Carbon\Carbon::parse($rawDate)->format('d M Y');
+                            } catch (\Throwable $e) {
+                                $dateLabel = $rawDate;
+                            }
+                        }
+
+                        $attendanceKey = ($r->user_id && $dateKey) ? ($r->user_id.'|'.$dateKey) : null;
+                        $attendance = $attendanceKey && isset($attendanceMap[$attendanceKey]) ? $attendanceMap[$attendanceKey] : null;
+
+                        $checkIn = $attendance?->check_in ? \Carbon\Carbon::parse($attendance->check_in)->format('H:i') : ($parsed['check_in'] ?? null);
+                        $checkOut = $attendance?->check_out ? \Carbon\Carbon::parse($attendance->check_out)->format('H:i') : ($parsed['check_out'] ?? null);
+
+                        $statusText = $attendance?->attendance_status?->value ?? ($raw['status'] ?? null);
+                        if (!$statusText) {
+                            $statusText = $r->success ? 'Berhasil' : 'Gagal';
+                        }
+
+                        $employeeNumber = $r->user->employee_number ?? ($r->employee_number ?? '-');
+                    @endphp
+                    <tr class="hover:bg-slate-50 {{ $r->success ? '' : 'bg-rose-50/40' }}">
+                        <td class="px-6 py-4">{{ $r->row_no ?? '-' }}</td>
+                        <td class="px-6 py-4">{{ $r->user->name ?? '-' }}</td>
+                        <td class="px-6 py-4">{{ $employeeNumber }}</td>
+                        <td class="px-6 py-4">{{ $dateLabel }}</td>
+                        <td class="px-6 py-4">{{ $checkIn ? $checkIn : '-' }}</td>
+                        <td class="px-6 py-4">{{ $checkOut ? $checkOut : '-' }}</td>
+                        <td class="px-6 py-4 {{ $r->success ? '' : 'text-rose-700 font-medium' }}">{{ $statusText ?? '-' }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Tidak ada data preview.</td></tr>
+                    <tr><td colspan="7" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
                 @endforelse
             </x-ui.table>
-            <div class="pt-2 flex justify-end">{{ $preview->links() }}</div>
+            <div class="pt-2 flex justify-end">{{ $rows->links() }}</div>
         </div>
     </div>
 </x-app-layout>

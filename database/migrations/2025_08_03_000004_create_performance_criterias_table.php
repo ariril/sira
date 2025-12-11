@@ -16,7 +16,7 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
             // Added metadata columns (merged from later alter migration)
             $table->enum('data_type', ['numeric','percentage','boolean','datetime','text'])->nullable();
-            $table->enum('input_method', ['system','manual','import','360'])->nullable();
+            $table->enum('input_method', ['system','manual','import','360','public_review'])->nullable();
             $table->enum('aggregation_method', ['sum','avg','count','latest','custom'])->nullable();
             $table->boolean('is_360_based')->default(false);
             // Default usulan bobot (opsional), dipindahkan dari migrasi tambahan (2025_11_03_000020)

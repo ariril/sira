@@ -56,4 +56,17 @@ class Review extends Model
     {
         return $this->belongsTo(User::class, 'decided_by');
     }
+
+    public function getAverageRatingAttribute(): ?float
+    {
+        $average = $this->relationLoaded('details')
+            ? $this->details->avg('rating')
+            : $this->details()->avg('rating');
+
+        if ($average === null) {
+            return $this->overall_rating !== null ? (float) $this->overall_rating : null;
+        }
+
+        return round((float) $average, 1);
+    }
 }

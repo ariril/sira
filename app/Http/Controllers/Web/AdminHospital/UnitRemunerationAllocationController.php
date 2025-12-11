@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\UnitRemunerationAllocation as Allocation;
 use App\Models\AssessmentPeriod;
 use App\Models\Unit;
+use App\Models\Profession;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
 
 class UnitRemunerationAllocationController extends Controller
 {
@@ -31,6 +34,15 @@ class UnitRemunerationAllocationController extends Controller
         $perPage  = (int)($data['per_page'] ?? 12);
 
         $items = Allocation::query()
+            ->select([
+                DB::raw('MIN(id) as id'),
+                'assessment_period_id',
+                'unit_id',
+                DB::raw('SUM(amount) as amount'),
+                DB::raw('MAX(published_at) as published_at'),
+                DB::raw('MAX(created_at) as created_at'),
+                DB::raw('MAX(updated_at) as updated_at'),
+            ])
             ->with(['period:id,name,start_date,end_date', 'unit:id,name'])
             ->when($q, function ($w) use ($q) {
                 $w->whereHas('unit', fn($u) => $u->where('name','like',"%{$q}%"))
@@ -39,7 +51,8 @@ class UnitRemunerationAllocationController extends Controller
             ->when($periodId, fn($w) => $w->where('assessment_period_id', $periodId))
             ->when($published === 'yes', fn($w) => $w->whereNotNull('published_at'))
             ->when($published === 'no', fn($w) => $w->whereNull('published_at'))
-            ->orderByDesc('id')
+            ->groupBy('assessment_period_id','unit_id')
+            ->orderByDesc(DB::raw('MAX(created_at)'))
             ->paginate($perPage)
             ->withQueryString();
 
@@ -59,10 +72,19 @@ class UnitRemunerationAllocationController extends Controller
     /** Create form */
     public function create(): View
     {
+        $unitProfessionMap = DB::table('users')
+            ->whereNotNull('profession_id')
+            ->select('unit_id','profession_id')
+            ->distinct()
+            ->get()
+            ->groupBy('unit_id');
+
         return view('admin_rs.unit_remuneration_allocations.create', [
             'item'    => new Allocation(['amount' => 0]),
             'periods' => AssessmentPeriod::orderByDesc('start_date')->get(['id','name']),
             'units'   => Unit::orderBy('name')->get(['id','name']),
+            'professions' => Profession::orderBy('name')->get(['id','name']),
+            'unitProfessionMap' => $unitProfessionMap,
         ]);
     }
 
@@ -70,20 +92,31 @@ class UnitRemunerationAllocationController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);
+        $lineAmounts = $this->validatedLines($request);
 
-        // Friendly duplicate check to avoid DB exception on unique constraint
-        $duplicateExists = Allocation::query()
-            ->where('assessment_period_id', $data['assessment_period_id'])
-            ->where('unit_id', $data['unit_id'])
-            ->exists();
-        if ($duplicateExists) {
-            return back()
-                ->withInput()
-                ->with('danger', 'Alokasi untuk unit dan periode tersebut sudah ada.');
+        $totalAmount = array_sum($lineAmounts);
+        if ($totalAmount <= 0) {
+            throw ValidationException::withMessages([
+                'lines' => 'Isi nominal untuk minimal satu profesi.',
+            ]);
         }
 
-        $data['published_at'] = $request->boolean('publish_now') ? now() : null;
-        Allocation::create($data);
+        // Friendly duplicate check to avoid DB exception on unique constraint
+        $publishedAt = $request->boolean('publish_now') ? now() : null;
+
+        // Replace existing group (period + unit) with new rows
+        Allocation::query()
+            ->where('assessment_period_id', $data['assessment_period_id'])
+            ->where('unit_id', $data['unit_id'])
+            ->delete();
+
+        foreach ($lineAmounts as $profId => $amount) {
+            Allocation::create(array_merge($data, [
+                'profession_id' => $profId,
+                'amount' => $amount,
+                'published_at' => $publishedAt,
+            ]));
+        }
         return redirect()->route('admin_rs.unit-remuneration-allocations.index')->with('status','Alokasi dibuat.');
     }
 
@@ -94,10 +127,22 @@ class UnitRemunerationAllocationController extends Controller
     /** Edit form */
     public function edit(Allocation $allocation): View
     {
+        $group = Allocation::query()
+            ->where('assessment_period_id', $allocation->assessment_period_id)
+            ->where('unit_id', $allocation->unit_id)
+            ->get();
+
+        $lineMap = $group->whereNotNull('profession_id')->pluck('amount','profession_id');
+        $allocation->amount = $group->sum('amount');
+        $allocation->published_at = $group->max('published_at');
+
         return view('admin_rs.unit_remuneration_allocations.edit', [
             'item'    => $allocation,
             'periods' => AssessmentPeriod::orderByDesc('start_date')->get(['id','name']),
             'units'   => Unit::orderBy('name')->get(['id','name']),
+            'professions' => Profession::orderBy('name')->get(['id','name']),
+            'unitProfessionMap' => $this->unitProfessions(),
+            'lineMap' => $lineMap,
         ]);
     }
 
@@ -107,20 +152,47 @@ class UnitRemunerationAllocationController extends Controller
         // Support both full update and quick publish toggle via hidden inputs
         if ($request->has('publish_toggle')) {
             $shouldPublish = (bool)$request->boolean('publish_toggle');
-            $allocation->update(['published_at' => $shouldPublish ? now() : null]);
+            Allocation::query()
+                ->where('assessment_period_id', $allocation->assessment_period_id)
+                ->where('unit_id', $allocation->unit_id)
+                ->update(['published_at' => $shouldPublish ? now() : null]);
             return back()->with('status', $shouldPublish ? 'Dipublish.' : 'Diubah ke draft.');
         }
 
         $data = $this->validateData($request, isUpdate: true);
-        $data['published_at'] = $request->boolean('publish_now') ? now() : null;
-        $allocation->update($data);
+        $lineAmounts = $this->validatedLines($request);
+        $publishedAt = $request->boolean('publish_now') ? now() : null;
+
+        $totalAmount = array_sum($lineAmounts);
+        if ($totalAmount <= 0) {
+            throw ValidationException::withMessages([
+                'lines' => 'Isi nominal untuk minimal satu profesi.',
+            ]);
+        }
+
+        // Replace group
+        Allocation::query()
+            ->where('assessment_period_id', $allocation->assessment_period_id)
+            ->where('unit_id', $allocation->unit_id)
+            ->delete();
+
+        foreach ($lineAmounts as $profId => $amount) {
+            Allocation::create(array_merge($data, [
+                'profession_id' => $profId,
+                'amount' => $amount,
+                'published_at' => $publishedAt,
+            ]));
+        }
         return redirect()->route('admin_rs.unit-remuneration-allocations.index')->with('status','Alokasi diperbarui.');
     }
 
     /** Delete allocation */
     public function destroy(Allocation $allocation): RedirectResponse
     {
-        $allocation->delete();
+        Allocation::query()
+            ->where('assessment_period_id', $allocation->assessment_period_id)
+            ->where('unit_id', $allocation->unit_id)
+            ->delete();
         return back()->with('status','Alokasi dihapus.');
     }
 
@@ -129,8 +201,34 @@ class UnitRemunerationAllocationController extends Controller
         return $request->validate([
             'assessment_period_id' => ['required','integer','exists:assessment_periods,id'],
             'unit_id'              => ['required','integer','exists:units,id'],
-            'amount'               => ['required','numeric','min:0'],
             'note'                 => ['nullable','string','max:500'],
         ]);
+    }
+
+    protected function unitProfessions()
+    {
+        return DB::table('users')
+            ->whereNotNull('profession_id')
+            ->select('unit_id','profession_id')
+            ->distinct()
+            ->get()
+            ->groupBy('unit_id');
+    }
+
+    /**
+     * @return array<int,float> profession_id => amount
+     */
+    protected function validatedLines(Request $request): array
+    {
+        $raw = $request->input('lines', []);
+        if (!is_array($raw)) return [];
+        $out = [];
+        foreach ($raw as $profId => $val) {
+            if ($val === null || $val === '') continue;
+            $num = (float)$val;
+            if ($num < 0) continue;
+            $out[(int)$profId] = $num;
+        }
+        return $out;
     }
 }

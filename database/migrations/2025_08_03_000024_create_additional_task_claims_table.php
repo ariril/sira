@@ -67,9 +67,11 @@ return new class extends Migration {
 
             $table->timestamps();
 
-            $table->unsignedTinyInteger('is_active')->storedAs("CASE WHEN status = 'active' THEN 1 ELSE 0 END");
-            // Hanya boleh ada satu baris (task, is_active=1)
-            $table->unique(['additional_task_id', 'is_active'], 'uniq_task_single_active');
+            // Pastikan hanya satu klaim aktif per tugas
+            $table->unsignedBigInteger('active_task_key')
+                ->nullable()
+                ->storedAs("case when status = 'active' then additional_task_id else null end");
+            $table->unique('active_task_key', 'uniq_task_single_active');
 
             $table->index(['additional_task_id', 'user_id'], 'idx_task_user');
         });

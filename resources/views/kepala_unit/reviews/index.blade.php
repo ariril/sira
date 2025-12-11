@@ -9,12 +9,6 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
-        @if (session('status'))
-            <div class="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-2xl px-4 py-3 text-sm">
-                {{ session('status') }}
-            </div>
-        @endif
-
         @if ($errors->has('review'))
             <div class="bg-rose-50 border border-rose-100 text-rose-700 rounded-2xl px-4 py-3 text-sm">
                 {{ $errors->first('review') }}
@@ -110,6 +104,8 @@
                         ReviewStatus::REJECTED => 'bg-rose-100 text-rose-700',
                         default => 'bg-amber-100 text-amber-700',
                     };
+                    $createdAt = $review->created_at?->timezone('Asia/Jakarta');
+                    $averageRating = $review->average_rating ?? 0;
                 @endphp
                 <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-5">
                     <div class="flex flex-wrap items-start justify-between gap-4">
@@ -117,7 +113,7 @@
                             <p class="text-[11px] font-semibold tracking-[0.2em] text-slate-400">NOMOR RM</p>
                             <p class="text-2xl font-semibold text-slate-900">{{ $review->registration_ref }}</p>
                             <p class="text-sm text-slate-500">Dibuat
-                                {{ $review->created_at?->format('d M Y H:i') ?? '-' }}</p>
+                                {{ $createdAt?->format('d M Y H:i') ?? '-' }}</p>
                         </div>
                         <div class="text-right space-y-2">
                             <span
@@ -127,7 +123,7 @@
                             </span>
                             <p class="text-sm text-slate-500">
                                 Rating rata-rata: <span
-                                    class="font-semibold text-slate-800">{{ $review->overall_rating }} / 5</span>
+                                    class="font-semibold text-slate-800">{{ number_format($averageRating, 1) }} / 5</span>
                             </p>
                         </div>
                     </div>
@@ -177,13 +173,16 @@
                     </div>
 
                     @if ($review->decision_note)
+                        @php
+                            $decidedAt = $review->decided_at?->timezone('Asia/Jakarta');
+                        @endphp
                         <div
                             class="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm text-slate-600 space-y-1">
                             <div class="font-semibold text-slate-700">Catatan Keputusan</div>
                             <div>{{ $review->decision_note }}</div>
                             <div class="text-xs text-slate-500">
                                 Oleh {{ $review->decidedBy->name ?? 'Kepala Unit' }} pada
-                                {{ optional($review->decided_at)->format('d M Y H:i') }}
+                                {{ $decidedAt?->format('d M Y H:i') ?? '-' }}
                             </div>
                         </div>
                     @endif

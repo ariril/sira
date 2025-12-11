@@ -28,13 +28,7 @@
 @endphp
 
 @section('content')
-<div class="max-w-4xl mx-auto px-4 py-10" x-data="publicReviewForm(@js($unitOptions), @js($staffPayload), @js($prefillState))" x-init="init()">
-    @if (session('status'))
-        <div class="mb-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3">
-            {{ session('status') }}
-        </div>
-    @endif
-
+<div class="max-w-4xl mx-auto px-4 py-10" x-data="publicReviewForm(@js($unitOptions), @js($staffPayload), @js($prefillState), @js(session('status')))" x-init="init()">
     @php($reviewErrors = $errors->reviewForm ?? $errors)
 
     @if ($reviewErrors->any())
@@ -47,6 +41,25 @@
             </ul>
         </div>
     @endif
+
+    {{-- Success modal --}}
+    <div x-show="showSuccess" x-cloak class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/75 px-4">
+        <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-fuchsia-600">Terima kasih</p>
+                <h2 class="text-2xl font-semibold text-slate-900 mt-1">Ulasan Anda sudah diterima</h2>
+                <p class="text-sm text-slate-600 mt-1" x-text="successMessage || 'Masukan Anda sangat berarti untuk peningkatan layanan kami.'"></p>
+            </div>
+            <div class="flex flex-col sm:flex-row items-stretch gap-3 pt-2">
+                <a href="{{ route('home') }}" class="flex-1 inline-flex items-center justify-center gap-2 h-12 px-5 rounded-2xl text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200">
+                    <i class="fa-solid fa-house"></i> Kembali ke Beranda
+                </a>
+                <a href="{{ route('reviews.create') }}" class="flex-1 inline-flex items-center justify-center gap-2 h-12 px-5 rounded-2xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-fuchsia-500 shadow-lg shadow-fuchsia-100">
+                    <i class="fa-solid fa-rotate-left"></i> Isi Ulasan Lagi
+                </a>
+            </div>
+        </div>
+    </div>
 
     <div x-show="showGate" x-cloak class="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/70 px-4">
         <div class="w-full max-w-md bg-white rounded-3xl shadow-xl p-6 space-y-4">
@@ -72,7 +85,7 @@
         </div>
     </div>
 
-    <form method="POST" action="{{ route('reviews.store') }}" class="space-y-8" x-bind:class="showGate ? 'blur-sm pointer-events-none select-none' : ''">
+    <form method="POST" action="{{ route('reviews.store') }}" class="space-y-8" x-bind:class="(showGate || showSuccess) ? 'blur-sm pointer-events-none select-none' : ''">
         @csrf
 
         <div class="space-y-2">
@@ -226,7 +239,7 @@
 
 @push('scripts')
 <script>
-    function publicReviewForm(units, staff, oldState = {}) {
+    function publicReviewForm(units, staff, oldState = {}, successMessage = '') {
         return {
             units,
             staff,
@@ -237,6 +250,8 @@
             contactInfo: oldState.contact || '',
             generalComment: oldState.comment || '',
             showGate: true,
+            showSuccess: !!successMessage,
+            successMessage,
             unitDropdown: false,
             reviews: [],
             init() {
@@ -249,6 +264,9 @@
                 const initialDetails = Array.isArray(oldState.details) && oldState.details.length ? oldState.details : [{}];
                 this.reviews = initialDetails.map(detail => this.hydrateReview(detail));
                 if (this.registrationRef) {
+                    this.showGate = false;
+                }
+                if (this.showSuccess) {
                     this.showGate = false;
                 }
             },

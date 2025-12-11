@@ -14,6 +14,7 @@ class UnitRemunerationAllocation extends Model
     protected $fillable = [
         'assessment_period_id',
         'unit_id',
+        'profession_id',
         'amount',
         'note',
         'published_at',
@@ -31,8 +32,14 @@ class UnitRemunerationAllocation extends Model
         return $this->belongsTo(Unit::class);
     }
 
+    public function profession()
+    {
+        return $this->belongsTo(Profession::class);
+    }
+
     public function reviser()
     {
         return $this->belongsTo(User::class, 'revised_by');
     }
+
 }

@@ -98,10 +98,10 @@ class AttendanceImportController extends Controller
                     $this->recordPreviewRow($batch->id, $idx+2, null, $data, false, 'db_error', 'Baris tidak dapat dipetakan ke header.');
                     continue;
                 }
-                [$ok, $reasonOrUser] = $this->importRow($batch->id, $data);
+                [$ok, $reasonOrUser, $parsed] = $this->importRow($batch->id, $data);
                 if ($ok) {
                     $success++;
-                    $this->recordPreviewRow($batch->id, $idx+2, $reasonOrUser?->id, $data, true, null, null);
+                    $this->recordPreviewRow($batch->id, $idx+2, $reasonOrUser?->id, $data, true, null, null, $parsed);
                 } else {
                     $failed++;
                     $reason = $reasonOrUser;
@@ -112,7 +112,7 @@ class AttendanceImportController extends Controller
                         'bad_time' => 'Format jam tidak valid.',
                         'db_error' => 'Gagal menyimpan ke database.',
                     ];
-                    $this->recordPreviewRow($batch->id, $idx+2, null, $data, false, $reason, $messages[$reason] ?? 'Gagal.');
+                    $this->recordPreviewRow($batch->id, $idx+2, null, $data, false, $reason, $messages[$reason] ?? 'Gagal.', $parsed);
                 }
             }
 
@@ -146,19 +146,54 @@ class AttendanceImportController extends Controller
     // Show batch detail
     public function show(Batch $batch, Request $request): View
     {
-        $rows = $batch->attendances()->with('user:id,name,employee_number')
-            ->orderByDesc('attendance_date')
-            ->paginate(20)
-            ->withQueryString();
-        $preview = $batch->rows()->orderBy('row_no')->paginate(15)->withQueryString();
-        $previewFailed = $batch->rows()->where('success', false)->count();
-        $previewSuccess = $batch->rows()->where('success', true)->count();
+        $rowsPageName = 'rows_page';
+        $perPageOptions = [12, 25, 50, 100];
+        $perPage = (int) $request->input('per_page', 12);
+        if (!in_array($perPage, $perPageOptions, true)) {
+            $perPage = 12;
+        }
+
+        $q = trim((string)$request->input('q', ''));
+        $result = $request->input('result', 'all');
+
+        $rowsQuery = $batch->rows()
+            ->with('user:id,name,employee_number');
+
+        if ($q !== '') {
+            $rowsQuery->where(function ($query) use ($q) {
+                $query->whereHas('user', function ($uq) use ($q) {
+                    $uq->where('name', 'like', "%{$q}%")
+                        ->orWhere('employee_number', 'like', "%{$q}%");
+                })->orWhere('employee_number', 'like', "%{$q}%");
+            });
+        }
+
+        if ($result === 'success') {
+            $rowsQuery->where('success', true);
+        } elseif ($result === 'failed') {
+            $rowsQuery->where('success', false);
+        }
+
+        $rows = $rowsQuery
+            ->orderBy('row_no')
+            ->paginate($perPage, ['*'], $rowsPageName)
+            ->appends($request->except($rowsPageName));
+
+        $attendanceMap = $batch->attendances()
+            ->get()
+            ->keyBy(fn($att) => $att->user_id.'|'.($att->attendance_date
+                ? \Illuminate\Support\Carbon::parse($att->attendance_date)->format('Y-m-d')
+                : ''));
+
         return view('admin_rs.attendances.batches.show', [
             'batch' => $batch->load('importer:id,name'),
             'rows'  => $rows,
-            'preview' => $preview,
-            'previewFailed' => $previewFailed,
-            'previewSuccess'=> $previewSuccess,
+            'rowsPageName' => $rowsPageName,
+            'attendanceMap' => $attendanceMap,
+            'perPage' => $perPage,
+            'perPageOptions' => $perPageOptions,
+            'result' => $result,
+            'q' => $q,
         ]);
     }
 
@@ -278,16 +313,30 @@ class AttendanceImportController extends Controller
     private function importRow(int $batchId, array $data): array
     {
         $user = User::query()->where('employee_number', $data['employee_number'] ?? null)->first();
-        if (!$user) return [false, 'no_user'];
+        $parsed = [
+            'attendance_date' => null,
+            'check_in' => null,
+            'check_out' => null,
+        ];
+
+        if (!$user) return [false, 'no_user', $parsed];
 
         $date = $this->parseDate($data['attendance_date'] ?? '');
-        if (!$date) return [false, 'bad_date'];
+        if ($date) {
+            $parsed['attendance_date'] = $date->format('Y-m-d');
+        }
+        if (!$date) return [false, 'bad_date', $parsed];
 
         // DB kolom check_in/check_out adalah DATETIME -> gabungkan tanggal + jam scan
         $in  = $this->combineDateTime($date, $data['check_in'] ?? '');
         $out = $this->combineDateTime($date, $data['check_out'] ?? '');
-        if (($data['check_in'] ?? '') !== '' && !$in) return [false, 'bad_time'];
-        if (($data['check_out'] ?? '') !== '' && !$out) return [false, 'bad_time'];
+        if ($in) $parsed['check_in'] = 
+            \Carbon\Carbon::parse($in)->format('H:i');
+        if ($out) $parsed['check_out'] = 
+            \Carbon\Carbon::parse($out)->format('H:i');
+
+        if (($data['check_in'] ?? '') !== '' && !$in) return [false, 'bad_time', $parsed];
+        if (($data['check_out'] ?? '') !== '' && !$out) return [false, 'bad_time', $parsed];
 
         $status = $this->deriveStatus($data, $in, $out);
 
@@ -320,9 +369,9 @@ class AttendanceImportController extends Controller
                 'source'           => AttendanceSource::IMPORT->value,
                 'import_batch_id'  => $batchId,
             ]);
-            return [true, $user];
+            return [true, $user, $parsed];
         } catch (\Throwable $e) {
-            return [false, 'db_error'];
+            return [false, 'db_error', $parsed];
         }
     }
     private function combineDateTime(\DateTimeImmutable $date, ?string $time): ?string
@@ -472,7 +521,7 @@ class AttendanceImportController extends Controller
         }
     }
 
-    private function recordPreviewRow(int $batchId, int $rowNo, ?int $userId, ?array $assoc, bool $success, ?string $errCode, ?string $errMsg): void
+    private function recordPreviewRow(int $batchId, int $rowNo, ?int $userId, ?array $assoc, bool $success, ?string $errCode, ?string $errMsg, ?array $parsed = null): void
     {
         try {
             \App\Models\AttendanceImportRow::create([
@@ -480,7 +529,8 @@ class AttendanceImportController extends Controller
                 'row_no'        => $rowNo,
                 'user_id'       => $userId,
                 'employee_number'=> $assoc['employee_number'] ?? null,
-                'raw_data'      => $assoc ? json_encode($assoc) : null,
+                'raw_data'      => $assoc,
+                'parsed_data'   => $parsed,
                 'success'       => $success,
                 'error_code'    => $errCode,
                 'error_message' => $errMsg,
