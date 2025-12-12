@@ -21,6 +21,8 @@ class AdditionalTask extends Model
         'policy_doc_path',
         'start_date',
         'due_date',
+        'start_time',
+        'due_time',
         'bonus_amount',
         'points',
         'max_claims',
@@ -36,6 +38,8 @@ class AdditionalTask extends Model
     protected $casts = [
         'start_date'   => 'date',
         'due_date'     => 'date',
+        'start_time'   => 'string',
+        'due_time'     => 'string',
         'bonus_amount' => 'decimal:2',
         'points'       => 'decimal:2',
         'claimed_at'   => 'datetime',
@@ -162,7 +166,9 @@ class AdditionalTask extends Model
     // Format tanggal jatuh tempo untuk UI
     public function getFormattedDueDateAttribute(): string
     {
-        return Carbon::parse($this->due_date)->translatedFormat('d F Y');
+        $time = $this->due_time ?: '23:59:59';
+        $date = Carbon::parse($this->due_date)->toDateString();
+        return Carbon::parse($date . ' ' . $time, 'Asia/Jakarta')->format('d M Y H:i');
     }
 
     public function refreshLifecycleStatus(): void

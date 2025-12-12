@@ -8,6 +8,7 @@ use App\Enums\UnitCriteriaWeightStatus as UCWStatus;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -33,23 +34,31 @@ class UnitCriteriaApprovalController extends Controller
             'status' => $request->get('status','pending'),
         ];
 
-        $query = Weight::with(['unit:id,name','performanceCriteria:id,name,type'])
+        $baseQuery = Weight::with(['unit:id,name','performanceCriteria:id,name,type'])
             ->when($scopeUnitIds->isNotEmpty(), fn($w) => $w->whereIn('unit_id', $scopeUnitIds));
 
         if ($filters['q'] !== '') {
             $q = $filters['q'];
-            $query->where(function($w) use ($q) {
+            $baseQuery->where(function($w) use ($q) {
                 $w->whereHas('unit', fn($u)=>$u->where('name','like',"%$q%"))
                   ->orWhereHas('performanceCriteria', fn($pc)=>$pc->where('name','like',"%$q%"));
             });
         }
+
+        $pendingCount = (clone $baseQuery)->where('status', UCWStatus::PENDING)->count();
+
+        $query = clone $baseQuery;
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
         }
 
         $items = $query->orderByDesc('id')->paginate(20)->withQueryString();
 
-        return view('kepala_poli.unit_criteria_weights.index', compact('items','filters'));
+        return view('kepala_poli.unit_criteria_weights.index', [
+            'items' => $items,
+            'filters' => $filters,
+            'pendingCount' => $pendingCount,
+        ]);
     }
 
     public function approve(Request $request, Weight $weight)
@@ -75,6 +84,48 @@ class UnitCriteriaApprovalController extends Controller
         $weight->policy_note = trim('Rejected: '.$data['reason']);
         $weight->save();
         return back()->with('status','Bobot kriteria ditolak.');
+    }
+
+    public function approveAll(Request $request): RedirectResponse
+    {
+        $me = Auth::user();
+
+        $scopeUnitIds = collect();
+        if (Schema::hasTable('units')) {
+            if ($me->unit_id) {
+                $scopeUnitIds = DB::table('units')->where('parent_id', $me->unit_id)->pluck('id');
+            }
+            if ($scopeUnitIds->isEmpty()) {
+                $scopeUnitIds = DB::table('units')->where('type','poliklinik')->pluck('id');
+            }
+        }
+
+        $q = trim((string) $request->get('q',''));
+
+        $pendingQuery = Weight::query()
+            ->where('status', UCWStatus::PENDING)
+            ->when($scopeUnitIds->isNotEmpty(), fn($w) => $w->whereIn('unit_id', $scopeUnitIds))
+            ->when($q !== '', function ($w) use ($q) {
+                $w->where(function ($inner) use ($q) {
+                    $inner->whereHas('unit', fn($u) => $u->where('name', 'like', "%$q%"))
+                        ->orWhereHas('performanceCriteria', fn($pc) => $pc->where('name', 'like', "%$q%"));
+                });
+            });
+
+        $count = (clone $pendingQuery)->count();
+
+        if ($count === 0) {
+            return back()->with('status', 'Tidak ada bobot pending untuk disetujui.');
+        }
+
+        DB::transaction(function () use ($pendingQuery, $me) {
+            $pendingQuery->update([
+                'status' => UCWStatus::ACTIVE,
+                'polyclinic_head_id' => $me->id,
+            ]);
+        });
+
+        return back()->with('status', $count . ' bobot pending disetujui.');
     }
 
     /**

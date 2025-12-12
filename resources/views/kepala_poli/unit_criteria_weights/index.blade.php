@@ -1,8 +1,17 @@
 <x-app-layout title="Approval Bobot Kriteria">
     <x-slot name="header">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-3">
             <h1 class="text-2xl font-semibold text-slate-800">Approval Bobot Kriteria</h1>
-            <x-ui.button as="a" href="{{ route('kepala_poliklinik.unit_criteria_weights.units') }}" variant="violet" class="h-10 px-4 text-sm">Lihat per Unit</x-ui.button>
+            <div class="flex items-center gap-2">
+                <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.approve_all') }}" onsubmit="return confirm('Setujui semua bobot pending yang ditampilkan?');">
+                    @csrf
+                    <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}" />
+                    <x-ui.button type="submit" variant="approve" class="h-10 px-4 text-sm" :disabled="$pendingCount === 0">
+                        Approve Semua
+                    </x-ui.button>
+                </form>
+                <x-ui.button as="a" href="{{ route('kepala_poliklinik.unit_criteria_weights.units') }}" variant="violet" class="h-10 px-4 text-sm">Lihat per Unit</x-ui.button>
+            </div>
         </div>
     </x-slot>
 
@@ -66,12 +75,16 @@
                             <div class="inline-flex gap-2">
                                 <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.approve', $it) }}">
                                     @csrf
-                                    <x-ui.button type="submit" variant="violet" class="h-9 px-3 text-xs">Approve</x-ui.button>
+                                    <x-ui.button type="submit" variant="approve" class="h-9 px-3 text-xs">
+                                        Approve
+                                    </x-ui.button>
                                 </form>
                                 <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.reject', $it) }}" onsubmit="return confirm('Tolak bobot ini?');">
                                     @csrf
                                     <input type="hidden" name="reason" value="Tidak sesuai kebijakan" />
-                                    <x-ui.button type="submit" variant="violet" class="h-9 px-3 text-xs">Reject</x-ui.button>
+                                    <x-ui.button type="submit" variant="reject" class="h-9 px-3 text-xs">
+                                        Reject
+                                    </x-ui.button>
                                 </form>
                             </div>
                         @else

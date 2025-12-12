@@ -268,6 +268,7 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
 
         // Approval bobot kriteria unit
         Route::get('unit-criteria-weights', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'index'])->name('unit_criteria_weights.index');
+        Route::post('unit-criteria-weights/approve-all', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'approveAll'])->name('unit_criteria_weights.approve_all');
         Route::post('unit-criteria-weights/{weight}/approve', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'approve'])->name('unit_criteria_weights.approve');
         Route::post('unit-criteria-weights/{weight}/reject',  [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'reject'])->name('unit_criteria_weights.reject');
     // Read-only list per unit & detail

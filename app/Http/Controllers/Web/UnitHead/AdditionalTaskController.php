@@ -50,7 +50,7 @@ class AdditionalTaskController extends Controller
         if ($unitId && Schema::hasTable('additional_tasks')) {
             $builder = DB::table('additional_tasks as t')
                 ->leftJoin('assessment_periods as ap', 'ap.id', '=', 't.assessment_period_id')
-                ->selectRaw('t.id, t.title, t.status, t.start_date, t.due_date, t.points, t.bonus_amount, ap.name as period_name')
+                ->selectRaw('t.id, t.title, t.status, t.start_date, t.start_time, t.due_date, t.due_time, t.points, t.bonus_amount, ap.name as period_name')
                 ->where('t.unit_id', $unitId)
                 ->orderByDesc('t.id');
 
@@ -108,7 +108,9 @@ class AdditionalTaskController extends Controller
             'title'       => ['required','string','max:200'],
             'description' => ['nullable','string','max:2000'],
             'start_date'  => ['required','date'],
+            'start_time'  => ['nullable','date_format:H:i'],
             'due_date'    => ['required','date','after_or_equal:start_date'],
+            'due_time'    => ['nullable','date_format:H:i'],
             'bonus_amount'=> ['nullable','numeric','min:0'],
             'points'      => ['nullable','numeric','min:0'],
             'max_claims'  => ['nullable','integer','min:1','max:100'],
@@ -130,6 +132,18 @@ class AdditionalTaskController extends Controller
             ])->withInput();
         }
 
+        $startTime = $data['start_time'] ?? '00:00';
+        $dueTime = $data['due_time'] ?? '23:59';
+
+        $startAt = Carbon::createFromFormat('Y-m-d H:i', $data['start_date'].' '.$startTime, 'Asia/Jakarta');
+        $dueAt   = Carbon::createFromFormat('Y-m-d H:i', $data['due_date'].' '.$dueTime, 'Asia/Jakarta');
+
+        if ($dueAt->lt($startAt)) {
+            return back()->withErrors([
+                'due_time' => 'Jatuh tempo harus setelah atau sama dengan waktu mulai.',
+            ])->withInput();
+        }
+
         $filePath = null;
         if ($request->hasFile('supporting_file')) {
             $filePath = $request->file('supporting_file')->store('additional_tasks/supporting', 'public');
@@ -140,8 +154,10 @@ class AdditionalTaskController extends Controller
             'assessment_period_id' => $data['assessment_period_id'],
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
-            'start_date' => $data['start_date'],
-            'due_date' => $data['due_date'],
+            'start_date' => $startAt->toDateString(),
+            'start_time' => $startAt->format('H:i:s'),
+            'due_date' => $dueAt->toDateString(),
+            'due_time' => $dueAt->format('H:i:s'),
             'bonus_amount' => $data['bonus_amount'] ?? null,
             'points' => $data['points'] ?? null,
             'max_claims' => $data['max_claims'] ?? 1,
@@ -210,7 +226,9 @@ class AdditionalTaskController extends Controller
             'title'       => ['required','string','max:200'],
             'description' => ['nullable','string','max:2000'],
             'start_date'  => ['required','date'],
+            'start_time'  => ['nullable','date_format:H:i'],
             'due_date'    => ['required','date','after_or_equal:start_date'],
+            'due_time'    => ['nullable','date_format:H:i'],
             'bonus_amount'=> ['nullable','numeric','min:0'],
             'points'      => ['nullable','numeric','min:0'],
             'max_claims'  => ['nullable','integer','min:1','max:100'],
@@ -232,6 +250,18 @@ class AdditionalTaskController extends Controller
             ])->withInput();
         }
 
+        $startTime = $data['start_time'] ?? ($task->start_time ? substr($task->start_time, 0, 5) : '00:00');
+        $dueTime = $data['due_time'] ?? ($task->due_time ? substr($task->due_time, 0, 5) : '23:59');
+
+        $startAt = Carbon::createFromFormat('Y-m-d H:i', $data['start_date'].' '.$startTime, 'Asia/Jakarta');
+        $dueAt   = Carbon::createFromFormat('Y-m-d H:i', $data['due_date'].' '.$dueTime, 'Asia/Jakarta');
+
+        if ($dueAt->lt($startAt)) {
+            return back()->withErrors([
+                'due_time' => 'Jatuh tempo harus setelah atau sama dengan waktu mulai.',
+            ])->withInput();
+        }
+
         $filePath = $task->policy_doc_path;
         if ($request->hasFile('supporting_file')) {
             if ($filePath) {
@@ -244,8 +274,10 @@ class AdditionalTaskController extends Controller
             'assessment_period_id' => $data['assessment_period_id'],
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
-            'start_date' => $data['start_date'],
-            'due_date' => $data['due_date'],
+            'start_date' => $startAt->toDateString(),
+            'start_time' => $startAt->format('H:i:s'),
+            'due_date' => $dueAt->toDateString(),
+            'due_time' => $dueAt->format('H:i:s'),
             'bonus_amount' => $data['bonus_amount'] ?? null,
             'points' => $data['points'] ?? null,
             'max_claims' => $data['max_claims'] ?? 1,

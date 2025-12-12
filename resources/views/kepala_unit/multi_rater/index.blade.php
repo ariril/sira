@@ -104,13 +104,14 @@
                 </x-ui.table>
             </div>
         @endif
-
-        @include('shared.multi_rater.summary_table', [
-            'periods' => $summaryData['periods'] ?? collect(),
-            'selectedPeriod' => $summaryData['selected_period'] ?? null,
-            'rows' => $summaryData['rows'] ?? collect(),
-            'title' => 'Ringkasan Nilai 360 Anda',
-            'buttonVariant' => 'orange',
-        ])
+        @if(auth()->user()?->hasRole('pegawai_medis'))
+            @include('shared.multi_rater.summary_table', [
+                'periods' => $summaryData['periods'] ?? collect(),
+                'selectedPeriod' => $summaryData['selected_period'] ?? null,
+                'rows' => $summaryData['rows'] ?? collect(),
+                'title' => 'Ringkasan Nilai 360 Anda',
+                'buttonVariant' => 'orange',
+            ])
+        @endif
     </div>
 </x-app-layout>

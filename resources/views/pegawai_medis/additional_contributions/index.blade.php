@@ -35,24 +35,33 @@
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 @forelse($availableTasks as $t)
                     <div class="rounded-2xl ring-1 ring-slate-100 p-5 bg-white h-full flex flex-col shadow-[0_10px_25px_-20px_rgba(15,23,42,0.35)]" x-data="{ showDetail: false }">
+                        @php
+                            $availableTime = $t->due_time ?? '23:59';
+                            $availableDate = $t->due_date ? \Illuminate\Support\Carbon::parse($t->due_date)->toDateString() : null;
+                            try {
+                                $availableDue = $availableDate
+                                    ? \Illuminate\Support\Carbon::parse($availableDate.' '.$availableTime, 'Asia/Jakarta')->format('d M Y H:i')
+                                    : '-';
+                            } catch (\Exception $e) {
+                                $availableDue = $availableDate ? $availableDate.' '.$availableTime : '-';
+                            }
+                        @endphp
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <div class="font-semibold text-slate-900 text-lg">{{ $t->title }}</div>
-                                <div class="text-base text-slate-500">Periode: {{ $t->period_name ?? '-' }}</div>
                             </div>
                             <div class="text-right text-base">
                                 <div class="font-semibold">{{ $t->bonus_amount ? 'Rp '.number_format($t->bonus_amount,0,',','.') : '-' }}</div>
                                 <div class="text-sm text-slate-500">Poin: {{ $t->points ?? '-' }}</div>
                             </div>
                         </div>
-                        <p class="text-base text-slate-700 mt-3 line-clamp-2 leading-relaxed">{{ $t->description ?? 'Tidak ada deskripsi.' }}</p>
                         <div class="mt-3 flex items-center justify-between text-base text-slate-600">
                             <span>Klaim: {{ $t->claims_used }} / {{ $t->max_claims ?? '∞' }}</span>
-                            <span>Jatuh tempo: {{ $t->due_date ?? '-' }}</span>
+                            <span class="text-sm text-slate-500">Status: {{ $t->available ? 'Slot tersedia' : 'Kuota penuh' }}</span>
                         </div>
                         <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                            <span class="text-sm text-slate-600">Status: {{ $t->available ? 'Slot tersedia' : 'Kuota penuh' }}</span>
-                            <div class="flex items-center gap-2">
+                            <div></div>
+                            <div class="flex items-center gap-3">
                                 @if($t->my_claim_status)
                                     <span class="px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$t->my_claim_status] ?? 'bg-slate-200 text-slate-700' }}">
                                         {{ $statusLabels[$t->my_claim_status] ?? strtoupper($t->my_claim_status) }}
@@ -67,7 +76,7 @@
                                 @else
                                     <span class="text-xs text-rose-600">Kuota habis</span>
                                 @endif
-                                <button type="button" class="px-3 py-1.5 rounded-xl text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 ring-1 ring-sky-100" @click="showDetail = !showDetail">
+                                <button type="button" class="px-4 py-2 rounded-xl text-sm font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 ring-1 ring-sky-100" @click="showDetail = !showDetail">
                                     Detail
                                 </button>
                             </div>
@@ -79,7 +88,7 @@
                             </div>
                             <div class="flex flex-wrap gap-3 text-sm">
                                 <span>Periode: <span class="font-medium text-slate-800">{{ $t->period_name ?? '-' }}</span></span>
-                                <span>Jatuh tempo: <span class="font-medium text-slate-800">{{ $t->due_date ?? '-' }}</span></span>
+                                <span>Jatuh tempo: <span class="font-medium text-slate-800">{{ $availableDue }}</span></span>
                             </div>
                             @if($t->supporting_file_url)
                                 <a href="{{ $t->supporting_file_url }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm">
@@ -104,63 +113,38 @@
                 <a href="#klaim-aktif" class="text-sm text-slate-500 hover:underline">#</a>
             </div>
             <div class="overflow-x-auto">
-                <x-ui.table min-width="1100px">
+                <x-ui.table min-width="780px">
                     <x-slot name="head">
                         <tr>
-                            <th class="px-6 py-4 text-left whitespace-nowrap">Tugas &amp; Periode</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Tugas</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Klaim Pada</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Batas Batal</th>
-                            <th class="px-6 py-4 text-left whitespace-nowrap">Bonus / Poin</th>
-                            <th class="px-6 py-4 text-left whitespace-nowrap">Dokumen</th>
                             <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                         </tr>
                     </x-slot>
                     @forelse($currentClaims as $claim)
                         <tr class="align-top hover:bg-slate-50">
                             <td class="px-6 py-4 text-base">
-                                @php
-                                    $dueLabel = $claim->task?->due_date
-                                        ? \Illuminate\Support\Carbon::parse($claim->task->due_date)->format('d M Y')
-                                        : '-';
-                                @endphp
-                                <div class="font-medium text-slate-900">{{ $claim->task?->title ?? '-' }}</div>
-                                <div class="text-sm text-slate-500">Periode: {{ $claim->task?->period?->name ?? '-' }}</div>
-                                <div class="text-sm text-slate-500">Jatuh tempo: {{ $dueLabel }}</div>
+                                <div class="font-semibold text-slate-900">{{ $claim->task?->title ?? '-' }}</div>
                             </td>
                             <td class="px-6 py-4 text-base">
                                 <span class="px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$claim->status] ?? 'bg-slate-200 text-slate-700' }}">
                                     {{ $statusLabels[$claim->status] ?? strtoupper($claim->status) }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-base">{{ optional($claim->claimed_at)->format('d M Y H:i') ?? '-' }}</td>
-                            <td class="px-6 py-4 text-base">{{ optional($claim->cancel_deadline_at)->format('d M Y H:i') ?? '-' }}</td>
-                            <td class="px-6 py-4 text-base">
-                                <div>{{ $claim->task?->bonus_amount ? 'Rp '.number_format($claim->task->bonus_amount,0,',','.') : '-' }}</div>
-                                <div class="text-xs text-slate-500">Poin: {{ $claim->task?->points ?? '-' }}</div>
-                            </td>
-                            <td class="px-6 py-4 text-base">
-                                @if($claim->task?->policy_doc_path)
-                                    <a href="{{ asset('storage/'.ltrim($claim->task->policy_doc_path,'/')) }}" target="_blank" class="text-cyan-700 hover:underline">Instruksi</a>
-                                @else
-                                    <span class="text-slate-400">-</span>
-                                @endif
-                                @if($claim->result_file_path)
-                                    <div class="mt-1 text-xs">
-                                        <a href="{{ asset('storage/'.ltrim($claim->result_file_path,'/')) }}" target="_blank" class="text-emerald-700 hover:underline">Lihat Hasil</a>
-                                    </div>
-                                @endif
-                            </td>
+                            <td class="px-6 py-4 text-base font-medium">{{ optional($claim->claimed_at?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}</td>
+                            <td class="px-6 py-4 text-base font-medium">{{ optional($claim->cancel_deadline_at?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}</td>
                             <td class="px-6 py-4 text-right">
-                                <div class="flex flex-col items-end gap-2">
+                                <div class="flex items-center justify-end gap-2 flex-wrap">
                                     @if($claim->status === 'active' && $claim->canCancel())
                                         <form method="POST" action="{{ route('pegawai_medis.additional_task_claims.cancel', $claim->id) }}" onsubmit="return confirm('Batalkan klaim ini?')">
                                             @csrf
-                                            <button class="px-3 py-1.5 rounded-md ring-1 ring-slate-200 text-slate-700 hover:bg-slate-50 text-xs">Batalkan</button>
+                                            <button class="px-5 py-2.5 rounded-lg ring-1 ring-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-medium">Batalkan</button>
                                         </form>
                                     @endif
                                     <button type="button"
-                                        class="px-4 py-2 rounded-xl text-white text-sm font-semibold bg-gradient-to-r from-sky-400 to-blue-600 shadow-sm hover:brightness-110"
+                                        class="px-5 py-2.5 rounded-xl text-white text-sm font-semibold bg-gradient-to-r from-sky-400 to-blue-600 shadow-sm hover:brightness-110"
                                         @click="activeDetail = activeDetail === '{{ $claim->id }}' ? null : '{{ $claim->id }}'">
                                         {{ __('Detail') }}
                                     </button>
@@ -169,7 +153,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-8 text-center text-slate-500">Belum ada klaim aktif.</td>
+                            <td colspan="5" class="px-6 py-8 text-center text-slate-500">Belum ada klaim aktif.</td>
                         </tr>
                     @endforelse
                 </x-ui.table>
@@ -177,9 +161,15 @@
 
             @foreach($currentClaims as $claim)
                 @php
-                    $detailDue = $claim->task?->due_date
-                        ? \Illuminate\Support\Carbon::parse($claim->task->due_date)->translatedFormat('d F Y')
-                        : '-';
+                    $detailTime = $claim->task?->due_time ?? '23:59';
+                    $detailDate = $claim->task?->due_date ? \Illuminate\Support\Carbon::parse($claim->task->due_date)->toDateString() : null;
+                    try {
+                        $detailDue = $detailDate
+                            ? \Illuminate\Support\Carbon::parse($detailDate.' '.$detailTime, 'Asia/Jakarta')->format('d M Y H:i')
+                            : '-';
+                    } catch (\Exception $e) {
+                        $detailDue = $detailDate ? $detailDate.' '.$detailTime : '-';
+                    }
                     $periodName = $claim->task?->period?->name ?? '-';
                     $instructionUrl = $claim->task?->policy_doc_path
                         ? asset('storage/'.ltrim($claim->task->policy_doc_path,'/'))
@@ -209,8 +199,8 @@
                         </div>
                         <div class="p-4 rounded-xl bg-white border border-slate-100">
                             <p class="text-xs text-slate-500">Klaim Pada</p>
-                            <p class="mt-2 text-sm font-medium text-slate-800">{{ optional($claim->claimed_at)->format('d M Y H:i') ?? '-' }}</p>
-                            <p class="text-xs text-slate-500">Batas batal: {{ optional($claim->cancel_deadline_at)->format('d M Y H:i') ?? '-' }}</p>
+                            <p class="mt-2 text-sm font-medium text-slate-800">{{ optional($claim->claimed_at?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}</p>
+                            <p class="text-xs text-slate-500">Batas batal: {{ optional($claim->cancel_deadline_at?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}</p>
                         </div>
                         <div class="p-4 rounded-xl bg-white border border-slate-100">
                             <p class="text-xs text-slate-500">Bonus / Poin</p>
@@ -291,14 +281,12 @@
                 <a href="#tugas-selesai" class="text-sm text-slate-500 hover:underline">#</a>
             </div>
             <div class="overflow-x-auto">
-                <x-ui.table min-width="900px">
+                <x-ui.table min-width="720px">
                     <x-slot name="head">
                         <tr>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Tugas</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
-                            <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Selesai / Update</th>
-                            <th class="px-6 py-4 text-left whitespace-nowrap">Bonus / Poin</th>
                             <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                         </tr>
                     </x-slot>
@@ -312,26 +300,21 @@
                                     {{ $statusLabels[$claim->status] ?? strtoupper($claim->status) }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-base">{{ $claim->task?->period?->name ?? '-' }}</td>
                             <td class="px-6 py-4 text-base">
                                 @php
-                                    $historyTime = $claim->completed_at ?: $claim->updated_at;
+                                    $historyTime = ($claim->completed_at ?: $claim->updated_at)?->timezone('Asia/Jakarta');
                                 @endphp
                                 {{ $historyTime ? $historyTime->format('d M Y H:i') : '-' }}
                             </td>
-                            <td class="px-6 py-4 text-base">
-                                <div>{{ $claim->task?->bonus_amount ? 'Rp '.number_format($claim->task->bonus_amount,0,',','.') : '-' }}</div>
-                                <div class="text-xs text-slate-500">Poin: {{ $claim->task?->points ?? '-' }}</div>
-                            </td>
                             <td class="px-6 py-4 text-right">
-                                <button type="button" class="px-4 py-2 rounded-xl text-white text-xs font-semibold bg-gradient-to-r from-sky-400 to-blue-600 shadow-sm hover:brightness-110" @click="historyDetail = historyDetail === '{{ $claim->id }}' ? null : '{{ $claim->id }}'">
+                                <button type="button" class="px-5 py-2.5 rounded-xl text-white text-sm font-semibold bg-gradient-to-r from-sky-400 to-blue-600 shadow-sm hover:brightness-110" @click="historyDetail = historyDetail === '{{ $claim->id }}' ? null : '{{ $claim->id }}'">
                                     Detail
                                 </button>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-8 text-center text-slate-500">Belum ada riwayat klaim.</td>
+                            <td colspan="4" class="px-6 py-8 text-center text-slate-500">Belum ada riwayat klaim.</td>
                         </tr>
                     @endforelse
                 </x-ui.table>
@@ -361,7 +344,7 @@
                         </div>
                         <div class="p-4 rounded-xl bg-white border border-slate-100">
                             <p class="text-xs text-slate-500">Tanggal Perubahan</p>
-                            <p class="mt-2 text-sm font-medium text-slate-800">{{ optional($claim->completed_at ?: $claim->updated_at)->format('d M Y H:i') ?? '-' }}</p>
+                            <p class="mt-2 text-sm font-medium text-slate-800">{{ optional(($claim->completed_at ?: $claim->updated_at)?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}</p>
                         </div>
                         <div class="p-4 rounded-xl bg-white border border-slate-100">
                             <p class="text-xs text-slate-500">Bonus / Poin</p>

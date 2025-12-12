@@ -33,8 +33,16 @@
                     <x-ui.input type="date" name="start_date" :value="\Carbon\Carbon::parse($item->start_date)->format('Y-m-d')" required />
                 </div>
                 <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Waktu Mulai (WIB)</label>
+                    <x-ui.input type="time" name="start_time" :value="$item->start_time ? \Carbon\Carbon::parse($item->start_time)->format('H:i') : '08:00'" step="60" />
+                </div>
+                <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Tanggal Selesai</label>
                     <x-ui.input type="date" name="due_date" :value="\Carbon\Carbon::parse($item->due_date)->format('Y-m-d')" required />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Waktu Selesai (WIB)</label>
+                    <x-ui.input type="time" name="due_time" :value="$item->due_time ? \Carbon\Carbon::parse($item->due_time)->format('H:i') : '23:59'" step="60" />
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">
@@ -51,7 +59,7 @@
                     <x-ui.input type="number" step="0.01" name="points" :value="$item->points" x-model="points" x-bind:disabled="bonus && bonus > 0" />
                 </div>
                 <div class="md:col-span-2 -mt-2">
-                    <p class="text-xs text-slate-500">Isi salah satu: Bonus atau Poin.</p>
+                    <p class="text-xs text-slate-500">Isi salah satu: Bonus atau Poin. Semua waktu menggunakan zona Asia/Jakarta (UTC+7).</p>
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-slate-600 mb-1">File Pendukung (Word/Excel/PPT)</label>

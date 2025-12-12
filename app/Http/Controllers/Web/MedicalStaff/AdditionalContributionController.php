@@ -45,6 +45,7 @@ class AdditionalContributionController extends Controller
                 ->where('unit_id', $unitId)
                 ->where('status', 'open')
                 ->orderBy('due_date')
+                ->orderBy('due_time')
                 ->get();
 
             $taskIds = $availableTasks->pluck('id');
@@ -63,7 +64,8 @@ class AdditionalContributionController extends Controller
                     'title' => $task->title,
                     'description' => $task->description,
                     'period_name' => $task->period?->name,
-                    'due_date' => $task->due_date ? Carbon::parse($task->due_date)->translatedFormat('d M Y') : '-',
+                    'due_date' => $task->due_date,
+                    'due_time' => $task->due_time,
                     'bonus_amount' => $task->bonus_amount,
                     'points' => $task->points,
                     'claims_used' => (int) $task->active_claims,

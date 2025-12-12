@@ -17,8 +17,10 @@ class AdditionalTaskStatusService
 
         $shouldCloseByTime = false;
         if ($task->due_date) {
-            $dueEnd = Carbon::parse($task->due_date, 'Asia/Jakarta')->endOfDay('Asia/Jakarta');
-            $shouldCloseByTime = Carbon::now('Asia/Jakarta')->greaterThan($dueEnd);
+            $deadlineTime = $task->due_time ?: '23:59:59';
+            $deadlineDate = Carbon::parse($task->due_date)->toDateString();
+            $deadline = Carbon::parse($deadlineDate . ' ' . $deadlineTime, 'Asia/Jakarta');
+            $shouldCloseByTime = Carbon::now('Asia/Jakarta')->greaterThan($deadline);
         }
 
         $shouldCloseByQuota = false;

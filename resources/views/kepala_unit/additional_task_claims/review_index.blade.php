@@ -40,7 +40,9 @@
         <div class="space-y-5">
             @forelse ($claims as $claim)
                 @php
-                    $claimedAt = $claim->claimed_at ? Carbon::parse($claim->claimed_at)->format('d M Y H:i') : '-';
+                    $claimedAt = $claim->claimed_at
+                        ? Carbon::parse($claim->claimed_at)->timezone('Asia/Jakarta')->format('d M Y H:i')
+                        : '-';
                     $dueDate = $claim->due_date ? Carbon::parse($claim->due_date)->format('d M Y') : '-';
                     $resultUrl = $claim->result_file_path ? Storage::url($claim->result_file_path) : null;
                     $policyUrl = $claim->policy_doc_path ? Storage::url($claim->policy_doc_path) : null;
@@ -78,13 +80,16 @@
                     <div class="grid gap-4 md:grid-cols-3">
                         <div class="rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-slate-100 p-4 space-y-1">
                             <p class="text-xs tracking-wide text-slate-400 uppercase">Skor</p>
-                            <p class="text-2xl font-semibold text-slate-900">{{ $claim->points ?? '-' }} poin</p>
+                            @php
+                                $pointsDisplay = is_null($claim->points) ? '-' : number_format((float) $claim->points, 0, ',', '.');
+                            @endphp
+                            <p class="text-2xl font-semibold text-slate-900">{{ $pointsDisplay === '-' ? '-' : $pointsDisplay . ' poin' }}</p>
                             <p class="text-xs text-slate-500">Bobot penilaian yang akan diterima pegawai.</p>
                         </div>
                         <div class="rounded-2xl border border-slate-100 bg-gradient-to-br from-emerald-50 via-white to-slate-50 p-4 space-y-1">
                             <p class="text-xs tracking-wide text-slate-400 uppercase">Bonus</p>
                             <p class="text-2xl font-semibold text-slate-900">
-                                {{ $claim->bonus_amount ? 'Rp ' . number_format($claim->bonus_amount, 0, ',', '.') : '-' }}
+                                {{ $claim->bonus_amount ? 'Rp ' . number_format((float) $claim->bonus_amount, 0, ',', '.') : '-' }}
                             </p>
                             <p class="text-xs text-slate-500">Nominal tambahan jika tugas disetujui.</p>
                         </div>

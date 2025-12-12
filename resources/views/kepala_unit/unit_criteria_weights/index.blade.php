@@ -93,7 +93,7 @@
                     <x-ui.input type="number" step="0.01" min="0" max="100" name="weight" placeholder="0-100" id="ucwWeight" required />
                 </div>
                 <div class="md:col-span-2">
-                    <x-ui.button type="submit" variant="orange" class="h-10 w-full" id="ucwAddBtn" disabled>Tambah</x-ui.button>
+                    <x-ui.button type="submit" variant="orange" class="h-10 w-full" id="ucwAddBtn">Tambah</x-ui.button>
                 </div>
                 @if(!$activePeriod)
                     <div class="md:col-span-12 text-sm text-rose-700">Tidak ada periode aktif. Hubungi Admin RS untuk mengaktifkan periode.</div>
@@ -140,12 +140,14 @@
                                 <form method="POST" action="{{ route('kepala_unit.unit-criteria-weights.update', $it->id) }}" class="inline-flex items-center gap-2">
                                     @csrf
                                     @method('PUT')
-                                    <x-ui.input type="number" step="0.01" min="0" max="100" name="weight" :value="$it->weight" class="h-9 w-24 max-w-[96px] text-right" />
+                                    @php($weightDisplay = number_format((float) $it->weight, 0))
+                                    <x-ui.input type="number" step="0.01" min="0" max="100" name="weight" :value="$weightDisplay" class="h-9 w-24 max-w-[96px] text-right" />
                                     <x-ui.button type="submit" variant="orange" class="h-9 px-3 text-xs">Simpan</x-ui.button>
                                 </form>
                             @else
                                 <div class="inline-flex items-center gap-2">
-                                    <x-ui.input type="number" :value="$it->weight" disabled class="h-9 w-24 max-w-[96px] text-right bg-slate-100 text-slate-500 border-slate-200" />
+                                    @php($weightDisplay = number_format((float) $it->weight, 0))
+                                    <x-ui.input type="number" :value="$weightDisplay" disabled class="h-9 w-24 max-w-[96px] text-right bg-slate-100 text-slate-500 border-slate-200" />
                                     <span class="text-xs text-slate-400">Terkunci</span>
                                 </div>
                             @endif
@@ -194,7 +196,8 @@
                             <span class="px-2 py-1 rounded text-xs bg-slate-200 text-slate-600">Riwayat</span>
                         </td>
                         <td class="px-6 py-2 text-right">
-                            <x-ui.input type="number" :value="$it->weight" disabled class="h-9 w-24 max-w-[96px] text-right bg-slate-100 text-slate-500 border-slate-200" />
+                            @php($weightDisplay = number_format((float) $it->weight, 0))
+                            <x-ui.input type="number" :value="$weightDisplay" disabled class="h-9 w-24 max-w-[96px] text-right bg-slate-100 text-slate-500 border-slate-200" />
                         </td>
                         <td class="px-6 py-4 text-right"><span class="text-xs text-slate-400">—</span></td>
                     </tr>
@@ -207,22 +210,26 @@
 </x-app-layout>
 @push('scripts')
 <script>
-    (() => {
+    document.addEventListener('DOMContentLoaded', () => {
         const crit = document.getElementById('ucwCrit');
         const weight = document.getElementById('ucwWeight');
         const btn = document.getElementById('ucwAddBtn');
         if (!crit || !weight || !btn) return;
 
         const toggle = () => {
-            const hasCrit = !!(crit.value && crit.value !== '');
-            const wVal = parseFloat(weight.value);
-            const hasWeight = !Number.isNaN(wVal);
+            const hasCrit = Boolean((crit.value || '').trim());
+            const weightStr = (weight.value || '').trim();
+            const wVal = parseFloat(weightStr);
+            const hasWeight = weightStr !== '' && !Number.isNaN(wVal);
             btn.disabled = !(hasCrit && hasWeight);
         };
 
         crit.addEventListener('change', toggle);
         weight.addEventListener('input', toggle);
+        weight.addEventListener('change', toggle);
+
         toggle();
-    })();
+        requestAnimationFrame(toggle);
+    });
 </script>
 @endpush
