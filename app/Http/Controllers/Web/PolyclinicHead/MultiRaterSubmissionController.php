@@ -102,6 +102,7 @@ class MultiRaterSubmissionController extends Controller
                     ->join($rolesTable . ' as r', 'r.id', '=', 'ru.role_id')
                     ->where('r.slug', User::ROLE_PEGAWAI_MEDIS)
                     ->leftJoin($criteriaTable . ' as pc', 'pc.id', '=', 'multi_rater_scores.performance_criteria_id')
+                    ->where('pc.input_method', '360')
                     ->orderBy('u.name')
                     ->get(['multi_rater_scores.*','u.name as target_name','pc.name as criteria_name','pc.type as criteria_type']);
             }
@@ -132,7 +133,7 @@ class MultiRaterSubmissionController extends Controller
             ->whereDate('end_date', '>=', now()->toDateString())
             ->first();
         if (!$window) return redirect()->route('kepala_poliklinik.multi_rater.index')->with('error','Penilaian 360 belum dibuka.');
-        $criterias = PerformanceCriteria::where('is_360_based', true)->where('is_active', true)->get();
+        $criterias = PerformanceCriteria::where('input_method', '360')->where('is_active', true)->get();
         $details = $assessment->details()->get()->keyBy('performance_criteria_id');
         return view('kepala_poli.multi_rater.show', compact('assessment','criterias','details','window'));
     }
@@ -147,7 +148,7 @@ class MultiRaterSubmissionController extends Controller
             'comments.*' => 'nullable|string|max:1000',
         ]);
 
-        $criterias = PerformanceCriteria::where('is_360_based', true)->where('is_active', true)->get();
+        $criterias = PerformanceCriteria::where('input_method', '360')->where('is_active', true)->get();
         foreach ($criterias as $c) {
             $score = $payload['scores'][$c->id] ?? null;
             $comment = $payload['comments'][$c->id] ?? null;

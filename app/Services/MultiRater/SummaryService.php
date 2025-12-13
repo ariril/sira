@@ -28,7 +28,7 @@ class SummaryService
                 ->pluck('avg_score', 'performance_criteria_id');
 
             $rows = PerformanceCriteria::query()
-                ->where('is_360_based', true)
+                ->where('input_method', '360')
                 ->orderBy('name')
                 ->get()
                 ->map(function ($criteria) use ($averages) {

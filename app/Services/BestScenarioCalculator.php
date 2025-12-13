@@ -204,7 +204,7 @@ class BestScenarioCalculator
         if ($named) {
             return (int) $named;
         }
-        $first360 = PerformanceCriteria::where('is_360_based', true)->orderBy('id')->value('id');
+        $first360 = PerformanceCriteria::where('input_method', '360')->orderBy('id')->value('id');
         return $first360 ? (int) $first360 : null;
     }
 

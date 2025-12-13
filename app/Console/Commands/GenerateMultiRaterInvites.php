@@ -17,7 +17,7 @@ class GenerateMultiRaterInvites extends Command
         $periodId = (int)$this->argument('period_id');
         $reset = (bool)$this->option('reset');
 
-        $criterias = PerformanceCriteria::where('is_360_based', true)->where('is_active', true)->exists();
+        $criterias = PerformanceCriteria::where('input_method', '360')->where('is_active', true)->exists();
         if (!$criterias) { $this->warn('No 360-based criteria active; nothing to generate.'); return 0; }
 
         if ($reset) {

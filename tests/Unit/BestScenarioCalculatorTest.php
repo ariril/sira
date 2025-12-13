@@ -44,11 +44,11 @@ class BestScenarioCalculatorTest extends TestCase
     private function seedCriteria(): void
     {
         $data = [
-            ['name' => 'Absensi', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'is_active' => 1, 'is_360_based' => 0],
-            ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'aggregation_method' => 'avg', 'is_active' => 1, 'is_360_based' => 1],
-            ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'manual', 'aggregation_method' => 'sum', 'is_active' => 1, 'is_360_based' => 0],
-            ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'is_active' => 1, 'is_360_based' => 0],
-            ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'aggregation_method' => 'avg', 'is_active' => 1, 'is_360_based' => 0],
+            ['name' => 'Absensi', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'is_active' => 1],
+            ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'aggregation_method' => 'avg', 'is_active' => 1],
+            ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'manual', 'aggregation_method' => 'sum', 'is_active' => 1],
+            ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'is_active' => 1],
+            ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'aggregation_method' => 'avg', 'is_active' => 1],
         ];
         foreach ($data as $row) {
             PerformanceCriteria::create($row);

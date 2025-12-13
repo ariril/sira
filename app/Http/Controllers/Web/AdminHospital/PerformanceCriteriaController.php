@@ -92,7 +92,6 @@ class PerformanceCriteriaController extends Controller
     {
         $data = $this->validateData($request);
         $data['is_active'] = (bool)($data['is_active'] ?? false);
-        $data['is_360_based'] = (bool)($request->boolean('is_360_based'));
         $item = PerformanceCriteria::create($data);
         $this->syncRaterWeights($request, $item);
         return redirect()->route('admin_rs.performance-criterias.index')
@@ -111,7 +110,6 @@ class PerformanceCriteriaController extends Controller
     {
         $data = $this->validateData($request, isUpdate: true);
         $data['is_active'] = (bool)($data['is_active'] ?? false);
-        $data['is_360_based'] = (bool)($request->boolean('is_360_based'));
         $performance_criteria->update($data);
         $this->syncRaterWeights($request, $performance_criteria);
         return redirect()->route('admin_rs.performance-criterias.index')
@@ -134,18 +132,17 @@ class PerformanceCriteriaController extends Controller
             'name'        => ['required', 'string', 'max:255'],
             'type'        => ['required', 'in:' . implode(',', array_keys($this->types()))],
             'data_type'   => ['nullable','in:numeric,percentage,boolean,datetime,text'],
-            'input_method'=> ['nullable','in:system,manual,import,360'],
+            'input_method'=> ['nullable','in:system,manual,import,360,public_review'],
             'aggregation_method' => ['nullable','in:sum,avg,count,latest,custom'],
             'description' => ['nullable', 'string'],
             'is_active'   => ['nullable', 'boolean'],
-            'is_360_based'=> ['nullable','boolean'],
             'suggested_weight' => ['nullable','numeric','min:0','max:100'],
         ]);
     }
 
     private function syncRaterWeights(\Illuminate\Http\Request $request, \App\Models\PerformanceCriteria $criteria): void
     {
-        if (!$criteria->is_360_based) return;
+        if ($criteria->input_method !== '360') return;
         $weights = $request->input('rater_weights', []);
         foreach (['supervisor','peer','subordinate','self','patient','other'] as $type) {
             $val = $weights[$type] ?? null;

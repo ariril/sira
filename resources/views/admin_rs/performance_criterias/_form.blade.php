@@ -74,24 +74,12 @@
         </div>
     </div>
 
-    <div class="grid md:grid-cols-2 gap-5">
-        <div class="flex items-center gap-3">
-            <input type="hidden" name="is_360_based" value="0">
-            <x-ui.input type="checkbox" name="is_360_based" value="1" :checked="old('is_360_based', $item->is_360_based)" class="h-5 w-5" />
-            <div>
-                <div class="text-sm font-medium text-slate-700">Penilaian 360°</div>
-                <div class="text-xs text-slate-500">Jika dicentang, set bobot rater 360 di bawah.</div>
-            </div>
-        </div>
-    </div>
-
     <div>
         <label class="block text-sm font-medium text-slate-700 mb-1">Deskripsi</label>
         <x-ui.textarea name="description" rows="4" :value="old('description', $item->description)" placeholder="Keterangan tambahan (opsional)" />
     </div>
 </div>
-
-@if(old('is_360_based', $item->is_360_based))
+@if(old('input_method', $item->input_method) === '360')
 <div class="mt-6 p-4 border border-amber-200 bg-amber-50 rounded-xl">
     <div class="font-semibold text-amber-900 mb-3">Bobot Penilai (360°)</div>
     <div class="grid md:grid-cols-3 gap-4">

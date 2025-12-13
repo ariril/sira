@@ -19,14 +19,15 @@ class CriteriaResolver
             ->where('status', UnitCriteriaWeightStatus::ACTIVE)
             ->orderBy('id')
             ->get()
-            ->unique('performance_criteria_id');
+            ->unique('performance_criteria_id')
+            ->filter(fn($w) => $w->performanceCriteria && $w->performanceCriteria->input_method === '360' && $w->performanceCriteria->is_active);
 
         if ($weights->isNotEmpty()) {
             return $weights->map(fn($weight) => self::mapCriteria($weight->performanceCriteria));
         }
 
         return PerformanceCriteria::query()
-            ->where('is_360_based', true)
+            ->where('input_method', '360')
             ->where('is_active', true)
             ->orderBy('name')
             ->get()

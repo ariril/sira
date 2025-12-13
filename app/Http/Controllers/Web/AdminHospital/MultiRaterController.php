@@ -17,6 +17,10 @@ class MultiRaterController extends Controller
         $periodId = (int)($request->get('period_id') ?? optional($periods->first())->id);
         $period = $periodId ? $periods->firstWhere('id', $periodId) : null;
 
+        $latestWindow = $period ? Assessment360Window::where('assessment_period_id', $period->id)
+            ->orderByDesc('id')
+            ->first() : null;
+
         $window = $period ? Assessment360Window::where('assessment_period_id', $period->id)
             ->where('is_active', true)
             ->whereDate('end_date', '>=', now()->toDateString())
@@ -27,6 +31,8 @@ class MultiRaterController extends Controller
             'active360Criteria' => 0,
             'unitCount' => 0,
             'isActiveWindow' => (bool) $window,
+            'submittedCount' => 0,
+            'windowClosed' => $latestWindow && $latestWindow->is_active === false,
         ];
         if ($period) {
             $stats = MultiRaterAssessment::selectRaw('status, COUNT(*) as total')
@@ -38,10 +44,14 @@ class MultiRaterController extends Controller
             // Active 360 criteria within this period
             $summary['active360Criteria'] = \App\Models\PerformanceCriteria::query()
                 ->where('is_active', true)
-                ->where('is_360_based', true)
+                ->where('input_method', '360')
                 ->count();
             // Unit count under hospital
             $summary['unitCount'] = \DB::table('units')->count();
+            // Submitted assessments count
+            $summary['submittedCount'] = MultiRaterAssessment::where('assessment_period_id', $period->id)
+                ->where('status', 'submitted')
+                ->count();
         }
 
         return view('admin_rs.multi_rater.index', compact('periods','period','window','stats','summary'));
@@ -65,17 +75,31 @@ class MultiRaterController extends Controller
             return back()->with('error', 'Tanggal mulai minimal hari ini.');
         }
 
-        // Close previous active window in this period, then create new
-        Assessment360Window::where('assessment_period_id', $period->id)->where('is_active', true)
-            ->update(['is_active' => false]);
+        $existingWindow = Assessment360Window::where('assessment_period_id', $period->id)
+            ->orderByDesc('id')
+            ->first();
 
-        Assessment360Window::create([
-            'assessment_period_id' => $period->id,
-            'start_date' => $data['start_date'],
-            'end_date' => $data['end_date'],
-            'is_active' => true,
-            'opened_by' => auth()->id(),
-        ]);
+        // If there was a window before and it's already closed, do not allow re-opening for the same period
+        if ($existingWindow && $existingWindow->is_active === false) {
+            return back()->with('error', 'Penilaian 360 untuk periode ini sudah ditutup dan tidak dapat dibuka kembali.');
+        }
+
+        if ($existingWindow && $existingWindow->is_active) {
+            // Update the existing active window dates instead of creating a new one
+            $existingWindow->update([
+                'start_date' => $data['start_date'],
+                'end_date' => $data['end_date'],
+            ]);
+        } else {
+            // Create first-time window for this period
+            Assessment360Window::create([
+                'assessment_period_id' => $period->id,
+                'start_date' => $data['start_date'],
+                'end_date' => $data['end_date'],
+                'is_active' => true,
+                'opened_by' => auth()->id(),
+            ]);
+        }
 
         return redirect()->route('admin_rs.multi_rater.index', ['period_id' => $period->id])
             ->with('status', 'Jadwal penilaian 360 dibuka.');

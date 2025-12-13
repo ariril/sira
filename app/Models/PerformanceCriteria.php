@@ -18,13 +18,11 @@ class PerformanceCriteria extends Model
         'aggregation_method',
         'description',
         'is_active',
-        'is_360_based',
         'suggested_weight',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
-        'is_360_based' => 'boolean',
         'type'      => PerformanceCriteriaType::class,
         'suggested_weight' => 'decimal:2',
     ];

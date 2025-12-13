@@ -412,9 +412,10 @@ class DatabaseSeeder extends Seeder
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
-                'November 2025' => [
-                    'start' => '2025-11-01',
-                    'end' => '2025-11-30',
+                [
+                    'name' => 'November 2025',
+                    'start_date' => '2025-11-01',
+                    'end_date' => '2025-11-30',
                     'status' => 'closed',
                     'locked_at' => null,
                     'created_at' => $now,
@@ -428,17 +429,17 @@ class DatabaseSeeder extends Seeder
             // 7) PERFORMANCE CRITERIAS
             // =========================================================
             $criterias = [
-                ['name' => 'Absensi', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'description' => 'Total hadir dalam periode', 'is_active' => 1, 'is_360_based' => 0],
-                ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kedisiplinan', 'is_active' => 1, 'is_360_based' => 1],
-                ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'aggregation_method' => 'sum', 'description' => 'Poin tugas / kontribusi tambahan dari modul tugas/kontribusi', 'is_active' => 1, 'is_360_based' => 0],
-                ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'description' => 'Total pasien ditangani', 'is_active' => 1, 'is_360_based' => 0],
-                ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'aggregation_method' => 'avg', 'description' => 'Rerata rating pasien', 'is_active' => 1, 'is_360_based' => 0],
+                ['name' => 'Absensi', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'description' => 'Total hadir dalam periode', 'is_active' => 1],
+                ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kedisiplinan', 'is_active' => 1],
+                ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'aggregation_method' => 'sum', 'description' => 'Poin tugas / kontribusi tambahan dari modul tugas/kontribusi', 'is_active' => 1],
+                ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'description' => 'Total pasien ditangani', 'is_active' => 1],
+                ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'aggregation_method' => 'avg', 'description' => 'Rerata rating pasien', 'is_active' => 1],
             ];
             foreach ($criterias as &$k) {
                 $k['created_at'] = $now;
                 $k['updated_at'] = $now;
             }
-            DB::table('performance_criterias')->upsert($criterias, ['name'], ['type','data_type','input_method','aggregation_method','description','is_active','is_360_based','updated_at']);
+            DB::table('performance_criterias')->upsert($criterias, ['name'], ['type','data_type','input_method','aggregation_method','description','is_active','updated_at']);
 
             // Seed default rater weights for kedisiplinan (360)
             $kedisId = DB::table('performance_criterias')->where('name', 'Kedisiplinan (360)')->value('id');
@@ -820,6 +821,6 @@ class DatabaseSeeder extends Seeder
             ]);
         });
 
-        $this->call(AssessmentTimelineSeeder::class);
+        // $this->call(AssessmentTimelineSeeder::class);
     }
 }

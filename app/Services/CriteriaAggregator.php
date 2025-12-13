@@ -30,7 +30,7 @@ class CriteriaAggregator
                     ->where('performance_criteria_id', $criteria->id)
                     ->first();
 
-                if ($criteria->is_360_based) {
+                if ($criteria->input_method === '360') {
                     $score = $this->aggregate360($criteria->id, $userId, $periodId);
                     // Persist metric for trace if not present
                     if (!$metric && $score !== null) {
