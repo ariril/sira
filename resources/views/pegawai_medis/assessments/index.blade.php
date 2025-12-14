@@ -33,6 +33,6 @@
             </x-ui.table>
         </div>
 
-        <div class="pt-2 flex justify-end">{{ $assessments->links() }}</div>
+        <div class="pt-2 flex justify-end">{{ $assessments->withQueryString()->links() }}</div>
     </div>
 </x-app-layout>

@@ -15,13 +15,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use App\Models\AssessmentPeriod;
 
 class AttendanceImportController extends Controller
 {
     // Upload form
     public function create(Request $request): View
     {
-        return view('admin_rs.attendances.import.create');
+        $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
+        return view('admin_rs.attendances.import.create', compact('activePeriod'));
     }
 
     // Handle upload + import (CSV/XLS/XLSX)

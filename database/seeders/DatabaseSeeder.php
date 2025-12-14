@@ -265,7 +265,14 @@ class DatabaseSeeder extends Seeder
             $medisUnitHeadId = $userId('kepala.unit.medis@rsud.local');
             $janBeriaId = $userId('januario.bria@rsud.local');
 
+            // Aliases for readability (permintaan user)
+            $felixId = $medisUnitHeadId;
+            $fransiscaId = $nurseId;
+            $theodorusId = $doctorId;
+            $melriaId = $unitHeadGigiId;
+
             $poliklinikUmumId = $unitId('poliklinik-umum');
+            $poliklinikGigiId = $unitId('poliklinik-gigi');
 
             // Assign roles to users via pivot (single role each, except user id 7 dual head+medis)
             $roleId = fn(string $slug) => DB::table('roles')->where('slug', $slug)->value('id');
@@ -424,6 +431,7 @@ class DatabaseSeeder extends Seeder
             ]);
             $periodSeptId = DB::table('assessment_periods')->where('name', 'September 2025')->value('id');
             $periodOctId = DB::table('assessment_periods')->where('name', 'Oktober 2025')->value('id');
+            $periodNovId = DB::table('assessment_periods')->where('name', 'November 2025')->value('id');
 
             // =========================================================
             // 7) PERFORMANCE CRITERIAS
@@ -821,6 +829,6 @@ class DatabaseSeeder extends Seeder
             ]);
         });
 
-        // $this->call(AssessmentTimelineSeeder::class);
+        $this->call(FiveStaffKpiSeeder::class);
     }
 }

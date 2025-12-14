@@ -207,7 +207,7 @@
 
             {{-- Pagination --}}
             <div class="mt-6">
-                {{ $rows->onEachSide(1)->links() }}
+                {{ $rows->onEachSide(1)->withQueryString()->links() }}
             </div>
         </section>
 

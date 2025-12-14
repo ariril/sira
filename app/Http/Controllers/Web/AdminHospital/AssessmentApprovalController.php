@@ -47,7 +47,8 @@ class AssessmentApprovalController extends Controller
         $periodId = $request->filled('period_id') ? (int) $request->input('period_id') : ($activePeriodId ?? null);
 
         // Composite filter values covering status and level scopes
-        // Values: '', 'pending_l1','approved_l1','rejected_l1','pending_all','approved_all','rejected_all'
+        // Values: 'all','pending_l1','approved_l1','rejected_l1','pending_all','approved_all','rejected_all'
+        // Use sentinel "all" to represent (Semua) so pagination won't drop it
         $status = (string) $request->input('status', 'pending_l1');
 
         $items = collect();
@@ -61,7 +62,9 @@ class AssessmentApprovalController extends Controller
                 ->orderByDesc('aa.id');
 
             // Apply combined status+level filter
-            switch ($status) {
+            $statusNormalized = $status === 'all' ? '' : $status;
+
+            switch ($statusNormalized) {
                 case 'pending_l1':
                     $builder->where('aa.level', 1)->where('aa.status', 'pending');
                     break;
@@ -94,7 +97,10 @@ class AssessmentApprovalController extends Controller
             if ($periodId) {
                 $builder->where('pa.assessment_period_id', $periodId);
             }
-            $items = $builder->paginate($perPage)->withQueryString();
+            // Preserve status sentinel across pagination
+            $queryParams = $request->query();
+            $queryParams['status'] = $status;
+            $items = $builder->paginate($perPage)->appends($queryParams);
         } else {
             // Ensure the view can still call ->links() even when the table doesn't exist yet
             $items = new LengthAwarePaginator(

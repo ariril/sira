@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use App\Models\AssessmentPeriod;
 
 class AdditionalTaskController extends Controller
 {
@@ -36,11 +37,13 @@ class AdditionalTaskController extends Controller
         $perPage  = (int) ($data['per_page'] ?? 20);
 
         $periods = collect();
+        $activePeriod = null;
         if (Schema::hasTable('assessment_periods')) {
             $periods = DB::table('assessment_periods')
                 ->orderByDesc(DB::raw("status = 'active'"))
                 ->orderByDesc('id')
                 ->get();
+            $activePeriod = $periods->firstWhere('status', 'active');
         }
 
         if ($unitId) {
@@ -79,7 +82,7 @@ class AdditionalTaskController extends Controller
         }
 
         return view('kepala_unit.additional_tasks.index', compact(
-            'items', 'periods', 'q', 'status', 'periodId', 'perPage', 'perPageOptions'
+            'items', 'periods', 'q', 'status', 'periodId', 'perPage', 'perPageOptions', 'activePeriod'
         ));
     }
 

@@ -32,6 +32,7 @@ class MultiRaterController extends Controller
             'unitCount' => 0,
             'isActiveWindow' => (bool) $window,
             'submittedCount' => 0,
+            'neverOpened' => $latestWindow === null,
             'windowClosed' => $latestWindow && $latestWindow->is_active === false,
         ];
         if ($period) {

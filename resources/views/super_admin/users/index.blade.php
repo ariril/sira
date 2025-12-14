@@ -144,7 +144,7 @@
             </div>
 
             <div>
-                {{ $users->links() }}
+                {{ $users->withQueryString()->links() }}
             </div>
         </div>
     </div>

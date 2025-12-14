@@ -18,7 +18,7 @@
         </div>
 
         <div class="mt-6">
-            {{ $items->links() }}
+            {{ $items->withQueryString()->links() }}
         </div>
     </div>
 @endsection

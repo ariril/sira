@@ -94,7 +94,7 @@
                     data
                 </div>
                 <div>
-                    {{ $faqs->links() }}
+                    {{ $faqs->withQueryString()->links() }}
                 </div>
             </div>
         @endif

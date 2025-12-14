@@ -235,7 +235,7 @@
                 dari <span class="font-semibold text-slate-900">{{ $claims->total() }}</span> klaim
             </div>
             <div>
-                {{ $claims->links() }}
+                {{ $claims->withQueryString()->links() }}
             </div>
         </div>
     </div>

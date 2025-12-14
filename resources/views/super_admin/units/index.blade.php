@@ -103,7 +103,7 @@
                 <span class="font-medium text-slate-800">{{ $units->total() }}</span>
                 data
             </div>
-            <div>{{ $units->links() }}</div>
+            <div>{{ $units->withQueryString()->links() }}</div>
         </div>
     </div>
 </x-app-layout>

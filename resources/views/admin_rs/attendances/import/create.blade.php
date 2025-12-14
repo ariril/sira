@@ -9,6 +9,13 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
+        @unless($activePeriod ?? null)
+            <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
+                <div class="font-semibold">Tidak ada periode yang aktif saat ini.</div>
+                <div>Aktifkan periode penilaian agar unggahan absensi terasosiasi.</div>
+            </div>
+        @endunless
+
         @if($errors->any())
         <div class="bg-rose-50 border border-rose-100 text-rose-800 rounded-xl px-4 py-3">
             <ul class="list-disc list-inside text-sm">

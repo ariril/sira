@@ -33,7 +33,7 @@
             </x-ui.table>
         </div>
 
-        <div class="pt-2 flex justify-end">{{ $items->links() }}</div>
+        <div class="pt-2 flex justify-end">{{ $items->withQueryString()->links() }}</div>
 
         {{-- Status Proses Penilaian & Remunerasi (informasi, tidak mencampur dengan tabel remunerasi) --}}
         @if(($progress ?? collect())->isNotEmpty())

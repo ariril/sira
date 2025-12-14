@@ -6,6 +6,14 @@
     <div class="container-px py-6 space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-emerald-100 p-6 space-y-4">
 
+            @php $activePeriod = $periods->firstWhere('status', 'active'); @endphp
+            @unless($activePeriod)
+                <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
+                    <div class="font-semibold">Tidak ada periode yang aktif saat ini.</div>
+                    <div>Aktifkan periode di menu Periode Penilaian sebelum membuka Penilaian 360.</div>
+                </div>
+            @endunless
+
             {{-- Filter periode --}}
             <form method="GET" class="grid md:grid-cols-4 gap-4 items-end">
                 <div class="md:col-span-2">
@@ -28,7 +36,14 @@
                     ({{ $period->start_date->format('d M Y') }} – {{ $period->end_date->format('d M Y') }})
                 </div>
 
-                @if(!$window)
+                @if(!$window && !($summary['windowClosed'] ?? false))
+                    <div class="mt-3 rounded-xl border border-sky-200 bg-sky-50 text-sky-900 px-4 py-3 text-sm space-y-1">
+                        <div class="font-semibold">Penilaian 360 tidak dibuka pada periode {{ $period->name }}.</div>
+                        <div>Buka jadwal untuk mengaktifkan penilaian 360 pada periode-periode berikutnya.</div>
+                    </div>
+                @endif
+
+                @if($summary['windowClosed'] ?? false)
                     <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 px-4 py-3 text-sm space-y-1">
                         <div class="font-semibold">Penilaian 360 untuk periode ini sudah ditutup.</div>
                         <div>Jumlah penilaian 360 yang sudah terisi: <b>{{ $summary['submittedCount'] ?? 0 }}</b></div>

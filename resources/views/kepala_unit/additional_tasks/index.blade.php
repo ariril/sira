@@ -10,6 +10,13 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
+        @unless($activePeriod ?? null)
+            <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
+                <div class="font-semibold">Tidak ada periode yang aktif saat ini.</div>
+                <div>Hubungi Admin RS untuk mengaktifkan periode penilaian terlebih dahulu.</div>
+            </div>
+        @endunless
+
         <form method="GET" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="grid gap-5 md:grid-cols-12">
                 <div class="md:col-span-5">
@@ -152,7 +159,7 @@
                 <span class="font-medium text-slate-800">{{ $items->total() }}</span>
                 data
             </div>
-            <div>{{ $items->links() }}</div>
+            <div>{{ $items->withQueryString()->links() }}</div>
         </div>
     </div>
 </x-app-layout>

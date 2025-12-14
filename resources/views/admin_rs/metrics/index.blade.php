@@ -6,6 +6,13 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
+        @unless($activePeriod ?? null)
+            <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
+                <div class="font-semibold">Tidak ada periode yang aktif saat ini.</div>
+                <div>Aktifkan periode penilaian agar unggahan metrics diproses.</div>
+            </div>
+        @endunless
+
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
             <div class="font-medium">Unduh Template Excel per Kriteria</div>
             <form method="POST" action="{{ route('admin_rs.metrics.template') }}" class="space-y-4">
@@ -215,6 +222,6 @@
             @endforelse
         </x-ui.table>
 
-        <div class="pt-2 flex justify-end">{{ $items->links() }}</div>
+        <div class="pt-2 flex justify-end">{{ $items->withQueryString()->links() }}</div>
     </div>
 </x-app-layout>

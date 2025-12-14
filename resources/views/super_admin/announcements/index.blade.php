@@ -132,7 +132,7 @@
                 data
             </div>
             <div>
-                {{ $announcements->links() }}
+                {{ $announcements->withQueryString()->links() }}
             </div>
         </div>
         @endif

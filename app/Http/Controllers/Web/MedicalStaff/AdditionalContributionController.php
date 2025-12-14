@@ -13,6 +13,7 @@ use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
 use App\Models\AdditionalTask;
 use App\Models\AdditionalTaskClaim;
+use App\Models\AssessmentPeriod;
 use App\Services\AdditionalTaskStatusService;
 use Illuminate\Support\Carbon;
 
@@ -31,6 +32,7 @@ class AdditionalContributionController extends Controller
         $currentClaims = collect();
         $historyClaims = collect();
         $latestRejected = null;
+        $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
 
         if (Schema::hasTable('additional_tasks') && Schema::hasTable('additional_task_claims')) {
             AdditionalTaskStatusService::syncForUnit($unitId);
@@ -104,6 +106,7 @@ class AdditionalContributionController extends Controller
             'currentClaims' => $currentClaims,
             'historyClaims' => $historyClaims,
             'latestRejected' => $latestRejected,
+            'activePeriod' => $activePeriod,
         ]);
     }
 

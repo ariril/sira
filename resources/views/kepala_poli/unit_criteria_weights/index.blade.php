@@ -25,7 +25,7 @@
                 </div>
                 <div class="md:col-span-3">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
-                    <x-ui.select name="status" :options="['pending'=>'Pending','active'=>'Active','rejected'=>'Rejected','draft'=>'Draft']" :value="$filters['status'] ?? 'pending'" placeholder="(Semua)" />
+                    <x-ui.select name="status" :options="['all' => '(Semua)','pending'=>'Pending','active'=>'Active','rejected'=>'Rejected','draft'=>'Draft']" :value="$filters['status'] ?? 'pending'" />
                 </div>
             </div>
             <div class="mt-6 flex justify-end gap-3">
@@ -108,7 +108,7 @@
                 <span class="font-medium text-slate-800">{{ $items->total() }}</span>
                 data
             </div>
-            <div>{{ $items->links() }}</div>
+                <div>{{ $items->withQueryString()->links() }}</div>
         </div>
     </div>
 </x-app-layout>

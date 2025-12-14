@@ -2,6 +2,13 @@
     <div class="container-px py-6 space-y-6">
         <h1 class="text-3xl font-semibold text-slate-800">Kontribusi Tambahan</h1>
 
+        @unless($activePeriod)
+            <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
+                <div class="font-semibold">Tidak ada periode yang aktif saat ini.</div>
+                <div>Hubungi Admin RS untuk mengaktifkan periode penilaian terlebih dahulu.</div>
+            </div>
+        @endunless
+
         @php
             $statusLabels = [
                 'active' => 'Dalam Proses',

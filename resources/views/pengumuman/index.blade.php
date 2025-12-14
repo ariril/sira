@@ -96,7 +96,7 @@
 
         {{-- Pagination --}}
         <div class="mt-10">
-            {{ $items->onEachSide(1)->links() }}
+            {{ $items->onEachSide(1)->withQueryString()->links() }}
         </div>
     </div>
 @endsection

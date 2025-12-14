@@ -27,6 +27,14 @@ class DashboardController extends Controller
             return redirect()->route('pegawai_medis.dashboard');
         }
 
+        $activePeriod = null;
+        if (Schema::hasTable('assessment_periods')) {
+            $activePeriod = DB::table('assessment_periods')
+                ->where('status', 'active')
+                ->orderByDesc('id')
+                ->first();
+        }
+
         $me = [
             'avg_rating_30d' => null,
             'total_review_30d' => 0,
@@ -163,6 +171,7 @@ class DashboardController extends Controller
             'approvalBanner' => $approvalBanner,
             'rejectedClaim' => $rejectedClaim,
             'criteriaNotice' => $criteriaNotice,
+            'activePeriod' => $activePeriod,
         ]);
     }
 }

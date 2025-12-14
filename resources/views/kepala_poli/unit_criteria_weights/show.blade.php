@@ -62,6 +62,6 @@
             @endforelse
         </x-ui.table>
 
-        <div class="pt-2 flex justify-end">{{ $items->links() }}</div>
+        <div class="pt-2 flex justify-end">{{ $items->withQueryString()->links() }}</div>
     </div>
 </x-app-layout>

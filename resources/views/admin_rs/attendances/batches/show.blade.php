@@ -162,7 +162,7 @@
                     <tr><td colspan="7" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
                 @endforelse
             </x-ui.table>
-            <div class="pt-2 flex justify-end">{{ $rows->links() }}</div>
+            <div class="pt-2 flex justify-end">{{ $rows->withQueryString()->links() }}</div>
         </div>
     </div>
 </x-app-layout>

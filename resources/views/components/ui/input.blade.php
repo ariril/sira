@@ -6,15 +6,16 @@
   'id' => null,
   'addonLeft' => null, // icon class FA
   'required' => false,
+  'preserveOld' => true,
 ])
-@php($inputValue = $name ? old($name, $value) : $value)
+@php($inputValue = ($preserveOld && $name) ? old($name, $value) : $value)
 @if($type === 'checkbox')
     <input
         {{ $attributes->merge([
           'class' => 'h-5 w-5 text-blue-600 border-slate-300 focus:ring-blue-500 rounded'
         ]) }}
         type="checkbox" name="{{ $name }}" id="{{ $id ?? $name ?? '' }}"
-        value="{{ $value ?? 1 }}" @checked($name ? old($name, $value) : $value) />
+        value="{{ $value ?? 1 }}" @checked(($preserveOld && $name) ? old($name, $value) : $value) />
 @else
     <div class="relative">
         @if($addonLeft)

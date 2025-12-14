@@ -39,6 +39,7 @@ class AssessmentApprovalController extends Controller
         $q = (string) ($data['q'] ?? '');
         $perPage = (int) ($data['per_page'] ?? 10);
 
+        // Use sentinel "all" to represent (Semua) so pagination keeps the choice
         $status = (string) $request->input('status', 'pending_l3');
 
         $periodOptions = Schema::hasTable('assessment_periods')
@@ -77,7 +78,8 @@ class AssessmentApprovalController extends Controller
             if ($scopeUnitIds->isNotEmpty()) {
                 $builder->whereIn('u.unit_id', $scopeUnitIds);
             }
-            $builder = $this->applyStatusFilter($builder, $status);
+            $statusNormalized = $status === 'all' ? '' : $status;
+            $builder = $this->applyStatusFilter($builder, $statusNormalized);
             if ($q !== '') {
                 $builder->where(function ($w) use ($q) {
                     $w->where('u.name', 'like', "%$q%")
@@ -88,7 +90,7 @@ class AssessmentApprovalController extends Controller
                 $builder->where('pa.assessment_period_id', $periodId);
             }
 
-            $items = $builder->paginate($perPage)->withQueryString();
+            $items = $builder->paginate($perPage)->appends(array_merge($request->query(), ['status' => $status]));
         } else {
             $items = new LengthAwarePaginator(
                 collect(),

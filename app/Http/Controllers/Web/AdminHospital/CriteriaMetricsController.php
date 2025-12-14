@@ -30,6 +30,8 @@ class CriteriaMetricsController extends Controller
             $perPage = 10;
         }
 
+        $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
+
         $items = CriteriaMetric::query()
             ->when($periodId, fn($w) => $w->where('assessment_period_id', $periodId))
             ->when($criteriaId, fn($w) => $w->where('performance_criteria_id', $criteriaId))
@@ -60,7 +62,8 @@ class CriteriaMetricsController extends Controller
             'criteriaId',
             'q',
             'perPage',
-            'perPageOptions'
+            'perPageOptions',
+            'activePeriod'
         ));
     }
 

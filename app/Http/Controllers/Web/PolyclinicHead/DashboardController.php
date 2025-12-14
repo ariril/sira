@@ -91,8 +91,9 @@ class DashboardController extends Controller
         ];
 
         if (Schema::hasTable('assessment_periods')) {
+            // Ambil hanya periode berstatus active; jika tidak ada, set null agar banner muncul
             $kinerja['periode_aktif'] = DB::table('assessment_periods')
-                ->orderByDesc(DB::raw("status = 'active'"))
+                ->where('status', 'active')
                 ->orderByDesc('id')
                 ->first();
         }
@@ -147,7 +148,7 @@ class DashboardController extends Controller
         if (!$kinerja['periode_aktif']) {
             $notifications[] = [
                 'type' => 'error',
-                'text' => 'Tidak ada periode penilaian aktif. Koordinasikan dengan Admin RS untuk mengaktifkan periode.',
+                'text' => 'Tidak ada periode aktif. Hubungi Admin RS untuk mengaktifkan periode penilaian terlebih dahulu.',
                 'href' => null,
             ];
         }
@@ -156,6 +157,7 @@ class DashboardController extends Controller
             'stats'         => $summary,
             'approvalsList' => null,
             'notifications' => $notifications,
+            'activePeriod'  => $kinerja['periode_aktif'],
         ]);
     }
 }

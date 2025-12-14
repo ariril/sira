@@ -39,8 +39,9 @@
                     <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
                         @php
+                            // Use sentinel "all" so "(Semua)" persists across pagination
                             $statusOptions = [
-                                ''             => '(Semua)',
+                                'all'          => '(Semua)',
                                 'pending_l3'   => 'Pending (Level 3)',
                                 'approved_l3'  => 'Approved (Level 3)',
                                 'rejected_l3'  => 'Rejected (Level 3)',
@@ -149,7 +150,7 @@
                             @if($isMyLevel && $st === 'pending')
                                 <form method="POST" action="{{ route('kepala_poliklinik.assessments.approve', $it->id) }}">
                                     @csrf
-                                    <x-ui.button type="submit" variant="violet" class="h-9 px-3 text-xs">
+                                    <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">
                                         Approve
                                     </x-ui.button>
                                 </form>
@@ -159,7 +160,7 @@
                                       onsubmit="return confirm('Tolak penilaian ini?')">
                                     @csrf
                                     <input type="hidden" name="note" value="Ditolak oleh Kepala Poliklinik">
-                                    <x-ui.button type="submit" variant="violet" class="h-9 px-3 text-xs">
+                                    <x-ui.button type="submit" variant="danger" class="h-9 px-3 text-xs">
                                         Reject
                                     </x-ui.button>
                                 </form>
@@ -188,7 +189,7 @@
                 data
             </div>
 
-            <div>{{ $items->links() }}</div>
+            <div>{{ $items->withQueryString()->links() }}</div>
         </div>
 
     </div>

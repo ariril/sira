@@ -30,8 +30,9 @@
                     <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
                         @php
+                            // Use explicit sentinel "all" to avoid empty-string stripping in pagination/query appends
                             $statusOptions = [
-                                '' => '(Semua)',
+                                'all' => '(Semua)',
                                 'pending_l1' => 'Pending (Level 1)',
                                 'approved_l1' => 'Approved (Level 1)',
                                 'rejected_l1' => 'Rejected (Level 1)',
@@ -128,7 +129,7 @@
                                         onsubmit="return confirm('Tolak penilaian ini?')">
                                         @csrf
                                         <input type="hidden" name="note" value="Ditolak oleh Admin RS">
-                                        <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">
+                                        <x-ui.button type="submit" variant="danger" class="h-9 px-3 text-xs">
                                             Reject
                                         </x-ui.button>
                                     </form>
@@ -158,7 +159,7 @@
                 data
             </div>
 
-            <div>{{ $items->links() }}</div>
+            <div>{{ $items->withQueryString()->links() }}</div>
         </div>
 
     </div>

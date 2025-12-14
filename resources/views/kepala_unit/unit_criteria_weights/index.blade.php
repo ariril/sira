@@ -141,13 +141,13 @@
                                     @csrf
                                     @method('PUT')
                                     @php($weightDisplay = number_format((float) $it->weight, 0))
-                                    <x-ui.input type="number" step="0.01" min="0" max="100" name="weight" :value="$weightDisplay" class="h-9 w-24 max-w-[96px] text-right" />
+                                    <x-ui.input type="number" step="0.01" min="0" max="100" name="weight" :value="$weightDisplay" :preserve-old="false" class="h-9 w-24 max-w-[96px] text-right" />
                                     <x-ui.button type="submit" variant="orange" class="h-9 px-3 text-xs">Simpan</x-ui.button>
                                 </form>
                             @else
                                 <div class="inline-flex items-center gap-2">
                                     @php($weightDisplay = number_format((float) $it->weight, 0))
-                                    <x-ui.input type="number" :value="$weightDisplay" disabled class="h-9 w-24 max-w-[96px] text-right bg-slate-100 text-slate-500 border-slate-200" />
+                                    <x-ui.input type="number" :value="$weightDisplay" :preserve-old="false" disabled class="h-9 w-24 max-w-[96px] text-right bg-slate-100 text-slate-500 border-slate-200" />
                                     <span class="text-xs text-slate-400">Terkunci</span>
                                 </div>
                             @endif
@@ -197,7 +197,7 @@
                         </td>
                         <td class="px-6 py-2 text-right">
                             @php($weightDisplay = number_format((float) $it->weight, 0))
-                            <x-ui.input type="number" :value="$weightDisplay" disabled class="h-9 w-24 max-w-[96px] text-right bg-slate-100 text-slate-500 border-slate-200" />
+                            <x-ui.input type="number" :value="$weightDisplay" :preserve-old="false" disabled class="h-9 w-24 max-w-[96px] text-right bg-slate-100 text-slate-500 border-slate-200" />
                         </td>
                         <td class="px-6 py-4 text-right"><span class="text-xs text-slate-400">—</span></td>
                     </tr>

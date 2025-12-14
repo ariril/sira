@@ -79,7 +79,7 @@
                 <span class="font-medium text-slate-800">{{ $items->total() }}</span>
                 data
             </div>
-            <div>{{ $items->links() }}</div>
+            <div>{{ $items->withQueryString()->links() }}</div>
         </div>
     </div>
 </x-app-layout>
