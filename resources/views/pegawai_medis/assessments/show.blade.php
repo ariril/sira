@@ -38,16 +38,7 @@
                 </x-slot>
                 @forelse($assessment->details as $d)
                     @php
-                        $name = strtolower($d->performanceCriteria->name ?? '');
-                        $rawKey = match (true) {
-                            str_contains($name, 'absensi') => 'absensi',
-                            str_contains($name, 'disiplin') || str_contains($name, 'kedisiplinan') => 'kedisiplinan',
-                            str_contains($name, 'kontribusi') => 'kontribusi',
-                            str_contains($name, 'pasien') => 'pasien',
-                            str_contains($name, 'rating') => 'rating',
-                            default => null,
-                        };
-                        $raw = $rawKey ? ($rawMetrics[$rawKey] ?? null) : null;
+                        $raw = $rawMetrics[$d->performance_criteria_id] ?? null;
                     @endphp
                     <tr>
                         <td class="px-4 py-3">{{ $d->performanceCriteria->name ?? '-' }}</td>
@@ -91,6 +82,15 @@
                                                     <div class="text-sm font-semibold text-slate-900 text-right">{{ $line['value'] ?? '-' }}</div>
                                                 </div>
                                             @endforeach
+                                            @if(!empty($raw['formula']['raw']) && !empty($raw['formula']['result']) && !empty($raw['formula']['denominator']))
+                                                <div class="pt-3 mt-2 border-t border-slate-200">
+                                                    <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Rumus WSM</div>
+                                                    <div class="text-sm text-slate-800 font-semibold">
+                                                        {{ number_format($raw['formula']['raw'], 2) }} / {{ number_format($raw['formula']['denominator'], 2) }} × 100 = {{ number_format($raw['formula']['result'], 2) }}
+                                                    </div>
+                                                    <div class="text-xs text-slate-500">Pembagi diambil dari basis normalisasi kriteria (mis. total unit/profesi pada periode yang sama).</div>
+                                                </div>
+                                            @endif
                                         </div>
 
                                         <div class="flex items-center gap-2 text-xs text-slate-500">

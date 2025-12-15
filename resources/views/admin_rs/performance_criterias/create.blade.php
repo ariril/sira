@@ -28,7 +28,12 @@
                     </div>
                 @endif
 
-                @include('admin_rs.performance_criterias._form', ['item' => $item, 'types' => $types])
+                @include('admin_rs.performance_criterias._form', [
+                    'item' => $item,
+                    'types' => $types,
+                    'normalizationBases' => $normalizationBases,
+                    'hasOtherCriteria' => $hasOtherCriteria,
+                ])
 
                 <div class="flex justify-end gap-3">
                     <x-ui.button as="a" href="{{ route('admin_rs.performance-criterias.index') }}" variant="outline">Batal</x-ui.button>

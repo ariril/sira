@@ -65,6 +65,8 @@ class UnitCriteriaWeightController extends Controller
             $activePeriod = DB::table('assessment_periods')->where('status', 'active')->first();
         }
         $activePeriodId = $activePeriod?->id;
+        $this->archiveNonActivePeriods($unitId, $activePeriodId);
+        $previousPeriod = $this->previousPeriod($activePeriod, $unitId);
         $targetPeriodId = !empty($periodId) ? (int) $periodId : ($activePeriodId ?? null);
         if (Schema::hasTable('performance_criterias')) {
             // Sembunyikan kriteria yang sudah diajukan/aktif pada periode aktif untuk unit ini
@@ -102,11 +104,13 @@ class UnitCriteriaWeightController extends Controller
 
             $itemsWorking = (clone $baseBuilder)
                 ->where('w.status','!=','archived')
+                ->orderByDesc('w.assessment_period_id')
                 ->orderBy('pc.name')
                 ->get();
 
             $itemsHistory = (clone $baseBuilder)
                 ->where('w.status','archived')
+                ->orderByDesc('w.assessment_period_id')
                 ->orderBy('pc.name')
                 ->get();
 
@@ -164,6 +168,7 @@ class UnitCriteriaWeightController extends Controller
             'targetPeriodId' => $targetPeriodId,
             'activeTotal' => $activeTotal,
             'hasDraftOrRejected' => $hasDraftOrRejected,
+            'previousPeriod' => $previousPeriod,
         ]);
     }
 
@@ -416,9 +421,138 @@ class UnitCriteriaWeightController extends Controller
         return back()->with('status', 'Perubahan diajukan. Bobot baru dibuat sebagai draft.');
     }
 
+    /** Salin bobot aktif periode sebelumnya menjadi draft periode aktif. */
+    public function copyFromPrevious(): RedirectResponse
+    {
+        $this->authorizeAccess();
+        $me = Auth::user();
+        $unitId = $me?->unit_id;
+        if (!$unitId) abort(403);
+
+        if (!Schema::hasTable('assessment_periods') || !Schema::hasTable('unit_criteria_weights')) {
+            return back()->withErrors(['status' => 'Tabel periode atau bobot belum tersedia.']);
+        }
+
+        $activePeriod = DB::table('assessment_periods')->where('status','active')->first();
+        if (!$activePeriod) return back()->withErrors(['status' => 'Tidak ada periode aktif.']);
+
+        $previousPeriod = $this->previousPeriod($activePeriod, $unitId);
+        if (!$previousPeriod) return back()->withErrors(['status' => 'Tidak ada periode sebelumnya untuk disalin.']);
+
+        $alreadyExists = DB::table('unit_criteria_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $activePeriod->id)
+            ->where('status', '!=', 'archived')
+            ->exists();
+        if ($alreadyExists) {
+            return back()->withErrors(['status' => 'Periode aktif sudah memiliki bobot. Hapus atau arsipkan terlebih dahulu.']);
+        }
+
+        $sourceRows = DB::table('unit_criteria_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $previousPeriod->id)
+            ->where('status', 'active')
+            ->get();
+
+        if ($sourceRows->isEmpty()) {
+            // Fallback untuk periode yang sudah diarsip otomatis tapi sebelumnya aktif
+            $sourceRows = DB::table('unit_criteria_weights')
+                ->where('unit_id', $unitId)
+                ->where('assessment_period_id', $previousPeriod->id)
+                ->where('status', 'archived')
+                ->get();
+        }
+
+        if ($sourceRows->isEmpty()) {
+            return back()->withErrors(['status' => 'Tidak ada bobot aktif pada periode sebelumnya.']);
+        }
+
+        DB::transaction(function () use ($sourceRows, $me, $activePeriod) {
+            foreach ($sourceRows as $row) {
+                DB::table('unit_criteria_weights')->insert([
+                    'unit_id' => $row->unit_id,
+                    'performance_criteria_id' => $row->performance_criteria_id,
+                    'assessment_period_id' => $activePeriod->id,
+                    'weight' => $row->weight,
+                    'status' => 'draft',
+                    'unit_head_id' => $me->id,
+                    'unit_head_note' => 'Salinan dari periode sebelumnya',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        });
+
+        return back()->with('status', 'Bobot periode sebelumnya disalin sebagai draft.');
+    }
+
     private function authorizeAccess(): void
     {
         $user = Auth::user();
         if (!$user || $user->role !== 'kepala_unit') abort(403);
+    }
+
+    private function archiveNonActivePeriods(?int $unitId, ?int $activePeriodId): void
+    {
+        if (!$unitId || !$activePeriodId) return;
+        if (!Schema::hasTable('assessment_periods') || !Schema::hasTable('unit_criteria_weights')) return;
+
+        DB::table('unit_criteria_weights')
+            ->join('assessment_periods as ap', 'ap.id', '=', 'unit_criteria_weights.assessment_period_id')
+            ->where('unit_criteria_weights.unit_id', $unitId)
+            ->where('unit_criteria_weights.status', '!=', 'archived')
+            ->where('unit_criteria_weights.assessment_period_id', '!=', $activePeriodId)
+            ->where('ap.status', '!=', 'active')
+            ->update([
+                'unit_criteria_weights.status' => 'archived',
+                'unit_criteria_weights.updated_at' => now(),
+            ]);
+    }
+
+    private function previousPeriod($activePeriod, ?int $unitId)
+    {
+        if (!$activePeriod) return null;
+        if (!Schema::hasTable('assessment_periods')) return null;
+
+        $periodStatuses = ['active','locked','approval','closed'];
+
+        $query = DB::table('assessment_periods')
+            ->where('id', '!=', $activePeriod->id)
+            ->whereIn('status', $periodStatuses);
+
+        if (Schema::hasColumn('assessment_periods', 'start_date') && $activePeriod->start_date) {
+            $query->where('start_date', '<', $activePeriod->start_date)
+                ->orderByDesc('start_date');
+        } else {
+            $query->where('id', '<', $activePeriod->id)
+                ->orderByDesc('id');
+        }
+
+        $candidate = $query->orderByDesc('id')->first();
+        if (!$candidate) return null;
+        if (!$unitId || !Schema::hasTable('unit_criteria_weights')) return $candidate;
+
+        $hasWeights = DB::table('unit_criteria_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $candidate->id)
+            ->whereIn('status', ['active','archived'])
+            ->exists();
+
+        if ($hasWeights) return $candidate;
+
+        // Cari periode sebelumnya yang memiliki bobot aktif/arsip
+        return DB::table('assessment_periods')
+            ->where('id', '!=', $activePeriod->id)
+            ->whereIn('status', $periodStatuses)
+            ->where('id', '<', $candidate->id)
+            ->orderByDesc('id')
+            ->whereExists(function($sub) use ($unitId) {
+                $sub->select(DB::raw(1))
+                    ->from('unit_criteria_weights')
+                    ->whereColumn('unit_criteria_weights.assessment_period_id', 'assessment_periods.id')
+                    ->where('unit_criteria_weights.unit_id', $unitId)
+                    ->whereIn('unit_criteria_weights.status', ['active','archived']);
+            })
+            ->first();
     }
 }

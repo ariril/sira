@@ -159,7 +159,6 @@ class FiveStaffKpiSeeder extends Seeder
         callable $unitIdResolver
     ): void {
         $now = Carbon::now();
-        $calc = app(\App\Services\BestScenarioCalculator::class);
 
         $absensiId    = $criteriaIds['absensiId'];
         $kedis360Id   = $criteriaIds['kedis360Id'];
@@ -167,10 +166,55 @@ class FiveStaffKpiSeeder extends Seeder
         $pasienId     = $criteriaIds['pasienId'];
         $ratingId     = $criteriaIds['ratingId'];
 
-        // Insert source data
+        // Pastikan bobot aktif per unit & periode tersedia agar tampil di ringkasan WSM
+        $unitIds = collect($staff)->pluck('unit_slug')->unique()->map(fn($slug) => $unitIdResolver($slug))->all();
+        DB::table('unit_criteria_weights')
+            ->where('assessment_period_id', $period->id)
+            ->whereIn('unit_id', $unitIds)
+            ->delete();
+
+        $defaultWeights = [
+            $absensiId => 20,
+            $kedis360Id => 20,
+            $kontribusiId => 20,
+            $pasienId => 20,
+            $ratingId => 20,
+        ];
+
+        $weightRows = [];
+        foreach ($unitIds as $uId) {
+            foreach ($defaultWeights as $critId => $weight) {
+                $weightRows[] = [
+                    'unit_id' => $uId,
+                    'performance_criteria_id' => $critId,
+                    'weight' => $weight,
+                    'assessment_period_id' => $period->id,
+                    'status' => 'active',
+                    'policy_doc_path' => null,
+                    'policy_note' => 'Seeder bobot default',
+                    'unit_head_id' => null,
+                    'unit_head_note' => null,
+                    'polyclinic_head_id' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+        }
+        if (!empty($weightRows)) {
+            DB::table('unit_criteria_weights')->insert($weightRows);
+        }
+
+        // Insert source data & collect raw values per user + totals per unit-profession
+        $rawByUser = [];
+        $totalsByUnitProf = [];
+
+        // default jumlah rater per penilaian publik (karena kita isi 3 review)
+        $defaultRaterCount = 3;
+
         foreach ($data as $key => $row) {
             $userId = $staff[$key]['id'];
             $unitId = $unitIdResolver($staff[$key]['unit_slug']);
+            $profId = $professionIdResolver($staff[$key]['profession']);
 
             // Attendance Hadir rows
             $dates = $this->takeDates((string)$period->start_date, (string)$period->end_date, (int)$row['attendance']);
@@ -269,63 +313,127 @@ class FiveStaffKpiSeeder extends Seeder
                     'updated_at' => $now,
                 ]);
             }
+
+            // Raw collector
+            $rawByUser[$userId] = [
+                'unit_id' => $unitId,
+                'profession_id' => $profId,
+                'absensi_days' => (int) $row['attendance'],
+                'work_hours' => (int) $row['attendance'], // jam kerja sederhana = hari (karena tidak ada durasi), tetap gunakan hari untuk konsistensi
+                'kedisiplinan' => (float) $row['discipline'],
+                'kontribusi' => (float) $row['contrib'],
+                'pasien' => (float) $row['patients'],
+                'rating_avg' => (float) $row['rating'],
+                'rating_count' => $defaultRaterCount,
+            ];
+
+            $totalsByUnitProf[$unitId][$profId]['absensi_days'] = ($totalsByUnitProf[$unitId][$profId]['absensi_days'] ?? 0) + (int) $row['attendance'];
+            $totalsByUnitProf[$unitId][$profId]['work_hours'] = ($totalsByUnitProf[$unitId][$profId]['work_hours'] ?? 0) + (int) $row['attendance'];
+            $totalsByUnitProf[$unitId][$profId]['kedisiplinan'] = ($totalsByUnitProf[$unitId][$profId]['kedisiplinan'] ?? 0) + (float) $row['discipline'];
+            $totalsByUnitProf[$unitId][$profId]['kontribusi'] = ($totalsByUnitProf[$unitId][$profId]['kontribusi'] ?? 0) + (float) $row['contrib'];
+            $totalsByUnitProf[$unitId][$profId]['pasien'] = ($totalsByUnitProf[$unitId][$profId]['pasien'] ?? 0) + (float) $row['patients'];
+            $totalsByUnitProf[$unitId][$profId]['rating_weighted'] = ($totalsByUnitProf[$unitId][$profId]['rating_weighted'] ?? 0) + ((float)$row['rating'] * $defaultRaterCount);
         }
 
-        // Build WSM via BestScenarioCalculator per unit
-        $unitBuckets = [];
-        foreach ($staff as $key => $meta) {
-            $unitId = $unitIdResolver($meta['unit_slug']);
-            $unitBuckets[$unitId][] = $meta['id'];
-        }
+        $perUserScores = [];
 
-        foreach ($unitBuckets as $unitId => $userIds) {
-            $result = $calc->calculateForUnit($unitId, $this->periodModel($period), $userIds);
-            foreach ($result['users'] as $uid => $userRow) {
-                $assessmentId = DB::table('performance_assessments')->insertGetId([
-                    'user_id' => $uid,
-                    'assessment_period_id' => $period->id,
-                    'assessment_date' => $assessmentDate,
-                    'total_wsm_score' => round($userRow['total_wsm'], 2),
-                    'validation_status' => $validationStatus,
-                    'supervisor_comment' => 'Dihitung otomatis dari data tabel.',
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
+        // Bangun WSM manual per user dengan pembagi unit + profesi
+        foreach ($rawByUser as $uid => $raw) {
+            $unitId = $raw['unit_id'];
+            $profId = $raw['profession_id'];
 
-                $detailRows = [];
-                foreach ($userRow['criteria'] as $crit) {
-                    $cid = match ($crit['key']) {
-                        'absensi' => $absensiId,
-                        'kedisiplinan' => $kedis360Id,
-                        'kontribusi' => $kontribusiId,
-                        'pasien' => $pasienId,
-                        'rating' => $ratingId,
-                        default => null,
-                    };
-                    if (!$cid) {
-                        continue;
-                    }
-                    $detailRows[] = [
-                        'performance_assessment_id' => $assessmentId,
-                        'performance_criteria_id' => $cid,
-                        'score' => round($crit['normalized'], 2),
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-                }
-                DB::table('performance_assessment_details')->insert($detailRows);
+            $den = $totalsByUnitProf[$unitId][$profId] ?? [];
 
-                DB::table('assessment_approvals')->insert([
+            $absRaw = $raw['absensi_days'];
+            $absDen = max((float)($den['absensi_days'] ?? 0), 0.0001);
+            $absScore = ($absRaw / $absDen) * 100;
+
+            $discRaw = $raw['kedisiplinan'];
+            $discDen = max((float)($den['kedisiplinan'] ?? 0), 0.0001);
+            $discScore = ($discRaw / $discDen) * 100;
+
+            $contribRaw = $raw['kontribusi'];
+            $contribDen = max((float)($den['kontribusi'] ?? 0), 0.0001);
+            $contribScore = ($contribRaw / $contribDen) * 100;
+
+            $patientRaw = $raw['pasien'];
+            $patientDen = max((float)($den['pasien'] ?? 0), 0.0001);
+            $patientScore = ($patientRaw / $patientDen) * 100;
+
+            $ratingRaw = $raw['rating_avg'] * $raw['rating_count'];
+            $ratingDen = max((float)($den['rating_weighted'] ?? 0), 0.0001);
+            $ratingScore = ($ratingRaw / $ratingDen) * 100;
+
+            $scores = [
+                'absensi' => $absScore,
+                'kedisiplinan' => $discScore,
+                'kontribusi' => $contribScore,
+                'pasien' => $patientScore,
+                'rating' => $ratingScore,
+            ];
+            $perUserScores[$uid] = $scores;
+            $totalWsm = array_sum($scores) / count($scores);
+
+            $assessmentId = DB::table('performance_assessments')->insertGetId([
+                'user_id' => $uid,
+                'assessment_period_id' => $period->id,
+                'assessment_date' => $assessmentDate,
+                'total_wsm_score' => round($totalWsm, 2),
+                'validation_status' => $validationStatus,
+                'supervisor_comment' => 'Dihitung otomatis dari data tabel.',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            $detailRows = [
+                [
                     'performance_assessment_id' => $assessmentId,
-                    'level' => 1,
-                    'approver_id' => $uid, // placeholder approver; adjust as needed
-                    'status' => $approvalStatus,
-                    'note' => $approvalStatus === 'approved' ? 'Disetujui otomatis seeder' : 'Menunggu persetujuan',
-                    'acted_at' => $approvalStatus === 'approved' ? $assessmentDate : null,
+                    'performance_criteria_id' => $absensiId,
+                    'score' => round($absScore, 2),
                     'created_at' => $now,
                     'updated_at' => $now,
-                ]);
-            }
+                ],
+                [
+                    'performance_assessment_id' => $assessmentId,
+                    'performance_criteria_id' => $kedis360Id,
+                    'score' => round($discScore, 2),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                [
+                    'performance_assessment_id' => $assessmentId,
+                    'performance_criteria_id' => $kontribusiId,
+                    'score' => round($contribScore, 2),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                [
+                    'performance_assessment_id' => $assessmentId,
+                    'performance_criteria_id' => $pasienId,
+                    'score' => round($patientScore, 2),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                [
+                    'performance_assessment_id' => $assessmentId,
+                    'performance_criteria_id' => $ratingId,
+                    'score' => round($ratingScore, 2),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+            ];
+            DB::table('performance_assessment_details')->insert($detailRows);
+
+            DB::table('assessment_approvals')->insert([
+                'performance_assessment_id' => $assessmentId,
+                'level' => 1,
+                'approver_id' => $uid, // placeholder approver; adjust as needed
+                'status' => $approvalStatus,
+                'note' => $approvalStatus === 'approved' ? 'Disetujui otomatis seeder' : 'Menunggu persetujuan',
+                'acted_at' => $approvalStatus === 'approved' ? $assessmentDate : null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
         }
 
         // Distribute remuneration per unit+profession allocation proportionally to WSM
@@ -355,6 +463,22 @@ class FiveStaffKpiSeeder extends Seeder
 
             foreach ($wsmTotals as $uid => $wsm) {
                 $share = $amount * ($wsm / $sumWsm);
+
+                $scores = $perUserScores[$uid] ?? [];
+                $scoreSum = array_sum($scores) ?: 1;
+
+                $comp = [
+                    'absensi' => ($scores['absensi'] ?? 0) / $scoreSum * $share,
+                    'kedisiplinan' => ($scores['kedisiplinan'] ?? 0) / $scoreSum * $share,
+                    'kontribusi' => ($scores['kontribusi'] ?? 0) / $scoreSum * $share,
+                    'pasien' => ($scores['pasien'] ?? 0) / $scoreSum * $share,
+                    'rating' => ($scores['rating'] ?? 0) / $scoreSum * $share,
+                ];
+
+                $raw = $rawByUser[$uid] ?? [];
+                $raterCount = $raw['rating_count'] ?? 0;
+                $contribCount = ($raw['kontribusi'] ?? 0) > 0 ? 1 : 0;
+
                 DB::table('remunerations')->insert([
                     'user_id' => $uid,
                     'assessment_period_id' => $period->id,
@@ -362,11 +486,35 @@ class FiveStaffKpiSeeder extends Seeder
                     'payment_date' => $paymentDate,
                     'payment_status' => $paymentDate ? 'Dibayar' : 'Belum Dibayar',
                     'calculation_details' => json_encode([
+                        'method' => 'unit_profession_wsm_proportional',
                         'allocation' => $amount,
                         'unit_id' => $unitId,
                         'profession_id' => $profId,
                         'user_wsm' => round($wsm, 2),
                         'total_wsm_unit_profession' => round($sumWsm, 2),
+                        'komponen' => [
+                            'dasar' => 0,
+                            'pasien_ditangani' => [
+                                'jumlah' => $raw['pasien'] ?? null,
+                                'nilai' => round($comp['pasien'], 2),
+                            ],
+                            'review_pelanggan' => [
+                                'jumlah' => $raterCount,
+                                'nilai' => round($comp['rating'], 2),
+                            ],
+                            'kontribusi_tambahan' => [
+                                'jumlah' => $contribCount,
+                                'nilai' => round($comp['kontribusi'], 2),
+                            ],
+                            'absensi' => [
+                                'jumlah' => $raw['absensi_days'] ?? null,
+                                'nilai' => round($comp['absensi'], 2),
+                            ],
+                            'kedisiplinan' => [
+                                'jumlah' => $raw['kedisiplinan'] ?? null,
+                                'nilai' => round($comp['kedisiplinan'], 2),
+                            ],
+                        ],
                     ], JSON_UNESCAPED_UNICODE),
                     'published_at' => $publishDate,
                     'calculated_at' => $publishDate,
@@ -376,7 +524,7 @@ class FiveStaffKpiSeeder extends Seeder
                 ]);
             }
 
-            DB::table('unit_remuneration_allocations')->updateOrInsert(
+            DB::table('unit_profession_remuneration_allocations')->updateOrInsert(
                 [
                     'assessment_period_id' => $period->id,
                     'unit_id' => $unitId,

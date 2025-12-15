@@ -12,7 +12,6 @@
             @if ($errors->any())
                 <div class="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{{ $errors->first() }}</div>
             @endif
-            {{-- Flash status sudah ditampilkan di layout utama, hindari duplikasi di sini --}}
         {{-- FILTERS --}}
         <form method="GET" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="grid gap-5 md:grid-cols-12">
@@ -23,7 +22,7 @@
 
                 <div class="md:col-span-4">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
-                    <x-ui.select name="status" :options="['draft'=>'Draft','active'=>'Aktif','locked'=>'Dikunci','closed'=>'Ditutup']" :value="$filters['status'] ?? null" placeholder="(Semua)" />
+                    <x-ui.select name="status" :options="['draft'=>'Draft','active'=>'Aktif','locked'=>'Dikunci','approval'=>'Persetujuan','closed'=>'Ditutup']" :value="$filters['status'] ?? null" placeholder="(Semua)" />
                 </div>
 
                 <div class="md:col-span-2">
@@ -73,6 +72,9 @@
                             @case('locked')
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Dikunci</span>
                                 @break
+                            @case('approval')
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">Persetujuan</span>
+                                @break
                             @case('closed')
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-200 text-slate-700 border border-slate-300">Ditutup</span>
                                 @break
@@ -105,13 +107,20 @@
                                     @csrf
                                     <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Aktifkan</x-ui.button>
                                 </form>
-                            @endif
-                            {{-- Tombol tutup hanya saat status locked dan sudah melewati tanggal akhir --}}
-                            @if($it->status === 'locked' && $it->end_date && $today->gte($it->end_date))
-                                <form method="POST" action="{{ route('admin_rs.assessment_periods.close', $it) }}" onsubmit="return confirm('Tutup periode ini?')">
+                                <form method="POST" action="{{ route('admin_rs.assessment_periods.start_approval', $it) }}" onsubmit="return confirm('Mulai tahap persetujuan untuk periode ini? Semua penilaian akan dikirim ke alur approval.')">
                                     @csrf
-                                    <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Tutup</x-ui.button>
+                                    <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Mulai Persetujuan</x-ui.button>
                                 </form>
+                            @endif
+                            {{-- Tombol tutup hanya saat status persetujuan dan tidak ada pending --}}
+                            @php($pending = $approvalStats[$it->id]['pending'] ?? 0)
+                            @if($it->status === 'approval')
+                                @if($pending === 0)
+                                    <form method="POST" action="{{ route('admin_rs.assessment_periods.close', $it) }}" onsubmit="return confirm('Tutup periode ini? Pastikan remunerasi telah diposting.')">
+                                        @csrf
+                                        <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Tutup</x-ui.button>
+                                    </form>
+                                @endif
                             @endif
                         </div>
                     </td>

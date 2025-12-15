@@ -30,8 +30,8 @@ class DashboardController extends Controller
             // Level 1 pending approvals only
             'approvals_pending_l1' => (Schema::hasTable('assessment_approvals')
                 ? (int) DB::table('assessment_approvals')->where('level',1)->where('status','pending')->count() : 0),
-            'unit_allocations'   => Schema::hasTable('unit_remuneration_allocations')
-                ? (int) DB::table('unit_remuneration_allocations')->count() : 0,
+            'unit_allocations'   => Schema::hasTable('unit_profession_remuneration_allocations')
+                ? (int) DB::table('unit_profession_remuneration_allocations')->count() : 0,
             // Remunerations pending publish (published_at null)
             'remunerations_draft' => (Schema::hasTable('remunerations')
                 ? (int) DB::table('remunerations')->whereNull('published_at')->count() : 0),
@@ -52,8 +52,8 @@ class DashboardController extends Controller
 
         // Recent unit allocations list (limit 8)
         $recentAllocations = collect();
-        if (Schema::hasTable('unit_remuneration_allocations')) {
-            $recentAllocations = DB::table('unit_remuneration_allocations as ura')
+        if (Schema::hasTable('unit_profession_remuneration_allocations')) {
+            $recentAllocations = DB::table('unit_profession_remuneration_allocations as ura')
                 ->leftJoin('units as un', 'un.id', '=', 'ura.unit_id')
                 ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'ura.assessment_period_id')
                 ->selectRaw('ura.id, ura.amount, ura.published_at, un.name as unit_name, ap.name as period_name, ura.created_at')
@@ -79,9 +79,9 @@ class DashboardController extends Controller
         }
 
         // Units without allocation in active period (published allocations only)
-        if ($activePeriodId && Schema::hasTable('units') && Schema::hasTable('unit_remuneration_allocations')) {
+        if ($activePeriodId && Schema::hasTable('units') && Schema::hasTable('unit_profession_remuneration_allocations')) {
             $unitCount = (int) DB::table('units')->count();
-            $allocatedUnitIds = DB::table('unit_remuneration_allocations')
+            $allocatedUnitIds = DB::table('unit_profession_remuneration_allocations')
                 ->where('assessment_period_id',$activePeriodId)
                 ->pluck('unit_id')->unique();
             $missingAllocCount = $unitCount - $allocatedUnitIds->count();

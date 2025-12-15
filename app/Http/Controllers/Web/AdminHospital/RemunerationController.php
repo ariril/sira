@@ -10,6 +10,7 @@ use App\Models\PerformanceAssessmentDetail;
 use App\Models\PerformanceCriteria;
 use App\Models\UnitCriteriaWeight;
 use App\Enums\PerformanceCriteriaType;
+use App\Enums\RemunerationPaymentStatus;
 use App\Models\UnitRemunerationAllocation as Allocation;
 use App\Models\User;
 use App\Services\BestScenarioCalculator;
@@ -119,16 +120,24 @@ class RemunerationController extends Controller
             return;
         }
 
-        $scores = $calculator->calculateForUnit($alloc->unit_id, $period, $users->all());
-        $unitTotal = (float) ($scores['unit_total'] ?? 0.0);
-        $unitTotal = $unitTotal > 0 ? $unitTotal : (float) $users->count();
+        // Ambil WSM yang sudah dihitung di performance_assessments (per periode) dan distribusikan proporsional di profesi + unit yang sama.
+        $wsmTotals = DB::table('performance_assessments')
+            ->where('assessment_period_id', $periodId)
+            ->whereIn('user_id', $users)
+            ->pluck('total_wsm_score', 'user_id')
+            ->map(fn($v) => (float)$v)
+            ->all();
+
+        $unitTotal = array_sum($wsmTotals);
+        if ($unitTotal <= 0) {
+            $unitTotal = max(count($wsmTotals), 1);
+            $wsmTotals = array_fill_keys($users->all(), 1.0);
+        }
 
         foreach ($users as $userId) {
-            $userScore = (float) ($scores['users'][$userId]['total_wsm'] ?? 0.0);
+            $userScore = $wsmTotals[$userId] ?? 0.0;
             $sharePct = $unitTotal > 0 ? $userScore / $unitTotal : (1 / max($users->count(), 1));
-            $baseAmount = round($amount * $sharePct, 2);
-            $bonus = (float) ($approvedContribs[$userId] ?? 0);
-            $final = round($baseAmount + $bonus, 2);
+            $final = round($amount * $sharePct, 2);
 
             $rem = Remuneration::firstOrNew([
                 'user_id' => $userId,
@@ -139,7 +148,7 @@ class RemunerationController extends Controller
             $rem->amount = $final;
             $rem->calculated_at = now();
             $rem->calculation_details = [
-                'method'    => 'best_scenario_wsm',
+                'method'    => 'unit_profession_wsm_proportional',
                 'period_id' => $periodId,
                 'generated' => now()->toDateTimeString(),
                 'allocation' => [
@@ -148,19 +157,31 @@ class RemunerationController extends Controller
                     'profession_id' => $professionId,
                     'published_amount' => (float) $alloc->amount,
                     'line_amount' => $amount,
-                    'unit_total_wsm' => $scores['unit_total'] ?? 0,
+                    'unit_total_wsm' => $unitTotal,
                     'user_wsm_score' => $userScore,
                     'share_percent' => round($sharePct * 100, 6),
                 ],
                 'wsm' => [
-                    'criteria_rows' => $scores['users'][$userId]['criteria'] ?? [],
-                    'weights' => $scores['weights'] ?? [],
-                    'criteria_totals' => $scores['criteria_totals'] ?? [],
-                    'criteria_used' => $scores['criteria_used'] ?? [],
                     'user_total' => $userScore,
-                    'unit_total' => $scores['unit_total'] ?? 0,
+                    'unit_total' => $unitTotal,
+                    'source' => 'performance_assessments.total_wsm_score',
                 ],
-                'approved_contribution_bonus' => $bonus,
+                // Komponen sederhana agar layar pegawai menampilkan rincian tanpa gaji dasar
+                'komponen' => [
+                    'dasar' => 0,
+                    'pasien_ditangani' => [
+                        'jumlah' => null,
+                        'nilai' => $final,
+                    ],
+                    'review_pelanggan' => [
+                        'jumlah' => 0,
+                        'nilai' => 0,
+                    ],
+                    'kontribusi_tambahan' => [
+                        'jumlah' => 0,
+                        'nilai' => 0,
+                    ],
+                ],
             ];
             if ($publishedAt) {
                 $rem->published_at = $publishedAt;
@@ -217,9 +238,30 @@ class RemunerationController extends Controller
     {
         $remuneration->load(['user:id,name,unit_id','assessmentPeriod:id,name']);
         $wsm = $this->buildWsmBreakdown($remuneration);
+        $calcDetails = null;
+
+        if (!empty($wsm['rows'])) {
+            $calcDetails = [
+                'wsm' => [
+                    'criteria' => collect($wsm['rows'])->map(function ($row) {
+                        return [
+                            'name' => $row['criteria_name'] ?? '-',
+                            'weight' => $row['weight'] ?? 0,
+                            'score' => $row['score'] ?? 0,
+                            'normalized' => $row['normalized'] ?? 0,
+                            'contribution' => $row['contribution'] ?? 0,
+                        ];
+                    })->values()->all(),
+                    'total' => $wsm['total'] ?? 0,
+                ],
+            ];
+        } else {
+            $calcDetails = $remuneration->calculation_details;
+        }
         return view('admin_rs.remunerations.show', [
             'item' => $remuneration,
             'wsm'  => $wsm,
+            'calcDetails' => $calcDetails,
         ]);
     }
 
@@ -240,6 +282,11 @@ class RemunerationController extends Controller
             'payment_date'   => ['nullable','date'],
             'payment_status' => ['nullable','string','max:50'],
         ]);
+
+        if (!empty($data['payment_date'])) {
+            $data['payment_status'] = RemunerationPaymentStatus::PAID->value;
+        }
+
         $remuneration->update($data);
         return back()->with('status','Remunerasi diperbarui.');
     }

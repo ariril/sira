@@ -2,7 +2,15 @@
 
 @php
     $d = is_array($details) ? $details : (is_object($details) ? (array)$details : null);
-    $fmt = fn($n, $dec = 2) => is_numeric($n) ? number_format((float)$n, $dec) : $n;
+    $fmt = function($n, $dec = 2) {
+        if (!is_numeric($n)) return $n;
+        $num = (float)$n;
+        if (abs($num - round($num)) < 0.000001) {
+            return (string)(int) round($num);
+        }
+        $formatted = number_format($num, $dec, '.', '');
+        return rtrim(rtrim($formatted, '0'), '.');
+    };
 @endphp
 
 @if(!$d)

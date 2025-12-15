@@ -22,6 +22,16 @@ class PerformanceCriteriaController extends Controller
         ];
     }
 
+    protected function normalizationBases(): array
+    {
+        return [
+            'total_unit'   => 'Total unit (∑ data seluruh unit)',
+            'max_unit'     => 'Nilai maksimum unit',
+            'average_unit' => 'Rata-rata unit',
+            'custom_target'=> 'Target khusus',
+        ];
+    }
+
     // Allowed per-page options (match Super Admin style)
     protected function perPageOptions(): array
     {
@@ -82,9 +92,12 @@ class PerformanceCriteriaController extends Controller
     {
         return view('admin_rs.performance_criterias.create', [
             'types' => $this->types(),
+            'normalizationBases' => $this->normalizationBases(),
             'item'  => new PerformanceCriteria([
                 'is_active' => true,
+                'normalization_basis' => 'total_unit',
             ]),
+            'hasOtherCriteria' => PerformanceCriteria::count() > 0,
         ]);
     }
 
@@ -92,6 +105,8 @@ class PerformanceCriteriaController extends Controller
     {
         $data = $this->validateData($request);
         $data['is_active'] = (bool)($data['is_active'] ?? false);
+        $applyAll = (bool)$request->boolean('apply_basis_to_all');
+        $this->ensureNormalizationPolicy($data['normalization_basis'] ?? null, $applyAll);
         $item = PerformanceCriteria::create($data);
         $this->syncRaterWeights($request, $item);
         return redirect()->route('admin_rs.performance-criterias.index')
@@ -102,7 +117,9 @@ class PerformanceCriteriaController extends Controller
     {
         return view('admin_rs.performance_criterias.edit', [
             'types' => $this->types(),
+            'normalizationBases' => $this->normalizationBases(),
             'item'  => $performance_criteria,
+            'hasOtherCriteria' => PerformanceCriteria::where('id','!=',$performance_criteria->id)->exists(),
         ]);
     }
 
@@ -110,6 +127,8 @@ class PerformanceCriteriaController extends Controller
     {
         $data = $this->validateData($request, isUpdate: true);
         $data['is_active'] = (bool)($data['is_active'] ?? false);
+        $applyAll = (bool)$request->boolean('apply_basis_to_all');
+        $this->ensureNormalizationPolicy($data['normalization_basis'] ?? null, $applyAll, $performance_criteria->id);
         $performance_criteria->update($data);
         $this->syncRaterWeights($request, $performance_criteria);
         return redirect()->route('admin_rs.performance-criterias.index')
@@ -134,10 +153,38 @@ class PerformanceCriteriaController extends Controller
             'data_type'   => ['nullable','in:numeric,percentage,boolean,datetime,text'],
             'input_method'=> ['nullable','in:system,manual,import,360,public_review'],
             'aggregation_method' => ['nullable','in:sum,avg,count,latest,custom'],
+            'normalization_basis' => ['required','in:total_unit,max_unit,average_unit,custom_target'],
+            'custom_target_value' => ['nullable','numeric','min:0','required_if:normalization_basis,custom_target'],
+            'raw_formula' => ['nullable','string'],
             'description' => ['nullable', 'string'],
             'is_active'   => ['nullable', 'boolean'],
             'suggested_weight' => ['nullable','numeric','min:0','max:100'],
+            'apply_basis_to_all' => ['nullable','boolean'],
         ]);
+    }
+
+    private function ensureNormalizationPolicy(?string $basis, bool $applyAll, ?int $currentId = null): void
+    {
+        if (!$basis) { return; }
+
+        $existingBases = PerformanceCriteria::query()
+            ->when($currentId, fn($q) => $q->where('id','!=',$currentId))
+            ->distinct()
+            ->pluck('normalization_basis')
+            ->filter()
+            ->all();
+
+        $hasConflict = collect($existingBases)->reject(fn($b) => $b === $basis)->isNotEmpty();
+
+        if ($hasConflict && !$applyAll) {
+            abort(redirect()->back()->withErrors([
+                'normalization_basis' => 'Kebijakan normalisasi harus sama untuk seluruh kriteria. Centang "Terapkan ke semua kriteria" untuk menyamakan.',
+            ]));
+        }
+
+        if ($hasConflict && $applyAll) {
+            PerformanceCriteria::query()->update(['normalization_basis' => $basis]);
+        }
     }
 
     private function syncRaterWeights(\Illuminate\Http\Request $request, \App\Models\PerformanceCriteria $criteria): void

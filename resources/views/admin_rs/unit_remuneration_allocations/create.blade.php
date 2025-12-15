@@ -8,9 +8,16 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
-        @if (session('danger'))
-            <div class="rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 text-sm">
-                {{ session('danger') }}
+        @php($periodError = $errors->first('assessment_period_id'))
+        @if ($periodError)
+            <div class="rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 text-sm flex items-start gap-2">
+                <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
+                <span>Anda wajib memilih periode.</span>
+            </div>
+        @elseif (session('danger'))
+            <div class="rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 text-sm flex items-start gap-2">
+                <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
+                <span>{{ session('danger') }}</span>
             </div>
         @endif
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
@@ -46,9 +53,9 @@
                         <div class="flex items-center justify-between">
                             <div>
                                 <div class="text-sm font-semibold text-slate-800">Profesi pada Unit</div>
-                                <div class="text-xs text-slate-500">Isi nominal per profesi; total harus ≤ Total
-                                    Alokasi.</div>
+                                <div class="text-xs text-slate-500">Isi nominal per profesi</div>
                             </div>
+                            <div class="text-xs text-slate-600">Total: <span id="lines-total">Rp 0</span></div>
                         </div>
                         <div class="grid md:grid-cols-2 gap-3" id="prof-list"></div>
                         <div class="text-xs text-amber-600 hidden" id="prof-empty">Tidak ada profesi pada unit ini.
@@ -59,7 +66,7 @@
                         <x-ui.input type="checkbox" name="publish_now" value="1" class="h-5 w-5" />
                         <div>
                             <div class="text-sm font-medium text-slate-700">Publish sekarang</div>
-                            <div class="text-xs text-slate-500">Jika dicentang, status menjadi Published.</div>
+                            <div class="text-xs text-slate-500">Jika dicentang, status menjadi Published dan tidak bisa diubah lagi.</div>
                         </div>
                     </div>
                 </div>
@@ -104,13 +111,15 @@
                     if (!p) return;
                     const wrapper = document.createElement('label');
                     wrapper.className =
-                        'flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2';
+                        'grid grid-cols-2 gap-3 items-center rounded-lg border border-slate-200 px-3 py-2';
                     wrapper.innerHTML = `
                     <div class="space-y-1">
                         <div class="text-sm text-slate-800">${p.name}</div>
                         <div class="text-xs text-slate-500 rupiah-hint">Rp 0</div>
                     </div>
-                    <input type="number" step="0.01" min="0" name="lines[${pid}]" class="w-32 text-right rounded border-slate-200" data-lines-input />
+                    <input type="number" step="0.01" min="0" name="lines[${pid}]" inputmode="decimal"
+                        class="h-11 w-full text-right rounded-lg border border-slate-200 px-3 text-sm focus:border-slate-300 focus:ring-0"
+                        data-lines-input />
                 `;
                     const input = wrapper.querySelector('input');
                     const hint = wrapper.querySelector('.rupiah-hint');

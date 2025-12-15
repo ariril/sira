@@ -16,6 +16,11 @@ class PerformanceCriteria extends Model
         'data_type',
         'input_method',
         'aggregation_method',
+        'normalization_basis',
+        'custom_target_value',
+        'min_sample_size',
+        'min_average_value',
+        'raw_formula',
         'description',
         'is_active',
         'suggested_weight',
@@ -25,6 +30,8 @@ class PerformanceCriteria extends Model
         'is_active' => 'boolean',
         'type'      => PerformanceCriteriaType::class,
         'suggested_weight' => 'decimal:2',
+        'custom_target_value' => 'decimal:2',
+        'min_average_value' => 'decimal:2',
     ];
 
     /*

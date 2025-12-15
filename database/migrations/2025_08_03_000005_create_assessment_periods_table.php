@@ -10,12 +10,10 @@ return new class extends Migration
     {
         Schema::create('assessment_periods', function (Blueprint $table) {
             $table->id();
-            $table->string('name');                  // nama_periode
-            $table->date('start_date');              // tanggal_mulai
-            $table->date('end_date');                // tanggal_akhir
-            // Status lifecycle: draft -> active -> (locked|closed)
-            $table->enum('status', ['draft','active','locked','closed'])->default('draft');
-            // Lock / Close metadata
+            $table->string('name');
+            $table->date('start_date');
+            $table->date('end_date');
+            $table->enum('status', ['draft','active','locked','approval','closed'])->default('draft');
             $table->timestamp('locked_at')->nullable();
             $table->foreignId('locked_by_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('closed_at')->nullable();

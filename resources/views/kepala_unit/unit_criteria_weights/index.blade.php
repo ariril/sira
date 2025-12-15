@@ -28,9 +28,19 @@
         </div>
 
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
                 <h3 class="text-slate-800 font-semibold">Tambah Bobot (Draft){{ $activePeriod ? ' - Periode '.$activePeriod->name : '' }}</h3>
-                <a href="{{ route('kepala_unit.criteria_proposals.index') }}" class="text-amber-700 hover:underline text-sm">Usulkan kriteria baru</a>
+                <div class="flex items-center gap-3">
+                    @if($activePeriod && $previousPeriod)
+                        <form method="POST" action="{{ route('kepala_unit.unit_criteria_weights.copy_previous') }}" class="inline-flex">
+                            @csrf
+                            <x-ui.button type="submit" variant="outline" class="h-10 px-4 text-sm" onclick="return confirm('Salin seluruh bobot aktif periode sebelumnya menjadi draft periode aktif?')">
+                                <i class="fa-solid fa-copy mr-2"></i> Salin periode sebelumnya
+                            </x-ui.button>
+                        </form>
+                    @endif
+                    <a href="{{ route('kepala_unit.criteria_proposals.index') }}" class="text-amber-700 hover:underline text-sm">Usulkan kriteria baru</a>
+                </div>
             </div>
             @if(session('danger'))
                 <div class="mb-4 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm">

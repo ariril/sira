@@ -19,7 +19,6 @@ return new class extends Migration {
 
     public function down(): void
     {
-        // Users table will handle dropping its own foreign key; avoid double-drop errors
         Schema::dropIfExists('professions');
     }
 };

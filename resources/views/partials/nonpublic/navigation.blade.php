@@ -108,7 +108,7 @@
         ['label'=>'Alokasi per Unit','icon'=>'fa-diagram-project',
          'href'=>$href('admin_rs.unit-remuneration-allocations.index','/admin-rs/unit-remuneration-allocations'),
          'active'=>request()->routeIs('admin_rs.unit-remuneration-allocations.*')],
-        ['label'=>'Perhitungan','icon'=>'fa-calculator',
+        ['label'=>'Ringkasan Remunerasi','icon'=>'fa-calculator',
          'href'=>$href('admin_rs.remunerations.calc.index','/admin-rs/remunerations/calc'),
          'active'=>request()->is('admin-rs/remunerations/calc*')],
         ['label'=>'Daftar Remunerasi','icon'=>'fa-money-bill-trend-up',

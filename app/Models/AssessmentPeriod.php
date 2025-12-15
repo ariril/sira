@@ -59,6 +59,7 @@ class AssessmentPeriod extends Model
     public const STATUS_DRAFT   = 'draft';
     public const STATUS_ACTIVE  = 'active';
     public const STATUS_LOCKED  = 'locked';
+    public const STATUS_APPROVAL = 'approval';
     public const STATUS_CLOSED  = 'closed';
 
     protected static function booted(): void
@@ -73,24 +74,27 @@ class AssessmentPeriod extends Model
     public static function syncByNow(): void
     {
         $today = Carbon::today()->toDateString();
+        $protected = [self::STATUS_LOCKED, self::STATUS_APPROVAL, self::STATUS_CLOSED];
 
-        // Keep locked/closed as is; only adjust others based on date
-        // Past periods auto-close
-        DB::table('assessment_periods')
-            ->whereNotIn('status', [self::STATUS_LOCKED, self::STATUS_CLOSED])
+        // Auto-lock past periods that are not yet locked/approval/closed
+        $toLock = self::query()
+            ->whereNotIn('status', $protected)
             ->where('end_date', '<', $today)
-            ->update(['status' => self::STATUS_CLOSED]);
+            ->get();
+        foreach ($toLock as $p) {
+            $p->lock();
+        }
 
-        // Future periods become draft
+        // Future periods become draft (unless already protected status)
         DB::table('assessment_periods')
-            ->whereNotIn('status', [self::STATUS_LOCKED, self::STATUS_CLOSED])
+            ->whereNotIn('status', $protected)
             ->where('start_date', '>', $today)
             ->update(['status' => self::STATUS_DRAFT]);
 
         // Candidates within range (could be multiple if data overlapped)
         $candidates = DB::table('assessment_periods')
             ->select('id')
-            ->whereNotIn('status', [self::STATUS_LOCKED, self::STATUS_CLOSED])
+            ->whereNotIn('status', $protected)
             ->where('start_date', '<=', $today)
             ->where('end_date', '>=', $today)
             ->orderBy('start_date')

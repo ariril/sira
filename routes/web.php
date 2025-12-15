@@ -176,6 +176,7 @@ Route::middleware(['auth','verified','role:admin_rs'])
             ->parameters(['assessment-periods' => 'period']);
         Route::post('assessment-periods/{period}/activate', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'activate'])->name('assessment_periods.activate');
         Route::post('assessment-periods/{period}/lock',     [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'lock'])->name('assessment_periods.lock');
+        Route::post('assessment-periods/{period}/start-approval', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'startApproval'])->name('assessment_periods.start_approval');
         Route::post('assessment-periods/{period}/close',    [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'close'])->name('assessment_periods.close');
 
         // Bobot Kriteria Unit (setup awal/push draft per unit)
@@ -211,6 +212,8 @@ Route::middleware(['auth','verified','role:kepala_unit'])
             ->name('unit_criteria_weights.submit_all');
         Route::post('unit-criteria-weights/request-change', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'requestChange'])
             ->name('unit_criteria_weights.request_change');
+        Route::post('unit-criteria-weights/copy-previous', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'copyFromPrevious'])
+            ->name('unit_criteria_weights.copy_previous');
 
         // Usulan kriteria baru
         Route::get('criteria-proposals', [\App\Http\Controllers\Web\UnitHead\CriteriaProposalController::class,'index'])->name('criteria_proposals.index');

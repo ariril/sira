@@ -3,9 +3,6 @@
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Alokasi per Unit</h1>
             <div class="flex items-center gap-3">
-                <button type="button" id="calc-open" class="inline-flex items-center gap-2 h-12 px-5 rounded-xl text-[15px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm">
-                    <i class="fa-solid fa-calculator"></i> Kalkulator
-                </button>
                 <x-ui.button as="a" href="{{ route('admin_rs.unit-remuneration-allocations.create') }}" variant="success" class="h-12 px-6 text-base">
                     <i class="fa-solid fa-plus mr-2"></i> Tambah Alokasi
                 </x-ui.button>
@@ -14,6 +11,13 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
+        @if (session('danger'))
+            <div class="rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 text-sm flex items-start gap-2">
+                <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
+                <span>{{ session('danger') }}</span>
+            </div>
+        @endif
+
         {{-- FILTERS --}}
         <form method="GET" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="grid gap-5 md:grid-cols-12">
@@ -66,22 +70,22 @@
                     </td>
                     <td class="px-6 py-4 text-right">
                         <div class="inline-flex gap-2">
-                            <x-ui.icon-button as="a" href="{{ route('admin_rs.unit-remuneration-allocations.edit', $it) }}" icon="fa-pen-to-square" />
-                            <form method="POST" action="{{ route('admin_rs.unit-remuneration-allocations.destroy', $it) }}" onsubmit="return confirm('Hapus alokasi ini?')">
-                                @csrf
-                                @method('DELETE')
-                                <x-ui.icon-button icon="fa-trash" variant="danger" />
-                            </form>
-                            <form method="POST" action="{{ route('admin_rs.unit-remuneration-allocations.update', $it) }}">
-                                @csrf
-                                @method('PUT')
-                                <input type="hidden" name="publish_toggle" value="{{ empty($it->published_at) ? 1 : 0 }}" />
-                                @if(empty($it->published_at))
+                            @if(empty($it->published_at))
+                                <x-ui.icon-button as="a" href="{{ route('admin_rs.unit-remuneration-allocations.edit', $it) }}" icon="fa-pen-to-square" />
+                                <form method="POST" action="{{ route('admin_rs.unit-remuneration-allocations.destroy', $it) }}" onsubmit="return confirm('Hapus alokasi ini?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <x-ui.icon-button icon="fa-trash" variant="danger" />
+                                </form>
+                                <form method="POST" action="{{ route('admin_rs.unit-remuneration-allocations.update', $it) }}">
+                                    @csrf
+                                    @method('PUT')
+                                    <input type="hidden" name="publish_toggle" value="1" />
                                     <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Publish</x-ui.button>
-                                @else
-                                    <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Jadikan Draft</x-ui.button>
-                                @endif
-                            </form>
+                                </form>
+                            @else
+                                <x-ui.icon-button as="a" href="{{ route('admin_rs.unit-remuneration-allocations.edit', $it) }}" icon="fa-eye" tooltip="Detail" />
+                            @endif
                         </div>
                     </td>
                 </tr>
@@ -104,51 +108,4 @@
             <div>{{ $items->withQueryString()->links() }}</div>
         </div>
     </div>
-
-    {{-- Kalkulator sederhana --}}
-    <div id="calc-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center z-40">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <div class="flex items-center justify-between">
-                <div class="text-lg font-semibold text-slate-800">Kalkulator Alokasi</div>
-                <button type="button" id="calc-close" class="text-slate-500 hover:text-slate-700">✕</button>
-            </div>
-            <div class="space-y-3 text-sm">
-                <label class="block">
-                    <span class="text-slate-700">Jumlah Alokasi (Rp)</span>
-                    <input type="number" step="0.01" min="0" id="calc-amount" class="mt-1 w-full rounded border-slate-200" />
-                </label>
-                <label class="block">
-                    <span class="text-slate-700">Jumlah Profesi</span>
-                    <input type="number" min="1" id="calc-prof-count" class="mt-1 w-full rounded border-slate-200" />
-                </label>
-                <div class="text-sm text-slate-600">Hasil per profesi: <span id="calc-result" class="font-semibold text-slate-800">0</span></div>
-            </div>
-            <div class="flex justify-end gap-2">
-                <a href="{{ route('admin_rs.unit-remuneration-allocations.create') }}" class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50">Buka Form</a>
-            </div>
-        </div>
-    </div>
-
-    <script>
-    (() => {
-        const modal = document.getElementById('calc-modal');
-        const openBtn = document.getElementById('calc-open');
-        const closeBtn = document.getElementById('calc-close');
-        const calcAmt = document.getElementById('calc-amount');
-        const calcProf = document.getElementById('calc-prof-count');
-        const calcRes = document.getElementById('calc-result');
-        const toggle = (show) => { if (!modal) return; modal.classList[show ? 'remove' : 'add']('hidden'); modal.classList.add('flex'); };
-        openBtn?.addEventListener('click', () => { toggle(true); updateCalc(); });
-        closeBtn?.addEventListener('click', () => toggle(false));
-        modal?.addEventListener('click', (e) => { if (e.target === modal) toggle(false); });
-        const updateCalc = () => {
-            const a = parseFloat(calcAmt?.value || '0');
-            const c = parseInt(calcProf?.value || '0', 10) || 1;
-            const res = c > 0 ? a / c : 0;
-            if (calcRes) calcRes.textContent = res.toLocaleString('id-ID', {minimumFractionDigits:2, maximumFractionDigits:2});
-        };
-        calcAmt?.addEventListener('input', updateCalc);
-        calcProf?.addEventListener('input', updateCalc);
-    })();
-    </script>
 </x-app-layout>

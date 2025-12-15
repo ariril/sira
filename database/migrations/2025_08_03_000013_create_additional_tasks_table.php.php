@@ -27,6 +27,8 @@ return new class extends Migration
 
             $table->date('start_date');
             $table->date('due_date');
+            $table->time('start_time')->default('00:00:00');
+            $table->time('due_time')->default('23:59:00');
 
             $table->decimal('bonus_amount', 15, 2)->nullable();
             $table->decimal('points', 8, 2)->nullable();

@@ -84,7 +84,7 @@ class RemunerationController extends Controller
     {
         $remuneration = $id; // implicit model binding
         abort_unless($remuneration->user_id === Auth::id(), 403);
-        $remuneration->load(['assessmentPeriod']);
+        $remuneration->load(['assessmentPeriod','user.unit','user.profession']);
 
         $period = $remuneration->assessmentPeriod;
         $userId = Auth::id();
@@ -112,6 +112,27 @@ class RemunerationController extends Controller
 
         $calc = $remuneration->calculation_details ?? [];
         $patientsHandled = data_get($calc, 'komponen.pasien_ditangani.jumlah');
+        $allocationAmount = data_get($calc, 'allocation')
+            ?? data_get($calc, 'allocation.published_amount')
+            ?? data_get($calc, 'allocation.line_amount');
+
+        $unitName = optional($remuneration->user?->unit)->name
+            ?? data_get($calc, 'allocation.unit_name');
+        $professionName = optional($remuneration->user?->profession)->name
+            ?? data_get($calc, 'allocation.profession_name')
+            ?? data_get($calc, 'allocation.profession');
+
+        $allocationLabel = $unitName && $professionName
+            ? 'Alokasi untuk ' . $professionName . ' di ' . $unitName
+            : 'Alokasi profesi-unit';
+
+        $quantities = [
+            ['label' => 'Absensi (hari)', 'value' => data_get($calc, 'komponen.absensi.jumlah'), 'icon' => 'fa-calendar-check'],
+            ['label' => 'Kedisiplinan 360', 'value' => data_get($calc, 'komponen.kedisiplinan.jumlah'), 'icon' => 'fa-clipboard-check'],
+            ['label' => 'Pasien Ditangani', 'value' => $patientsHandled ?? data_get($calc, 'komponen.pasien_ditangani.jumlah'), 'icon' => 'fa-user-injured'],
+            ['label' => 'Jumlah Review', 'value' => $reviewCount ?: data_get($calc, 'komponen.review_pelanggan.jumlah'), 'icon' => 'fa-star'],
+            ['label' => 'Kontribusi Tambahan', 'value' => $contributions->count(), 'icon' => 'fa-hand-holding-heart'],
+        ];
 
         return view('pegawai_medis.remunerations.show', [
             'item' => $remuneration,
@@ -119,6 +140,11 @@ class RemunerationController extends Controller
             'contributions' => $contributions,
             'patientsHandled' => $patientsHandled,
             'calc' => $calc,
+            'allocationAmount' => $allocationAmount,
+            'allocationLabel' => $allocationLabel,
+            'unitName' => $unitName,
+            'professionName' => $professionName,
+            'quantities' => $quantities,
         ]);
     }
 }

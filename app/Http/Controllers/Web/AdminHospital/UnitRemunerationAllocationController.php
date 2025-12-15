@@ -94,6 +94,10 @@ class UnitRemunerationAllocationController extends Controller
         $data = $this->validateData($request);
         $lineAmounts = $this->validatedLines($request);
 
+        if ($this->groupPublished($data['assessment_period_id'], $data['unit_id'])) {
+            return back()->withInput()->with('danger', 'Alokasi sudah dipublish dan tidak dapat diubah.');
+        }
+
         $totalAmount = array_sum($lineAmounts);
         if ($totalAmount <= 0) {
             throw ValidationException::withMessages([
@@ -149,7 +153,11 @@ class UnitRemunerationAllocationController extends Controller
     /** Update or publish toggle */
     public function update(Request $request, Allocation $allocation): RedirectResponse
     {
-        // Support both full update and quick publish toggle via hidden inputs
+        if ($this->groupPublished($allocation->assessment_period_id, $allocation->unit_id)) {
+            return back()->with('danger', 'Alokasi sudah dipublish dan tidak dapat diubah.');
+        }
+
+        // Support both full update and quick publish toggle via hidden inputs for draft entries
         if ($request->has('publish_toggle')) {
             $shouldPublish = (bool)$request->boolean('publish_toggle');
             Allocation::query()
@@ -162,6 +170,10 @@ class UnitRemunerationAllocationController extends Controller
         $data = $this->validateData($request, isUpdate: true);
         $lineAmounts = $this->validatedLines($request);
         $publishedAt = $request->boolean('publish_now') ? now() : null;
+
+        if ($this->groupPublished($data['assessment_period_id'], $data['unit_id'])) {
+            return back()->withInput()->with('danger', 'Alokasi sudah dipublish dan tidak dapat diubah.');
+        }
 
         $totalAmount = array_sum($lineAmounts);
         if ($totalAmount <= 0) {
@@ -189,6 +201,10 @@ class UnitRemunerationAllocationController extends Controller
     /** Delete allocation */
     public function destroy(Allocation $allocation): RedirectResponse
     {
+        if ($this->groupPublished($allocation->assessment_period_id, $allocation->unit_id)) {
+            return back()->with('danger', 'Alokasi sudah dipublish dan tidak dapat diubah.');
+        }
+
         Allocation::query()
             ->where('assessment_period_id', $allocation->assessment_period_id)
             ->where('unit_id', $allocation->unit_id)
@@ -202,6 +218,8 @@ class UnitRemunerationAllocationController extends Controller
             'assessment_period_id' => ['required','integer','exists:assessment_periods,id'],
             'unit_id'              => ['required','integer','exists:units,id'],
             'note'                 => ['nullable','string','max:500'],
+        ], [
+            'assessment_period_id.required' => 'Anda wajib memilih periode.',
         ]);
     }
 
@@ -230,5 +248,14 @@ class UnitRemunerationAllocationController extends Controller
             $out[(int)$profId] = $num;
         }
         return $out;
+    }
+
+    protected function groupPublished(int $periodId, int $unitId): bool
+    {
+        return Allocation::query()
+            ->where('assessment_period_id', $periodId)
+            ->where('unit_id', $unitId)
+            ->whereNotNull('published_at')
+            ->exists();
     }
 }

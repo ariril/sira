@@ -9,7 +9,7 @@ class UnitRemunerationAllocation extends Model
 {
     use HasFactory;
 
-    protected $table = 'unit_remuneration_allocations';
+    protected $table = 'unit_profession_remuneration_allocations';
 
     protected $fillable = [
         'assessment_period_id',
