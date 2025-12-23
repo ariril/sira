@@ -10,10 +10,10 @@ return new class extends Migration {
         if (!Schema::hasTable('multi_rater_scores')) {
             Schema::create('multi_rater_scores', function (Blueprint $table) {
                 $table->id();
-                $table->unsignedBigInteger('period_id')->index();
-                $table->unsignedBigInteger('rater_user_id')->index();
-                $table->unsignedBigInteger('target_user_id')->index();
-                $table->unsignedBigInteger('performance_criteria_id')->nullable()->index();
+                $table->foreignId('period_id')->constrained('assessment_periods');
+                $table->foreignId('rater_user_id')->constrained('users');
+                $table->foreignId('target_user_id')->constrained('users');
+                $table->foreignId('performance_criteria_id')->nullable()->constrained('performance_criterias');
                 $table->unsignedTinyInteger('score'); // 1–100
                 $table->timestamps();
 

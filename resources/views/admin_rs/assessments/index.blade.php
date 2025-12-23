@@ -20,7 +20,7 @@
                         <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
                         @php
                             // Default ke (Semua) jika tidak dipilih
-                            $selectedPeriodId = request('period_id', '');
+                            $selectedPeriodId = request('period_id') ?? '';
                         @endphp
                         <x-ui.select name="period_id" :options="$periodOptions" :value="$selectedPeriodId"
                             class="focus:border-emerald-500 focus:ring-emerald-500" />

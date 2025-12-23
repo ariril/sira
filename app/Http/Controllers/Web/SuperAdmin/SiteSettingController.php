@@ -7,6 +7,8 @@ use App\Models\SiteSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class SiteSettingController extends Controller
@@ -51,6 +53,7 @@ class SiteSettingController extends Controller
             'address'           => ['nullable','string'],
             'phone'             => ['nullable','string','max:30'],
             'email'             => ['nullable','email','max:150'],
+            'timezone'          => ['required','string', Rule::in($this->timezoneOptions())],
             'facebook_url'      => ['nullable','url'],
             'instagram_url'     => ['nullable','url'],
             'twitter_url'       => ['nullable','url'],
@@ -78,8 +81,22 @@ class SiteSettingController extends Controller
         $setting->updated_by = Auth::id();
         $setting->save();
 
+        Cache::forget('site.timezone');
+        Cache::forget('site.profile');
+
         return redirect()->route('super_admin.site-settings.index')
             ->with('status','Pengaturan situs diperbarui.');
+    }
+
+    /** Daftar timezone yang diizinkan untuk super admin. */
+    private function timezoneOptions(): array
+    {
+        return [
+            'Asia/Jakarta',   // UTC+7
+            'Asia/Makassar',  // UTC+8
+            'Asia/Jayapura',  // UTC+9
+            'UTC',
+        ];
     }
 
     public function destroy(string $id)

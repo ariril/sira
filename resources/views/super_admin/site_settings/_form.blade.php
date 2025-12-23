@@ -34,6 +34,18 @@
                 <x-ui.input name="footer_text" :value="old('footer_text', $setting->footer_text)" />
             </div>
         </div>
+
+        <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Zona Waktu Aplikasi *</label>
+            @php($tzOptions = [
+                'Asia/Jakarta'  => 'Asia/Jakarta (UTC+7)',
+                'Asia/Makassar' => 'Asia/Atambua (UTC+8)',
+                'Asia/Jayapura' => 'Asia/Jayapura (UTC+9)',
+                'UTC'           => 'UTC (Universal)',
+            ])
+            <x-ui.select name="timezone" :options="$tzOptions" :value="old('timezone', $setting->timezone ?? 'Asia/Jakarta')" required />
+            <p class="mt-1 text-[11px] text-slate-500">Seluruh batas waktu (kontribusi tambahan, approval, penilaian 360, dsb.) akan mengikuti zona waktu ini.</p>
+        </div>
     </div>
 
     <div class="space-y-4">
@@ -42,12 +54,12 @@
                 <label class="block text-xs font-medium text-slate-600 mb-1">Logo</label>
                 <x-ui.input id="logo" type="file" name="logo" accept="image/*" />
                 <div class="mt-2">
-                    @php
-                        $logoUrl = $setting->logo_path
-                            ? Storage::url($setting->logo_path)
-                            : Storage::url('images/logo-rsudmgr.jpeg');
-                    @endphp
-                    <img id="preview-logo" src="{{ $logoUrl }}" alt="Logo Saat Ini" class="h-16 rounded border bg-white object-contain">
+                    <img
+                        id="preview-logo"
+                        src="{{ $setting->logo_path ? Storage::url($setting->logo_path) : Storage::url('images/logo-rsudmgr.jpeg') }}"
+                        alt="Logo Saat Ini"
+                        class="h-16 rounded border bg-white object-contain"
+                    >
                     <div class="mt-1 text-xs text-slate-500">{{ $setting->logo_path ?: 'images/logo-rsudmgr.jpeg' }}</div>
                 </div>
             </div>
@@ -67,12 +79,12 @@
             <label class="block text-xs font-medium text-slate-600 mb-1">Gambar Hero (Homepage)</label>
             <x-ui.input id="hero" type="file" name="hero" accept="image/*" />
             <div class="mt-2">
-                @php
-                    $heroUrl = $setting->hero_path
-                        ? Storage::url($setting->hero_path)
-                        : Storage::url('images/hero.jpeg');
-                @endphp
-                <img id="preview-hero" src="{{ $heroUrl }}" alt="Gambar Hero Saat Ini" class="h-28 rounded border bg-white object-cover">
+                <img
+                    id="preview-hero"
+                    src="{{ $setting->hero_path ? Storage::url($setting->hero_path) : Storage::url('images/hero.jpeg') }}"
+                    alt="Gambar Hero Saat Ini"
+                    class="h-28 rounded border bg-white object-cover"
+                >
                 <div class="mt-1 text-xs text-slate-500">{{ $setting->hero_path ?: 'images/hero.jpeg' }}</div>
             </div>
         </div>
@@ -118,7 +130,7 @@
         </div>
 
         <div class="pt-2 flex items-center justify-end">
-            <x-ui.button type="submit" variant="success">
+            <x-ui.button type="submit" :variant="'primary'">
                 <i class="fa-solid fa-floppy-disk"></i>
                 Simpan Perubahan
             </x-ui.button>

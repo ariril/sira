@@ -23,7 +23,18 @@ class CriteriaResolver
             ->filter(fn($w) => $w->performanceCriteria && $w->performanceCriteria->input_method === '360' && $w->performanceCriteria->is_active);
 
         if ($weights->isNotEmpty()) {
-            return $weights->map(fn($weight) => self::mapCriteria($weight->performanceCriteria));
+            $weighted = $weights->map(fn($weight) => self::mapCriteria($weight->performanceCriteria));
+            $weightedIds = $weighted->pluck('id')->filter()->all();
+
+            $unweighted = PerformanceCriteria::query()
+                ->where('input_method', '360')
+                ->where('is_active', true)
+                ->when(!empty($weightedIds), fn($q) => $q->whereNotIn('id', $weightedIds))
+                ->orderBy('name')
+                ->get()
+                ->map(fn(PerformanceCriteria $criteria) => self::mapCriteria($criteria));
+
+            return $weighted->concat($unweighted)->filter(fn($r) => !empty($r['id']))->values();
         }
 
         return PerformanceCriteria::query()
@@ -31,7 +42,7 @@ class CriteriaResolver
             ->where('is_active', true)
             ->orderBy('name')
             ->get()
-            ->map(fn($criteria) => self::mapCriteria($criteria));
+            ->map(fn(PerformanceCriteria $criteria) => self::mapCriteria($criteria));
     }
 
     protected static function mapCriteria(?PerformanceCriteria $criteria): array

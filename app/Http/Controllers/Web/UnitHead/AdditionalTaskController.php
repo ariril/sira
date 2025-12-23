@@ -138,8 +138,9 @@ class AdditionalTaskController extends Controller
         $startTime = $data['start_time'] ?? '00:00';
         $dueTime = $data['due_time'] ?? '23:59';
 
-        $startAt = Carbon::createFromFormat('Y-m-d H:i', $data['start_date'].' '.$startTime, 'Asia/Jakarta');
-        $dueAt   = Carbon::createFromFormat('Y-m-d H:i', $data['due_date'].' '.$dueTime, 'Asia/Jakarta');
+        $tz = config('app.timezone');
+        $startAt = Carbon::createFromFormat('Y-m-d H:i', $data['start_date'].' '.$startTime, $tz);
+        $dueAt   = Carbon::createFromFormat('Y-m-d H:i', $data['due_date'].' '.$dueTime, $tz);
 
         if ($dueAt->lt($startAt)) {
             return back()->withErrors([
@@ -256,8 +257,9 @@ class AdditionalTaskController extends Controller
         $startTime = $data['start_time'] ?? ($task->start_time ? substr($task->start_time, 0, 5) : '00:00');
         $dueTime = $data['due_time'] ?? ($task->due_time ? substr($task->due_time, 0, 5) : '23:59');
 
-        $startAt = Carbon::createFromFormat('Y-m-d H:i', $data['start_date'].' '.$startTime, 'Asia/Jakarta');
-        $dueAt   = Carbon::createFromFormat('Y-m-d H:i', $data['due_date'].' '.$dueTime, 'Asia/Jakarta');
+        $tz = config('app.timezone');
+        $startAt = Carbon::createFromFormat('Y-m-d H:i', $data['start_date'].' '.$startTime, $tz);
+        $dueAt   = Carbon::createFromFormat('Y-m-d H:i', $data['due_date'].' '.$dueTime, $tz);
 
         if ($dueAt->lt($startAt)) {
             return back()->withErrors([
@@ -332,7 +334,8 @@ class AdditionalTaskController extends Controller
         if ((int) $task->unit_id !== (int) $me->unit_id) abort(403);
 
         $current = $task->status;
-        $now = Carbon::now('Asia/Jakarta');
+        $tz = config('app.timezone');
+        $now = Carbon::now($tz);
 
         if ($status === 'open') {
             if ($current === 'open') {
@@ -340,7 +343,7 @@ class AdditionalTaskController extends Controller
             }
 
             if ($task->due_date) {
-                $dueEnd = Carbon::parse($task->due_date, 'Asia/Jakarta')->endOfDay();
+                $dueEnd = Carbon::parse($task->due_date, $tz)->endOfDay();
                 if ($dueEnd->lessThan($now)) {
                     return back()->with('status', 'Perbarui tanggal selesai pada menu Edit sebelum membuka kembali tugas ini.');
                 }

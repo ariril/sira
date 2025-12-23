@@ -24,6 +24,7 @@ class SiteSetting extends Model
         'twitter_url',
         'youtube_url',
         'footer_text',
+        'timezone',
         'updated_by',
     ];
 

@@ -14,7 +14,8 @@ return new class extends Migration
             $table->enum('type', ['benefit', 'cost']);
             $table->text('description')->nullable();
             $table->boolean('is_active')->default(true);
-            // Added metadata columns (merged from later alter migration)
+
+            // Added metadata columns 
             $table->enum('data_type', ['numeric','percentage','boolean','datetime','text'])->nullable();
             $table->enum('input_method', ['system','manual','import','360','public_review'])->nullable();
             $table->enum('aggregation_method', ['sum','avg','count','latest','custom'])->nullable();

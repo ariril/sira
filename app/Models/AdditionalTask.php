@@ -168,7 +168,8 @@ class AdditionalTask extends Model
     {
         $time = $this->due_time ?: '23:59:59';
         $date = Carbon::parse($this->due_date)->toDateString();
-        return Carbon::parse($date . ' ' . $time, 'Asia/Jakarta')->format('d M Y H:i');
+        $tz = config('app.timezone');
+        return Carbon::parse($date . ' ' . $time, $tz)->format('d M Y H:i');
     }
 
     public function refreshLifecycleStatus(): void

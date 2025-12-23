@@ -15,12 +15,14 @@ class AdditionalTaskStatusService
             return;
         }
 
+        $tz = config('app.timezone');
+
         $shouldCloseByTime = false;
         if ($task->due_date) {
             $deadlineTime = $task->due_time ?: '23:59:59';
             $deadlineDate = Carbon::parse($task->due_date)->toDateString();
-            $deadline = Carbon::parse($deadlineDate . ' ' . $deadlineTime, 'Asia/Jakarta');
-            $shouldCloseByTime = Carbon::now('Asia/Jakarta')->greaterThan($deadline);
+            $deadline = Carbon::parse($deadlineDate . ' ' . $deadlineTime, $tz);
+            $shouldCloseByTime = Carbon::now($tz)->greaterThan($deadline);
         }
 
         $shouldCloseByQuota = false;

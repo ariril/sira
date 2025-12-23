@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Models\AssessmentPeriod;
+use App\Services\PeriodPerformanceAssessmentService;
 
 class AttendanceImportController extends Controller
 {
@@ -27,7 +28,7 @@ class AttendanceImportController extends Controller
     }
 
     // Handle upload + import (CSV/XLS/XLSX)
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
         $validated = $request->validate([
             // izinkan csv, xls, xlsx
@@ -41,6 +42,7 @@ class AttendanceImportController extends Controller
         $original   = $file->getClientOriginalName();
 
         $batch = null;
+        $importPeriodId = null;
         $success = 0; $failed = 0; $total = 0;
         $reasonCounts = [
             'no_user'   => 0,
@@ -63,6 +65,7 @@ class AttendanceImportController extends Controller
             if ($periodId === null) {
                 throw new \RuntimeException('Rentang tanggal pada file mencakup lebih dari satu bulan. Pisahkan per bulan.');
             }
+            $importPeriodId = (int) $periodId;
             if ($prevActive && !($validated['replace_existing'] ?? false)) {
                 $info = sprintf('Periode %s sudah memiliki import sebelumnya (total=%d, berhasil=%d, gagal=%d). Centang kotak "Timpa import periode ini" untuk menimpa.',
                     $periodText, $prevActive->total_rows, $prevActive->success_rows, $prevActive->failed_rows);
@@ -128,6 +131,11 @@ class AttendanceImportController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             return back()->withErrors(['file' => 'Import gagal: '.$e->getMessage()])->withInput();
+        }
+
+        // Update Penilaian Saya after import (scores depend on absensi).
+        if ($importPeriodId) {
+            $perfSvc->recalculateForPeriodId($importPeriodId);
         }
 
         $detail = [];

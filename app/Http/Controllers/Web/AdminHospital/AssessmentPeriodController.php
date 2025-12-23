@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use App\Services\PeriodPerformanceAssessmentService;
 
 class AssessmentPeriodController extends Controller
 {
@@ -130,19 +131,26 @@ class AssessmentPeriodController extends Controller
         return back()->with('status','Periode diaktifkan.');
     }
 
-    public function lock(AssessmentPeriod $period): RedirectResponse
+    public function lock(AssessmentPeriod $period, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
         // Hanya dari status Active ke Locked
         if ($period->status !== AssessmentPeriod::STATUS_ACTIVE) {
             return back()->withErrors(['status' => 'Periode harus dalam status Aktif sebelum dapat dikunci.']);
         }
         $period->lock(auth()->id());
+
+        // Auto-create/update Penilaian Saya for all pegawai medis in this period.
+        $perfSvc->initializeForPeriod($period);
+
         return back()->with('status','Periode dikunci.');
     }
 
-    public function startApproval(AssessmentPeriod $period): RedirectResponse
+    public function startApproval(AssessmentPeriod $period, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
         // Izinkan mulai persetujuan tanpa pengaman tambahan
+
+        // Safety: ensure Penilaian Saya exists (and latest computed) before sending to approval.
+        $perfSvc->initializeForPeriod($period);
 
         $this->createApprovalsForPeriod($period);
 

@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     public function up(): void
     {
         Schema::create('site_settings', function (Blueprint $table) {
@@ -28,9 +27,9 @@ return new class extends Migration
             $table->string('youtube_url')->nullable();
 
             $table->string('footer_text')->nullable();  // teks_footer
-
-            $table->foreignId('updated_by')             // diperbarui_oleh
-            ->nullable()
+            $table->string('timezone', 100)->default('Asia/Jakarta');
+            $table->foreignId('updated_by')
+                ->nullable()
                 ->constrained('users')
                 ->nullOnDelete();
 

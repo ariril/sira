@@ -36,7 +36,7 @@
                     ({{ $period->start_date->format('d M Y') }} – {{ $period->end_date->format('d M Y') }})
                 </div>
 
-                @if(!$window && !($summary['windowClosed'] ?? false))
+                @if(($period->status !== 'active') && !$window && !($summary['windowClosed'] ?? false))
                     <div class="mt-3 rounded-xl border border-sky-200 bg-sky-50 text-sky-900 px-4 py-3 text-sm space-y-1">
                         <div class="font-semibold">Penilaian 360 tidak dibuka pada periode {{ $period->name }}.</div>
                         <div>Buka jadwal untuk mengaktifkan penilaian 360 pada periode-periode berikutnya.</div>

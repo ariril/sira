@@ -9,11 +9,12 @@ use Illuminate\Support\Collection;
 use App\Models\Assessment360Window;
 use App\Models\MultiRaterScore;
 use App\Models\User;
+use App\Services\PeriodPerformanceAssessmentService;
 use App\Services\MultiRater\CriteriaResolver;
 
 class StoreController extends Controller
 {
-    public function store(Request $req)
+    public function store(Request $req, PeriodPerformanceAssessmentService $perfSvc)
     {
         $applyAll = $req->boolean('apply_all');
         $rules = [
@@ -34,7 +35,7 @@ class StoreController extends Controller
             return response()->json(['ok' => false, 'message' => 'Tidak bisa menilai diri sendiri.'], 400);
         }
 
-        $target = User::select('id', 'unit_id', 'name')->findOrFail($targetId);
+        $target = User::select('id', 'unit_id', 'profession_id', 'name')->findOrFail($targetId);
         $unitId = $validated['unit_id'] ?? $target->unit_id;
 
         $window = Assessment360Window::where('assessment_period_id', $periodId)
@@ -75,6 +76,13 @@ class StoreController extends Controller
         foreach ($targetCriteria as $criteriaId) {
             $this->persistScore($periodId, $raterId, $targetId, $criteriaId, $score);
         }
+
+        // Update Penilaian Saya for the assessee group (supports locked periods too).
+        $perfSvc->recalculateForGroup(
+            $periodId,
+            $target->unit_id ? (int) $target->unit_id : null,
+            $target->profession_id ? (int) $target->profession_id : null
+        );
 
         $completed = MultiRaterScore::query()
             ->where('period_id', $periodId)

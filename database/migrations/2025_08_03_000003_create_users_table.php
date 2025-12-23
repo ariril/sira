@@ -29,7 +29,6 @@ return new class extends Migration
 
             $table->string('password');
 
-            // Multi-role support: remove single enum role and keep last chosen role for redirecting
             $table->string('last_role')->nullable();
 
             $table->index('name');

@@ -11,6 +11,7 @@ use App\Models\MultiRaterAssessmentDetail;
 use App\Models\PerformanceCriteria;
 use App\Models\Assessment360Window;
 use App\Models\User;
+use App\Services\PeriodPerformanceAssessmentService;
 use App\Services\MultiRater\CriteriaResolver;
 use App\Services\MultiRater\SimpleFormData;
 use App\Services\MultiRater\SummaryService;
@@ -140,7 +141,7 @@ class MultiRaterSubmissionController extends Controller
         return view('kepala_unit.multi_rater.show', compact('assessment','criterias','details','window'));
     }
 
-    public function submit(Request $request, MultiRaterAssessment $assessment)
+    public function submit(Request $request, MultiRaterAssessment $assessment, PeriodPerformanceAssessmentService $perfSvc)
     {
         abort_unless($assessment->assessor_id === Auth::id(), 403);
         $payload = $request->validate([
@@ -170,6 +171,15 @@ class MultiRaterSubmissionController extends Controller
         $assessment->status = 'submitted';
         $assessment->submitted_at = Carbon::now();
         $assessment->save();
+
+        $assessee = $assessment->assessee()->first(['id', 'unit_id', 'profession_id']);
+        if ($assessee) {
+            $perfSvc->recalculateForGroup(
+                (int) $assessment->assessment_period_id,
+                $assessee->unit_id ? (int) $assessee->unit_id : null,
+                $assessee->profession_id ? (int) $assessee->profession_id : null
+            );
+        }
 
         return redirect()->route('kepala_unit.multi_rater.index')->with('status', 'Penilaian 360 berhasil dikirim.');
     }

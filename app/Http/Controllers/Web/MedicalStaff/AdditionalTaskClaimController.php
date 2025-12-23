@@ -30,8 +30,9 @@ class AdditionalTaskClaimController extends Controller
         AdditionalTaskStatusService::sync($task);
         $task->refresh();
 
-        $dueEnd = $task->due_date ? Carbon::parse($task->due_date, 'Asia/Jakarta')->endOfDay() : null;
-        if ((int)$task->unit_id !== (int)$me->unit_id || $task->status !== 'open' || ($dueEnd && Carbon::now('Asia/Jakarta')->greaterThan($dueEnd))) {
+        $tz = config('app.timezone');
+        $dueEnd = $task->due_date ? Carbon::parse($task->due_date, $tz)->endOfDay() : null;
+        if ((int)$task->unit_id !== (int)$me->unit_id || $task->status !== 'open' || ($dueEnd && Carbon::now($tz)->greaterThan($dueEnd))) {
             abort(403);
         }
 

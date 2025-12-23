@@ -439,8 +439,10 @@ class DatabaseSeeder extends Seeder
             $criterias = [
                 ['name' => 'Absensi', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'description' => 'Total hadir dalam periode', 'is_active' => 1],
                 ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kedisiplinan', 'is_active' => 1],
+                ['name' => 'Kerjasama (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kerjasama tim', 'is_active' => 1],
                 ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'aggregation_method' => 'sum', 'description' => 'Poin tugas / kontribusi tambahan dari modul tugas/kontribusi', 'is_active' => 1],
                 ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'description' => 'Total pasien ditangani', 'is_active' => 1],
+                ['name' => 'Jumlah Komplain Pasien', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'description' => 'Total komplain pasien (semakin kecil semakin baik)', 'is_active' => 1],
                 ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'aggregation_method' => 'avg', 'description' => 'Rerata rating pasien', 'is_active' => 1],
             ];
             foreach ($criterias as &$k) {

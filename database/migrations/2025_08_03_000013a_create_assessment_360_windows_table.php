@@ -10,11 +10,11 @@ return new class extends Migration
     {
         Schema::create('assessment_360_windows', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('assessment_period_id');
+            $table->foreignId('assessment_period_id')->constrained('assessment_periods');
             $table->date('start_date');
             $table->date('end_date');
             $table->boolean('is_active')->default(true);
-            $table->unsignedBigInteger('opened_by')->nullable();
+            $table->foreignId('opened_by')->nullable()->constrained('users');
             $table->timestamps();
         });
 

@@ -7,6 +7,7 @@ use App\Models\CriteriaMetric;
 use App\Models\PerformanceCriteria;
 use App\Models\AssessmentPeriod;
 use App\Models\User;
+use App\Services\PeriodPerformanceAssessmentService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
@@ -51,7 +52,13 @@ class CriteriaMetricsController extends Controller
             ->withQueryString();
 
         $periods = AssessmentPeriod::orderByDesc('start_date')->pluck('name','id');
-        $criterias = PerformanceCriteria::where('is_active', true)->orderBy('name')->get(['id','name','data_type']);
+        // Manual Metrics hanya untuk kriteria input_method=import selain Absensi (karena Absensi punya modul sendiri)
+        $criterias = PerformanceCriteria::query()
+            ->where('is_active', true)
+            ->where('input_method', 'import')
+            ->where('name', '!=', 'Absensi')
+            ->orderBy('name')
+            ->get(['id','name','data_type']);
         $criteriaOptions = $criterias->pluck('name','id');
         return view('admin_rs.metrics.index', compact(
             'items',
@@ -77,20 +84,31 @@ class CriteriaMetricsController extends Controller
         abort(404);
     }
 
-    public function uploadCsv(Request $request): RedirectResponse
+    public function uploadCsv(Request $request, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
         $validated = $request->validate([
             'file' => 'required|file|mimes:csv,txt,xls,xlsx|max:5120',
             'performance_criteria_id' => 'required|exists:performance_criterias,id',
+            'period_id' => 'nullable|exists:assessment_periods,id',
             'replace_existing' => 'nullable|boolean',
         ]);
 
         $criteria = PerformanceCriteria::findOrFail($validated['performance_criteria_id']);
 
-        // Periode aktif wajib ada
-        $active = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
-        if (!$active) {
-            return back()->withErrors(['file' => 'Tidak ada Periode Aktif. Aktifkan periode lebih dulu.']);
+        if (($criteria->input_method ?? null) !== 'import' || ($criteria->name ?? null) === 'Absensi') {
+            return back()->withErrors(['performance_criteria_id' => 'Kriteria yang dapat diunggah di sini hanya kriteria Metrics (input method: import) selain Absensi.']);
+        }
+
+        // Target period: allow explicit period_id (including locked periods). Fallback to active.
+        $targetPeriod = null;
+        if (!empty($validated['period_id'])) {
+            $targetPeriod = AssessmentPeriod::query()->find((int) $validated['period_id']);
+        }
+        if (!$targetPeriod) {
+            $targetPeriod = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
+        }
+        if (!$targetPeriod) {
+            return back()->withErrors(['file' => 'Pilih Periode. Tidak ada Periode Aktif saat ini.']);
         }
 
         $path = $request->file('file')->store('metric_uploads');
@@ -234,7 +252,7 @@ class CriteriaMetricsController extends Controller
 
             // Apakah sudah ada?
             $existing = CriteriaMetric::where('user_id',$user->id)
-                ->where('assessment_period_id', $active->id)
+                ->where('assessment_period_id', $targetPeriod->id)
                 ->where('performance_criteria_id', $criteria->id)
                 ->first();
 
@@ -253,7 +271,7 @@ class CriteriaMetricsController extends Controller
 
             CriteriaMetric::create([
                 'user_id' => $user->id,
-                'assessment_period_id' => $active->id,
+                'assessment_period_id' => $targetPeriod->id,
                 'performance_criteria_id' => $criteria->id,
                 'value_numeric' => $valueNum,
                 'value_datetime'=> $valueDt,
@@ -265,6 +283,10 @@ class CriteriaMetricsController extends Controller
         }
 
         $msg = "Import selesai: dibuat {$created}, diperbarui {$updated}, dilewati {$skipped}.";
+
+        // Recalculate Penilaian Saya for the target period (e.g., locked period uploads).
+        $perfSvc->recalculateForPeriodId((int) $targetPeriod->id);
+
         return back()->with('status', $msg);
     }
 
@@ -276,6 +298,10 @@ class CriteriaMetricsController extends Controller
         ]);
 
         $criteria = PerformanceCriteria::findOrFail($data['performance_criteria_id']);
+
+        if (($criteria->input_method ?? null) !== 'import' || ($criteria->name ?? null) === 'Absensi') {
+            return back()->withErrors(['performance_criteria_id' => 'Template hanya tersedia untuk kriteria Metrics (input method: import) selain Absensi.']);
+        }
         $period = isset($data['period_id'])
             ? AssessmentPeriod::find($data['period_id'])
             : AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();

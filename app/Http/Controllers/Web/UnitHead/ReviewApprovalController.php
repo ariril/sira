@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Web\UnitHead;
 use App\Enums\ReviewStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Review;
+use App\Models\AssessmentPeriod;
+use App\Services\PeriodPerformanceAssessmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -71,7 +73,7 @@ class ReviewApprovalController extends Controller
         ]);
     }
 
-    public function approve(Request $request, Review $review): RedirectResponse
+    public function approve(Request $request, Review $review, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
         $this->ensureReviewBelongsToUnit($review);
         if ($review->status === ReviewStatus::APPROVED) {
@@ -91,10 +93,12 @@ class ReviewApprovalController extends Controller
             'decided_at'   => now(),
         ])->save();
 
+        $this->recalculateAffectedStaff($review, $perfSvc);
+
         return back()->with('status', 'Ulasan pasien disetujui.');
     }
 
-    public function reject(Request $request, Review $review): RedirectResponse
+    public function reject(Request $request, Review $review, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
         $this->ensureReviewBelongsToUnit($review);
         if ($review->status === ReviewStatus::REJECTED) {
@@ -116,10 +120,12 @@ class ReviewApprovalController extends Controller
             'decided_at'    => now(),
         ])->save();
 
+        $this->recalculateAffectedStaff($review, $perfSvc);
+
         return back()->with('status', 'Ulasan pasien ditolak.');
     }
 
-    public function approveAll(Request $request): RedirectResponse
+    public function approveAll(Request $request, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
         $unitId = Auth::user()?->unit_id;
         abort_unless($unitId, 403, 'Unit belum dikonfigurasi untuk akun ini.');
@@ -134,6 +140,8 @@ class ReviewApprovalController extends Controller
             return back()->with('status', 'Tidak ada ulasan pending untuk disetujui.');
         }
 
+        $pendingReviewIds = (clone $pendingQuery)->pluck('id')->all();
+
         DB::transaction(function () use ($pendingQuery) {
             $pendingQuery->update([
                 'status'      => ReviewStatus::APPROVED,
@@ -142,7 +150,80 @@ class ReviewApprovalController extends Controller
             ]);
         });
 
+        // Recalculate affected staff for all newly approved reviews.
+        if (!empty($pendingReviewIds)) {
+            $this->recalculateAffectedStaffByReviewIds($pendingReviewIds, $unitId, $perfSvc);
+        }
+
         return back()->with('status', $pendingCount . ' ulasan pending disetujui.');
+    }
+
+    private function recalculateAffectedStaff(Review $review, PeriodPerformanceAssessmentService $perfSvc): void
+    {
+        $decidedAt = $review->decided_at ?? now();
+        $period = AssessmentPeriod::query()
+            ->whereDate('start_date', '<=', $decidedAt)
+            ->whereDate('end_date', '>=', $decidedAt)
+            ->first();
+        if (!$period) {
+            return;
+        }
+
+        $staffIds = DB::table('review_details')
+            ->where('review_id', $review->id)
+            ->pluck('medical_staff_id')
+            ->map(fn($v) => (int) $v)
+            ->unique()
+            ->values()
+            ->all();
+        if (empty($staffIds)) {
+            return;
+        }
+
+        $groups = DB::table('users')
+            ->whereIn('id', $staffIds)
+            ->select('unit_id', 'profession_id')
+            ->get();
+
+        foreach ($groups as $g) {
+            $perfSvc->recalculateForGroup((int) $period->id, $g->unit_id ? (int) $g->unit_id : null, $g->profession_id ? (int) $g->profession_id : null);
+        }
+    }
+
+    private function recalculateAffectedStaffByReviewIds(array $reviewIds, int $unitId, PeriodPerformanceAssessmentService $perfSvc): void
+    {
+        // decided_at set to now() for approveAll; map to current period by today.
+        $today = now();
+        $period = AssessmentPeriod::query()
+            ->whereDate('start_date', '<=', $today)
+            ->whereDate('end_date', '>=', $today)
+            ->first();
+        if (!$period) {
+            return;
+        }
+
+        $staffIds = DB::table('review_details')
+            ->whereIn('review_id', $reviewIds)
+            ->pluck('medical_staff_id')
+            ->map(fn($v) => (int) $v)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($staffIds)) {
+            return;
+        }
+
+        $groups = DB::table('users')
+            ->whereIn('id', $staffIds)
+            ->where('unit_id', $unitId)
+            ->select('unit_id', 'profession_id')
+            ->distinct()
+            ->get();
+
+        foreach ($groups as $g) {
+            $perfSvc->recalculateForGroup((int) $period->id, $g->unit_id ? (int) $g->unit_id : null, $g->profession_id ? (int) $g->profession_id : null);
+        }
     }
 
     private function ensureReviewBelongsToUnit(Review $review): void

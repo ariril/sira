@@ -16,16 +16,6 @@
             </div>
         @endunless
 
-        @if($errors->any())
-        <div class="bg-rose-50 border border-rose-100 text-rose-800 rounded-xl px-4 py-3">
-            <ul class="list-disc list-inside text-sm">
-                @foreach($errors->all() as $e)
-                    <li>{{ $e }}</li>
-                @endforeach
-            </ul>
-        </div>
-        @endif
-
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <form method="POST" action="{{ route('admin_rs.attendances.import.store') }}" enctype="multipart/form-data" class="space-y-6">
                 @csrf

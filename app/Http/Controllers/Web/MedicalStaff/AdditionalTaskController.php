@@ -31,7 +31,8 @@ class AdditionalTaskController extends Controller
         ) {
             AdditionalTaskStatusService::syncForUnit($me->unit_id);
 
-            $now = Carbon::now('Asia/Jakarta');
+            $tz = config('app.timezone');
+            $now = Carbon::now($tz);
 
             $tasks = AdditionalTask::query()
                 ->with(['period:id,name'])
@@ -44,9 +45,9 @@ class AdditionalTaskController extends Controller
                 ->where('status', 'open')
                 ->orderByDesc('id')
                 ->get()
-                ->filter(function (AdditionalTask $task) use ($now) {
+                ->filter(function (AdditionalTask $task) use ($now, $tz) {
                     if ($task->due_date) {
-                        $dueEnd = Carbon::parse($task->due_date, 'Asia/Jakarta')->endOfDay();
+                        $dueEnd = Carbon::parse($task->due_date, $tz)->endOfDay();
                         if ($dueEnd->lessThan($now)) {
                             return false;
                         }

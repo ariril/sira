@@ -41,10 +41,10 @@ class AssessmentApprovalController extends Controller
             ? DB::table('assessment_periods')->orderByDesc('start_date')->pluck('name','id')
             : collect();
         $periodOptions = $periodOptions->prepend('(Semua)', '')->toArray();
-        $activePeriodId = Schema::hasTable('assessment_periods')
-            ? DB::table('assessment_periods')->where('status','active')->value('id')
-            : null;
-        $periodId = $request->filled('period_id') ? (int) $request->input('period_id') : ($activePeriodId ?? null);
+        // IMPORTANT:
+        // - If user selects (Semua), the browser sends period_id empty -> we must NOT apply period filter.
+        // - If period_id is not present at all, we also default to (Semua) to match the UI.
+        $periodId = $request->filled('period_id') ? (int) $request->input('period_id') : null;
 
         // Composite filter values covering status and level scopes
         // Values: 'all','pending_l1','approved_l1','rejected_l1','pending_all','approved_all','rejected_all'

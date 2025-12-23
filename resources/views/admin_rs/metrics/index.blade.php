@@ -41,10 +41,14 @@
                         <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
                         <x-ui.select name="performance_criteria_id" :options="$criteriaOptions" placeholder="Pilih kriteria" required />
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
+                        <x-ui.select name="period_id" :options="$periods" placeholder="Pakai Periode Aktif" />
+                    </div>
                     <div class="flex items-end">
                         <div class="flex items-start gap-3">
                             <input type="checkbox" id="replace_existing" name="replace_existing" value="1" class="mt-1">
-                            <label for="replace_existing" class="text-sm text-slate-700">Timpa nilai pada periode aktif bila sudah ada. Sistem akan memakai Periode Aktif secara otomatis.</label>
+                            <label for="replace_existing" class="text-sm text-slate-700">Timpa nilai jika sudah ada pada periode yang dipilih (atau Periode Aktif jika tidak memilih periode).</label>
                         </div>
                     </div>
                 </div>
@@ -130,7 +134,7 @@
                 </div>
             </form>
             <div class="text-xs text-slate-500 mt-1">
-                Gunakan template agar header sesuai tipe data kriteria. Periode otomatis memakai Periode Aktif.
+                Gunakan template agar header sesuai tipe data kriteria. Periode bisa dipilih (mis. periode yang sudah dikunci), atau otomatis memakai Periode Aktif.
             </div>
         </div>
 

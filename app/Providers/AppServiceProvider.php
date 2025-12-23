@@ -22,6 +22,8 @@ class AppServiceProvider extends ServiceProvider
 
         Paginator::useTailwind();
         Paginator::defaultView('vendor.pagination.tailwind-no-info');
+
+        $this->setAppTimezone();
         // Hindari query saat artisan command (migrate/seed/queue) berjalan
         if ($this->app->runningInConsole()) {
             return;
@@ -106,5 +108,23 @@ class AppServiceProvider extends ServiceProvider
             $view->with('site', $site);
             $view->with('profilPages', $profilPages);
         });
+    }
+
+    private function setAppTimezone(): void
+    {
+        if (!Schema::hasTable('site_settings')) return;
+
+        try {
+            $tz = Cache::remember('site.timezone', 300, function () {
+                return SiteSetting::query()->value('timezone');
+            });
+
+            if ($tz) {
+                config(['app.timezone' => $tz]);
+                date_default_timezone_set($tz);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Gagal memuat timezone aplikasi: '.$e->getMessage());
+        }
     }
 }

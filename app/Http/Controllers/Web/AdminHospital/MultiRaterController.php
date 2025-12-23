@@ -21,9 +21,9 @@ class MultiRaterController extends Controller
             ->orderByDesc('id')
             ->first() : null;
 
+        // Consider window "active" purely by is_active flag, independent of date range
         $window = $period ? Assessment360Window::where('assessment_period_id', $period->id)
             ->where('is_active', true)
-            ->whereDate('end_date', '>=', now()->toDateString())
             ->first() : null;
 
         $stats = [];

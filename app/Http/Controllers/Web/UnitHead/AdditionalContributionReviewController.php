@@ -15,6 +15,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 use App\Notifications\ContributionApprovedNotification;
 use App\Notifications\ContributionRejectedNotification;
+use App\Services\PeriodPerformanceAssessmentService;
 
 class AdditionalContributionReviewController extends Controller
 {
@@ -48,7 +49,7 @@ class AdditionalContributionReviewController extends Controller
         return view('kepala_unit.additional_contributions.show', [ 'item' => $additionalContribution ]);
     }
 
-    public function approve(AdditionalContribution $additionalContribution): RedirectResponse
+    public function approve(AdditionalContribution $additionalContribution, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
         $this->authorizeAccess();
         $me = Auth::user();
@@ -69,10 +70,17 @@ class AdditionalContributionReviewController extends Controller
         if ($additionalContribution->user) {
             Notification::send($additionalContribution->user, new ContributionApprovedNotification($additionalContribution));
         }
+
+        // Recalculate Penilaian Saya for this period & unit+profession.
+        $u = $additionalContribution->user;
+        if ($u && $additionalContribution->assessment_period_id) {
+            $perfSvc->recalculateForGroup((int) $additionalContribution->assessment_period_id, $u->unit_id, $u->profession_id);
+        }
+
         return back()->with('status','Kontribusi disetujui.');
     }
 
-    public function reject(AdditionalContribution $additionalContribution, ReviewAdditionalContributionRequest $request): RedirectResponse
+    public function reject(AdditionalContribution $additionalContribution, ReviewAdditionalContributionRequest $request, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
         $this->authorizeAccess();
         $me = Auth::user();
@@ -88,6 +96,13 @@ class AdditionalContributionReviewController extends Controller
         if ($additionalContribution->user) {
             Notification::send($additionalContribution->user, new ContributionRejectedNotification($additionalContribution));
         }
+
+        // Recalculate Penilaian Saya for this period & unit+profession.
+        $u = $additionalContribution->user;
+        if ($u && $additionalContribution->assessment_period_id) {
+            $perfSvc->recalculateForGroup((int) $additionalContribution->assessment_period_id, $u->unit_id, $u->profession_id);
+        }
+
         return back()->with('status','Kontribusi ditolak.');
     }
     public function download(AdditionalContribution $additionalContribution): \Symfony\Component\HttpFoundation\BinaryFileResponse
