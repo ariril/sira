@@ -28,6 +28,15 @@
                 'cancelled' => 'bg-slate-100 text-slate-700',
                 'rejected' => 'bg-rose-100 text-rose-800',
             ];
+            $statusHelp = [
+                'active' => 'Klaim sedang berjalan dan tugas sedang dikerjakan.',
+                'submitted' => 'Hasil sudah dikirim, menunggu validasi kepala unit.',
+                'validated' => 'Hasil sudah divalidasi, menunggu persetujuan.',
+                'approved' => 'Klaim disetujui; nilai/bonus akan dihitung.',
+                'completed' => 'Tugas sudah selesai.',
+                'cancelled' => 'Klaim dibatalkan.',
+                'rejected' => 'Klaim ditolak; periksa catatan/revisi jika ada.',
+            ];
         @endphp
 
         {{-- CARD: Tugas Tersedia --}}
@@ -124,7 +133,10 @@
                     <x-slot name="head">
                         <tr>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Tugas</th>
-                            <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">
+                                Status
+                                <span class="inline-block ml-1 text-amber-600 cursor-help" title="Status klaim: Dalam Proses → Menunggu Review → Validasi Awal → Disetujui/Ditolak.">!</span>
+                            </th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Klaim Pada</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Batas Batal</th>
                             <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
@@ -136,7 +148,7 @@
                                 <div class="font-semibold text-slate-900">{{ $claim->task?->title ?? '-' }}</div>
                             </td>
                             <td class="px-6 py-4 text-base">
-                                <span class="px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$claim->status] ?? 'bg-slate-200 text-slate-700' }}">
+                                <span class="px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$claim->status] ?? 'bg-slate-200 text-slate-700' }} cursor-help" title="{{ $statusHelp[$claim->status] ?? '' }}">
                                     {{ $statusLabels[$claim->status] ?? strtoupper($claim->status) }}
                                 </span>
                             </td>
@@ -292,7 +304,10 @@
                     <x-slot name="head">
                         <tr>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Tugas</th>
-                            <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">
+                                Status
+                                <span class="inline-block ml-1 text-amber-600 cursor-help" title="Status riwayat: Disetujui/Selesai/Dibatalkan/Ditolak.">!</span>
+                            </th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Selesai / Update</th>
                             <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                         </tr>
@@ -303,7 +318,7 @@
                                 <div class="font-medium text-slate-900">{{ $claim->task?->title ?? '-' }}</div>
                             </td>
                             <td class="px-6 py-4 text-base">
-                                <span class="px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$claim->status] ?? 'bg-slate-200 text-slate-700' }}">
+                                <span class="px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$claim->status] ?? 'bg-slate-200 text-slate-700' }} cursor-help" title="{{ $statusHelp[$claim->status] ?? '' }}">
                                     {{ $statusLabels[$claim->status] ?? strtoupper($claim->status) }}
                                 </span>
                             </td>

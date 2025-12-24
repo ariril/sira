@@ -27,13 +27,34 @@ class AdditionalTaskClaimController extends Controller
     {
         $me = Auth::user();
         abort_unless((bool)$me, 403);
+
+        // Pembuat tugas (kepala unit) tidak boleh klaim tugasnya sendiri,
+        // termasuk ketika user tersebut switch role menjadi pegawai medis.
+        if (!empty($task->created_by) && (int) $task->created_by === (int) $me->id) {
+            return back()->with('status', 'Anda tidak dapat melakukan klaim terhadap tugas yang Anda buat sendiri.');
+        }
+
         AdditionalTaskStatusService::sync($task);
         $task->refresh();
 
         $tz = config('app.timezone');
         $dueEnd = $task->due_date ? Carbon::parse($task->due_date, $tz)->endOfDay() : null;
-        if ((int)$task->unit_id !== (int)$me->unit_id || $task->status !== 'open' || ($dueEnd && Carbon::now($tz)->greaterThan($dueEnd))) {
+        if ((int)$task->unit_id !== (int)$me->unit_id) {
             abort(403);
+        }
+
+        if ($dueEnd && Carbon::now($tz)->greaterThan($dueEnd)) {
+            return back()->with('status', 'Tugas tidak tersedia: jatuh tempo sudah lewat.');
+        }
+
+        if ($task->status !== 'open') {
+            $msg = match ($task->status) {
+                'draft' => 'Tugas belum dibuka untuk diklaim.',
+                'cancelled' => 'Tugas dibatalkan dan tidak dapat diklaim.',
+                'closed' => 'Tugas tidak tersedia: kuota klaim sudah penuh atau sedang diproses.',
+                default => 'Tugas tidak tersedia.',
+            };
+            return back()->with('status', $msg);
         }
 
         $created = false; $reason = '';

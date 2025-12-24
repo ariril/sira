@@ -43,6 +43,9 @@ class AdditionalTaskController extends Controller
                 ])
                 ->where('unit_id', $me->unit_id)
                 ->where('status', 'open')
+                ->where(function ($q) use ($me) {
+                    $q->whereNull('created_by')->orWhere('created_by', '!=', $me->id);
+                })
                 ->orderByDesc('id')
                 ->get()
                 ->filter(function (AdditionalTask $task) use ($now, $tz) {

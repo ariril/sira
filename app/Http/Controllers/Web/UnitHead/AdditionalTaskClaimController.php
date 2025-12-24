@@ -25,7 +25,7 @@ class AdditionalTaskClaimController extends Controller
         $perPageOptions = [10, 20, 30, 50];
         $data = $request->validate([
             'q'        => ['nullable','string','max:100'],
-            'status'   => ['nullable','string','in:active,completed,cancelled'],
+            'status'   => ['nullable','string','in:active,submitted,validated,approved,rejected,completed,cancelled,auto_unclaim'],
             'overdue'  => ['nullable','boolean'],
             'per_page' => ['nullable','integer','in:' . implode(',', $perPageOptions)],
         ]);

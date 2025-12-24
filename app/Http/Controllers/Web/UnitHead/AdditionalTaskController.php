@@ -51,9 +51,14 @@ class AdditionalTaskController extends Controller
         }
 
         if ($unitId && Schema::hasTable('additional_tasks')) {
+            $activeStatusesSql = "'" . implode("','", AdditionalTaskStatusService::ACTIVE_STATUSES) . "'";
             $builder = DB::table('additional_tasks as t')
                 ->leftJoin('assessment_periods as ap', 'ap.id', '=', 't.assessment_period_id')
-                ->selectRaw('t.id, t.title, t.status, t.start_date, t.start_time, t.due_date, t.due_time, t.points, t.bonus_amount, ap.name as period_name')
+                ->selectRaw(
+                    "t.id, t.title, t.status, t.start_date, t.start_time, t.due_date, t.due_time, t.points, t.bonus_amount, t.max_claims, ap.name as period_name, " .
+                    "(select count(*) from additional_task_claims c where c.additional_task_id = t.id and c.status in ($activeStatusesSql)) as active_claims, " .
+                    "(select count(*) from additional_task_claims c where c.additional_task_id = t.id and c.status in ('submitted','validated')) as review_waiting"
+                )
                 ->where('t.unit_id', $unitId)
                 ->orderByDesc('t.id');
 
@@ -89,15 +94,12 @@ class AdditionalTaskController extends Controller
     public function create(): View
     {
         $this->authorizeAccess();
-        $periods = collect();
+        $activePeriod = null;
         if (Schema::hasTable('assessment_periods')) {
-            $periods = DB::table('assessment_periods')
-                ->orderByDesc(DB::raw("status = 'active'"))
-                ->orderByDesc('id')
-                ->get();
+            $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('id')->first();
         }
 
-        return view('kepala_unit.additional_tasks.create', ['periods' => $periods]);
+        return view('kepala_unit.additional_tasks.create', ['activePeriod' => $activePeriod]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -106,8 +108,19 @@ class AdditionalTaskController extends Controller
         $me = Auth::user();
         $unitId = $me?->unit_id;
 
+        $activePeriod = null;
+        if (Schema::hasTable('assessment_periods')) {
+            // Pastikan periode aktif up-to-date
+            AssessmentPeriod::syncByNow();
+            $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('id')->first();
+        }
+        if (!$activePeriod) {
+            return back()->withErrors([
+                'title' => 'Tidak ada periode yang aktif saat ini. Hubungi Admin RS untuk mengaktifkan periode penilaian terlebih dahulu.',
+            ])->withInput();
+        }
+
         $data = $request->validate([
-            'assessment_period_id' => ['required','integer','exists:assessment_periods,id'],
             'title'       => ['required','string','max:200'],
             'description' => ['nullable','string','max:2000'],
             'start_date'  => ['required','date'],
@@ -135,10 +148,16 @@ class AdditionalTaskController extends Controller
             ])->withInput();
         }
 
-        $startTime = $data['start_time'] ?? '00:00';
-        $dueTime = $data['due_time'] ?? '23:59';
-
         $tz = config('app.timezone');
+        $today = Carbon::today($tz)->toDateString();
+        if (($data['start_date'] ?? '') < $today) {
+            return back()->withErrors([
+                'start_date' => 'Tanggal mulai tidak boleh sebelum hari ini.',
+            ])->withInput();
+        }
+
+        $startTime = $data['start_time'] ?? Carbon::now($tz)->format('H:i');
+        $dueTime = $data['due_time'] ?? '23:59';
         $startAt = Carbon::createFromFormat('Y-m-d H:i', $data['start_date'].' '.$startTime, $tz);
         $dueAt   = Carbon::createFromFormat('Y-m-d H:i', $data['due_date'].' '.$dueTime, $tz);
 
@@ -155,7 +174,7 @@ class AdditionalTaskController extends Controller
 
         $task = AdditionalTask::create([
             'unit_id' => $unitId,
-            'assessment_period_id' => $data['assessment_period_id'],
+            'assessment_period_id' => $activePeriod->id,
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
             'start_date' => $startAt->toDateString(),
@@ -180,6 +199,7 @@ class AdditionalTaskController extends Controller
                 ->select('u.id')
                 ->where('u.unit_id', $unitId)
                 ->where('r.slug', 'pegawai_medis')
+                ->where('u.id', '!=', $me->id)
                 ->get();
 
             foreach ($targets as $target) {

@@ -56,30 +56,91 @@
                     <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Tanggal</th>
                     <th class="px-6 py-4 text-right whitespace-nowrap">Poin/Bonus</th>
-                    <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">
+                        Status
+                        <span class="inline-block ml-1 text-amber-600 cursor-help" title="Status menjelaskan ketersediaan tugas untuk diklaim. Jika kuota penuh atau ada klaim yang sedang diproses, tugas akan ditandai tidak tersedia meskipun belum lewat jatuh tempo.">!</span>
+                    </th>
                     <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                 </tr>
             </x-slot>
             @forelse($items as $it)
                 @php
                     $st = $it->status;
-                    $dueTime = $it->due_time ?? '23:59:59';
+                    $tz = config('app.timezone');
+                    $dueTime = $it->due_time ?? '23:59';
                     $duePast = $it->due_date
-                        ? \Illuminate\Support\Carbon::parse($it->due_date.' '.$dueTime, 'Asia/Jakarta')->isPast()
+                        ? \Illuminate\Support\Carbon::parse($it->due_date, 'Asia/Jakarta')->setTimeFromTimeString($dueTime)->isPast()
                         : false;
+                    try {
+                        $duePast = $it->due_date
+                            ? \Illuminate\Support\Carbon::parse($it->due_date, $tz)->setTimeFromTimeString($dueTime)->isPast()
+                            : false;
+                    } catch (\Exception $e) {
+                        // fallback tetap seperti sebelumnya
+                    }
+
                     $canOpen = in_array($st, ['draft', 'cancelled', 'closed']) && !$duePast;
-                    $showDueWarning = $st === 'closed' && $duePast;
+                    $canClose = $st === 'open';
+                    $canCancel = in_array($st, ['open', 'draft']);
+                    $activeClaims = (int)($it->active_claims ?? 0);
+                    $reviewWaiting = (int)($it->review_waiting ?? 0);
+                    $maxClaims = $it->max_claims ?? null;
+
+                    $statusLabel = 'Draft';
+                    $statusClass = 'bg-amber-100 text-amber-700';
+                    $statusHint  = 'Tugas belum dibuka untuk diklaim pegawai.';
+                    if ($st === 'open') {
+                        $statusLabel = 'Tersedia';
+                        $statusClass = 'bg-emerald-100 text-emerald-700';
+                        $statusHint  = 'Tugas dapat diklaim oleh pegawai medis selama kuota masih ada dan belum lewat jatuh tempo.';
+                    } elseif ($st === 'cancelled') {
+                        $statusLabel = 'Dibatalkan';
+                        $statusClass = 'bg-rose-100 text-rose-700';
+                        $statusHint  = 'Tugas dibatalkan oleh kepala unit dan tidak dapat diklaim.';
+                    } elseif ($st === 'closed') {
+                        if ($duePast) {
+                            $statusLabel = 'Kadaluarsa';
+                            $statusClass = 'bg-slate-200 text-slate-700';
+                            $statusHint  = 'Jatuh tempo sudah lewat, tugas tidak dapat diklaim.';
+                        } elseif ($reviewWaiting > 0) {
+                            $statusLabel = 'Menunggu Review';
+                            $statusClass = 'bg-sky-100 text-sky-700';
+                            $statusHint  = 'Ada klaim yang sudah dikirim pegawai dan menunggu tindakan (validasi/persetujuan).';
+                        } elseif ($activeClaims > 0) {
+                            $isQuotaFull = !empty($maxClaims) && $activeClaims >= (int) $maxClaims;
+                            $statusLabel = $isQuotaFull ? 'Kuota Penuh' : 'Sedang Diklaim';
+                            $statusClass = $isQuotaFull ? 'bg-slate-200 text-slate-700' : 'bg-cyan-100 text-cyan-800';
+                            $statusHint  = $isQuotaFull
+                                ? 'Kuota klaim sudah penuh sehingga tugas tidak dapat diklaim lagi.'
+                                : 'Ada klaim berjalan yang sedang memakai sebagian kuota.';
+                        } else {
+                            $statusLabel = 'Ditutup';
+                            $statusClass = 'bg-slate-200 text-slate-700';
+                            $statusHint  = 'Tugas ditutup secara manual atau kuota sedang penuh.';
+                        }
+                    }
                     $startLabel = $it->start_date
-                        ? \Illuminate\Support\Carbon::parse($it->start_date.' '.($it->start_time ?? '00:00'), 'Asia/Jakarta')->format('d M Y H:i')
+                        ? \Illuminate\Support\Carbon::parse($it->start_date, 'Asia/Jakarta')->setTimeFromTimeString($it->start_time ?? '00:00')->format('d M Y H:i')
                         : '-';
                     $dueLabel = $it->due_date
-                        ? \Illuminate\Support\Carbon::parse($it->due_date.' '.($it->due_time ?? '23:59'), 'Asia/Jakarta')->format('d M Y H:i')
+                        ? \Illuminate\Support\Carbon::parse($it->due_date, 'Asia/Jakarta')->setTimeFromTimeString($it->due_time ?? '23:59')->format('d M Y H:i')
                         : '-';
+
+                    try {
+                        $startLabel = $it->start_date
+                            ? \Illuminate\Support\Carbon::parse($it->start_date, $tz)->setTimeFromTimeString($it->start_time ?? '00:00')->format('d M Y H:i')
+                            : '-';
+                        $dueLabel = $it->due_date
+                            ? \Illuminate\Support\Carbon::parse($it->due_date, $tz)->setTimeFromTimeString($it->due_time ?? '23:59')->format('d M Y H:i')
+                            : '-';
+                    } catch (\Exception $e) {
+                        // fallback tetap seperti sebelumnya
+                    }
                 @endphp
                 <tr class="hover:bg-slate-50">
                     <td class="px-6 py-4">{{ $it->title }}</td>
                     <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
-                    <td class="px-6 py-4">{{ $startLabel }} s/d<br>{{ $dueLabel }} WIB</td>
+                    <td class="px-6 py-4">{{ $startLabel }} s/d<br>{{ $dueLabel }}</td>
                     @php
                         $pointsDisplay = is_null($it->points) ? '0' : number_format((float) $it->points, 0, ',', '.');
                         $bonusDisplay = is_null($it->bonus_amount)
@@ -88,15 +149,7 @@
                     @endphp
                     <td class="px-6 py-4 text-right">{{ $pointsDisplay }} / {{ $bonusDisplay }}</td>
                     <td class="px-6 py-4">
-                        @if ($st === 'open')
-                            <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">Open</span>
-                        @elseif($st === 'closed')
-                            <span class="px-2 py-1 rounded text-xs bg-slate-200 text-slate-700">Closed</span>
-                        @elseif($st === 'cancelled')
-                            <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Cancelled</span>
-                        @else
-                            <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Draft</span>
-                        @endif
+                        <span class="px-2 py-1 rounded text-xs {{ $statusClass }} cursor-help" title="{{ $statusHint }}{{ $maxClaims ? ' (Kuota: '.$activeClaims.' / '.$maxClaims.')' : '' }}{{ $reviewWaiting ? ' (Menunggu review: '.$reviewWaiting.')' : '' }}">{{ $statusLabel }}</span>
                     </td>
                     <td class="px-6 py-4 text-right">
                         <div class="inline-flex gap-2 flex-wrap justify-end">
@@ -104,30 +157,28 @@
                                 href="{{ route('kepala_unit.additional-tasks.edit', $it->id) }}"
                                 icon="fa-pen-to-square" />
 
-                            @if ($st !== 'closed')
-                                @if (in_array($st, ['draft', 'cancelled']) && !$duePast)
-                                    <form method="POST"
-                                        action="{{ route('kepala_unit.additional_tasks.open', $it->id) }}">
-                                        @csrf
-                                        @method('PATCH')
-                                        <x-ui.button variant="orange" class="h-9 px-3 text-xs" type="submit">Open</x-ui.button>
-                                    </form>
-                                @endif
+                            @if ($canOpen)
+                                <form method="POST" action="{{ route('kepala_unit.additional_tasks.open', $it->id) }}">
+                                    @csrf
+                                    @method('PATCH')
+                                    <x-ui.button variant="orange" class="h-9 px-3 text-xs" type="submit">Buka</x-ui.button>
+                                </form>
+                            @endif
 
-                                @php
-                                    $isCancelable = in_array($st, ['open', 'draft']);
-                                @endphp
-                                @if ($st !== 'cancelled' && $st !== 'closed')
-                                    <form method="POST"
-                                        action="{{ route('kepala_unit.additional_tasks.cancel', $it->id) }}"
-                                        onsubmit="return confirm('Batalkan tugas ini?')">
-                                        @csrf
-                                        @method('PATCH')
-                                        <x-ui.button variant="outline" class="h-9 px-3 text-xs" type="submit" :disabled="!$isCancelable">
-                                            Cancel
-                                        </x-ui.button>
-                                    </form>
-                                @endif
+                            @if ($canClose)
+                                <form method="POST" action="{{ route('kepala_unit.additional_tasks.close', $it->id) }}" onsubmit="return confirm('Tutup tugas ini?')">
+                                    @csrf
+                                    @method('PATCH')
+                                    <x-ui.button variant="outline" class="h-9 px-3 text-xs" type="submit">Tutup</x-ui.button>
+                                </form>
+                            @endif
+
+                            @if ($canCancel && $st !== 'cancelled')
+                                <form method="POST" action="{{ route('kepala_unit.additional_tasks.cancel', $it->id) }}" onsubmit="return confirm('Batalkan tugas ini?')">
+                                    @csrf
+                                    @method('PATCH')
+                                    <x-ui.button variant="outline" class="h-9 px-3 text-xs" type="submit">Batalkan</x-ui.button>
+                                </form>
                             @endif
 
                             <form method="POST" action="{{ route('kepala_unit.additional-tasks.destroy', $it->id) }}"
@@ -136,7 +187,7 @@
                                 <x-ui.icon-button icon="fa-trash" />
                             </form>
                         </div>
-                        @if ($showDueWarning && $st !== 'closed')
+                        @if ($st === 'closed' && $duePast)
                             <p class="mt-2 text-[11px] text-amber-600">Jatuh tempo sudah lewat. Edit tanggal untuk
                                 membuka kembali.</p>
                         @endif

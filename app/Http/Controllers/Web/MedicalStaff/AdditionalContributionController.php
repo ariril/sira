@@ -46,6 +46,9 @@ class AdditionalContributionController extends Controller
                 ])
                 ->where('unit_id', $unitId)
                 ->where('status', 'open')
+                ->where(function ($q) use ($me) {
+                    $q->whereNull('created_by')->orWhere('created_by', '!=', $me->id);
+                })
                 ->orderBy('due_date')
                 ->orderBy('due_time')
                 ->get();

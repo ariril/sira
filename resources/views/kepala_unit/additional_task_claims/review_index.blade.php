@@ -40,8 +40,9 @@
         <div class="space-y-5">
             @forelse ($claims as $claim)
                 @php
+                    $tz = config('app.timezone');
                     $claimedAt = $claim->claimed_at
-                        ? Carbon::parse($claim->claimed_at)->timezone('Asia/Jakarta')->format('d M Y H:i')
+                        ? Carbon::parse($claim->claimed_at)->timezone($tz)->format('d M Y H:i')
                         : '-';
                     $dueDate = $claim->due_date ? Carbon::parse($claim->due_date)->format('d M Y') : '-';
                     $resultUrl = $claim->result_file_path ? Storage::url($claim->result_file_path) : null;
@@ -70,8 +71,10 @@
                             <p class="text-sm text-slate-500">Diajukan oleh <span class="font-medium text-slate-700">{{ $claim->user_name }}</span> pada {{ $claimedAt }}</p>
                         </div>
                         <div class="flex flex-col items-start sm:items-end gap-2">
-                            <span
-                                class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $statusColor }}">{{ $statusLabel }}</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $statusColor }}">{{ $statusLabel }}</span>
+                                    <span class="inline-block text-amber-600 cursor-help" title="Menunggu Validasi: hasil sudah dikirim pegawai. Menunggu Persetujuan: hasil sudah divalidasi, tinggal disetujui atau ditolak. Disetujui: nilai/bonus dihitung. Ditolak: slot klaim kembali tersedia bila kuota masih ada dan belum lewat jatuh tempo.">!</span>
+                                </div>
                             <div class="text-xs text-slate-500">Jatuh tempo: <span
                                     class="font-medium text-slate-700">{{ $dueDate }}</span></div>
                         </div>
@@ -194,7 +197,7 @@
                                     <p class="text-sm font-semibold text-rose-600">Tolak &amp; kirim catatan perbaikan
                                     </p>
                                     <p class="text-xs text-rose-500">
-                                        Klaim akan kembali ke status draft dan tugas dibuka jika masih dalam periode.
+                                            Klaim akan ditolak. Slot klaim akan kembali tersedia bila kuota masih ada dan belum lewat jatuh tempo.
                                     </p>
                                 </div>
                             </div>

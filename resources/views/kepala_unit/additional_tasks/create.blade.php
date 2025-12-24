@@ -5,6 +5,13 @@
         </div>
     </x-slot>
 
+    @php
+        $tz = config('app.timezone');
+        $nowTz = \Illuminate\Support\Carbon::now($tz);
+        $today = $nowTz->toDateString();
+        $timeNow = $nowTz->format('H:i');
+    @endphp
+
     <div class="container-px py-6 space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <form
@@ -32,8 +39,14 @@
             >
                 @csrf
                 <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
-                    <x-ui.select name="assessment_period_id" :options="$periods->pluck('name','id')" placeholder="Pilih periode" required />
+                    <label class="block text-sm font-medium text-slate-600 mb-1">
+                        Periode
+                        <span class="ml-1 text-amber-600 cursor-help" title="Periode diisi otomatis menggunakan periode penilaian yang aktif saat ini.">!</span>
+                    </label>
+                    <x-ui.input :value="($activePeriod->name ?? '-')" disabled />
+                    @unless($activePeriod)
+                        <p class="mt-2 text-xs text-rose-600">Tidak ada periode yang aktif. Hubungi Admin RS.</p>
+                    @endunless
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Judul</label>
@@ -45,19 +58,19 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Tanggal Mulai</label>
-                    <x-ui.input type="date" name="start_date" required />
+                    <x-ui.input type="date" name="start_date" :value="old('start_date', $today)" :min="$today" required />
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Waktu Mulai (WIB)</label>
-                    <x-ui.input type="time" name="start_time" value="08:00" step="60" />
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Waktu Mulai</label>
+                    <x-ui.input type="time" name="start_time" :value="old('start_time', $timeNow)" step="60" />
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Tanggal Selesai</label>
-                    <x-ui.input type="date" name="due_date" required />
+                    <x-ui.input type="date" name="due_date" :value="old('due_date', $today)" :min="$today" required />
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Waktu Selesai (WIB)</label>
-                    <x-ui.input type="time" name="due_time" value="23:59" step="60" />
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Waktu Selesai</label>
+                    <x-ui.input type="time" name="due_time" :value="old('due_time', '23:59')" step="60" />
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">
@@ -76,7 +89,7 @@
                     <p class="mt-1 text-xs text-slate-500">Rentang poin 0-100. Digunakan pada kriteria Kontribusi Tambahan.</p>
                 </div>
                 <div class="md:col-span-2 -mt-2">
-                    <p class="text-xs text-slate-500">Isi salah satu: Bonus atau Poin. Semua waktu menggunakan zona Asia/Jakarta (UTC+7).</p>
+                    <p class="text-xs text-slate-500">Isi salah satu: Bonus atau Poin. Semua waktu mengikuti zona: {{ $tz }}.</p>
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-slate-600 mb-1">File Pendukung (Word/Excel/PPT)</label>
@@ -92,7 +105,7 @@
                     <x-ui.button as="a" href="{{ route('kepala_unit.additional-tasks.index') }}" variant="outline">
                         <i class="fa-solid fa-arrow-left"></i> Kembali
                     </x-ui.button>
-                    <x-ui.button type="submit" variant="orange" class="h-12 px-6 text-base">
+                    <x-ui.button type="submit" variant="orange" class="h-12 px-6 text-base" :disabled="!$activePeriod">
                         <i class="fa-solid fa-floppy-disk"></i> Simpan
                     </x-ui.button>
                 </div>

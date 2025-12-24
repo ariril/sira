@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\UploadedFile;
 use App\Models\User;
 use App\Models\AdditionalTask;
 use App\Models\AdditionalTaskClaim;
@@ -113,7 +114,10 @@ class AdditionalTaskClaimTest extends TestCase
 
         // Submit
         $this->actingAs($pegawai)
-            ->post(route('pegawai_medis.additional_task_claims.submit', $claim->id))
+            ->post(route('pegawai_medis.additional_task_claims.submit', $claim->id), [
+                'note' => 'Hasil pekerjaan terlampir.',
+                'result_file' => UploadedFile::fake()->create('hasil.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            ])
             ->assertRedirect();
         $claim->refresh();
         $this->assertEquals('submitted', $claim->status);

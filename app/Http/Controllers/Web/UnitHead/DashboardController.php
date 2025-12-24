@@ -170,16 +170,22 @@ class DashboardController extends Controller
         }
 
         if ($unitId && Schema::hasTable('additional_task_claims') && Schema::hasTable('additional_tasks')) {
-            $pendingTaskClaims = DB::table('additional_task_claims as c')
+            $submittedCount = DB::table('additional_task_claims as c')
                 ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
                 ->where('t.unit_id', $unitId)
-                ->whereIn('c.status', ['submitted', 'validated'])
+                ->where('c.status', 'submitted')
                 ->count();
+            $validatedCount = DB::table('additional_task_claims as c')
+                ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
+                ->where('t.unit_id', $unitId)
+                ->where('c.status', 'validated')
+                ->count();
+            $pendingTaskClaims = $submittedCount + $validatedCount;
 
             if ($pendingTaskClaims > 0) {
                 $notifications[] = [
                     'type' => 'info',
-                    'text' => $pendingTaskClaims . ' klaim tugas tambahan menunggu review.',
+                    'text' => $pendingTaskClaims . ' klaim tugas tambahan butuh tindakan ('. $submittedCount .' menunggu validasi, '. $validatedCount .' menunggu persetujuan).',
                     'href' => route('kepala_unit.additional_task_claims.review_index'),
                 ];
             }
