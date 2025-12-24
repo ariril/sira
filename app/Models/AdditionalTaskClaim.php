@@ -30,6 +30,11 @@ class AdditionalTaskClaim extends Model
         'is_violation',
         'result_file_path',
         'result_note',
+        'awarded_points',
+        'awarded_bonus_amount',
+        'reviewed_by_id',
+        'reviewed_at',
+        'review_comment',
     ];
 
     protected $casts = [
@@ -38,8 +43,11 @@ class AdditionalTaskClaim extends Model
         'cancelled_at'       => 'datetime',
         'cancel_deadline_at' => 'datetime',
         'penalty_applied_at' => 'datetime',
+        'reviewed_at'        => 'datetime',
         'penalty_value'      => 'decimal:2',
         'penalty_amount'     => 'decimal:2',
+        'awarded_points'     => 'decimal:2',
+        'awarded_bonus_amount' => 'decimal:2',
         'penalty_applied'    => 'boolean',
         'is_violation'       => 'boolean',
     ];
@@ -58,6 +66,11 @@ class AdditionalTaskClaim extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function reviewedBy()
+    {
+        return $this->belongsTo(User::class, 'reviewed_by_id');
     }
 
     /* =========================================================================
@@ -156,26 +169,46 @@ class AdditionalTaskClaim extends Model
     }
 
     // Validasi awal oleh kepala unit (submitted -> validated)
-    public function validateTask(): bool
+    public function validateTask(?User $reviewer = null, ?string $comment = null): bool
     {
         if ($this->status !== 'submitted') return false;
-        $this->update(['status' => 'validated']);
+        $this->update([
+            'status' => 'validated',
+            'reviewed_by_id' => $reviewer?->id,
+            'reviewed_at' => $reviewer ? now() : $this->reviewed_at,
+            'review_comment' => $comment,
+        ]);
         return true;
     }
 
     // Approve (validated -> approved)
-    public function approve(): bool
+    public function approve(?User $reviewer = null, ?string $comment = null): bool
     {
         if (!in_array($this->status, ['validated','submitted'])) return false;
-        $this->update(['status' => 'approved', 'completed_at' => now()]);
+        $task = $this->task;
+        $this->update([
+            'status' => 'approved',
+            'completed_at' => now(),
+            'awarded_points' => $task?->points,
+            'awarded_bonus_amount' => $task?->bonus_amount,
+            'reviewed_by_id' => $reviewer?->id,
+            'reviewed_at' => $reviewer ? now() : $this->reviewed_at,
+            'review_comment' => $comment,
+        ]);
         return true;
     }
 
     // Reject (validated/submitted -> rejected)
-    public function reject(string $note = null): bool
+    public function reject(?string $note = null, ?User $reviewer = null): bool
     {
         if (!in_array($this->status, ['validated','submitted'])) return false;
-        $this->update(['status' => 'rejected', 'penalty_note' => $note]);
+        $this->update([
+            'status' => 'rejected',
+            'penalty_note' => $note,
+            'reviewed_by_id' => $reviewer?->id,
+            'reviewed_at' => $reviewer ? now() : $this->reviewed_at,
+            'review_comment' => $note,
+        ]);
         return true;
     }
 }

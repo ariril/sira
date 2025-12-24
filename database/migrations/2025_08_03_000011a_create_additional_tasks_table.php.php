@@ -38,13 +38,6 @@ return new class extends Migration
             $table->enum('status', ['draft','open','closed','cancelled'])
                 ->default('open');
 
-            $table->foreignId('claimed_by')
-                ->nullable()
-                ->constrained('users')
-                ->nullOnDelete();
-
-            $table->timestamp('claimed_at')->nullable();
-
             $table->foreignId('created_by')
                 ->nullable()
                 ->constrained('users')

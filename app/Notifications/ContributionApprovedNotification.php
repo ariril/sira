@@ -30,7 +30,7 @@ class ContributionApprovedNotification extends Notification
         return [
             'title' => 'Kontribusi tambahan disetujui',
             'contribution_id' => $this->contribution->id,
-            'task_id' => $this->contribution->task_id,
+            'claim_id' => $this->contribution->claim_id,
             'bonus_awarded' => $this->contribution->bonus_awarded,
             'score' => $this->contribution->score,
             'link' => url('/pegawai-medis/additional-contributions'),

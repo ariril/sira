@@ -155,7 +155,6 @@ class PerformanceCriteriaController extends Controller
             'aggregation_method' => ['nullable','in:sum,avg,count,latest,custom'],
             'normalization_basis' => ['required','in:total_unit,max_unit,average_unit,custom_target'],
             'custom_target_value' => ['nullable','numeric','min:0','required_if:normalization_basis,custom_target'],
-            'raw_formula' => ['nullable','string'],
             'description' => ['nullable', 'string'],
             'is_active'   => ['nullable', 'boolean'],
             'suggested_weight' => ['nullable','numeric','min:0','max:100'],

@@ -7,6 +7,7 @@ use App\Enums\ContributionValidationStatus;
 use App\Enums\ReviewStatus;
 use App\Models\AdditionalContribution;
 use App\Models\AssessmentPeriod;
+use Illuminate\Support\Facades\DB;
 use App\Models\Attendance;
 use App\Models\CriteriaMetric;
 use App\Models\MultiRaterAssessmentDetail;
@@ -211,20 +212,35 @@ class BestScenarioCalculator
     /** @return array<int,float> */
     private function collectContributionPoints(AssessmentPeriod $period, array $userIds, int $unitId): array
     {
-        return AdditionalContribution::query()
-            ->selectRaw('additional_contributions.user_id, COALESCE(SUM(additional_contributions.score),0) as total_score')
-            ->leftJoin('additional_tasks', 'additional_tasks.id', '=', 'additional_contributions.task_id')
-            ->whereIn('additional_contributions.user_id', $userIds)
-            ->where('additional_contributions.assessment_period_id', $period->id)
-            ->where('additional_contributions.validation_status', ContributionValidationStatus::APPROVED)
-            ->where(function ($q) use ($unitId) {
-                $q->whereNull('additional_tasks.unit_id')
-                    ->orWhere('additional_tasks.unit_id', $unitId);
-            })
-            ->groupBy('additional_contributions.user_id')
-            ->pluck('total_score', 'additional_contributions.user_id')
+        $claimPoints = DB::table('additional_task_claims as c')
+            ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
+            ->selectRaw('c.user_id, COALESCE(SUM(COALESCE(c.awarded_points, t.points, 0)),0) as total_score')
+            ->whereIn('c.user_id', $userIds)
+            ->where('t.assessment_period_id', $period->id)
+            ->where('t.unit_id', $unitId)
+            ->whereIn('c.status', ['approved', 'completed'])
+            ->groupBy('c.user_id')
+            ->pluck('total_score', 'c.user_id')
             ->map(fn($v) => (float)$v)
             ->all();
+
+        $adhocPoints = AdditionalContribution::query()
+            ->selectRaw('user_id, COALESCE(SUM(score),0) as total_score')
+            ->whereIn('user_id', $userIds)
+            ->where('assessment_period_id', $period->id)
+            ->where('validation_status', ContributionValidationStatus::APPROVED)
+            ->whereNull('claim_id')
+            ->groupBy('user_id')
+            ->pluck('total_score', 'user_id')
+            ->map(fn($v) => (float)$v)
+            ->all();
+
+        $out = [];
+        foreach ($userIds as $uid) {
+            $uid = (int) $uid;
+            $out[$uid] = (float)($claimPoints[$uid] ?? 0) + (float)($adhocPoints[$uid] ?? 0);
+        }
+        return $out;
     }
 
     /** @return array<int,float> */

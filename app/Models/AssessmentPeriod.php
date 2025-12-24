@@ -18,9 +18,7 @@ class AssessmentPeriod extends Model
         'end_date',
         'status',
         'locked_at',
-        'locked_by_id',
         'closed_at',
-        'closed_by_id',
         'notes',
     ];
 
@@ -112,17 +110,6 @@ class AssessmentPeriod extends Model
         // Choose the latest by start_date to be the single active one
         $winnerId = $candidates->last()->id;
         DB::table('assessment_periods')->where('id', $winnerId)->update(['status' => self::STATUS_ACTIVE]);
-    }
-
-    // Relationships for audit columns
-    public function lockedBy()
-    {
-        return $this->belongsTo(User::class, 'locked_by_id');
-    }
-
-    public function closedBy()
-    {
-        return $this->belongsTo(User::class, 'closed_by_id');
     }
 
     // Helper scopes & accessors

@@ -23,9 +23,6 @@ return new class extends Migration
             $table->enum('normalization_basis', ['total_unit','max_unit','average_unit','custom_target'])
                 ->default('total_unit');
             $table->decimal('custom_target_value', 12, 2)->nullable();
-            $table->unsignedInteger('min_sample_size')->nullable();
-            $table->decimal('min_average_value', 6, 2)->nullable();
-            $table->text('raw_formula')->nullable();
 
             // Default usulan bobot (opsional), dipindahkan dari migrasi tambahan (2025_11_03_000020)
             $table->decimal('suggested_weight', 5, 2)->nullable();

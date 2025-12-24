@@ -118,7 +118,7 @@ class AdditionalContributionController extends Controller
         // daftar klaim aktif agar bisa memilih tugas terkait
         $claims = DB::table('additional_task_claims as c')
             ->join('additional_tasks as t','t.id','=','c.additional_task_id')
-            ->selectRaw('c.id as claim_id, t.id as task_id, t.title')
+            ->selectRaw('c.id as claim_id, t.title')
             ->where('c.user_id', $me->id)
             ->whereIn('c.status',['active','submitted','validated','approved'])
             ->orderByDesc('c.id')
@@ -133,19 +133,18 @@ class AdditionalContributionController extends Controller
         abort_unless($me && $me->role === 'pegawai_medis', 403);
         $data = $request->validated();
 
-        $taskId = null; $periodId = null; $bonus = null; $score = null;
+        $claimId = null;
+        $periodId = null;
         if (!empty($data['claim_id'])) {
             $claim = DB::table('additional_task_claims as c')
                 ->join('additional_tasks as t','t.id','=','c.additional_task_id')
-                ->selectRaw('c.id, t.id as task_id, t.assessment_period_id, t.bonus_amount, t.points')
+                ->selectRaw('c.id, t.assessment_period_id')
                 ->where('c.id', (int)$data['claim_id'])
                 ->where('c.user_id', $me->id)
                 ->first();
             if ($claim) {
-                $taskId   = $claim->task_id;
+                $claimId = (int) $claim->id;
                 $periodId = $claim->assessment_period_id;
-                $bonus    = $claim->bonus_amount;
-                $score    = $claim->points;
             }
         }
 
@@ -160,7 +159,7 @@ class AdditionalContributionController extends Controller
 
         DB::table('additional_contributions')->insert([
             'user_id'                 => $me->id,
-            'task_id'                 => $taskId,
+            'claim_id'                => $claimId,
             'title'                   => $data['title'],
             'description'             => $data['description'] ?? null,
             'submission_date'         => now()->toDateString(),
@@ -171,7 +170,7 @@ class AdditionalContributionController extends Controller
             'attachment_size'         => $size,
             'validation_status'       => 'Menunggu Persetujuan',
             'assessment_period_id'    => $periodId,
-            'score'                   => $score,
+            'score'                   => null,
             'bonus_awarded'           => null, // diisi saat di-approve
             'created_at'              => now(),
             'updated_at'              => now(),

@@ -49,15 +49,15 @@ class AdditionalTaskClaimReviewController extends Controller
         $ok = false;
         switch ($action) {
             case 'validate':
-                $ok = $claim->validateTask();
+                $ok = $claim->validateTask($me, $comment);
                 if ($ok && $claim->user) { Notify::send($claim->user, new ClaimValidatedNotification($claim)); }
                 break;
             case 'approve':
-                $ok = $claim->approve();
+                $ok = $claim->approve($me, $comment);
                 if ($ok && $claim->user) { Notify::send($claim->user, new ClaimApprovedNotification($claim)); }
                 break;
             case 'reject':
-                $ok = $claim->reject($comment);
+                $ok = $claim->reject($comment, $me);
                 if ($ok && $claim->user) { Notify::send($claim->user, new ClaimRejectedNotification($claim, $comment)); }
                 break;
         }

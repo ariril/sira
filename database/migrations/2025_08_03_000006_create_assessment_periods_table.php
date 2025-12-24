@@ -15,9 +15,7 @@ return new class extends Migration
             $table->date('end_date');
             $table->enum('status', ['draft','active','locked','approval','closed'])->default('draft');
             $table->timestamp('locked_at')->nullable();
-            $table->foreignId('locked_by_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('closed_at')->nullable();
-            $table->foreignId('closed_by_id')->nullable()->constrained('users')->nullOnDelete();
             $table->text('notes')->nullable();
             $table->timestamps();
         });

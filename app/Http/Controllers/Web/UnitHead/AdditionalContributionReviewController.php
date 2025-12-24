@@ -32,7 +32,8 @@ class AdditionalContributionReviewController extends Controller
         $status = $request->query('status');
         $builder = DB::table('additional_contributions as ac')
             ->join('users as u','u.id','=','ac.user_id')
-            ->leftJoin('additional_tasks as t','t.id','=','ac.task_id')
+            ->leftJoin('additional_task_claims as c', 'c.id', '=', 'ac.claim_id')
+            ->leftJoin('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
             ->selectRaw("ac.id, ac.title, ac.validation_status, ac.submission_date, ac.evidence_file, u.name as user_name, t.title as task_title")
             ->where('u.unit_id', $me->unit_id)
             ->orderByDesc('ac.id');
@@ -54,16 +55,12 @@ class AdditionalContributionReviewController extends Controller
         $this->authorizeAccess();
         $me = Auth::user();
         if ($additionalContribution->user?->unit_id !== $me->unit_id) abort(403);
-        $bonus = null; $score = null;
-        if ($additionalContribution->task_id && $additionalContribution->task) {
-            $bonus = $additionalContribution->task->bonus_amount;
-            $score = $additionalContribution->task->points;
-        }
         $additionalContribution->update([
             'validation_status' => 'Disetujui',
             'reviewer_id'       => $me->id,
-            'bonus_awarded'     => $bonus,
-            'score'             => $score,
+            // score/bonus untuk ad-hoc bisa diisi kemudian; jika tidak ada, biarkan nilai existing
+            'bonus_awarded'     => $additionalContribution->bonus_awarded,
+            'score'             => $additionalContribution->score,
             'supervisor_comment'=> null,
         ]);
         $additionalContribution->refresh();

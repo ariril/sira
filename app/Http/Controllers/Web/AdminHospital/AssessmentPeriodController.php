@@ -154,11 +154,16 @@ class AssessmentPeriodController extends Controller
 
         $this->createApprovalsForPeriod($period);
 
-        $period->update([
+        $updates = [
             'status' => AssessmentPeriod::STATUS_APPROVAL,
-            'closed_at' => null,
-            'closed_by_id' => null,
-        ]);
+        ];
+        if (Schema::hasColumn('assessment_periods', 'closed_at')) {
+            $updates['closed_at'] = null;
+        }
+        if (Schema::hasColumn('assessment_periods', 'closed_by_id')) {
+            $updates['closed_by_id'] = null;
+        }
+        $period->update($updates);
 
         return back()->with('status','Periode masuk tahap persetujuan. Semua penilaian dikirim ke alur approval.');
     }

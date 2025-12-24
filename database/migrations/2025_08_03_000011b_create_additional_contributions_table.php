@@ -15,11 +15,9 @@ return new class extends Migration
                 ->constrained('users')
                 ->onDelete('cascade');
 
-            // Revisi: kaitkan dengan tugas opsional
-            $table->foreignId('task_id')
-                ->nullable()
-                ->constrained('additional_tasks')
-                ->nullOnDelete();
+            // Opsional: kontribusi bisa ditautkan ke klaim tugas
+            // NOTE: FK ditambahkan di migration additional_task_claims (karena urutan file ini lebih dulu).
+            $table->unsignedBigInteger('claim_id')->nullable();
 
             $table->string('title');
             $table->text('description')->nullable();
@@ -60,7 +58,7 @@ return new class extends Migration
 
             $table->timestamps();
 
-            $table->index('task_id', 'idx_contrib_task');
+            $table->index(['claim_id'], 'idx_addcontrib_claim');
         });
     }
 

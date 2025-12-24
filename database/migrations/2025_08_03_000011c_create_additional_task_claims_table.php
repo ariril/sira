@@ -62,6 +62,18 @@ return new class extends Migration {
 
             $table->string('result_file_path')->nullable();
             $table->text('result_note')->nullable();
+
+            // Snapshot nilai/bonus yang diberikan (agar tidak berubah bila template task diubah)
+            $table->decimal('awarded_points', 8, 2)->nullable();
+            $table->decimal('awarded_bonus_amount', 15, 2)->nullable();
+
+            // Audit proses review
+            $table->foreignId('reviewed_by_id')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+            $table->timestamp('reviewed_at')->nullable();
+            $table->text('review_comment')->nullable();
             // Pelanggaran
             $table->boolean('is_violation')->default(false)->index();
 
@@ -75,10 +87,26 @@ return new class extends Migration {
 
             $table->index(['additional_task_id', 'user_id'], 'idx_task_user');
         });
+
+        // Tambahkan FK kontribusi -> klaim (migration kontribusi dijalankan lebih dulu)
+        if (Schema::hasTable('additional_contributions')) {
+            Schema::table('additional_contributions', function (Blueprint $table) {
+                $table->foreign('claim_id')
+                    ->references('id')
+                    ->on('additional_task_claims')
+                    ->nullOnDelete();
+            });
+        }
     }
 
     public function down(): void
     {
+        if (Schema::hasTable('additional_contributions')) {
+            Schema::table('additional_contributions', function (Blueprint $table) {
+                $table->dropForeign(['claim_id']);
+            });
+        }
+
         Schema::dropIfExists('additional_task_claims');
     }
 };

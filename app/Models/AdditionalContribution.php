@@ -22,7 +22,7 @@ class AdditionalContribution extends Model
         'validation_status',
         'supervisor_comment',
         'assessment_period_id',
-        'task_id',
+        'claim_id',
         'submitted_at',
         'claimed_at',
         'reviewer_id',
@@ -50,8 +50,8 @@ class AdditionalContribution extends Model
         return $this->belongsTo(AssessmentPeriod::class);
     }
 
-    public function task()
+    public function claim()
     {
-        return $this->belongsTo(AdditionalTask::class, 'task_id');
+        return $this->belongsTo(AdditionalTaskClaim::class, 'claim_id');
     }
 }
