@@ -4,163 +4,206 @@ namespace App\Http\Controllers\Web;
 
 use App\Enums\ReviewStatus;
 use App\Http\Controllers\Controller;
+use App\Models\ReviewInvitation;
+use App\Models\ReviewInvitationStaff;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class PublicReviewController extends Controller
 {
     public function create(Request $request): View
     {
-        $units = DB::table('units')
-            ->where('type', 'poliklinik')
-            ->orderBy('name')
-            ->get(['id','name']);
+        // Open review (manual NO RM input) is disabled. Patients must use invitation links.
+        return view('pages.reviews.create');
+    }
 
-        $staffOptions = User::query()
-            ->role(User::ROLE_PEGAWAI_MEDIS)
+    public function show(string $token): View
+    {
+        $tokenHash = hash('sha256', $token);
+        $invitation = ReviewInvitation::query()
+            ->with(['review.unit'])
+            ->where('token_hash', $tokenHash)
+            ->first();
+
+        if (!$invitation) {
+            return view('pages.reviews.invite', ['state' => 'invalid']);
+        }
+
+        $now = Carbon::now();
+        if ($invitation->status === 'active' && $invitation->expires_at && $now->greaterThan($invitation->expires_at)) {
+            $invitation->update(['status' => 'expired']);
+            $invitation->refresh();
+        }
+
+        $state = match ($invitation->status) {
+            'used' => 'used',
+            'expired' => 'expired',
+            'revoked' => 'revoked',
+            default => 'active',
+        };
+
+        $staffIds = ReviewInvitationStaff::query()
+            ->where('invitation_id', $invitation->id)
+            ->pluck('medical_staff_id')
+            ->all();
+
+        $staff = User::query()
+            ->whereIn('id', $staffIds)
             ->with(['unit:id,name', 'profession:id,name'])
             ->orderBy('name')
             ->get()
-            ->map(function ($user) {
-                return [
-                    'id'         => $user->id,
-                    'name'       => $user->name,
-                    'unit_id'    => $user->unit_id,
-                    'unit_name'  => $user->unit->name ?? null,
-                    'profession' => $user->profession->name ?? null,
-                ];
-            });
+            ->map(fn (User $u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'unit_name' => $u->unit?->name,
+                'profession' => $u->profession?->name,
+            ])
+            ->values();
 
-        return view('pages.reviews.create', [
-            'units'        => $units,
-            'staffOptions' => $staffOptions,
+        // Prefill existing ratings/comments (if any)
+        $existing = DB::table('review_details')
+            ->where('review_id', $invitation->review_id)
+            ->whereIn('medical_staff_id', $staffIds)
+            ->get(['medical_staff_id', 'rating', 'comment'])
+            ->keyBy('medical_staff_id');
+
+        return view('pages.reviews.invite', [
+            'state' => $state,
+            'token' => $token,
+            'invitation' => $invitation,
+            'review' => $invitation->review,
+            'staff' => $staff,
+            'existing' => $existing,
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, string $token): RedirectResponse
     {
-        $detailsInput = $request->input('details', []);
-        $unitId = $request->integer('unit_id');
+        $tokenHash = hash('sha256', $token);
 
-        $validator = Validator::make($request->all(), [
-            'registration_ref' => 'required|string|max:50|unique:reviews,registration_ref',
-            'unit_id'          => [
-                'required',
-                Rule::exists('units', 'id')->where(fn ($q) => $q->where('type', 'poliklinik')),
-            ],
-            'patient_name'     => 'nullable|string|max:200',
-            'contact'          => 'nullable|string|max:100',
-            'comment'          => 'required|string|min:5|max:2000',
-            'details'          => 'required|array|min:1',
-            'details.*.staff_id' => [
-                'required',
-                'integer',
-                Rule::exists('users', 'id')->where(function ($query) {
-                    $query->whereExists(function ($sub) {
-                        $sub->select(DB::raw(1))
-                            ->from('role_user as ru')
-                            ->join('roles as r', 'r.id', '=', 'ru.role_id')
-                            ->whereColumn('ru.user_id', 'users.id')
-                            ->where('r.slug', User::ROLE_PEGAWAI_MEDIS);
-                    });
-                }),
-            ],
-            'details.*.rating'  => 'required|integer|min:1|max:5',
-            'details.*.comment' => 'nullable|string|max:2000',
-        ], [
-            'registration_ref.required' => 'Nomor rawat medis wajib diisi.',
-            'registration_ref.unique'   => 'Nomor rawat medis tersebut sudah pernah memberikan ulasan.',
-            'unit_id.required'          => 'Silakan pilih poliklinik terlebih dahulu.',
-            'details.required'          => 'Tambahkan minimal satu pegawai untuk diulas.',
-            'details.*.staff_id.required' => 'Pilih pegawai pada setiap ulasan.',
-            'details.*.rating.required'   => 'Tetapkan rating bintang untuk setiap pegawai.',
-        ]);
+        $result = DB::transaction(function () use ($request, $tokenHash) {
+            /** @var ReviewInvitation|null $invitation */
+            $invitation = ReviewInvitation::query()
+                ->where('token_hash', $tokenHash)
+                ->lockForUpdate()
+                ->first();
 
-        $validator->after(function ($validator) use ($detailsInput, $unitId) {
-            if (!is_array($detailsInput) || empty($detailsInput)) {
-                return;
+            if (!$invitation) {
+                return ['ok' => false, 'state' => 'invalid'];
             }
 
-            $staffIds = collect($detailsInput)->pluck('staff_id')->filter()->all();
-            if (count($staffIds) !== count(array_unique($staffIds))) {
-                $validator->errors()->add('details', 'Setiap pegawai hanya boleh diulas satu kali.');
+            $now = Carbon::now();
+            if ($invitation->status === 'active' && $invitation->expires_at && $now->greaterThan($invitation->expires_at)) {
+                $invitation->update(['status' => 'expired']);
+                return ['ok' => false, 'state' => 'expired'];
+            }
+            if ($invitation->status === 'used' || $invitation->used_at) {
+                return ['ok' => false, 'state' => 'used'];
+            }
+            if ($invitation->status !== 'active') {
+                return ['ok' => false, 'state' => $invitation->status];
             }
 
-            if ($unitId && !empty($staffIds)) {
-                $mismatch = DB::table('users')
-                    ->whereIn('id', $staffIds)
-                    ->where('unit_id', '!=', $unitId)
-                    ->count();
+            $allowedStaffIds = ReviewInvitationStaff::query()
+                ->where('invitation_id', $invitation->id)
+                ->pluck('medical_staff_id')
+                ->map(fn ($v) => (int) $v)
+                ->all();
 
-                if ($mismatch > 0) {
-                    $validator->errors()->add('details', 'Pegawai yang dipilih harus berasal dari poliklinik yang sama.');
+            $validator = Validator::make($request->all(), [
+                'details' => ['required', 'array'],
+                'details.*.rating' => ['nullable', 'integer', 'min:1', 'max:5'],
+                'details.*.comment' => ['nullable', 'string', 'max:2000'],
+            ], [
+                'details.required' => 'Form ulasan tidak valid.',
+            ]);
+
+            $validator->after(function ($validator) use ($request, $allowedStaffIds) {
+                $details = $request->input('details', []);
+                if (!is_array($details)) {
+                    $validator->errors()->add('details', 'Form ulasan tidak valid.');
+                    return;
                 }
-            }
+
+                // Require rating for all invited staff and disallow non-invited staff.
+                $postedStaffIds = collect(array_keys($details))
+                    ->map(fn ($id) => (int) $id)
+                    ->filter(fn ($id) => $id > 0)
+                    ->values();
+
+                $extra = $postedStaffIds->diff($allowedStaffIds);
+                if ($extra->isNotEmpty()) {
+                    $validator->errors()->add('details', 'Form ulasan tidak valid.');
+                }
+
+                foreach ($allowedStaffIds as $staffId) {
+                    $rating = data_get($details, $staffId . '.rating');
+                    if ($rating === null || $rating === '' || !is_numeric($rating)) {
+                        $validator->errors()->add("details.$staffId.rating", 'Rating wajib diisi.');
+                    }
+                }
+            });
+
+            $validator->validateWithBag('reviewForm');
+
+            $detailsInput = (array) $request->input('details', []);
+            $rows = collect($allowedStaffIds)->map(function (int $staffId) use ($detailsInput, $now, $invitation) {
+                $rating = (int) data_get($detailsInput, $staffId . '.rating');
+                $comment = (string) (data_get($detailsInput, $staffId . '.comment') ?? '');
+                $comment = trim($comment) !== '' ? $comment : null;
+
+                return [
+                    'review_id' => $invitation->review_id,
+                    'medical_staff_id' => $staffId,
+                    'rating' => $rating,
+                    'comment' => $comment,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ];
+            });
+
+            // Upsert details (import may have created empty rows)
+            DB::table('review_details')->upsert(
+                $rows->all(),
+                ['review_id', 'medical_staff_id'],
+                ['rating', 'comment', 'updated_at']
+            );
+
+            $avgRating = (int) round(max(1, $rows->avg('rating') ?: 0));
+
+            // Update review metadata (locked fields are NOT taken from request)
+            DB::table('reviews')
+                ->where('id', $invitation->review_id)
+                ->update([
+                    'overall_rating' => $avgRating,
+                    'status' => ReviewStatus::PENDING->value,
+                    'client_ip' => $request->ip(),
+                    'user_agent' => substr((string) $request->header('User-Agent'), 0, 255),
+                    'updated_at' => $now,
+                ]);
+
+            $invitation->update([
+                'status' => 'used',
+                'used_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            return ['ok' => true, 'state' => 'used'];
         });
 
-        $validator->validateWithBag('reviewForm');
-
-        $now = Carbon::now();
-
-        $detailsCollection = collect($detailsInput)->map(fn ($row) => [
-            'staff_id' => (int) ($row['staff_id'] ?? 0),
-            'rating'   => (int) ($row['rating'] ?? 0),
-            'comment'  => $row['comment'] ?? null,
-        ]);
-
-        $avgRating = (int) round(max(1, $detailsCollection->avg(fn ($row) => $row['rating']) ?: 0));
-
-        $reviewId = DB::table('reviews')->insertGetId([
-            'registration_ref' => $request->input('registration_ref'),
-            'unit_id'          => $unitId,
-            'overall_rating'   => $avgRating,
-            'comment'          => (string) $request->input('comment'),
-            'patient_name'     => $request->get('patient_name'),
-            'contact'          => $request->get('contact'),
-            'client_ip'        => $request->ip(),
-            'user_agent'       => substr((string) $request->header('User-Agent'), 0, 255),
-            'status'           => ReviewStatus::PENDING->value,
-            'created_at'       => $now,
-            'updated_at'       => $now,
-        ]);
-
-        // Helper untuk mapping role per staf (dokter/perawat)
-        $roleFor = function ($professionName) {
-            $name = strtolower((string)$professionName);
-            if (str_contains($name, 'dokter')) return 'dokter';
-            if (str_contains($name, 'perawat')) return 'perawat';
-            return 'lainnya';
-        };
-
-        $staffMeta = DB::table('users as u')
-            ->leftJoin('professions as p', 'p.id', '=', 'u.profession_id')
-            ->whereIn('u.id', $detailsCollection->pluck('staff_id')->all())
-            ->get(['u.id', 'p.name as profesi']);
-
-        $detailPayload = $detailsCollection->map(function ($detail) use ($reviewId, $roleFor, $staffMeta, $request, $now) {
-            $meta = $staffMeta->firstWhere('id', $detail['staff_id']);
-            return [
-                'review_id'        => $reviewId,
-                'medical_staff_id' => $detail['staff_id'],
-                'role'             => $roleFor($meta->profesi ?? null),
-                'rating'           => $detail['rating'],
-                'comment'          => $detail['comment'] ?: (string) $request->input('comment'),
-                'created_at'       => $now,
-                'updated_at'       => $now,
-            ];
-        })->all();
-
-        if (!empty($detailPayload)) {
-            DB::table('review_details')->insert($detailPayload);
+        if (!($result['ok'] ?? false)) {
+            return redirect()->route('reviews.invite.show', ['token' => $token])
+                ->with('invite_state', $result['state'] ?? 'invalid');
         }
 
-        return back()->with('status','Terima kasih, ulasan Anda telah direkam.');
+        return redirect()->route('reviews.invite.show', ['token' => $token])
+            ->with('status', 'Terima kasih, ulasan Anda telah direkam.')
+            ->with('invite_state', 'used');
     }
 }
 

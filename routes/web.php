@@ -40,7 +40,14 @@ Route::get('/contact',              [ContactController::class, 'index'])->name('
 
 // Public review form (English slug)
 Route::get('/reviews',              [PublicReviewController::class, 'create'])->name('reviews.create');
-Route::post('/reviews',             [PublicReviewController::class, 'store'])->name('reviews.store');
+
+// Invitation-based public reviews (one-time token)
+Route::get('/reviews/invite/{token}', [PublicReviewController::class, 'show'])
+    ->middleware('throttle:30,1')
+    ->name('reviews.invite.show');
+Route::post('/reviews/invite/{token}', [PublicReviewController::class, 'store'])
+    ->middleware('throttle:10,1')
+    ->name('reviews.invite.store');
 
 /**
  * Authenticated dashboard redirect

@@ -250,14 +250,15 @@ class PeriodPerformanceAssessmentService
             'rating' => [],
         ];
 
-        // Absensi: COUNT attendances Hadir within date range
-        if ($start && $end) {
-            $raw['absensi'] = DB::table('attendances')
+            $ratingRows = DB::table('review_details as rd')
+                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
+                ->selectRaw('rd.medical_staff_id as user_id, AVG(rd.rating) as avg_rating, COUNT(rd.rating) as total_raters')
                 ->selectRaw('user_id, COUNT(*) as total_hadir')
                 ->whereIn('user_id', $userIds)
                 ->whereBetween('attendance_date', [$start, $end])
                 ->where('attendance_status', AttendanceStatus::HADIR->value)
                 ->groupBy('user_id')
+                ->whereNotNull('rd.rating')
                 ->pluck('total_hadir', 'user_id')
                 ->map(fn($v) => (float) $v)
                 ->all();

@@ -19,7 +19,7 @@ return new class extends Migration {
                 ->cascadeOnDelete();
 
             $t->enum('role', ['dokter','perawat','lainnya'])->nullable(); // peran
-            $t->unsignedTinyInteger('rating');
+            $t->unsignedTinyInteger('rating')->nullable();
             $t->text('comment')->nullable();
 
             $t->timestamps();

@@ -104,10 +104,11 @@ class PerformanceAssessmentController extends Controller
         $patientCount = (int) $patientQuery->count();
 
         $ratingAgg = \App\Models\ReviewDetail::query()
-            ->selectRaw('AVG(review_details.rating) as avg_rating, COUNT(*) as total_raters')
+            ->selectRaw('AVG(review_details.rating) as avg_rating, COUNT(review_details.rating) as total_raters')
             ->join('reviews', 'reviews.id', '=', 'review_details.review_id')
             ->where('review_details.medical_staff_id', $userId)
             ->where('reviews.status', \App\Enums\ReviewStatus::APPROVED)
+            ->whereNotNull('review_details.rating')
             ->when($period->start_date, fn($q)=>$q->whereDate('reviews.decided_at','>=',$period->start_date))
             ->when($period->end_date, fn($q)=>$q->whereDate('reviews.decided_at','<=',$period->end_date))
             ->first();
@@ -164,10 +165,11 @@ class PerformanceAssessmentController extends Controller
             ->where('r.status', \App\Enums\ReviewStatus::APPROVED)
             ->where('u.unit_id', $userUnitId)
             ->where('u.profession_id', $userProfessionId)
+            ->whereNotNull('rd.rating')
             ->when($period->start_date, fn($q)=>$q->whereDate('r.decided_at','>=',$period->start_date))
             ->when($period->end_date, fn($q)=>$q->whereDate('r.decided_at','<=',$period->end_date))
             ->groupBy('rd.medical_staff_id')
-            ->selectRaw('AVG(rd.rating) as avg_rating, COUNT(*) as raters')
+            ->selectRaw('AVG(rd.rating) as avg_rating, COUNT(rd.rating) as raters')
             ->get()
             ->sum(fn($row) => (float)$row->avg_rating * (int)$row->raters);
 

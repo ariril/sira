@@ -253,115 +253,19 @@
             showSuccess: !!successMessage,
             successMessage,
             unitDropdown: false,
-            reviews: [],
-            init() {
-                if (this.selectedUnitId) {
-                    const unit = this.units.find(u => String(u.id) === String(this.selectedUnitId));
-                    if (unit) {
-                        this.unitQuery = unit.name;
-                    }
+            <div class="container py-5">
+                <div class="row justify-content-center">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-body">
+                                <h3 class="mb-2">Form Ulasan</h3>
+                                <p class="text-muted mb-0">
+                                    Demi keamanan, form ulasan publik tidak dapat diakses menggunakan input Nomor Rawat Medis.
+                                    Silakan gunakan tautan undangan yang diberikan oleh petugas.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
                 }
-                const initialDetails = Array.isArray(oldState.details) && oldState.details.length ? oldState.details : [{}];
-                this.reviews = initialDetails.map(detail => this.hydrateReview(detail));
-                if (this.registrationRef) {
-                    this.showGate = false;
-                }
-                if (this.showSuccess) {
-                    this.showGate = false;
-                }
-            },
-            hydrateReview(detail) {
-                const staffRecord = detail.staff_id ? this.staff.find(s => String(s.id) === String(detail.staff_id)) : null;
-                return {
-                    uuid: this.randomId(),
-                    staffId: staffRecord ? staffRecord.id : (detail.staff_id ? String(detail.staff_id) : ''),
-                    staffQuery: staffRecord ? this.staffDisplay(staffRecord) : '',
-                    dropdown: false,
-                    rating: detail.rating ? Number(detail.rating) : 0,
-                    comment: detail.comment || '',
-                };
-            },
-            randomId() {
-                return Date.now().toString(36) + Math.random().toString(36).slice(2);
-            },
-            staffDisplay(person) {
-                const pieces = [person.name];
-                if (person.profession) pieces.push(person.profession);
-                if (person.unit_name) pieces.push(person.unit_name);
-                return pieces.join(' · ');
-            },
-            confirmRegistration() {
-                if (this.registrationRefValid) {
-                    this.showGate = false;
-                }
-            },
-            openGate() {
-                this.showGate = true;
-            },
-            get registrationRefValid() {
-                return this.registrationRef.trim().length >= 5;
-            },
-            openUnitDropdown() {
-                this.unitDropdown = true;
-            },
-            filteredUnits() {
-                if (!this.unitQuery) return this.units;
-                const q = this.unitQuery.toLowerCase();
-                return this.units.filter(u => u.name.toLowerCase().includes(q));
-            },
-            selectUnit(unit) {
-                this.selectedUnitId = String(unit.id);
-                this.unitQuery = unit.name;
-                this.unitDropdown = false;
-                this.reviews = [this.hydrateReview({})];
-            },
-            clearUnit() {
-                this.selectedUnitId = '';
-                this.unitQuery = '';
-                this.reviews = [this.hydrateReview({})];
-            },
-            openStaffDropdown(entry) {
-                entry.dropdown = true;
-            },
-            staffOptionsFor(entry) {
-                if (!this.selectedUnitId) return [];
-                const query = (entry.staffQuery || '').toLowerCase();
-                const takenIds = this.reviews.filter(r => r !== entry && r.staffId).map(r => String(r.staffId));
-                return this.staff
-                    .filter(person => String(person.unit_id) === String(this.selectedUnitId))
-                    .filter(person => !takenIds.includes(String(person.id)))
-                    .filter(person => {
-                        if (!query) return true;
-                        return person.name.toLowerCase().includes(query) || (person.profession || '').toLowerCase().includes(query);
-                    });
-            },
-            selectStaff(entry, person) {
-                entry.staffId = person.id;
-                entry.staffQuery = this.staffDisplay(person);
-                entry.dropdown = false;
-            },
-            clearStaff(entry) {
-                entry.staffId = '';
-                entry.staffQuery = '';
-            },
-            setRating(entry, star) {
-                entry.rating = star;
-            },
-            addReview() {
-                if (!this.canAddReview) return;
-                this.reviews.push(this.hydrateReview({}));
-            },
-            removeReview(index) {
-                if (this.reviews.length <= 1) return;
-                this.reviews.splice(index, 1);
-            },
-            get canAddReview() {
-                if (!this.selectedUnitId) return false;
-                const available = this.staff.filter(person => String(person.unit_id) === String(this.selectedUnitId));
-                const used = this.reviews.filter(r => r.staffId).length;
-                return used < available.length;
-            },
-        };
-    }
-</script>
-@endpush

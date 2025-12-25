@@ -55,8 +55,8 @@ class DashboardController extends Controller
                 ->where('r.status', ReviewStatus::APPROVED->value)
                 ->where('r.created_at', '>=', $from);
 
-            $review['avg_rating_unit_30d']   = (clone $base)->avg('rd.rating');
-            $review['total_ulasan_unit_30d'] = (clone $base)->count();
+            $review['avg_rating_unit_30d']   = (clone $base)->whereNotNull('rd.rating')->avg('rd.rating');
+            $review['total_ulasan_unit_30d'] = (clone $base)->whereNotNull('rd.rating')->count('rd.rating');
 
             $top = DB::table('review_details as rd')
                 ->join('reviews as r', 'r.id', '=', 'rd.review_id')
@@ -66,8 +66,9 @@ class DashboardController extends Controller
                     DB::raw('AVG(rd.rating) as avg_rating'), DB::raw('COUNT(*) as total'))
                 ->whereIn('r.unit_id', $scopeUnitIds)
                 ->where('r.status', ReviewStatus::APPROVED->value)
+                ->whereNotNull('rd.rating')
                 ->groupBy('u.id', 'u.name', 'p.name')
-                ->havingRaw('COUNT(*) >= 5')
+                ->havingRaw('COUNT(rd.rating) >= 5')
                 ->orderByDesc('avg_rating')
                 ->limit(5)->get();
             $review['top_staff'] = $top;
