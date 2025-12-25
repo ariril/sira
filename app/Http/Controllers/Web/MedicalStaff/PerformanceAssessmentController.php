@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\MedicalStaff;
 
 use App\Http\Controllers\Controller;
 use App\Models\PerformanceAssessment;
+use App\Services\PerformanceScoreService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +27,47 @@ class PerformanceAssessmentController extends Controller
             ->orderByDesc('id')
             ->paginate(10);
 
-        return view('pegawai_medis.assessments.index', compact('assessments'));
+        $activePeriodId = (int) (DB::table('assessment_periods')->where('status', 'active')->value('id') ?? 0);
+        $unitId = (int) (Auth::user()?->unit_id ?? 0);
+
+        $kinerjaTotalsByAssessmentId = [];
+        $activePeriodHasWeights = null;
+
+        if ($activePeriodId > 0 && $unitId > 0) {
+            $activeAssessments = $assessments->getCollection()
+                ->filter(fn($a) => (int) $a->assessment_period_id === $activePeriodId)
+                ->values();
+
+            if ($activeAssessments->isNotEmpty()) {
+                $activeAssessmentIds = $activeAssessments->pluck('id')->map(fn($v) => (int) $v)->all();
+                $details = DB::table('performance_assessment_details')
+                    ->select(['performance_assessment_id', 'performance_criteria_id', 'score'])
+                    ->whereIn('performance_assessment_id', $activeAssessmentIds)
+                    ->get()
+                    ->groupBy('performance_assessment_id');
+
+                foreach ($activeAssessments as $a) {
+                    $a->setRelation(
+                        'details',
+                        ($details[(int) $a->id] ?? collect())->map(function ($row) {
+                            $obj = new \stdClass();
+                            $obj->performance_criteria_id = (int) $row->performance_criteria_id;
+                            $obj->score = $row->score !== null ? (float) $row->score : 0.0;
+                            return $obj;
+                        })
+                    );
+                }
+
+                $svc = app(PerformanceScoreService::class);
+                $computed = $svc->computeWeightedTotalsForAssessments($activeAssessments, $unitId, $activePeriodId);
+                $activePeriodHasWeights = (bool) $computed['hasWeights'];
+                $kinerjaTotalsByAssessmentId = $computed['totals'];
+            } else {
+                $activePeriodHasWeights = null;
+            }
+        }
+
+        return view('pegawai_medis.assessments.index', compact('assessments', 'kinerjaTotalsByAssessmentId', 'activePeriodHasWeights'));
     }
 
     /**
@@ -35,11 +76,19 @@ class PerformanceAssessmentController extends Controller
     public function show(PerformanceAssessment $assessment): View
     {
         $this->authorizeSelf($assessment);
-        $assessment->load(['assessmentPeriod','details.performanceCriteria', 'user.unit', 'user.profession']);
+        $assessment->load(['assessmentPeriod', 'details.performanceCriteria', 'user.unit', 'user.profession']);
 
         $rawMetrics = $this->buildRawMetrics($assessment);
 
-        return view('pegawai_medis.assessments.show', compact('assessment','rawMetrics'));
+        $kinerja = app(PerformanceScoreService::class)->computeBreakdownForAssessment($assessment);
+
+        $visibleDetails = $assessment->details;
+        if (($kinerja['applicable'] ?? false) && ($kinerja['hasWeights'] ?? false)) {
+            $allowed = array_flip(array_map('intval', array_keys($kinerja['weights'] ?? [])));
+            $visibleDetails = $assessment->details->filter(fn($d) => isset($allowed[(int) $d->performance_criteria_id]))->values();
+        }
+
+        return view('pegawai_medis.assessments.show', compact('assessment', 'rawMetrics', 'kinerja', 'visibleDetails'));
     }
 
     /**

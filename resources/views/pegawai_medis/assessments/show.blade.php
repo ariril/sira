@@ -21,10 +21,84 @@
                 <div class="text-lg font-semibold">{{ $assessment->validation_status?->value ?? '-' }}</div>
             </div>
             <div class="p-4 rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
-                <div class="text-sm text-slate-500">Skor WSM</div>
-                <div class="text-lg font-semibold">{{ $assessment->total_wsm_score !== null ? number_format($assessment->total_wsm_score, 2) : '-' }}</div>
+                <div class="text-sm text-slate-500" title="WSM (Weighted Sum Method)">Skor Kinerja</div>
+                @if(($kinerja['applicable'] ?? false) && ($kinerja['hasWeights'] ?? false))
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="text-lg font-semibold">{{ number_format((float)($kinerja['total'] ?? 0), 2) }}</div>
+                        <button
+                            type="button"
+                            class="px-3 py-2 rounded-lg border text-sm hover:bg-slate-50"
+                            x-data
+                            @click="$dispatch('open-modal', 'kinerja-breakdown')"
+                        >
+                            Detail
+                        </button>
+                    </div>
+                @else
+                    <div class="text-lg font-semibold">-</div>
+                    @if(($kinerja['applicable'] ?? false) && !($kinerja['hasWeights'] ?? false))
+                        <div class="text-xs text-amber-700 mt-1">Bobot kriteria periode aktif belum berstatus aktif, skor kinerja belum dapat ditampilkan.</div>
+                    @endif
+                @endif
             </div>
         </div>
+
+        @if(($kinerja['applicable'] ?? false) && ($kinerja['hasWeights'] ?? false))
+            <div class="flex justify-end">
+                <button
+                    type="button"
+                    class="px-3 py-2 rounded-lg border text-sm hover:bg-slate-50"
+                    x-data
+                    @click="$dispatch('open-modal', 'kinerja-breakdown')"
+                >
+                    Detail Perhitungan Kinerja
+                </button>
+            </div>
+        @endif
+
+        @if(($kinerja['applicable'] ?? false) && ($kinerja['hasWeights'] ?? false))
+            <x-modal name="kinerja-breakdown" maxWidth="lg">
+                <div class="p-6 space-y-4">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <div class="text-xs uppercase tracking-wide text-slate-500">Detail Perhitungan</div>
+                            <div class="text-lg font-semibold text-slate-900">Kinerja (Bobot Aktif Unit)</div>
+                            <div class="text-sm text-slate-600">Total: {{ number_format((float)($kinerja['total'] ?? 0), 2) }}</div>
+                        </div>
+                        <button type="button" class="text-slate-400 hover:text-slate-600" @click="$dispatch('close-modal', 'kinerja-breakdown')">
+                            <i class="fa-solid fa-xmark text-lg"></i>
+                        </button>
+                    </div>
+
+                    <div class="rounded-xl bg-slate-50 border border-slate-200 overflow-hidden">
+                        <x-ui.table min-width="760px">
+                            <x-slot name="head">
+                                <tr>
+                                    <th class="text-left px-4 py-3 whitespace-nowrap">Kriteria</th>
+                                    <th class="text-right px-4 py-3 whitespace-nowrap">Bobot (%)</th>
+                                    <th class="text-right px-4 py-3 whitespace-nowrap" title="WSM (Weighted Sum Method)">Nilai Normalisasi</th>
+                                    <th class="text-right px-4 py-3 whitespace-nowrap">Relatif Unit</th>
+                                    <th class="text-right px-4 py-3 whitespace-nowrap">Kontribusi</th>
+                                </tr>
+                            </x-slot>
+                            @foreach(($kinerja['rows'] ?? []) as $row)
+                                <tr>
+                                    <td class="px-4 py-3">{{ $row['criteria_name'] ?? '-' }}</td>
+                                    <td class="px-4 py-3 text-right">{{ number_format((float)($row['weight'] ?? 0), 2) }}</td>
+                                    <td class="px-4 py-3 text-right">{{ number_format((float)($row['score_wsm'] ?? 0), 2) }}</td>
+                                    <td class="px-4 py-3 text-right">{{ number_format((float)($row['score_relative_unit'] ?? 0), 2) }}</td>
+                                    <td class="px-4 py-3 text-right">{{ number_format((float)($row['contribution'] ?? 0), 2) }}</td>
+                                </tr>
+                            @endforeach
+                        </x-ui.table>
+                    </div>
+
+                    <div class="text-xs text-slate-500">
+                        Hanya kriteria dengan bobot <span class="font-semibold">aktif</span> pada periode aktif yang dihitung sebagai Kinerja.
+                    </div>
+                </div>
+            </x-modal>
+        @endif
 
         <x-section title="Detail Kriteria" class="overflow-hidden">
             <x-ui.table min-width="760px">
@@ -32,18 +106,21 @@
                     <tr>
                         <th class="text-left px-4 py-3 whitespace-nowrap">Kriteria</th>
                         <th class="text-left px-4 py-3 whitespace-nowrap">Tipe</th>
-                        <th class="text-left px-4 py-3 whitespace-nowrap">Nilai (WSM)</th>
+                        <th class="text-left px-4 py-3 whitespace-nowrap">Nilai Kinerja (Relatif Unit)</th>
                         <th class="text-left px-4 py-3 whitespace-nowrap">Detail</th>
                     </tr>
                 </x-slot>
-                @forelse($assessment->details as $d)
+                @forelse($visibleDetails as $d)
                     @php
                         $raw = $rawMetrics[$d->performance_criteria_id] ?? null;
+                        $rel = $kinerja['relativeByCriteria'][(int)$d->performance_criteria_id] ?? null;
                     @endphp
                     <tr>
                         <td class="px-4 py-3">{{ $d->performanceCriteria->name ?? '-' }}</td>
                         <td class="px-4 py-3">{{ optional($d->performanceCriteria->type)->value }}</td>
-                        <td class="px-4 py-3">{{ number_format($d->score, 2) }}</td>
+                        <td class="px-4 py-3">
+                            {{ $rel !== null ? number_format((float)$rel, 2) : '-' }}
+                        </td>
                         <td class="px-4 py-3">
                             @if($raw)
                                 <button
@@ -62,7 +139,12 @@
                                             <div>
                                                 <div class="text-xs uppercase tracking-wide text-slate-500">Kriteria</div>
                                                 <div class="text-lg font-semibold text-slate-900">{{ $d->performanceCriteria->name ?? '-' }}</div>
-                                                <div class="text-sm text-slate-600">Nilai WSM: {{ number_format($d->score, 2) }}</div>
+                                                <div class="text-sm text-slate-600">
+                                                    Nilai Kinerja (Relatif Unit): {{ $rel !== null ? number_format((float)$rel, 2) : '-' }}
+                                                </div>
+                                                <div class="text-sm text-slate-600" title="WSM (Weighted Sum Method)">
+                                                    Nilai Normalisasi: {{ number_format((float)($d->score ?? 0), 2) }}
+                                                </div>
                                             </div>
                                             <button type="button" class="text-slate-400 hover:text-slate-600" @click="$dispatch('close-modal', 'raw-{{ $d->id }}')">
                                                 <i class="fa-solid fa-xmark text-lg"></i>
@@ -84,18 +166,18 @@
                                             @endforeach
                                             @if(!empty($raw['formula']['raw']) && !empty($raw['formula']['result']) && !empty($raw['formula']['denominator']))
                                                 <div class="pt-3 mt-2 border-t border-slate-200">
-                                                    <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Rumus WSM</div>
+                                                    <div class="text-xs uppercase tracking-wide text-slate-500 mb-1" title="WSM (Weighted Sum Method)">Rumus Normalisasi</div>
                                                     <div class="text-sm text-slate-800 font-semibold">
                                                         {{ number_format($raw['formula']['raw'], 2) }} / {{ number_format($raw['formula']['denominator'], 2) }} × 100 = {{ number_format($raw['formula']['result'], 2) }}
                                                     </div>
-                                                    <div class="text-xs text-slate-500">Pembagi diambil dari basis normalisasi kriteria (mis. total unit/profesi pada periode yang sama).</div>
+                                                    <div class="text-xs text-slate-500">Basis normalisasi: {{ $d->performanceCriteria->normalization_basis ?? '-' }}. Pembagi mengikuti kebijakan basis tersebut (contoh: total unit pada periode yang sama).</div>
                                                 </div>
                                             @endif
                                         </div>
 
                                         <div class="flex items-center gap-2 text-xs text-slate-500">
                                             <i class="fa-solid fa-circle-info"></i>
-                                            <span>Nilai WSM berasal dari normalisasi data mentah sesuai bobot kriteria periode ini.</span>
+                                            <span>Nilai normalisasi berasal dari normalisasi data mentah. Nilai Kinerja (Relatif Unit) membandingkan nilai Anda terhadap skor tertinggi di unit pada periode yang sama.</span>
                                         </div>
                                     </div>
                                 </x-modal>

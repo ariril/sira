@@ -149,9 +149,10 @@ class PeriodPerformanceAssessmentService
 
             [$raw, $totals] = $this->collectRawAndTotals($period, $criteriaIds, $userIds, $unitId);
 
-            $activeKeys = array_values(array_filter(array_keys($totals), fn($k) => ($totals[$k] ?? 0) > 0));
-            if (empty($activeKeys)) {
-                $activeKeys = array_keys($totals);
+            $weightByCriteriaId = $this->resolveWeightByCriteriaId($period, $unitId);
+            $sumWeight = 0.0;
+            foreach ($weightByCriteriaId as $w) {
+                $sumWeight += (float) $w;
             }
 
             // Map assessment ids for fast upsert
@@ -196,17 +197,29 @@ class PeriodPerformanceAssessmentService
                     $scores[$key] = max(0.0, min(100.0, $score));
                 }
 
-                $sum = 0.0;
-                foreach ($activeKeys as $k) {
-                    $sum += (float)($scores[$k] ?? 0.0);
+                // Total score uses unit-specific active weights for the period.
+                // If no weights exist (or sum is 0), store null to indicate "not available".
+                $totalWsm = null;
+                if ($sumWeight > 0 && !empty($weightByCriteriaId)) {
+                    $weightedSum = 0.0;
+                    foreach ($criteriaIds as $key => $criteriaId) {
+                        if (!$criteriaId) {
+                            continue;
+                        }
+                        $w = (float) ($weightByCriteriaId[(int) $criteriaId] ?? 0.0);
+                        if ($w <= 0) {
+                            continue;
+                        }
+                        $weightedSum += $w * (float) ($scores[$key] ?? 0.0);
+                    }
+                    $totalWsm = $weightedSum / $sumWeight;
                 }
-                $totalWsm = count($activeKeys) ? ($sum / count($activeKeys)) : 0.0;
 
                 PerformanceAssessment::query()
                     ->where('id', $assessmentId)
                     ->update([
                         'assessment_date' => $period->end_date ?? now()->toDateString(),
-                        'total_wsm_score' => round($totalWsm, 2),
+                        'total_wsm_score' => $totalWsm !== null ? round((float) $totalWsm, 2) : null,
                         'supervisor_comment' => 'Dihitung otomatis dari data tabel.',
                     ]);
 
@@ -228,6 +241,50 @@ class PeriodPerformanceAssessmentService
                 }
             }
         });
+    }
+
+    /**
+     * Resolve weight mapping (performance_criteria_id => weight) for a unit and period.
+     *
+     * Rules:
+     * - Active period: only status=active is considered.
+     * - Non-active period: prefer status=active, fallback to status=archived (for historical periods).
+     *
+     * @return array<int,float>
+     */
+    private function resolveWeightByCriteriaId(AssessmentPeriod $period, ?int $unitId): array
+    {
+        if (!$unitId) {
+            return [];
+        }
+
+        $periodId = (int) $period->id;
+        $isActive = (string) ($period->status ?? '') === AssessmentPeriod::STATUS_ACTIVE;
+        $statuses = $isActive ? ['active'] : ['active', 'archived'];
+
+        $rows = DB::table('unit_criteria_weights')
+            ->where('unit_id', (int) $unitId)
+            ->where('assessment_period_id', $periodId)
+            ->whereIn('status', $statuses)
+            ->get(['performance_criteria_id', 'weight', 'status']);
+
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        // For non-active periods, prefer active rows if any exist.
+        if (!$isActive && $rows->contains(fn($r) => (string) $r->status === 'active')) {
+            $rows = $rows->filter(fn($r) => (string) $r->status === 'active');
+        } elseif (!$isActive) {
+            $rows = $rows->filter(fn($r) => (string) $r->status === 'archived');
+        }
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(int) $r->performance_criteria_id] = (float) $r->weight;
+        }
+
+        return $out;
     }
 
     /**
