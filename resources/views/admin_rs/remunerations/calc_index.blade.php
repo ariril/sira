@@ -3,10 +3,10 @@
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Perhitungan Remunerasi</h1>
             @if(!empty($selectedId))
-            <form method="POST" action="{{ route('admin_rs.remunerations.calc.run') }}">
+            <form method="POST" action="{{ route('admin_rs.remunerations.calc.run') }}" @if(!empty($needsRecalcConfirm)) onsubmit="return confirm('Perhitungan remunerasi untuk periode ini sudah pernah dilakukan. Jalankan ulang akan MENGGANTI semua data DRAFT remunerasi. Lanjutkan?')" @endif>
                 @csrf
                 <input type="hidden" name="period_id" value="{{ $selectedId }}" />
-                <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base">
+                <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base" :disabled="empty($canRun)">
                     <i class="fa-solid fa-calculator mr-2"></i> Jalankan Perhitungan
                 </x-ui.button>
             </form>
@@ -39,7 +39,55 @@
             </div>
         @endif
 
+        @if(session('danger'))
+            <div class="rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 text-sm flex items-start gap-2">
+                <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
+                <span>{{ session('danger') }}</span>
+            </div>
+        @endif
+
         @if(!empty($selectedId))
+        {{-- CHECKLIST PRASYARAT --}}
+        @if(!empty($prerequisites))
+            <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <div class="text-base font-semibold text-slate-800">Checklist Prasyarat</div>
+                        <div class="text-sm text-slate-600 mt-1">Perhitungan hanya dapat dijalankan jika semua prasyarat terpenuhi.</div>
+                    </div>
+                    @if(!empty($lastCalculated?->calculated_at))
+                        <div class="text-sm text-slate-600 text-right">
+                            <div>Terakhir dihitung:</div>
+                            <div class="font-medium text-slate-800">
+                                {{ optional($lastCalculated->calculated_at)->format('d M Y H:i') }}
+                                @if(!empty($lastCalculated->revisedBy?->name))
+                                    • {{ $lastCalculated->revisedBy->name }}
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+                </div>
+
+                <div class="mt-4 space-y-2">
+                    @foreach($prerequisites as $pr)
+                        <div class="flex items-center justify-between rounded-xl ring-1 ring-slate-100 p-3">
+                            <div>
+                                <div class="font-medium">{{ $pr['label'] ?? '-' }}</div>
+                                @if(!empty($pr['detail']))
+                                    <div class="text-sm text-slate-600">{{ $pr['detail'] }}</div>
+                                @endif
+                            </div>
+                            @if(!empty($pr['ok']))
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">OK</span>
+                            @else
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-100">Belum</span>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
         {{-- RINGKASAN --}}
         @php($allocated = (float)($allocSummary['total'] ?? 0))
         @php($remTotal = (float)($summary['total'] ?? 0))

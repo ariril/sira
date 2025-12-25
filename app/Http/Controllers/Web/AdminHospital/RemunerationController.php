@@ -11,12 +11,16 @@ use App\Models\PerformanceCriteria;
 use App\Models\UnitCriteriaWeight;
 use App\Enums\PerformanceCriteriaType;
 use App\Enums\RemunerationPaymentStatus;
+use App\Enums\AssessmentValidationStatus;
 use App\Models\UnitRemunerationAllocation as Allocation;
 use App\Models\User;
+use App\Models\Unit;
+use App\Models\Profession;
 use App\Services\BestScenarioCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class RemunerationController extends Controller
@@ -32,8 +36,15 @@ class RemunerationController extends Controller
 
         $summary = null;
         $allocSummary = null;
+        $selectedPeriod = null;
+        $prerequisites = null;
+        $canRun = false;
+        $needsRecalcConfirm = false;
+        $lastCalculated = null;
         $remunerations = collect();
         if ($periodId) {
+            $selectedPeriod = AssessmentPeriod::find($periodId);
+
             $remunerations = Remuneration::with('user:id,name,unit_id')
                 ->where('assessment_period_id', $periodId)
                 ->orderBy('user_id')
@@ -47,14 +58,70 @@ class RemunerationController extends Controller
                 'count' => $allocs->count(),
                 'total' => (float) $allocs->sum('amount'),
             ];
+
+            // Prerequisites
+            $isLocked = $selectedPeriod && in_array($selectedPeriod->status, [AssessmentPeriod::STATUS_LOCKED, AssessmentPeriod::STATUS_APPROVAL, AssessmentPeriod::STATUS_CLOSED], true);
+
+            $assessmentCount = (int) PerformanceAssessment::query()
+                ->where('assessment_period_id', $periodId)
+                ->count();
+            $validatedCount = (int) PerformanceAssessment::query()
+                ->where('assessment_period_id', $periodId)
+                ->where('validation_status', AssessmentValidationStatus::VALIDATED->value)
+                ->count();
+            $allValidated = $assessmentCount > 0 && $assessmentCount === $validatedCount;
+
+            $allocTotal = (int) Allocation::query()->where('assessment_period_id', $periodId)->count();
+            $allocPublished = (int) Allocation::query()->where('assessment_period_id', $periodId)->whereNotNull('published_at')->count();
+            $allAllocPublished = $allocTotal > 0 && $allocTotal === $allocPublished;
+
+            $prerequisites = [
+                [
+                    'label' => 'Periode status = LOCKED',
+                    'ok' => $isLocked,
+                    'detail' => $selectedPeriod ? ('Status saat ini: ' . strtoupper((string) $selectedPeriod->status)) : null,
+                ],
+                [
+                    'label' => 'Semua penilaian sudah tervalidasi final',
+                    'ok' => $allValidated,
+                    'detail' => $assessmentCount > 0
+                        ? ("Tervalidasi: {$validatedCount} / {$assessmentCount}")
+                        : 'Belum ada data penilaian pada periode ini.',
+                ],
+                [
+                    'label' => 'Semua alokasi remunerasi unit sudah dipublish',
+                    'ok' => $allAllocPublished,
+                    'detail' => $allocTotal > 0
+                        ? ("Published: {$allocPublished} / {$allocTotal}")
+                        : 'Belum ada alokasi pada periode ini.',
+                ],
+            ];
+
+            $canRun = $isLocked && $allValidated && $allAllocPublished;
+            $needsRecalcConfirm = Remuneration::query()
+                ->where('assessment_period_id', $periodId)
+                ->whereNull('published_at')
+                ->exists();
+
+            $lastCalculated = Remuneration::query()
+                ->with('revisedBy:id,name')
+                ->where('assessment_period_id', $periodId)
+                ->whereNotNull('calculated_at')
+                ->orderByDesc('calculated_at')
+                ->first(['id','calculated_at','revised_by']);
         }
 
         return view('admin_rs.remunerations.calc_index', [
             'periods'       => $periods,
             'selectedId'    => $periodId ?: null,
+            'selectedPeriod'=> $selectedPeriod,
             'remunerations' => $remunerations,
             'summary'       => $summary,
             'allocSummary'  => $allocSummary,
+            'prerequisites' => $prerequisites,
+            'canRun'        => $canRun,
+            'needsRecalcConfirm' => $needsRecalcConfirm,
+            'lastCalculated' => $lastCalculated,
         ]);
     }
 
@@ -72,6 +139,29 @@ class RemunerationController extends Controller
         $periodId = (int) $data['period_id'];
         $period = AssessmentPeriod::findOrFail($periodId);
 
+        // Hard gate: do not allow calculation while period is ACTIVE/DRAFT
+        $isLocked = in_array($period->status, [AssessmentPeriod::STATUS_LOCKED, AssessmentPeriod::STATUS_APPROVAL, AssessmentPeriod::STATUS_CLOSED], true);
+        if (!$isLocked) {
+            return back()->with('danger', 'Perhitungan hanya bisa dijalankan setelah periode ditutup (LOCKED).');
+        }
+
+        // Hard gate: all assessments must be finally validated
+        $assessmentCount = (int) PerformanceAssessment::query()->where('assessment_period_id', $periodId)->count();
+        $validatedCount = (int) PerformanceAssessment::query()
+            ->where('assessment_period_id', $periodId)
+            ->where('validation_status', AssessmentValidationStatus::VALIDATED->value)
+            ->count();
+        if ($assessmentCount === 0 || $assessmentCount !== $validatedCount) {
+            return back()->with('danger', 'Tidak dapat menjalankan perhitungan: masih ada penilaian yang belum tervalidasi final.');
+        }
+
+        // Hard gate: all allocations must be published (not partial)
+        $allocTotal = (int) Allocation::query()->where('assessment_period_id', $periodId)->count();
+        $allocPublished = (int) Allocation::query()->where('assessment_period_id', $periodId)->whereNotNull('published_at')->count();
+        if ($allocTotal === 0 || $allocTotal !== $allocPublished) {
+            return back()->with('danger', 'Tidak dapat menjalankan perhitungan: alokasi remunerasi unit belum dipublish semua.');
+        }
+
         $allocations = Allocation::with(['unit:id,name'])
             ->where('assessment_period_id', $periodId)
             ->whereNotNull('published_at')
@@ -85,7 +175,8 @@ class RemunerationController extends Controller
             ->groupBy('user_id')
             ->pluck('total_bonus', 'user_id');
 
-        DB::transaction(function () use ($allocations, $period, $periodId, $approvedContribs, $calculator) {
+        $actorId = (int) Auth::id();
+        DB::transaction(function () use ($allocations, $period, $periodId, $approvedContribs, $calculator, $actorId) {
             foreach ($allocations as $alloc) {
                 $this->distributeAllocation(
                     $alloc,
@@ -94,7 +185,8 @@ class RemunerationController extends Controller
                     $approvedContribs,
                     $calculator,
                     $alloc->profession_id,
-                    (float) $alloc->amount
+                    (float) $alloc->amount,
+                    $actorId
                 );
             }
         });
@@ -103,7 +195,7 @@ class RemunerationController extends Controller
             ->with('status', 'Perhitungan selesai dengan Best Scenario WSM.');
     }
 
-    private function distributeAllocation(Allocation $alloc, $period, int $periodId, $approvedContribs, BestScenarioCalculator $calculator, ?int $professionId = null, ?float $overrideAmount = null): void
+    private function distributeAllocation(Allocation $alloc, $period, int $periodId, $approvedContribs, BestScenarioCalculator $calculator, ?int $professionId = null, ?float $overrideAmount = null, ?int $actorId = null): void
     {
         $users = User::query()
             ->where('unit_id', $alloc->unit_id)
@@ -144,9 +236,16 @@ class RemunerationController extends Controller
                 'assessment_period_id' => $periodId,
             ]);
 
-            $publishedAt = $rem->published_at; // Preserve if already published
+            // Never overwrite published remuneration amounts
+            if (!empty($rem->published_at)) {
+                continue;
+            }
+
             $rem->amount = $final;
             $rem->calculated_at = now();
+            if ($actorId) {
+                $rem->revised_by = $actorId;
+            }
             $rem->calculation_details = [
                 'method'    => 'unit_profession_wsm_proportional',
                 'period_id' => $periodId,
@@ -183,9 +282,6 @@ class RemunerationController extends Controller
                     ],
                 ],
             ];
-            if ($publishedAt) {
-                $rem->published_at = $publishedAt;
-            }
             $rem->save();
         }
     }
@@ -201,18 +297,100 @@ class RemunerationController extends Controller
      */
     public function index(Request $request): View
     {
-        $periodId = (int) $request->integer('period_id');
+        $data = $request->validate([
+            'period_id'      => ['nullable','integer','exists:assessment_periods,id'],
+            'unit_id'        => ['nullable','integer','exists:units,id'],
+            'profession_id'  => ['nullable','integer','exists:professions,id'],
+            'published'      => ['nullable','in:yes,no'],
+            'payment_status' => ['nullable','in:' . implode(',', array_map(fn($e) => $e->value, RemunerationPaymentStatus::cases()))],
+        ]);
+
+        $periodId = (int) ($data['period_id'] ?? 0);
+        $unitId = (int) ($data['unit_id'] ?? 0);
+        $professionId = (int) ($data['profession_id'] ?? 0);
+        $published = $data['published'] ?? null;
+        $paymentStatus = $data['payment_status'] ?? null;
+
         $periods  = AssessmentPeriod::orderByDesc('start_date')->get(['id','name']);
-        $items = Remuneration::with('user:id,name')
+        $units = Unit::orderBy('name')->get(['id','name']);
+        $professions = Profession::orderBy('name')->get(['id','name']);
+
+        $query = Remuneration::query()
+            ->with([
+                'user:id,name,unit_id,profession_id',
+                'assessmentPeriod:id,name',
+            ])
             ->when($periodId, fn($w) => $w->where('assessment_period_id', $periodId))
-            ->orderByDesc('id')
+            ->when($published === 'yes', fn($w) => $w->whereNotNull('published_at'))
+            ->when($published === 'no', fn($w) => $w->whereNull('published_at'))
+            ->when($paymentStatus, fn($w) => $w->where('payment_status', $paymentStatus))
+            ->when($unitId || $professionId, function ($w) use ($unitId, $professionId) {
+                $w->whereHas('user', function ($u) use ($unitId, $professionId) {
+                    if ($unitId) $u->where('unit_id', $unitId);
+                    if ($professionId) $u->where('profession_id', $professionId);
+                });
+            })
+            ->orderByDesc('id');
+
+        $items = $query
             ->paginate(12)
             ->withQueryString();
+
+        $draftCount = (clone $query)
+            ->whereNull('published_at')
+            ->count();
+
         return view('admin_rs.remunerations.index', [
             'items'    => $items,
             'periods'  => $periods,
+            'units'    => $units,
+            'professions' => $professions,
             'periodId' => $periodId ?: null,
+            'filters'  => [
+                'unit_id' => $unitId ?: null,
+                'profession_id' => $professionId ?: null,
+                'published' => $published,
+                'payment_status' => $paymentStatus,
+            ],
+            'draftCount' => $draftCount,
         ]);
+    }
+
+    /** Publish all draft remunerations in the current filter scope */
+    public function publishAll(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'period_id'      => ['required','integer','exists:assessment_periods,id'],
+            'unit_id'        => ['nullable','integer','exists:units,id'],
+            'profession_id'  => ['nullable','integer','exists:professions,id'],
+            'payment_status' => ['nullable','in:' . implode(',', array_map(fn($e) => $e->value, RemunerationPaymentStatus::cases()))],
+        ]);
+
+        $periodId = (int) $data['period_id'];
+        $unitId = (int) ($data['unit_id'] ?? 0);
+        $professionId = (int) ($data['profession_id'] ?? 0);
+        $paymentStatus = $data['payment_status'] ?? null;
+
+        $q = Remuneration::query()
+            ->where('assessment_period_id', $periodId)
+            ->whereNull('published_at')
+            ->whereNotNull('amount')
+            ->when($paymentStatus, fn($w) => $w->where('payment_status', $paymentStatus))
+            ->when($unitId || $professionId, function ($w) use ($unitId, $professionId) {
+                $w->whereHas('user', function ($u) use ($unitId, $professionId) {
+                    if ($unitId) $u->where('unit_id', $unitId);
+                    if ($professionId) $u->where('profession_id', $professionId);
+                });
+            });
+
+        $count = (int) $q->count();
+        if ($count === 0) {
+            return back()->with('danger', 'Tidak ada remunerasi draft yang bisa dipublish.');
+        }
+
+        $q->update(['published_at' => now()]);
+
+        return back()->with('status', "{$count} remunerasi dipublish.");
     }
 
     /**
@@ -236,7 +414,7 @@ class RemunerationController extends Controller
      */
     public function show(Remuneration $remuneration): View
     {
-        $remuneration->load(['user:id,name,unit_id','assessmentPeriod:id,name']);
+        $remuneration->load(['user:id,name,unit_id','assessmentPeriod:id,name','revisedBy:id,name']);
         $wsm = $this->buildWsmBreakdown($remuneration);
         $calcDetails = null;
 

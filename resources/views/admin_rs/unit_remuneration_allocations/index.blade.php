@@ -81,7 +81,7 @@
                                     @csrf
                                     @method('PUT')
                                     <input type="hidden" name="publish_toggle" value="1" />
-                                    <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Publish</x-ui.button>
+                                    <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs" onclick="return confirm('Anda yakin ingin publish alokasi ini? Setelah dipublish, alokasi tidak dapat diubah.')">Publish</x-ui.button>
                                 </form>
                             @else
                                 <x-ui.icon-button as="a" href="{{ route('admin_rs.unit-remuneration-allocations.edit', $it) }}" icon="fa-eye" tooltip="Detail" />

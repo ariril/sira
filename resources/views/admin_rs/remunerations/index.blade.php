@@ -2,19 +2,64 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Remunerasi</h1>
-            <x-ui.button as="a" href="{{ route('admin_rs.remunerations.calc.index') }}" variant="success" class="h-12 px-6 text-base">
-                <i class="fa-solid fa-calculator mr-2"></i> Ke Perhitungan
-            </x-ui.button>
+            <div class="flex items-center gap-2">
+                @if(!empty($periodId) && !empty($draftCount))
+                    <form method="POST" action="{{ route('admin_rs.remunerations.publish_all') }}" onsubmit="return confirm('Publish semua remunerasi DRAFT untuk filter saat ini?')">
+                        @csrf
+                        <input type="hidden" name="period_id" value="{{ $periodId }}" />
+                        <input type="hidden" name="unit_id" value="{{ $filters['unit_id'] ?? '' }}" />
+                        <input type="hidden" name="profession_id" value="{{ $filters['profession_id'] ?? '' }}" />
+                        <input type="hidden" name="payment_status" value="{{ $filters['payment_status'] ?? '' }}" />
+                        <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base">Publish Semua</x-ui.button>
+                    </form>
+                @endif
+                <x-ui.button as="a" href="{{ route('admin_rs.remunerations.calc.index') }}" variant="success" class="h-12 px-6 text-base">
+                    <i class="fa-solid fa-calculator mr-2"></i> Ke Perhitungan
+                </x-ui.button>
+            </div>
         </div>
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
+        @if(session('status'))
+            <div class="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl px-4 py-3">
+                {{ session('status') }}
+            </div>
+        @endif
+
+        @if(session('danger'))
+            <div class="rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 text-sm flex items-start gap-2">
+                <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
+                <span>{{ session('danger') }}</span>
+            </div>
+        @endif
+
         {{-- FILTERS --}}
         <form method="GET" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="grid gap-5 md:grid-cols-12">
                 <div class="md:col-span-4">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
                     <x-ui.select name="period_id" :options="$periods->pluck('name','id')" :value="$periodId" placeholder="(Semua)" />
+                </div>
+                <div class="md:col-span-4">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Unit</label>
+                    <x-ui.select name="unit_id" :options="$units->pluck('name','id')" :value="$filters['unit_id'] ?? null" placeholder="(Semua)" />
+                </div>
+                <div class="md:col-span-4">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Profesi</label>
+                    <x-ui.select name="profession_id" :options="$professions->pluck('name','id')" :value="$filters['profession_id'] ?? null" placeholder="(Semua)" />
+                </div>
+                <div class="md:col-span-4">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Status Publish</label>
+                    <x-ui.select name="published" :options="['yes'=>'Published','no'=>'Draft']" :value="$filters['published'] ?? null" placeholder="(Semua)" />
+                </div>
+                <div class="md:col-span-4">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Status Pembayaran</label>
+                    <x-ui.select name="payment_status" :options="[
+                        'Belum Dibayar' => 'Belum Dibayar',
+                        'Dibayar' => 'Dibayar',
+                        'Ditahan' => 'Ditahan',
+                    ]" :value="$filters['payment_status'] ?? null" placeholder="(Semua)" />
                 </div>
             </div>
             <div class="mt-6 flex justify-end gap-3">

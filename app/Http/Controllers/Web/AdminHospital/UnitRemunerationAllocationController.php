@@ -105,22 +105,23 @@ class UnitRemunerationAllocationController extends Controller
             ]);
         }
 
-        // Friendly duplicate check to avoid DB exception on unique constraint
         $publishedAt = $request->boolean('publish_now') ? now() : null;
 
-        // Replace existing group (period + unit) with new rows
-        Allocation::query()
-            ->where('assessment_period_id', $data['assessment_period_id'])
-            ->where('unit_id', $data['unit_id'])
-            ->delete();
+        DB::transaction(function () use ($data, $lineAmounts, $publishedAt) {
+            // Replace existing group (period + unit) with new rows
+            Allocation::query()
+                ->where('assessment_period_id', $data['assessment_period_id'])
+                ->where('unit_id', $data['unit_id'])
+                ->delete();
 
-        foreach ($lineAmounts as $profId => $amount) {
-            Allocation::create(array_merge($data, [
-                'profession_id' => $profId,
-                'amount' => $amount,
-                'published_at' => $publishedAt,
-            ]));
-        }
+            foreach ($lineAmounts as $profId => $amount) {
+                Allocation::create(array_merge($data, [
+                    'profession_id' => $profId,
+                    'amount' => $amount,
+                    'published_at' => $publishedAt,
+                ]));
+            }
+        });
         return redirect()->route('admin_rs.unit-remuneration-allocations.index')->with('status','Alokasi dibuat.');
     }
 
@@ -182,19 +183,21 @@ class UnitRemunerationAllocationController extends Controller
             ]);
         }
 
-        // Replace group
-        Allocation::query()
-            ->where('assessment_period_id', $allocation->assessment_period_id)
-            ->where('unit_id', $allocation->unit_id)
-            ->delete();
+        DB::transaction(function () use ($allocation, $data, $lineAmounts, $publishedAt) {
+            // Replace group
+            Allocation::query()
+                ->where('assessment_period_id', $allocation->assessment_period_id)
+                ->where('unit_id', $allocation->unit_id)
+                ->delete();
 
-        foreach ($lineAmounts as $profId => $amount) {
-            Allocation::create(array_merge($data, [
-                'profession_id' => $profId,
-                'amount' => $amount,
-                'published_at' => $publishedAt,
-            ]));
-        }
+            foreach ($lineAmounts as $profId => $amount) {
+                Allocation::create(array_merge($data, [
+                    'profession_id' => $profId,
+                    'amount' => $amount,
+                    'published_at' => $publishedAt,
+                ]));
+            }
+        });
         return redirect()->route('admin_rs.unit-remuneration-allocations.index')->with('status','Alokasi diperbarui.');
     }
 

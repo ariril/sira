@@ -39,6 +39,14 @@
                         @endif
                     </dd>
                 </div>
+                <div>
+                    <dt class="text-slate-500">Terakhir Dihitung</dt>
+                    <dd class="text-slate-800 font-medium">{{ optional($item->calculated_at)->format('d M Y H:i') ?? '-' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-slate-500">Dihitung Oleh</dt>
+                    <dd class="text-slate-800 font-medium">{{ $item->revisedBy->name ?? '-' }}</dd>
+                </div>
                 @if(!empty($wsm['rows']))
                 @php
                     $fmtNum = function($val, int $dec = 2) {

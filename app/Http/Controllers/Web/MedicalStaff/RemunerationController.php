@@ -4,8 +4,12 @@ namespace App\Http\Controllers\Web\MedicalStaff;
 
 use App\Enums\ReviewStatus;
 use App\Http\Controllers\Controller;
+use App\Models\AssessmentPeriod;
+use App\Models\PerformanceAssessment;
 use App\Models\Remuneration;
 use App\Models\AdditionalContribution;
+use App\Models\UnitRemunerationAllocation as Allocation;
+use App\Enums\AssessmentValidationStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -18,33 +22,72 @@ class RemunerationController extends Controller
      */
     public function index(Request $request): View
     {
+        $user = Auth::user();
+        $userId = (int) Auth::id();
+
+        // Always allow user to see historical remunerations, but never show data for ACTIVE period (shouldn't exist by rule)
         $items = Remuneration::with('assessmentPeriod')
-            ->where('user_id', Auth::id())
+            ->where('user_id', $userId)
+            ->whereHas('assessmentPeriod', function ($q) {
+                $q->where('status', '!=', AssessmentPeriod::STATUS_ACTIVE);
+            })
             ->orderByDesc('id')
             ->paginate(12)
             ->withQueryString();
 
-        // Progress approval untuk penilaian yang sedang berjalan (UX: informatif, tidak menampilkan remunerasi yang belum selesai sebagai "tahap approval")
-        $progress = collect();
-        $userId = Auth::id();
-        $progress = DB::table('performance_assessments as pa')
-            ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'pa.assessment_period_id')
-            ->where('pa.user_id', $userId)
-            ->select('pa.id as assessment_id','ap.id as period_id','ap.name as period_name')
-            ->orderByDesc('pa.id')
-            ->limit(10)
-            ->get()
-            ->map(function ($row) {
+        $activePeriod = AssessmentPeriod::active()->first(['id','name','status']);
+        $statusCard = null;
+        $banners = [];
+
+        // If there is an ACTIVE period, show only informative running-period message (no approval progress)
+        if ($activePeriod) {
+            $statusCard = [
+                'mode' => 'active',
+                'period_id' => $activePeriod->id,
+                'period_name' => $activePeriod->name,
+                'message' => 'Periode sedang berjalan. Penilaian masih dalam proses. Remunerasi akan tersedia setelah periode ditutup, penilaian tervalidasi, dan alokasi remunerasi unit dipublish.',
+            ];
+
+            return view('pegawai_medis.remunerations.index', [
+                'items' => $items,
+                'statusCard' => $statusCard,
+                'banners' => $banners,
+            ]);
+        }
+
+        // Find the latest locked/approval period assessment for this user (used for process status & prerequisite banners)
+        $pendingAssessment = PerformanceAssessment::query()
+            ->with('assessmentPeriod:id,name,status')
+            ->where('user_id', $userId)
+            ->whereHas('assessmentPeriod', function ($q) {
+                $q->whereIn('status', [AssessmentPeriod::STATUS_LOCKED, AssessmentPeriod::STATUS_APPROVAL, AssessmentPeriod::STATUS_CLOSED]);
+            })
+            ->orderByDesc('assessment_period_id')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($pendingAssessment) {
+            $period = $pendingAssessment->assessmentPeriod;
+            $periodId = (int) $pendingAssessment->assessment_period_id;
+
+            $remExists = Remuneration::query()
+                ->where('user_id', $userId)
+                ->where('assessment_period_id', $periodId)
+                ->exists();
+
+            if (!$remExists) {
+                // Approval progress details (only shown for non-ACTIVE periods)
                 $levels = DB::table('assessment_approvals')
-                    ->where('performance_assessment_id', $row->assessment_id)
-                    ->select('level','status','acted_at')
+                    ->where('performance_assessment_id', $pendingAssessment->id)
+                    ->select('level', 'status', 'acted_at')
                     ->orderBy('level')
                     ->get();
+
                 $current = 'pending';
                 $highestApproved = 0;
                 foreach ($levels as $lv) {
                     if ($lv->status === 'approved') {
-                        $highestApproved = max($highestApproved, (int)$lv->level);
+                        $highestApproved = max($highestApproved, (int) $lv->level);
                         $current = 'approved';
                     } elseif ($lv->status === 'pending') {
                         $current = 'pending';
@@ -54,26 +97,82 @@ class RemunerationController extends Controller
                         break;
                     }
                 }
-                return [
-                    'assessment_id' => $row->assessment_id,
-                    'period_id' => $row->period_id,
-                    'period_name' => $row->period_name,
+
+                $statusCard = [
+                    'mode' => 'process',
+                    'assessment_id' => $pendingAssessment->id,
+                    'period_id' => $periodId,
+                    'period_name' => $period?->name,
                     'highestApproved' => $highestApproved,
                     'currentStatus' => $current,
+                    'levels' => $levels,
+                    'validation_status' => (string) ($pendingAssessment->validation_status ?? ''),
                 ];
-            })
-            ->filter(function ($it) {
-                // Tampilkan hanya yang belum terbit sebagai remunerasi; jika sudah terbit, user melihat di tabel utama
-                $isPublished = DB::table('remunerations')
-                    ->where('user_id', Auth::id())
-                    ->where('assessment_period_id', $it['period_id'])
-                    ->exists();
-                return !$isPublished;
-            });
+
+                // Banners (prerequisites)
+                if ((string) ($pendingAssessment->validation_status ?? '') !== AssessmentValidationStatus::VALIDATED->value) {
+                    $banners[] = [
+                        'type' => 'warning',
+                        'message' => 'Penilaian Anda belum tervalidasi final. Remunerasi akan tersedia setelah proses validasi selesai.',
+                    ];
+                } else {
+                    $unitId = (int) ($user?->unit_id ?? 0);
+                    $professionId = (int) ($user?->profession_id ?? 0);
+
+                    $allocation = null;
+                    if ($unitId) {
+                        if ($professionId) {
+                            $allocation = Allocation::query()
+                                ->where('assessment_period_id', $periodId)
+                                ->where('unit_id', $unitId)
+                                ->where('profession_id', $professionId)
+                                ->first();
+                        }
+                        if (!$allocation) {
+                            $allocation = Allocation::query()
+                                ->where('assessment_period_id', $periodId)
+                                ->where('unit_id', $unitId)
+                                ->whereNull('profession_id')
+                                ->first();
+                        }
+                    }
+
+                    if (!$allocation) {
+                        $banners[] = [
+                            'type' => 'warning',
+                            'message' => 'Alokasi remunerasi unit Anda untuk periode ini belum tersedia. Silakan menunggu Admin RS membuat alokasi.',
+                        ];
+                    } elseif (empty($allocation->published_at)) {
+                        $banners[] = [
+                            'type' => 'warning',
+                            'message' => 'Penilaian telah tervalidasi. Saat ini menunggu Admin RS mempublish alokasi remunerasi unit Anda.',
+                        ];
+                    } else {
+                        $banners[] = [
+                            'type' => 'info',
+                            'message' => 'Penilaian telah tervalidasi dan alokasi unit sudah dipublish. Remunerasi akan muncul setelah Admin RS menjalankan perhitungan dan mempublish remunerasi.',
+                        ];
+                    }
+                }
+            } else {
+                // Remuneration exists (draft/published) for this period; no progress card needed.
+                $rem = Remuneration::query()
+                    ->where('user_id', $userId)
+                    ->where('assessment_period_id', $periodId)
+                    ->first();
+                if ($rem && empty($rem->published_at)) {
+                    $banners[] = [
+                        'type' => 'info',
+                        'message' => 'Remunerasi Anda telah dihitung dan sedang menunggu publikasi.',
+                    ];
+                }
+            }
+        }
 
         return view('pegawai_medis.remunerations.index', [
             'items' => $items,
-            'progress' => $progress,
+            'statusCard' => $statusCard,
+            'banners' => $banners,
         ]);
     }
 
