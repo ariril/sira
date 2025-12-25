@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
 use App\Models\Assessment360Window;
+use App\Models\AssessmentPeriod;
 use App\Models\MultiRaterAssessment;
 use App\Models\MultiRaterAssessmentDetail;
 use App\Models\CriteriaRaterRule;
@@ -33,6 +34,14 @@ class StoreController extends Controller
         $periodId = (int) $validated['period_id'];
         $targetId = (int) $validated['target_user_id'];
         $score = (int) $validated['score'];
+
+        $period = AssessmentPeriod::query()->find($periodId);
+        if (!$period || $period->status !== AssessmentPeriod::STATUS_ACTIVE) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Penilaian 360 hanya dapat dilakukan ketika periode ACTIVE.',
+            ], 422);
+        }
 
         $target = User::query()
             ->with('profession:id,code')

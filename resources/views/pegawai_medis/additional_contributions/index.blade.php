@@ -82,13 +82,15 @@
                                     <span class="px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$t->my_claim_status] ?? 'bg-slate-200 text-slate-700' }}">
                                         {{ $statusLabels[$t->my_claim_status] ?? strtoupper($t->my_claim_status) }}
                                     </span>
-                                @elseif($t->available)
+                                @elseif(($activePeriod ?? null) && $t->available)
                                     <form method="POST" action="{{ route('pegawai_medis.additional_tasks.claim', $t->id) }}">
                                         @csrf
                                         <button class="px-4 py-2 rounded-xl text-white text-sm font-semibold bg-gradient-to-r from-sky-400 to-blue-600 shadow-sm hover:brightness-110 focus:ring-2 focus:ring-offset-1 focus:ring-sky-200">
                                             Klaim
                                         </button>
                                     </form>
+                                @elseif(!($activePeriod ?? null))
+                                    <span class="text-xs text-slate-500">Periode tidak aktif</span>
                                 @else
                                     <span class="text-xs text-rose-600">Kuota habis</span>
                                 @endif
@@ -156,7 +158,7 @@
                             <td class="px-6 py-4 text-base font-medium">{{ optional($claim->cancel_deadline_at?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}</td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2 flex-wrap">
-                                    @if($claim->status === 'active' && $claim->canCancel())
+                                    @if(($activePeriod ?? null) && ($claim->task?->period?->status ?? null) === 'active' && $claim->status === 'active' && $claim->canCancel())
                                         <form method="POST" action="{{ route('pegawai_medis.additional_task_claims.cancel', $claim->id) }}" onsubmit="return confirm('Batalkan klaim ini?')">
                                             @csrf
                                             <button class="px-5 py-2.5 rounded-lg ring-1 ring-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-medium">Batalkan</button>
@@ -259,7 +261,9 @@
 
                         <div class="bg-white rounded-2xl border border-slate-100 p-5">
                             <p class="text-sm font-semibold text-slate-800">Unggah Hasil Tugas</p>
-                            @if($claim->status !== 'active')
+                            @if(!($activePeriod ?? null) || ($claim->task?->period?->status ?? null) !== 'active')
+                                <p class="mt-2 text-xs text-slate-500">Unggah dinonaktifkan karena periode penilaian tidak berstatus ACTIVE.</p>
+                            @elseif($claim->status !== 'active')
                                 <p class="mt-2 text-xs text-slate-500">Unggah hanya tersedia ketika status masih "Dalam Proses".</p>
                             @else
                                 <form method="POST" action="{{ route('pegawai_medis.additional_task_claims.submit', $claim->id) }}" enctype="multipart/form-data" class="mt-3 space-y-3" x-data="{ fileName: '' }">

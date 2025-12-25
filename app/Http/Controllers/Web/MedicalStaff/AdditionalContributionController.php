@@ -16,6 +16,7 @@ use App\Models\AdditionalTaskClaim;
 use App\Models\AssessmentPeriod;
 use App\Services\AdditionalTaskStatusService;
 use Illuminate\Support\Carbon;
+use App\Support\AssessmentPeriodGuard;
 
 class AdditionalContributionController extends Controller
 {
@@ -33,7 +34,7 @@ class AdditionalContributionController extends Controller
         $historyClaims = collect();
         $missedTasks = collect();
         $latestRejected = null;
-        $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
+        $activePeriod = AssessmentPeriodGuard::resolveActive();
 
         if (Schema::hasTable('additional_tasks') && Schema::hasTable('additional_task_claims')) {
             AdditionalTaskStatusService::syncForUnit($unitId);
@@ -46,6 +47,7 @@ class AdditionalContributionController extends Controller
                     },
                 ])
                 ->where('unit_id', $unitId)
+                ->whereHas('period', fn($q) => $q->where('status', AssessmentPeriod::STATUS_ACTIVE))
                 ->where('status', 'open')
                 ->where(function ($q) use ($me) {
                     $q->whereNull('created_by')->orWhere('created_by', '!=', $me->id);
@@ -110,6 +112,7 @@ class AdditionalContributionController extends Controller
             $missedTasks = AdditionalTask::query()
                 ->with(['period:id,name'])
                 ->where('unit_id', $unitId)
+                ->whereHas('period', fn($q) => $q->where('status', AssessmentPeriod::STATUS_ACTIVE))
                 ->where('status', '!=', 'draft')
                 ->whereDate('due_date', '<', $today)
                 ->where(function ($q) use ($me) {
@@ -139,15 +142,22 @@ class AdditionalContributionController extends Controller
     {
         $me = Auth::user();
         abort_unless($me && $me->role === 'pegawai_medis', 403);
+
+        $activePeriod = AssessmentPeriodGuard::resolveActive();
+        AssessmentPeriodGuard::requireActive($activePeriod, 'Input Kontribusi Tambahan');
+
         // daftar klaim aktif agar bisa memilih tugas terkait
         $claims = DB::table('additional_task_claims as c')
             ->join('additional_tasks as t','t.id','=','c.additional_task_id')
+            ->join('assessment_periods as ap','ap.id','=','t.assessment_period_id')
             ->selectRaw('c.id as claim_id, t.title')
             ->where('c.user_id', $me->id)
             ->whereIn('c.status',['active','submitted','validated','approved'])
+            ->where('ap.status', AssessmentPeriod::STATUS_ACTIVE)
             ->orderByDesc('c.id')
             ->get();
-        return view('pegawai_medis.additional_contributions.create', [ 'claims' => $claims ]);
+
+        return view('pegawai_medis.additional_contributions.create', [ 'claims' => $claims, 'activePeriod' => $activePeriod ]);
     }
 
     /** Store contribution with file upload */
@@ -156,6 +166,9 @@ class AdditionalContributionController extends Controller
         $me = Auth::user();
         abort_unless($me && $me->role === 'pegawai_medis', 403);
         $data = $request->validated();
+
+        $currentActive = AssessmentPeriodGuard::resolveActive();
+        AssessmentPeriodGuard::requireActive($currentActive, 'Input Kontribusi Tambahan');
 
         $claimId = null;
         $periodId = null;
@@ -170,6 +183,14 @@ class AdditionalContributionController extends Controller
                 $claimId = (int) $claim->id;
                 $periodId = $claim->assessment_period_id;
             }
+        }
+
+        // If tied to a claim, ensure its period is ACTIVE. Otherwise default to current active.
+        if ($periodId) {
+            $period = AssessmentPeriodGuard::resolveById((int) $periodId);
+            AssessmentPeriodGuard::requireActive($period, 'Input Kontribusi Tambahan');
+        } else {
+            $periodId = $currentActive?->id;
         }
 
         $storedPath = null; $mime = null; $orig = null; $size = null;

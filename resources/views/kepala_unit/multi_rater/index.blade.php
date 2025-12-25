@@ -27,7 +27,7 @@
                      'totalAssignments' => $totalAssignments,
                  'buttonClasses' => 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-sm text-white',
                 'savedTableKey' => 'kepala-unit',
-                'canSubmit' => $windowIsActive,
+                'canSubmit' => (bool) ($canSubmit ?? false),
             ])
         @endif
         @if(!$assessments->isEmpty())
@@ -56,7 +56,7 @@
         @endif
 
         @if(isset($savedScores))
-            @php($allowInlineEdit = ($windowEndsAt ?? null) && now()->lte($windowEndsAt))
+            @php($allowInlineEdit = ($windowEndsAt ?? null) && now()->lte($windowEndsAt) && (bool) ($canSubmit ?? false))
             <div class="mt-6 bg-white rounded-2xl shadow-sm border border-slate-100" data-saved-table-key="kepala-unit" data-edit-url="{{ route('kepala_unit.multi_rater.store') }}" data-period-id="{{ $periodId }}" data-csrf="{{ csrf_token() }}" data-allow-inline-edit="{{ $allowInlineEdit ? 'true' : 'false' }}" data-inline-variant="orange">
                 <x-ui.table min-width="840px">
                     <x-slot name="head">

@@ -6,52 +6,55 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
-        @unless($activePeriod ?? null)
+        @unless($latestLockedPeriod ?? null)
             <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
-                <div class="font-semibold">Tidak ada periode yang aktif saat ini.</div>
-                <div>Aktifkan periode penilaian agar unggahan metrics diproses.</div>
+                <div class="font-semibold">Tidak ada periode yang berstatus LOCKED saat ini.</div>
+                <div>Import metrics (rekap bulanan) hanya dapat dilakukan ketika periode sudah dikunci.</div>
             </div>
         @endunless
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
-            <div class="font-medium">Unduh Template Excel per Kriteria</div>
-            <form method="POST" action="{{ route('admin_rs.metrics.template') }}" class="space-y-4">
-                @csrf
-                <div class="grid md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
-                        <x-ui.select name="performance_criteria_id" :options="$criteriaOptions" placeholder="Pilih kriteria" required />
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-600 mb-1">Periode (opsional)</label>
-                        <x-ui.select name="period_id" :options="$periods" placeholder="Pakai Periode Aktif" />
-                    </div>
-                </div>
-                <p class="text-xs text-slate-500">Template berisi kolom: no_rm, patient_name, patient_phone, clinic, employee_numbers (dipisah koma).</p>
-                <x-ui.button type="submit" variant="success" class="h-11 px-5">Generate Excel</x-ui.button>
-            </form>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
-            <div class="font-medium">Upload Excel/CSV</div>
-            <form method="POST" action="{{ route('admin_rs.metrics.upload_csv') }}" enctype="multipart/form-data" class="space-y-4">
-                @csrf
-                <div class="grid md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
-                        <x-ui.select name="performance_criteria_id" :options="$criteriaOptions" placeholder="Pilih kriteria" required />
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
-                        <x-ui.select name="period_id" :options="$periods" placeholder="Pakai Periode Aktif" />
-                    </div>
-                    <div class="flex items-end">
-                        <div class="flex items-start gap-3">
-                            <input type="checkbox" id="replace_existing" name="replace_existing" value="1" class="mt-1">
-                            <label for="replace_existing" class="text-sm text-slate-700">Timpa nilai jika sudah ada pada periode yang dipilih (atau Periode Aktif jika tidak memilih periode).</label>
+        @if($latestLockedPeriod ?? null)
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+                <div class="font-medium">Unduh Template Excel per Kriteria</div>
+                <form method="POST" action="{{ route('admin_rs.metrics.template') }}" class="space-y-4">
+                    @csrf
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
+                            <x-ui.select name="performance_criteria_id" :options="$criteriaOptions" placeholder="Pilih kriteria" required />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">Periode (LOCKED)</label>
+                            <x-ui.select name="period_id" :options="$importPeriods" placeholder="Pilih periode LOCKED" required />
                         </div>
                     </div>
-                </div>
+                    <p class="text-xs text-slate-500">Template berisi kolom: no_rm, patient_name, patient_phone, clinic, employee_numbers (dipisah koma).</p>
+                    <x-ui.button type="submit" variant="success" class="h-11 px-5">Generate Excel</x-ui.button>
+                </form>
+            </div>
+        @endif
+
+        @if($latestLockedPeriod ?? null)
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+                <div class="font-medium">Upload Excel/CSV</div>
+                <form method="POST" action="{{ route('admin_rs.metrics.upload_csv') }}" enctype="multipart/form-data" class="space-y-4">
+                    @csrf
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
+                            <x-ui.select name="performance_criteria_id" :options="$criteriaOptions" placeholder="Pilih kriteria" required />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">Periode (LOCKED)</label>
+                            <x-ui.select name="period_id" :options="$importPeriods" placeholder="Pilih periode LOCKED" required />
+                        </div>
+                        <div class="flex items-end">
+                            <div class="flex items-start gap-3">
+                                <input type="checkbox" id="replace_existing" name="replace_existing" value="1" class="mt-1">
+                                <label for="replace_existing" class="text-sm text-slate-700">Timpa nilai jika sudah ada pada periode yang dipilih. Pastikan file lengkap.</label>
+                            </div>
+                        </div>
+                    </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-2">File Excel/CSV</label>
                     <label id="metrics-dropzone" class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 border-slate-200 transition duration-200">
@@ -127,16 +130,17 @@
                         });
                     </script>
                 </div>
-                <div class="flex justify-end">
-                    <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base">
-                        <i class="fa-solid fa-file-arrow-up mr-2"></i> Unggah & Import
-                    </x-ui.button>
+                    <div class="flex justify-end">
+                        <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base">
+                            <i class="fa-solid fa-file-arrow-up mr-2"></i> Unggah & Import
+                        </x-ui.button>
+                    </div>
+                </form>
+                <div class="text-xs text-slate-500 mt-1">
+                    Gunakan template agar header sesuai format import pasien. Import hanya untuk periode LOCKED.
                 </div>
-            </form>
-            <div class="text-xs text-slate-500 mt-1">
-                Gunakan template agar header sesuai format import pasien. Periode bisa dipilih (mis. periode yang sudah dikunci), atau otomatis memakai Periode Aktif.
             </div>
-        </div>
+        @endif
 
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <form method="GET">

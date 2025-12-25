@@ -28,12 +28,12 @@
                 'totalAssignments' => $totalAssignments,
                 'buttonClasses' => 'bg-gradient-to-r from-fuchsia-500 to-violet-600 hover:from-fuchsia-600 hover:to-violet-700 shadow-sm text-white',
                 'savedTableKey' => 'kepala-poliklinik',
-                'canSubmit' => $windowIsActive,
+                'canSubmit' => (bool) ($canSubmit ?? false),
             ])
         @endif
 
         @if(isset($savedScores))
-            @php($allowInlineEdit = ($windowEndsAt ?? null) && now()->lte($windowEndsAt))
+            @php($allowInlineEdit = ($windowEndsAt ?? null) && now()->lte($windowEndsAt) && (bool) ($canSubmit ?? false))
             <div class="mt-4 bg-white rounded-2xl shadow-sm border border-slate-100" data-saved-table-key="kepala-poliklinik" data-edit-url="{{ route('kepala_poliklinik.multi_rater.store') }}" data-period-id="{{ $periodId }}" data-csrf="{{ csrf_token() }}" data-allow-inline-edit="{{ $allowInlineEdit ? 'true' : 'false' }}" data-inline-variant="violet">
                 <x-ui.table min-width="840px">
                     <x-slot name="head">

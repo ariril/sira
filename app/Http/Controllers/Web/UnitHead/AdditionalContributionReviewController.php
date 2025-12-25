@@ -17,6 +17,8 @@ use App\Notifications\ContributionApprovedNotification;
 use App\Notifications\ContributionRejectedNotification;
 use App\Services\PeriodPerformanceAssessmentService;
 use App\Models\AdditionalTaskClaim;
+use App\Support\AssessmentPeriodGuard;
+use App\Models\AssessmentPeriod;
 
 class AdditionalContributionReviewController extends Controller
 {
@@ -56,6 +58,11 @@ class AdditionalContributionReviewController extends Controller
         $this->authorizeAccess();
         $me = Auth::user();
         if ($additionalContribution->user?->unit_id !== $me->unit_id) abort(403);
+
+        $period = $additionalContribution->assessment_period_id
+            ? AssessmentPeriodGuard::resolveById((int) $additionalContribution->assessment_period_id)
+            : AssessmentPeriodGuard::resolveActive();
+        AssessmentPeriodGuard::requireActive($period, 'Review Kontribusi Tambahan');
         $additionalContribution->update([
             'validation_status' => 'Disetujui',
             'reviewer_id'       => $me->id,
@@ -93,6 +100,11 @@ class AdditionalContributionReviewController extends Controller
         $this->authorizeAccess();
         $me = Auth::user();
         if ($additionalContribution->user?->unit_id !== $me->unit_id) abort(403);
+
+        $period = $additionalContribution->assessment_period_id
+            ? AssessmentPeriodGuard::resolveById((int) $additionalContribution->assessment_period_id)
+            : AssessmentPeriodGuard::resolveActive();
+        AssessmentPeriodGuard::requireActive($period, 'Review Kontribusi Tambahan');
         $data = $request->validated();
         $additionalContribution->update([
             'validation_status' => 'Ditolak',

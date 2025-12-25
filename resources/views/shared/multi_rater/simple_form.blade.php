@@ -49,7 +49,7 @@
 
         <template x-if="!canSubmit">
             <div class="mb-3 p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-sm">
-                Periode penilaian sudah ditutup sehingga Anda tidak dapat menambah data baru.
+                Penilaian 360 hanya dapat diisi ketika periode berstatus ACTIVE.
             </div>
         </template>
 
@@ -207,7 +207,7 @@
                 },
                 submitIfValid() {
                     if (!this.canSubmit) {
-                        alert('Periode penilaian sudah ditutup.');
+                        alert('Penilaian 360 hanya dapat diisi ketika periode berstatus ACTIVE.');
                         return;
                     }
                     if (!this.selectedTargetId) {

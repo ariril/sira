@@ -28,12 +28,12 @@
                 'totalAssignments' => $totalAssignments,
                 'buttonClasses' => 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 shadow-sm text-white',
                 'savedTableKey' => 'pegawai-medis',
-                'canSubmit' => $windowIsActive,
+                'canSubmit' => (bool) ($canSubmit ?? false),
             ])
         @endif
 
         @if(isset($savedScores))
-            @php($allowInlineEdit = ($windowEndsAt ?? null) && now()->lte($windowEndsAt))
+            @php($allowInlineEdit = ($windowEndsAt ?? null) && now()->lte($windowEndsAt) && (bool) ($canSubmit ?? false))
             <div class="mt-6 bg-white rounded-2xl shadow-sm border border-slate-100" data-saved-table-key="pegawai-medis" data-edit-url="{{ route('pegawai_medis.multi_rater.store') }}" data-period-id="{{ $periodId }}" data-csrf="{{ csrf_token() }}" data-allow-inline-edit="{{ $allowInlineEdit ? 'true' : 'false' }}" data-inline-variant="sky">
                 <x-ui.table min-width="840px">
                     <x-slot name="head">

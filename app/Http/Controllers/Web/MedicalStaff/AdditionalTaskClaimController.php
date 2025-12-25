@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use App\Services\AdditionalTaskStatusService;
 use Illuminate\Support\Carbon;
+use App\Support\AssessmentPeriodGuard;
 
 class AdditionalTaskClaimController extends Controller
 {
@@ -27,6 +28,9 @@ class AdditionalTaskClaimController extends Controller
     {
         $me = Auth::user();
         abort_unless((bool)$me, 403);
+
+        $task->loadMissing('period');
+        AssessmentPeriodGuard::requireActive($task->period, 'Klaim Tugas Tambahan');
 
         // Pembuat tugas (kepala unit) tidak boleh klaim tugasnya sendiri,
         // termasuk ketika user tersebut switch role menjadi pegawai medis.
@@ -94,6 +98,10 @@ class AdditionalTaskClaimController extends Controller
     {
         $me = Auth::user();
         abort_unless($me && $claim->user_id === $me->id, 403);
+
+        $claim->loadMissing('task.period');
+        AssessmentPeriodGuard::requireActive($claim->task?->period, 'Batalkan Klaim Tugas Tambahan');
+
         $claim->cancel('Dibatalkan oleh pegawai');
 
         // Jika slot kembali tersedia (kuota belum penuh) kirim notifikasi ke pegawai medis lain di unit
@@ -127,6 +135,10 @@ class AdditionalTaskClaimController extends Controller
     {
         $me = Auth::user();
         abort_unless($me && $claim->user_id === $me->id, 403);
+
+        $claim->loadMissing('task.period');
+        AssessmentPeriodGuard::requireActive($claim->task?->period, 'Selesaikan Klaim Tugas Tambahan');
+
         if ($claim->status !== 'active') return back();
         $claim->update([
             'status'       => 'completed',
@@ -143,6 +155,10 @@ class AdditionalTaskClaimController extends Controller
     {
         $me = Auth::user();
         abort_unless($me && $claim->user_id === $me->id, 403);
+
+        $claim->loadMissing('task.period');
+        AssessmentPeriodGuard::requireActive($claim->task?->period, 'Submit Hasil Tugas Tambahan');
+
         if ($claim->status !== 'active') {
             return back()->with('status', 'Tidak dapat submit pada status saat ini.');
         }

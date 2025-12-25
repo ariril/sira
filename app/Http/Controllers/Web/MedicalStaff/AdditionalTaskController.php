@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
+use App\Support\AssessmentPeriodGuard;
 
 class AdditionalTaskController extends Controller
 {
@@ -22,6 +23,8 @@ class AdditionalTaskController extends Controller
     {
         $me = Auth::user();
         abort_unless($me && $me->role === 'pegawai_medis', 403);
+
+        $activePeriod = AssessmentPeriodGuard::resolveActive();
 
         $tasks = collect();
         if (
@@ -42,6 +45,7 @@ class AdditionalTaskController extends Controller
                     },
                 ])
                 ->where('unit_id', $me->unit_id)
+                ->whereHas('period', fn($q) => $q->where('status', 'active'))
                 ->where('status', 'open')
                 ->where(function ($q) use ($me) {
                     $q->whereNull('created_by')->orWhere('created_by', '!=', $me->id);
@@ -83,6 +87,6 @@ class AdditionalTaskController extends Controller
                 ->values();
         }
 
-        return view('pegawai_medis.additional_tasks.index', [ 'tasks' => $tasks ]);
+            return view('pegawai_medis.additional_tasks.index', [ 'tasks' => $tasks, 'activePeriod' => $activePeriod ]);
     }
 }

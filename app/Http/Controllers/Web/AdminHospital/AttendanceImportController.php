@@ -23,14 +23,17 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use App\Models\AssessmentPeriod;
 use App\Services\PeriodPerformanceAssessmentService;
+use App\Support\AssessmentPeriodGuard;
 
 class AttendanceImportController extends Controller
 {
     // Upload form
     public function create(Request $request): View
     {
-        $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
-        return view('admin_rs.attendances.import.create', compact('activePeriod'));
+        $latestLockedPeriod = AssessmentPeriodGuard::resolveLatestLocked();
+        $activePeriod = AssessmentPeriodGuard::resolveActive();
+
+        return view('admin_rs.attendances.import.create', compact('latestLockedPeriod', 'activePeriod'));
     }
 
     // Preview 5 first rows (for client-side warning before import)
@@ -56,6 +59,24 @@ class AttendanceImportController extends Controller
                 return response()->json([
                     'ok' => false,
                     'message' => 'Header tidak sesuai. Pastikan terdapat kolom NIP dan Tanggal.',
+                ], 422);
+            }
+
+            // Tentukan periode dari isi file, dan pastikan periode tersebut sudah LOCKED.
+            [$periodId, $periodText, $prevActive] = $this->determinePeriodAndPrevious($map, $rows);
+            if ($periodId === null) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Rentang tanggal pada file mencakup lebih dari satu bulan. Pisahkan per bulan.',
+                ], 422);
+            }
+
+            $period = AssessmentPeriodGuard::resolveById((int) $periodId);
+            if (!$period || $period->status !== AssessmentPeriod::STATUS_LOCKED) {
+                $status = $period ? strtoupper((string) $period->status) : '-';
+                return response()->json([
+                    'ok' => false,
+                    'message' => "Import absensi hanya dapat dilakukan untuk periode LOCKED. Periode file: {$periodText} (status: {$status}).",
                 ], 422);
             }
 
@@ -226,6 +247,13 @@ class AttendanceImportController extends Controller
                 throw new \RuntimeException('Rentang tanggal pada file mencakup lebih dari satu bulan. Pisahkan per bulan.');
             }
             $importPeriodId = (int) $periodId;
+
+            $period = AssessmentPeriodGuard::resolveById((int) $periodId);
+            if (!$period || $period->status !== AssessmentPeriod::STATUS_LOCKED) {
+                $status = $period ? strtoupper((string) $period->status) : '-';
+                throw new \RuntimeException("Import absensi hanya dapat dilakukan untuk periode LOCKED. Periode file: {$periodText} (status: {$status}).");
+            }
+
             if ($prevActive && !($validated['replace_existing'] ?? false)) {
                 $info = sprintf('Periode %s sudah memiliki import sebelumnya (total=%d, berhasil=%d, gagal=%d). Centang kotak "Timpa import periode ini" untuk menimpa.',
                     $periodText, $prevActive->total_rows, $prevActive->success_rows, $prevActive->failed_rows);

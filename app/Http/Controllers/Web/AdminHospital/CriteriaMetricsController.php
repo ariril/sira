@@ -15,6 +15,7 @@ use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use App\Support\AssessmentPeriodGuard;
 
 class CriteriaMetricsController extends Controller
 {
@@ -30,7 +31,8 @@ class CriteriaMetricsController extends Controller
             $perPage = 10;
         }
 
-        $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
+        $activePeriod = AssessmentPeriodGuard::resolveActive();
+        $latestLockedPeriod = AssessmentPeriodGuard::resolveLatestLocked();
 
         $items = CriteriaMetric::query()
             ->when($periodId, fn($w) => $w->where('assessment_period_id', $periodId))
@@ -51,6 +53,10 @@ class CriteriaMetricsController extends Controller
             ->withQueryString();
 
         $periods = AssessmentPeriod::orderByDesc('start_date')->pluck('name','id');
+        $importPeriods = AssessmentPeriod::query()
+            ->where('status', AssessmentPeriod::STATUS_LOCKED)
+            ->orderByDesc('start_date')
+            ->pluck('name', 'id');
         // Manual Metrics hanya untuk kriteria input_method=import selain Absensi (karena Absensi punya modul sendiri)
         $criterias = PerformanceCriteria::query()
             ->where('is_active', true)
@@ -62,6 +68,7 @@ class CriteriaMetricsController extends Controller
         return view('admin_rs.metrics.index', compact(
             'items',
             'periods',
+            'importPeriods',
             'criterias',
             'criteriaOptions',
             'periodId',
@@ -69,7 +76,8 @@ class CriteriaMetricsController extends Controller
             'q',
             'perPage',
             'perPageOptions',
-            'activePeriod'
+            'activePeriod',
+            'latestLockedPeriod'
         ));
     }
 
@@ -88,7 +96,7 @@ class CriteriaMetricsController extends Controller
         $validated = $request->validate([
             'file' => 'required|file|mimes:csv,txt,xls,xlsx|max:5120',
             'performance_criteria_id' => 'required|exists:performance_criterias,id',
-            'period_id' => 'nullable|exists:assessment_periods,id',
+            'period_id' => 'required|exists:assessment_periods,id',
             'replace_existing' => 'nullable|boolean',
         ]);
 
@@ -102,17 +110,8 @@ class CriteriaMetricsController extends Controller
             return back()->withErrors(['performance_criteria_id' => 'Format file import ini hanya untuk kriteria "Jumlah Pasien Ditangani".']);
         }
 
-        // Target period: allow explicit period_id (including locked periods). Fallback to active.
-        $targetPeriod = null;
-        if (!empty($validated['period_id'])) {
-            $targetPeriod = AssessmentPeriod::query()->find((int) $validated['period_id']);
-        }
-        if (!$targetPeriod) {
-            $targetPeriod = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
-        }
-        if (!$targetPeriod) {
-            return back()->withErrors(['file' => 'Pilih Periode. Tidak ada Periode Aktif saat ini.']);
-        }
+        $targetPeriod = AssessmentPeriod::query()->findOrFail((int) $validated['period_id']);
+        AssessmentPeriodGuard::requireLocked($targetPeriod, 'Import Metrics');
 
         try {
             $svc = app(MetricPatientImportService::class);
@@ -146,7 +145,7 @@ class CriteriaMetricsController extends Controller
     {
         $data = $request->validate([
             'performance_criteria_id' => 'required|exists:performance_criterias,id',
-            'period_id' => 'nullable|exists:assessment_periods,id',
+            'period_id' => 'required|exists:assessment_periods,id',
         ]);
 
         $criteria = PerformanceCriteria::findOrFail($data['performance_criteria_id']);
@@ -154,13 +153,8 @@ class CriteriaMetricsController extends Controller
         if (($criteria->input_method ?? null) !== 'import') {
             return back()->withErrors(['performance_criteria_id' => 'Template hanya tersedia untuk kriteria input_method=import.']);
         }
-        $period = isset($data['period_id'])
-            ? AssessmentPeriod::find($data['period_id'])
-            : AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
-
-        if (!$period) {
-            return back()->withErrors(['performance_criteria_id' => 'Periode aktif tidak ditemukan. Aktifkan periode terlebih dahulu.']);
-        }
+        $period = AssessmentPeriod::findOrFail((int) $data['period_id']);
+        AssessmentPeriodGuard::requireLocked($period, 'Generate Template Metrics');
 
         if (($criteria->name ?? null) !== 'Jumlah Pasien Ditangani') {
             return back()->withErrors(['performance_criteria_id' => 'Template ini hanya tersedia untuk kriteria "Jumlah Pasien Ditangani".']);

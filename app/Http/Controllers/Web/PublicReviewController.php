@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
+use App\Support\AssessmentPeriodGuard;
 
 class PublicReviewController extends Controller
 {
@@ -76,6 +77,9 @@ class PublicReviewController extends Controller
 
     public function store(Request $request, string $token): RedirectResponse
     {
+        $activePeriod = AssessmentPeriodGuard::resolveActive();
+        AssessmentPeriodGuard::requireActive($activePeriod, 'Pengisian Ulasan');
+
         $result = DB::transaction(function () use ($request, $token) {
             /** @var ReviewInvitation|null $invitation */
             $invitation = ReviewInvitation::query()

@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Artisan;
 use App\Models\MultiRaterAssessment;
 use App\Models\AssessmentPeriod;
 use App\Models\Assessment360Window;
+use App\Support\AssessmentPeriodGuard;
 
 class MultiRaterController extends Controller
 {
@@ -66,6 +67,7 @@ class MultiRaterController extends Controller
             'end_date' => ['required','date','after_or_equal:start_date'],
         ]);
         $period = AssessmentPeriod::findOrFail($data['assessment_period_id']);
+        AssessmentPeriodGuard::requireActive($period, 'Buka Jadwal Penilaian 360');
         $pStart = $period->getRawOriginal('start_date');
         $pEnd   = $period->getRawOriginal('end_date');
         $today  = now()->toDateString();
@@ -119,6 +121,8 @@ class MultiRaterController extends Controller
     {
         $request->validate(['assessment_period_id' => 'required|integer|exists:assessment_periods,id']);
         $periodId = (int)$request->assessment_period_id;
+        $period = AssessmentPeriod::query()->find($periodId);
+        AssessmentPeriodGuard::requireActive($period, 'Generate Undangan 360');
         $window = Assessment360Window::where('assessment_period_id', $periodId)->where('is_active', true)->first();
         if (!$window) return back()->with('error','Buka jadwal 360 terlebih dahulu.');
 

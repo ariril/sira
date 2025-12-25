@@ -14,18 +14,23 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
-        @unless($activePeriod ?? null)
+        @unless($latestLockedPeriod ?? null)
             <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
-                <div class="font-semibold">Tidak ada periode yang aktif saat ini.</div>
-                <div>Aktifkan periode penilaian agar unggahan absensi terasosiasi.</div>
+                <div class="font-semibold">Tidak ada periode yang berstatus LOCKED saat ini.</div>
+                <div>Import absensi (rekap bulanan) hanya dapat dilakukan ketika periode sudah dikunci.</div>
             </div>
         @endunless
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <form method="POST" action="{{ route('admin_rs.attendances.import.store') }}" enctype="multipart/form-data" class="space-y-6">
-                @csrf
-                <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-2">File Excel/CSV</label>
+        @if($latestLockedPeriod ?? null)
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 px-4 py-3 text-sm">
+                    Import hanya untuk periode <span class="font-semibold">LOCKED</span>. Pastikan file yang diunggah hanya berisi 1 bulan dan bulan tersebut sudah dikunci.
+                </div>
+
+                <form method="POST" action="{{ route('admin_rs.attendances.import.store') }}" enctype="multipart/form-data" class="space-y-6">
+                    @csrf
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-2">File Excel/CSV</label>
                     <label id="dropzone" class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 border-slate-200 transition duration-200">
                         <div id="drop-label" class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-600 transition duration-200">
                             <i id="drop-icon" class="fa-solid fa-file-excel text-3xl mb-2 text-emerald-500 transition duration-200"></i>
@@ -204,17 +209,18 @@
                         });
                     </script>
                 </div>
-                <div class="flex items-start gap-3">
-                    <input type="checkbox" id="replace_existing" name="replace_existing" value="1" class="mt-1">
-                    <label for="replace_existing" class="text-sm text-slate-700">Timpa import pada periode yang sama bila sudah ada. Pastikan file ini lengkap untuk seluruh pegawai.</label>
-                </div>
-                <div class="flex justify-end">
-                    <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base">
-                        <i class="fa-solid fa-file-arrow-up mr-2"></i> Unggah & Import
-                    </x-ui.button>
-                </div>
-            </form>
-        </div>
+                    <div class="flex items-start gap-3">
+                        <input type="checkbox" id="replace_existing" name="replace_existing" value="1" class="mt-1">
+                        <label for="replace_existing" class="text-sm text-slate-700">Timpa import pada periode yang sama bila sudah ada. Pastikan file ini lengkap untuk seluruh pegawai.</label>
+                    </div>
+                    <div class="flex justify-end">
+                        <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base">
+                            <i class="fa-solid fa-file-arrow-up mr-2"></i> Unggah & Import
+                        </x-ui.button>
+                    </div>
+                </form>
+            </div>
+        @endif
 
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <h2 class="text-base font-semibold text-slate-800 mb-3">Format Kolom</h2>

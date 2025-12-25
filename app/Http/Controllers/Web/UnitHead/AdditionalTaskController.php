@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use App\Models\AssessmentPeriod;
+use App\Support\AssessmentPeriodGuard;
 
 class AdditionalTaskController extends Controller
 {
@@ -119,6 +120,8 @@ class AdditionalTaskController extends Controller
                 'title' => 'Tidak ada periode yang aktif saat ini. Hubungi Admin RS untuk mengaktifkan periode penilaian terlebih dahulu.',
             ])->withInput();
         }
+
+        AssessmentPeriodGuard::requireActive($activePeriod, 'Buat Tugas Tambahan');
 
         $data = $request->validate([
             'title'       => ['required','string','max:200'],
@@ -245,6 +248,9 @@ class AdditionalTaskController extends Controller
         if (!$task) abort(404);
         if ((int) $task->unit_id !== (int) $me->unit_id) abort(403);
 
+        $task->loadMissing('period');
+        AssessmentPeriodGuard::requireActive($task->period, 'Ubah Tugas Tambahan');
+
         $data = $request->validate([
             'assessment_period_id' => ['required','integer','exists:assessment_periods,id'],
             'title'       => ['required','string','max:200'],
@@ -258,6 +264,9 @@ class AdditionalTaskController extends Controller
             'max_claims'  => ['nullable','integer','min:1','max:100'],
             'supporting_file' => ['nullable','file','max:10240','mimes:doc,docx,xls,xlsx,ppt,pptx,pdf'],
         ]);
+
+        $targetPeriod = AssessmentPeriod::query()->find((int) $data['assessment_period_id']);
+        AssessmentPeriodGuard::requireActive($targetPeriod, 'Ubah Tugas Tambahan');
 
         $hasBonus = $request->filled('bonus_amount');
         $hasPoints = $request->filled('points');
@@ -321,6 +330,9 @@ class AdditionalTaskController extends Controller
         if (!$task) abort(404);
         if ((int) $task->unit_id !== (int) $me->unit_id) abort(403);
 
+        $task->loadMissing('period');
+        AssessmentPeriodGuard::requireActive($task->period, 'Hapus Tugas Tambahan');
+
         if ($task->policy_doc_path) {
             Storage::disk('public')->delete($task->policy_doc_path);
         }
@@ -352,6 +364,9 @@ class AdditionalTaskController extends Controller
         $task = AdditionalTask::find($id);
         if (!$task) abort(404);
         if ((int) $task->unit_id !== (int) $me->unit_id) abort(403);
+
+        $task->loadMissing('period');
+        AssessmentPeriodGuard::requireActive($task->period, 'Ubah Status Tugas Tambahan');
 
         $current = $task->status;
         $tz = config('app.timezone');

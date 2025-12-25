@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Carbon;
+use App\Models\AssessmentPeriod;
 use App\Models\MultiRaterAssessment;
 use App\Models\MultiRaterAssessmentDetail;
 use App\Models\PerformanceCriteria;
@@ -14,6 +15,7 @@ use App\Models\User;
 use App\Services\MultiRater\CriteriaResolver;
 use App\Services\MultiRater\SimpleFormData;
 use App\Services\MultiRater\SummaryService;
+use App\Support\AssessmentPeriodGuard;
 
 class MultiRaterSubmissionController extends Controller
 {
@@ -40,14 +42,16 @@ class MultiRaterSubmissionController extends Controller
         $unitId = Auth::user()?->unit_id;
         $windowEndsAt = null;
         $windowIsActive = false;
+        $canSubmit = false;
         if ($window) {
-            $activePeriod = \App\Models\AssessmentPeriod::find($window->assessment_period_id);
+            $activePeriod = AssessmentPeriod::query()->find($window->assessment_period_id);
             $periodId = $window->assessment_period_id;
             $windowStartsAt = optional($window->start_date)?->copy()->startOfDay();
             $windowEndsAt = optional($window->end_date)?->copy()->endOfDay();
             if ($windowStartsAt && $windowEndsAt) {
                 $windowIsActive = now()->between($windowStartsAt, $windowEndsAt, true);
             }
+            $canSubmit = $windowIsActive && ($activePeriod?->status === AssessmentPeriod::STATUS_ACTIVE);
             $assessments = MultiRaterAssessment::with(['assessee.unit','period'])
                 ->where('assessor_id', Auth::id())
                 ->where('assessment_period_id', $window->assessment_period_id)
@@ -134,26 +138,34 @@ class MultiRaterSubmissionController extends Controller
             'totalAssignments',
             'summary',
             'windowEndsAt',
-            'windowIsActive'
+            'windowIsActive',
+            'canSubmit'
         ));
     }
 
     public function show(MultiRaterAssessment $assessment)
     {
         abort_unless($assessment->assessor_id === Auth::id(), 403);
+        $period = AssessmentPeriod::query()->find((int) $assessment->assessment_period_id);
         $window = Assessment360Window::where('assessment_period_id', $assessment->assessment_period_id)
             ->where('is_active', true)
             ->whereDate('end_date', '>=', now()->toDateString())
             ->first();
         if (!$window) return redirect()->route('pegawai_medis.multi_rater.index')->with('error','Penilaian 360 belum dibuka.');
+        $windowStartsAt = optional($window->start_date)?->copy()->startOfDay();
+        $windowEndsAt = optional($window->end_date)?->copy()->endOfDay();
+        $windowIsActive = $windowStartsAt && $windowEndsAt ? now()->between($windowStartsAt, $windowEndsAt, true) : false;
+        $canSubmit = $windowIsActive && ($period?->status === AssessmentPeriod::STATUS_ACTIVE);
         $criterias = PerformanceCriteria::where('input_method', '360')->where('is_active', true)->get();
         $details = $assessment->details()->get()->keyBy('performance_criteria_id');
-        return view('pegawai_medis.multi_rater.show', compact('assessment','criterias','details','window'));
+        return view('pegawai_medis.multi_rater.show', compact('assessment','criterias','details','window','canSubmit'));
     }
 
     public function submit(Request $request, MultiRaterAssessment $assessment)
     {
         abort_unless($assessment->assessor_id === Auth::id(), 403);
+        $period = AssessmentPeriod::query()->find((int) $assessment->assessment_period_id);
+        AssessmentPeriodGuard::requireActive($period, 'Penilaian 360');
         $payload = $request->validate([
             'scores' => 'required|array',
             'scores.*' => 'nullable|numeric|min:0|max:100',

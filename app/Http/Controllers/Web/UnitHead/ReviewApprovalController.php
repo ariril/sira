@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use App\Support\AssessmentPeriodGuard;
 
 class ReviewApprovalController extends Controller
 {
@@ -75,6 +76,8 @@ class ReviewApprovalController extends Controller
 
     public function approve(Request $request, Review $review, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
+        AssessmentPeriodGuard::requireActive(AssessmentPeriodGuard::resolveActive(), 'Approval Ulasan');
+
         $this->ensureReviewBelongsToUnit($review);
         if ($review->status === ReviewStatus::APPROVED) {
             return back()->with('status', 'Ulasan sudah disetujui.');
@@ -100,6 +103,8 @@ class ReviewApprovalController extends Controller
 
     public function reject(Request $request, Review $review, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
+        AssessmentPeriodGuard::requireActive(AssessmentPeriodGuard::resolveActive(), 'Approval Ulasan');
+
         $this->ensureReviewBelongsToUnit($review);
         if ($review->status === ReviewStatus::REJECTED) {
             return back()->withErrors(['review' => 'Ulasan sudah berada pada status ditolak.']);
@@ -127,6 +132,8 @@ class ReviewApprovalController extends Controller
 
     public function approveAll(Request $request, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
+        AssessmentPeriodGuard::requireActive(AssessmentPeriodGuard::resolveActive(), 'Approval Ulasan');
+
         $unitId = Auth::user()?->unit_id;
         abort_unless($unitId, 403, 'Unit belum dikonfigurasi untuk akun ini.');
 

@@ -23,6 +23,11 @@ class MetricPatientImportService
         bool $replaceExisting = false,
         int $expiresDays = 7,
     ): array {
+        if (($period->status ?? null) !== AssessmentPeriod::STATUS_LOCKED) {
+            $status = strtoupper((string) ($period->status ?? '-'));
+            throw new \RuntimeException("Import metrics hanya dapat dilakukan ketika periode LOCKED. Status periode saat ini: {$status}.");
+        }
+
         if (($criteria->input_method ?? null) !== 'import') {
             throw new \RuntimeException('Import hanya boleh untuk kriteria dengan input_method=import.');
         }

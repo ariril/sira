@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Notification as Notify;
 use App\Notifications\ClaimApprovedNotification;
 use App\Notifications\ClaimRejectedNotification;
+use App\Support\AssessmentPeriodGuard;
 
 class AdditionalTaskClaimReviewController extends Controller
 {
@@ -42,6 +43,10 @@ class AdditionalTaskClaimReviewController extends Controller
         $this->authorizeAccess();
         $me = Auth::user();
         if ($claim->task?->unit_id !== $me->unit_id) abort(403);
+
+        $claim->loadMissing('task.period');
+        AssessmentPeriodGuard::requireActive($claim->task?->period, 'Review Klaim Tugas Tambahan');
+
         $action = $request->validated()['action'];
         $comment = $request->validated()['comment'] ?? null;
 
