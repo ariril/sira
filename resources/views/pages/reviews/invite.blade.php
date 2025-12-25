@@ -44,15 +44,15 @@
                 <div class="row g-3 mb-3">
                     <div class="col-md-4">
                         <label class="form-label">No. Rawat Medis</label>
-                        <input type="text" class="form-control" value="{{ $review->registration_ref ?? '-' }}" readonly>
+                        <input type="text" class="form-control" value="{{ $invitation->no_rm ?? '-' }}" readonly>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Poliklinik/Unit</label>
-                        <input type="text" class="form-control" value="{{ $review->unit->name ?? '-' }}" readonly>
+                        <input type="text" class="form-control" value="-" readonly>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Nama Pasien</label>
-                        <input type="text" class="form-control" value="{{ $review->patient_name ?? '-' }}" readonly>
+                        <input type="text" class="form-control" value="{{ $invitation->patient_name ?? '-' }}" readonly>
                     </div>
                 </div>
 

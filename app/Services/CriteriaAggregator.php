@@ -25,29 +25,16 @@ class CriteriaAggregator
 
             foreach ($criterias as $criteria) {
                 $score = null;
-                $metric = CriteriaMetric::where('user_id', $userId)
-                    ->where('assessment_period_id', $periodId)
-                    ->where('performance_criteria_id', $criteria->id)
-                    ->first();
+                $metric = null;
 
                 if ($criteria->input_method === '360') {
                     $score = $this->aggregate360($criteria->id, $userId, $periodId);
-                    // Persist metric for trace if not present
-                    if (!$metric && $score !== null) {
-                        $metric = CriteriaMetric::create([
-                            'user_id' => $userId,
-                            'assessment_period_id' => $periodId,
-                            'performance_criteria_id' => $criteria->id,
-                            'value_numeric' => $score,
-                            'source_type' => 'system',
-                            'source_table' => 'multi_rater_assessment_details',
-                            'source_id' => null,
-                        ]);
-                    } elseif ($metric && $score !== null) {
-                        $metric->update(['value_numeric' => $score, 'source_table' => 'multi_rater_assessment_details']);
-                    }
                 } else {
                     // For non-360, assume metric is precomputed/imported; normalize as-is (0-100 expected)
+                    $metric = CriteriaMetric::where('user_id', $userId)
+                        ->where('assessment_period_id', $periodId)
+                        ->where('performance_criteria_id', $criteria->id)
+                        ->first();
                     $score = $metric?->value_numeric;
                 }
 

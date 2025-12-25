@@ -6,11 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\CriteriaMetric;
 use App\Models\PerformanceCriteria;
 use App\Models\AssessmentPeriod;
-use App\Models\User;
+use App\Services\MetricPatientImportService;
 use App\Services\PeriodPerformanceAssessmentService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -56,7 +55,7 @@ class CriteriaMetricsController extends Controller
         $criterias = PerformanceCriteria::query()
             ->where('is_active', true)
             ->where('input_method', 'import')
-            ->where('name', '!=', 'Absensi')
+            ->where('name', 'Jumlah Pasien Ditangani')
             ->orderBy('name')
             ->get(['id','name','data_type']);
         $criteriaOptions = $criterias->pluck('name','id');
@@ -95,8 +94,12 @@ class CriteriaMetricsController extends Controller
 
         $criteria = PerformanceCriteria::findOrFail($validated['performance_criteria_id']);
 
-        if (($criteria->input_method ?? null) !== 'import' || ($criteria->name ?? null) === 'Absensi') {
-            return back()->withErrors(['performance_criteria_id' => 'Kriteria yang dapat diunggah di sini hanya kriteria Metrics (input method: import) selain Absensi.']);
+        if (($criteria->input_method ?? null) !== 'import') {
+            return back()->withErrors(['performance_criteria_id' => 'Import hanya boleh untuk kriteria dengan input_method=import.']);
+        }
+
+        if (($criteria->name ?? null) !== 'Jumlah Pasien Ditangani') {
+            return back()->withErrors(['performance_criteria_id' => 'Format file import ini hanya untuk kriteria "Jumlah Pasien Ditangani".']);
         }
 
         // Target period: allow explicit period_id (including locked periods). Fallback to active.
@@ -111,178 +114,27 @@ class CriteriaMetricsController extends Controller
             return back()->withErrors(['file' => 'Pilih Periode. Tidak ada Periode Aktif saat ini.']);
         }
 
-        $path = $request->file('file')->store('metric_uploads');
-
-        // Helper pembaca tabular (CSV/XLS/XLSX)
-        $readTabular = function (string $absPath, string $ext): array {
-            $ext = strtolower($ext);
-            if (in_array($ext, ['csv','txt'])) {
-                $fh = fopen($absPath, 'r');
-                if ($fh === false) throw new \RuntimeException('Gagal membuka file');
-                $header = fgetcsv($fh);
-                $rows = [];
-                while (($r = fgetcsv($fh)) !== false) { $rows[] = $r; }
-                fclose($fh);
-                return [$header, $rows, 'csv'];
-            }
-            // Excel via PhpSpreadsheet
-            try {
-                $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($absPath);
-                $reader->setReadDataOnly(true);
-                $spreadsheet = $reader->load($absPath);
-                $sheet = $spreadsheet->getSheet(0);
-                $rows = $sheet->toArray(null, true, true, false);
-                $header = array_shift($rows);
-                return [$header, $rows, 'excel'];
-            } catch (\Throwable $e) {
-                throw new \RuntimeException('Gagal membaca Excel: '.$e->getMessage());
-            }
-        };
-
-        // Normalisasi header ke indeks kolom
-        $mapHeader = function (array $header): array {
-            $norm = array_map(function($h){
-                $h = strtolower((string)$h);
-                return trim(preg_replace('/\s+/', ' ', $h));
-            }, $header);
-            $find = function(array $aliases) use ($norm) {
-                foreach ($aliases as $a) {
-                    $i = array_search($a, $norm, true);
-                    if ($i !== false) return $i;
-                }
-                return false;
-            };
-            return [
-                'employee_number'        => $find(['employee_number','nip','pin','nip/pin']),
-                'criteria_id'            => $find(['performance_criteria_id','id_kriteria','kriteria_id']),
-                'criteria_name'          => $find(['kriteria','nama_kriteria']),
-                // nilai sesuai tipe data
-                'value_numeric'          => $find(['value_numeric','nilai','nilai_angka','value']),
-                'value_datetime'         => $find(['value_datetime','nilai_tanggal','tanggal_nilai','tanggal']),
-                'value_text'             => $find(['value_text','nilai_teks','keterangan']),
-            ];
-        };
-
-        $dataType = (string)($criteria->data_type ?? 'numeric');
-
         try {
-            [$header, $rows, $src] = $readTabular(Storage::path($path), $request->file('file')->getClientOriginalExtension());
-            if (!$header) return back()->withErrors(['file' => 'File kosong atau header tidak ditemukan.']);
-            $map = $mapHeader($header);
+            $svc = app(MetricPatientImportService::class);
+            $result = $svc->import(
+                file: $request->file('file'),
+                criteria: $criteria,
+                period: $targetPeriod,
+                importedBy: $request->user()?->id,
+                replaceExisting: (bool) ($validated['replace_existing'] ?? false),
+            );
         } catch (\Throwable $e) {
             return back()->withErrors(['file' => 'Import gagal: '.$e->getMessage()]);
         }
 
-        // Pastikan file yang diunggah memang untuk kriteria yang dipilih
-        $uploadedCriteriaId = null;
-        $uploadedCriteriaName = null;
-        if ($map['criteria_id'] !== false || $map['criteria_name'] !== false) {
-            foreach ($rows as $row) {
-                if ($uploadedCriteriaId === null && $map['criteria_id'] !== false) {
-                    $cid = trim((string)($row[$map['criteria_id']] ?? ''));
-                    if ($cid !== '') {
-                        $uploadedCriteriaId = $cid;
-                    }
-                }
-                if ($uploadedCriteriaName === null && $map['criteria_name'] !== false) {
-                    $cname = trim((string)($row[$map['criteria_name']] ?? ''));
-                    if ($cname !== '') {
-                        $uploadedCriteriaName = $cname;
-                    }
-                }
-                if ($uploadedCriteriaId !== null && $uploadedCriteriaName !== null) {
-                    break;
-                }
-            }
-        }
-
-        $mismatchMessage = null;
-        if ($uploadedCriteriaId !== null && (string)$uploadedCriteriaId !== (string)$criteria->id) {
-            $mismatchMessage = "File ini untuk kriteria ID {$uploadedCriteriaId}, sedangkan Anda memilih {$criteria->name}.";
-        }
-        if ($mismatchMessage === null && $uploadedCriteriaName !== null && strcasecmp($uploadedCriteriaName, $criteria->name) !== 0) {
-            $mismatchMessage = "File ini untuk kriteria \"{$uploadedCriteriaName}\", sedangkan Anda memilih \"{$criteria->name}\".";
-        }
-        if ($mismatchMessage !== null) {
-            return back()->withErrors(['file' => $mismatchMessage.' Pilih kriteria yang sesuai atau unduh template baru.']);
-        }
-
-        $requiredKey = match ($dataType) {
-            'datetime' => 'value_datetime',
-            'text'     => 'value_text',
-            default    => 'value_numeric',
-        };
-
-        if ($map[$requiredKey] === false) {
-            return back()->withErrors(['file' => 'Header tidak sesuai template untuk kriteria ini. Unduh ulang template dan coba lagi.']);
-        }
-
-        $created = 0; $updated = 0; $skipped = 0;
-        $overwrite = (bool)($validated['replace_existing'] ?? false);
-
-        foreach ($rows as $row) {
-            // Ambil NIP -> user
-            $emp = $map['employee_number'] !== false ? trim((string)($row[$map['employee_number']] ?? '')) : '';
-            if ($emp === '') { $skipped++; continue; }
-            $user = User::where('employee_number', $emp)->first();
-            if (!$user) { $skipped++; continue; }
-
-            // Tentukan kolom nilai berdasarkan data_type
-            $valueNum = null; $valueDt = null; $valueTxt = null;
-            $getVal = function($key) use ($map, $row) {
-                if ($map[$key] === false) return null;
-                return $row[$map[$key]] ?? null;
-            };
-
-            if (in_array($dataType, ['numeric','percentage','boolean'])) {
-                $raw = (string)$getVal('value_numeric');
-                if ($dataType === 'percentage') { $raw = str_replace('%','',$raw); }
-                if ($dataType === 'boolean') {
-                    $v = strtolower(trim($raw));
-                    $raw = ($v === '1' || $v === 'true' || $v === 'ya' || $v === 'y' || $v === 'yes') ? '1' : (($v === '0' || $v === 'false' || $v === 'tidak' || $v === 'no') ? '0' : $raw);
-                }
-                $raw = str_replace([','], ['.'], $raw);
-                $valueNum = is_numeric($raw) ? (float)$raw : null;
-            } elseif ($dataType === 'datetime') {
-                $raw = (string)$getVal('value_datetime');
-                $valueDt = $raw ? (date('Y-m-d H:i:s', strtotime($raw)) ?: null) : null;
-            } else { // text
-                $valueTxt = (string)$getVal('value_text');
-            }
-
-            // Apakah sudah ada?
-            $existing = CriteriaMetric::where('user_id',$user->id)
-                ->where('assessment_period_id', $targetPeriod->id)
-                ->where('performance_criteria_id', $criteria->id)
-                ->first();
-
-            if ($existing) {
-                if (!$overwrite) { $skipped++; continue; }
-                $existing->update([
-                    'value_numeric' => $valueNum,
-                    'value_datetime'=> $valueDt,
-                    'value_text'    => $valueTxt,
-                    'source_type'   => 'import',
-                    'source_table'  => $src,
-                ]);
-                $updated++;
-                continue;
-            }
-
-            CriteriaMetric::create([
-                'user_id' => $user->id,
-                'assessment_period_id' => $targetPeriod->id,
-                'performance_criteria_id' => $criteria->id,
-                'value_numeric' => $valueNum,
-                'value_datetime'=> $valueDt,
-                'value_text'    => $valueTxt,
-                'source_type'   => 'import',
-                'source_table'  => $src,
-            ]);
-            $created++;
-        }
-
-        $msg = "Import selesai: dibuat {$created}, diperbarui {$updated}, dilewati {$skipped}.";
+        $msg = sprintf(
+            'Import selesai: invitations=%d, staff_terdampak=%d, skipped=%d, staff_tidak_ditemukan=%d. (batch_id=%d)',
+            (int) ($result['created_invitations'] ?? 0),
+            (int) ($result['affected_staff'] ?? 0),
+            (int) ($result['skipped_rows'] ?? 0),
+            (int) ($result['missing_staff_refs'] ?? 0),
+            (int) ($result['batch_id'] ?? 0),
+        );
 
         // Recalculate Penilaian Saya for the target period (e.g., locked period uploads).
         $perfSvc->recalculateForPeriodId((int) $targetPeriod->id);
@@ -299,8 +151,8 @@ class CriteriaMetricsController extends Controller
 
         $criteria = PerformanceCriteria::findOrFail($data['performance_criteria_id']);
 
-        if (($criteria->input_method ?? null) !== 'import' || ($criteria->name ?? null) === 'Absensi') {
-            return back()->withErrors(['performance_criteria_id' => 'Template hanya tersedia untuk kriteria Metrics (input method: import) selain Absensi.']);
+        if (($criteria->input_method ?? null) !== 'import') {
+            return back()->withErrors(['performance_criteria_id' => 'Template hanya tersedia untuk kriteria input_method=import.']);
         }
         $period = isset($data['period_id'])
             ? AssessmentPeriod::find($data['period_id'])
@@ -310,62 +162,40 @@ class CriteriaMetricsController extends Controller
             return back()->withErrors(['performance_criteria_id' => 'Periode aktif tidak ditemukan. Aktifkan periode terlebih dahulu.']);
         }
 
-        $valueColumn = match ($criteria->data_type ?? 'numeric') {
-            'datetime'   => 'nilai_tanggal',
-            'text'       => 'nilai_teks',
-            default      => 'nilai',
-        };
+        if (($criteria->name ?? null) !== 'Jumlah Pasien Ditangani') {
+            return back()->withErrors(['performance_criteria_id' => 'Template ini hanya tersedia untuk kriteria "Jumlah Pasien Ditangani".']);
+        }
 
         $sheet = new Spreadsheet();
         $sheet->getProperties()
             ->setCreator('SIRA')
-            ->setTitle('Template Metrics '.$criteria->name);
+            ->setTitle('Template Import Pasien - '.$criteria->name);
         $ws = $sheet->getActiveSheet();
         $ws->setTitle('Template');
 
-        $headers = ['nip','nama','periode','id_kriteria','kriteria','tipe_data', $valueColumn];
+        $headers = ['no_rm', 'patient_name', 'patient_phone', 'clinic', 'employee_numbers'];
         foreach ($headers as $idx => $head) {
             $col = Coordinate::stringFromColumnIndex($idx + 1);
             $ws->setCellValue($col.'1', $head);
         }
 
-        $users = User::role(User::ROLE_PEGAWAI_MEDIS)
-            ->orderBy('name')
-            ->get(['name','employee_number']);
-        $row = 2;
-        foreach ($users as $user) {
-            $ws->setCellValueExplicit('A'.$row, (string)$user->employee_number, DataType::TYPE_STRING);
-            $ws->setCellValue('B'.$row, $user->name);
-            $ws->setCellValue('C'.$row, $period->name);
-            $ws->setCellValue('D'.$row, $criteria->id);
-            $ws->setCellValue('E'.$row, $criteria->name);
-            $ws->setCellValue('F'.$row, $criteria->data_type);
-            $ws->setCellValue('G'.$row, '');
-            $row++;
-        }
+        // Example row
+        $ws->setCellValueExplicit('A2', 'RM00123', DataType::TYPE_STRING);
+        $ws->setCellValue('B2', 'Contoh Pasien');
+        $ws->setCellValueExplicit('C2', '081234567890', DataType::TYPE_STRING);
+        $ws->setCellValue('D2', 'Poli Umum');
+        $ws->setCellValueExplicit('E2', '197909102008032001,197511132008031001', DataType::TYPE_STRING);
 
-        // hint baris pertama data jika tidak ada user
-        if ($row === 2) {
-            $ws->setCellValue('A2', 'ISI_NIP');
-            $ws->setCellValue('B2', 'Nama Pegawai');
-        }
-
-        // Pastikan kolom NIP disimpan sebagai teks agar tidak berubah ke notasi ilmiah
-        $lastRow = max(2, $row - 1);
-        $ws->getStyle('A2:A'.$lastRow)->getNumberFormat()->setFormatCode('@');
-
-        // Untuk tipe numeric, pakai format angka bulat tanpa pemisah ribuan/decimal
-        if (($criteria->data_type ?? 'numeric') === 'numeric') {
-            $valueColLetter = Coordinate::stringFromColumnIndex(7); // kolom nilai (header ke-7)
-            $ws->getStyle($valueColLetter.'2:'.$valueColLetter.$lastRow)
-                ->getNumberFormat()->setFormatCode('0');
-        }
+        // Keep these columns as text
+        $ws->getStyle('A2:A2')->getNumberFormat()->setFormatCode('@');
+        $ws->getStyle('C2:C2')->getNumberFormat()->setFormatCode('@');
+        $ws->getStyle('E2:E2')->getNumberFormat()->setFormatCode('@');
 
         $tmp = tempnam(sys_get_temp_dir(), 'metric_tpl_');
         $writer = new Xlsx($sheet);
         $writer->save($tmp);
 
-        $filename = 'template-metrics-'.$criteria->id.'-'.$period->id.'.xlsx';
+        $filename = 'template-import-pasien-'.$criteria->id.'-'.$period->id.'.xlsx';
         return response()->download($tmp, $filename)->deleteFileAfterSend(true);
     }
 }

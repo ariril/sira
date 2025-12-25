@@ -10,24 +10,17 @@ return new class extends Migration {
         Schema::create('review_invitations', function (Blueprint $table) {
             $table->id();
 
-            $table->foreignId('review_id')
-                ->constrained('reviews')
-                ->cascadeOnDelete();
+            $table->string('patient_name');
+            $table->string('phone')->nullable();
+            $table->string('no_rm')->nullable();
 
-            // Store only hash of token (sha256 hex = 64)
-            $table->string('token_hash', 64)->unique();
-
-            $table->enum('status', ['active', 'used', 'expired', 'revoked'])->default('active')->index();
+            // Plain token (kept for invitation URL); keep it unique
+            $table->string('token', 80)->unique();
             $table->timestamp('expires_at')->nullable()->index();
-            $table->timestamp('used_at')->nullable()->index();
-
-            // Optional metadata from import
-            $table->string('sent_via', 20)->nullable(); // whatsapp/sms/email (optional)
-            $table->timestamp('sent_at')->nullable();
+            $table->string('status', 20)->default('pending')->index();
 
             $table->timestamps();
 
-            $table->unique(['review_id'], 'uniq_review_invitation_review');
             $table->index(['status', 'expires_at'], 'idx_review_inv_status_expires');
         });
     }

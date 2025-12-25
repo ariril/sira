@@ -150,7 +150,7 @@ class PerformanceAssessmentController extends Controller
             ->where('u.profession_id', $userProfessionId)
             ->sum('ac.score');
 
-        $peerPatients = DB::table('criteria_metrics as cm')
+        $peerPatients = DB::table('imported_criteria_values as cm')
             ->join('users as u', 'u.id', '=', 'cm.user_id')
             ->join('performance_criterias as pc', 'pc.id', '=', 'cm.performance_criteria_id')
             ->where('cm.assessment_period_id', $period->id)

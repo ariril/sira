@@ -290,10 +290,10 @@ class PeriodPerformanceAssessmentService
         }
         $raw['kontribusi'] = $tmp;
 
-        // Pasien: SUM criteria_metrics.value_numeric for "Jumlah Pasien Ditangani" criteria
+        // Pasien: SUM imported_criteria_values.value_numeric for "Jumlah Pasien Ditangani" criteria
         if (!empty($criteriaIds['pasien'])) {
             $pid = (int) $criteriaIds['pasien'];
-            $raw['pasien'] = DB::table('criteria_metrics')
+            $raw['pasien'] = DB::table('imported_criteria_values')
                 ->selectRaw('user_id, COALESCE(SUM(value_numeric),0) as total_value')
                 ->where('assessment_period_id', $period->id)
                 ->where('performance_criteria_id', $pid)
@@ -304,10 +304,10 @@ class PeriodPerformanceAssessmentService
                 ->all();
         }
 
-            // Komplain: SUM criteria_metrics.value_numeric for "Jumlah Komplain Pasien" criteria
-            if (!empty($criteriaIds['komplain'])) {
-                $cid = (int) $criteriaIds['komplain'];
-                $raw['komplain'] = DB::table('criteria_metrics')
+        // Komplain: SUM imported_criteria_values.value_numeric for "Jumlah Komplain Pasien" criteria
+        if (!empty($criteriaIds['komplain'])) {
+            $cid = (int) $criteriaIds['komplain'];
+            $raw['komplain'] = DB::table('imported_criteria_values')
                 ->selectRaw('user_id, COALESCE(SUM(value_numeric),0) as total_value')
                 ->where('assessment_period_id', $period->id)
                 ->where('performance_criteria_id', $cid)
@@ -316,7 +316,7 @@ class PeriodPerformanceAssessmentService
                 ->pluck('total_value', 'user_id')
                 ->map(fn($v) => (float) $v)
                 ->all();
-            }
+        }
 
         // Rating: (avg_rating * rater_count) from approved reviews in this unit, decided_at within period date range
         if ($unitId && $start && $end) {

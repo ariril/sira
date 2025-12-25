@@ -14,7 +14,7 @@ class ReviewInvitationStaff extends Model
 
     protected $fillable = [
         'invitation_id',
-        'medical_staff_id',
+        'user_id',
     ];
 
     public function invitation(): BelongsTo
@@ -22,8 +22,8 @@ class ReviewInvitationStaff extends Model
         return $this->belongsTo(ReviewInvitation::class, 'invitation_id');
     }
 
-    public function medicalStaff(): BelongsTo
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'medical_staff_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

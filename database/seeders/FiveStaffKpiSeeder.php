@@ -73,7 +73,7 @@ class FiveStaffKpiSeeder extends Seeder
         DB::table('performance_assessments')->whereIn('id', $oldAssessmentIds)->delete();
         DB::table('remunerations')->whereIn('user_id', $targets)->whereIn('assessment_period_id', $periodIds)->delete();
 
-        DB::table('criteria_metrics')->whereIn('user_id', $targets)->whereIn('assessment_period_id', $periodIds)->delete();
+        DB::table('imported_criteria_values')->whereIn('user_id', $targets)->whereIn('assessment_period_id', $periodIds)->delete();
         DB::table('additional_contributions')->whereIn('user_id', $targets)->whereIn('assessment_period_id', $periodIds)->delete();
         $reviewIds = DB::table('review_details')->whereIn('medical_staff_id', $targets)->pluck('review_id');
         DB::table('review_details')->whereIn('medical_staff_id', $targets)->delete();
@@ -211,6 +211,15 @@ class FiveStaffKpiSeeder extends Seeder
         // default jumlah rater per penilaian publik (karena kita isi 3 review)
         $defaultRaterCount = 3;
 
+        $patientsBatchId = DB::table('metric_import_batches')->insertGetId([
+            'file_name' => 'seeder-patients-' . $period->id . '.xlsx',
+            'assessment_period_id' => $period->id,
+            'imported_by' => null,
+            'status' => 'processed',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
         foreach ($data as $key => $row) {
             $userId = $staff[$key]['id'];
             $unitId = $unitIdResolver($staff[$key]['unit_slug']);
@@ -265,12 +274,14 @@ class FiveStaffKpiSeeder extends Seeder
             ]);
 
             // Patients metric
-            DB::table('criteria_metrics')->insert([
+            DB::table('imported_criteria_values')->insert([
+                'import_batch_id' => $patientsBatchId,
                 'user_id' => $userId,
                 'assessment_period_id' => $period->id,
                 'performance_criteria_id' => $pasienId,
                 'value_numeric' => $row['patients'],
-                'source_type' => 'import',
+                'value_datetime' => null,
+                'value_text' => null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);

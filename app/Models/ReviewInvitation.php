@@ -12,25 +12,17 @@ class ReviewInvitation extends Model
     use HasFactory;
 
     protected $fillable = [
-        'review_id',
-        'token_hash',
+        'patient_name',
+        'phone',
+        'no_rm',
+        'token',
         'status',
         'expires_at',
-        'used_at',
-        'sent_via',
-        'sent_at',
     ];
 
     protected $casts = [
         'expires_at' => 'datetime',
-        'used_at' => 'datetime',
-        'sent_at' => 'datetime',
     ];
-
-    public function review(): BelongsTo
-    {
-        return $this->belongsTo(Review::class);
-    }
 
     public function staff(): HasMany
     {

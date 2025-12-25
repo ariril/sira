@@ -24,10 +24,8 @@ class PublicReviewController extends Controller
 
     public function show(string $token): View
     {
-        $tokenHash = hash('sha256', $token);
         $invitation = ReviewInvitation::query()
-            ->with(['review.unit'])
-            ->where('token_hash', $tokenHash)
+            ->where('token', $token)
             ->first();
 
         if (!$invitation) {
@@ -35,7 +33,7 @@ class PublicReviewController extends Controller
         }
 
         $now = Carbon::now();
-        if ($invitation->status === 'active' && $invitation->expires_at && $now->greaterThan($invitation->expires_at)) {
+        if ($invitation->status === 'pending' && $invitation->expires_at && $now->greaterThan($invitation->expires_at)) {
             $invitation->update(['status' => 'expired']);
             $invitation->refresh();
         }
@@ -49,7 +47,7 @@ class PublicReviewController extends Controller
 
         $staffIds = ReviewInvitationStaff::query()
             ->where('invitation_id', $invitation->id)
-            ->pluck('medical_staff_id')
+            ->pluck('user_id')
             ->all();
 
         $staff = User::query()
@@ -65,18 +63,12 @@ class PublicReviewController extends Controller
             ])
             ->values();
 
-        // Prefill existing ratings/comments (if any)
-        $existing = DB::table('review_details')
-            ->where('review_id', $invitation->review_id)
-            ->whereIn('medical_staff_id', $staffIds)
-            ->get(['medical_staff_id', 'rating', 'comment'])
-            ->keyBy('medical_staff_id');
+        $existing = collect();
 
         return view('pages.reviews.invite', [
             'state' => $state,
             'token' => $token,
             'invitation' => $invitation,
-            'review' => $invitation->review,
             'staff' => $staff,
             'existing' => $existing,
         ]);
@@ -84,12 +76,10 @@ class PublicReviewController extends Controller
 
     public function store(Request $request, string $token): RedirectResponse
     {
-        $tokenHash = hash('sha256', $token);
-
-        $result = DB::transaction(function () use ($request, $tokenHash) {
+        $result = DB::transaction(function () use ($request, $token) {
             /** @var ReviewInvitation|null $invitation */
             $invitation = ReviewInvitation::query()
-                ->where('token_hash', $tokenHash)
+                ->where('token', $token)
                 ->lockForUpdate()
                 ->first();
 
@@ -98,20 +88,20 @@ class PublicReviewController extends Controller
             }
 
             $now = Carbon::now();
-            if ($invitation->status === 'active' && $invitation->expires_at && $now->greaterThan($invitation->expires_at)) {
+            if ($invitation->status === 'pending' && $invitation->expires_at && $now->greaterThan($invitation->expires_at)) {
                 $invitation->update(['status' => 'expired']);
                 return ['ok' => false, 'state' => 'expired'];
             }
-            if ($invitation->status === 'used' || $invitation->used_at) {
+            if ($invitation->status === 'used') {
                 return ['ok' => false, 'state' => 'used'];
             }
-            if ($invitation->status !== 'active') {
+            if ($invitation->status !== 'pending') {
                 return ['ok' => false, 'state' => $invitation->status];
             }
 
             $allowedStaffIds = ReviewInvitationStaff::query()
                 ->where('invitation_id', $invitation->id)
-                ->pluck('medical_staff_id')
+                ->pluck('user_id')
                 ->map(fn ($v) => (int) $v)
                 ->all();
 
@@ -152,14 +142,33 @@ class PublicReviewController extends Controller
             $validator->validateWithBag('reviewForm');
 
             $detailsInput = (array) $request->input('details', []);
-            $rows = collect($allowedStaffIds)->map(function (int $staffId) use ($detailsInput, $now, $invitation) {
+
+            $reviewId = DB::table('reviews')->insertGetId([
+                'registration_ref' => 'INV-' . $invitation->id,
+                'unit_id' => null,
+                'overall_rating' => null,
+                'comment' => null,
+                'status' => ReviewStatus::PENDING->value,
+                'decision_note' => null,
+                'decided_by' => null,
+                'decided_at' => null,
+                'patient_name' => $invitation->patient_name,
+                'contact' => $invitation->phone,
+                'client_ip' => $request->ip(),
+                'user_agent' => substr((string) $request->header('User-Agent'), 0, 255),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            $rows = collect($allowedStaffIds)->map(function (int $staffId) use ($detailsInput, $now, $reviewId) {
                 $rating = (int) data_get($detailsInput, $staffId . '.rating');
                 $comment = (string) (data_get($detailsInput, $staffId . '.comment') ?? '');
                 $comment = trim($comment) !== '' ? $comment : null;
 
                 return [
-                    'review_id' => $invitation->review_id,
+                    'review_id' => $reviewId,
                     'medical_staff_id' => $staffId,
+                    'role' => null,
                     'rating' => $rating,
                     'comment' => $comment,
                     'updated_at' => $now,
@@ -167,29 +176,20 @@ class PublicReviewController extends Controller
                 ];
             });
 
-            // Upsert details (import may have created empty rows)
-            DB::table('review_details')->upsert(
-                $rows->all(),
-                ['review_id', 'medical_staff_id'],
-                ['rating', 'comment', 'updated_at']
-            );
+            DB::table('review_details')->insert($rows->all());
 
             $avgRating = (int) round(max(1, $rows->avg('rating') ?: 0));
 
-            // Update review metadata (locked fields are NOT taken from request)
             DB::table('reviews')
-                ->where('id', $invitation->review_id)
+                ->where('id', $reviewId)
                 ->update([
                     'overall_rating' => $avgRating,
                     'status' => ReviewStatus::PENDING->value,
-                    'client_ip' => $request->ip(),
-                    'user_agent' => substr((string) $request->header('User-Agent'), 0, 255),
                     'updated_at' => $now,
                 ]);
 
             $invitation->update([
                 'status' => 'used',
-                'used_at' => $now,
                 'updated_at' => $now,
             ]);
 

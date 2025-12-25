@@ -21,7 +21,7 @@ return new class extends Migration
 
             // Optional link to criteria metric (merged from later alter migration)
             $table->foreignId('criteria_metric_id')->nullable()
-                ->constrained('criteria_metrics')->nullOnDelete();
+                ->constrained('imported_criteria_values')->nullOnDelete();
 
             $table->decimal('score', 10, 2); // nilai
 

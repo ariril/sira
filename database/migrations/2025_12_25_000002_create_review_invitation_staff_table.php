@@ -14,14 +14,14 @@ return new class extends Migration {
                 ->constrained('review_invitations')
                 ->cascadeOnDelete();
 
-            $table->foreignId('medical_staff_id')
+            $table->foreignId('user_id')
                 ->constrained('users')
                 ->cascadeOnDelete();
 
             $table->timestamps();
 
-            $table->unique(['invitation_id', 'medical_staff_id'], 'uniq_inv_staff');
-            $table->index(['medical_staff_id'], 'idx_inv_staff_staff');
+            $table->unique(['invitation_id', 'user_id'], 'uniq_inv_staff');
+            $table->index(['user_id'], 'idx_inv_staff_staff');
         });
     }
 

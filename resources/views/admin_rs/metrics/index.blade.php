@@ -27,7 +27,7 @@
                         <x-ui.select name="period_id" :options="$periods" placeholder="Pakai Periode Aktif" />
                     </div>
                 </div>
-                <p class="text-xs text-slate-500">Template memuat daftar pegawai dan kolom nilai yang mengikuti tipe data kriteria.</p>
+                <p class="text-xs text-slate-500">Template berisi kolom: no_rm, patient_name, patient_phone, clinic, employee_numbers (dipisah koma).</p>
                 <x-ui.button type="submit" variant="success" class="h-11 px-5">Generate Excel</x-ui.button>
             </form>
         </div>
@@ -134,7 +134,7 @@
                 </div>
             </form>
             <div class="text-xs text-slate-500 mt-1">
-                Gunakan template agar header sesuai tipe data kriteria. Periode bisa dipilih (mis. periode yang sudah dikunci), atau otomatis memakai Periode Aktif.
+                Gunakan template agar header sesuai format import pasien. Periode bisa dipilih (mis. periode yang sudah dikunci), atau otomatis memakai Periode Aktif.
             </div>
         </div>
 
@@ -197,7 +197,7 @@
                     <th class="px-6 py-4 text-left">Kriteria</th>
                     <th class="px-6 py-4 text-left">Periode</th>
                     <th class="px-6 py-4 text-left">Nilai</th>
-                    <th class="px-6 py-4 text-left">Sumber</th>
+                    <th class="px-6 py-4 text-left">Batch</th>
                 </tr>
             </x-slot>
             @forelse($items as $it)
@@ -219,7 +219,7 @@
                         @endphp
                         {{ $valueDisplay }}
                     </td>
-                    <td class="px-6 py-4">{{ $it->source_type }}</td>
+                    <td class="px-6 py-4">{{ $it->import_batch_id ?? '-' }}</td>
                 </tr>
             @empty
                 <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
