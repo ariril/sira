@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Notification as Notify;
-use App\Notifications\ClaimValidatedNotification;
 use App\Notifications\ClaimApprovedNotification;
 use App\Notifications\ClaimRejectedNotification;
 
@@ -49,8 +48,10 @@ class AdditionalTaskClaimReviewController extends Controller
         $ok = false;
         switch ($action) {
             case 'validate':
-                $ok = $claim->validateTask($me, $comment);
-                if ($ok && $claim->user) { Notify::send($claim->user, new ClaimValidatedNotification($claim)); }
+                // Disederhanakan: validasi tidak lagi jadi langkah terpisah.
+                // Untuk kompatibilitas (mis. request lama/test), treat 'validate' sebagai approve.
+                $ok = $claim->approve($me, $comment);
+                if ($ok && $claim->user) { Notify::send($claim->user, new ClaimApprovedNotification($claim)); }
                 break;
             case 'approve':
                 $ok = $claim->approve($me, $comment);

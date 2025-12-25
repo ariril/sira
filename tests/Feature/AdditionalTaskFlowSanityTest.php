@@ -173,13 +173,14 @@ class AdditionalTaskFlowSanityTest extends TestCase
             ->assertOk()
             ->assertSee('Menunggu Validasi');
 
-        // Review validate -> validated
+        // Review page should not require a separate "Tandai Valid" step anymore
         $this->actingAs($creator)
             ->withSession(['active_role' => 'kepala_unit'])
-            ->post(route('kepala_unit.additional_task_claims.review_update', $claim->id), ['action' => 'validate'])
-            ->assertRedirect();
-        $claim->refresh();
-        $this->assertEquals('validated', $claim->status);
+            ->get(route('kepala_unit.additional_task_claims.review_index'))
+            ->assertOk()
+            ->assertDontSee('Tandai Valid');
+
+        // Review validate -> validated
 
         // Review approve -> approved
         $this->actingAs($creator)

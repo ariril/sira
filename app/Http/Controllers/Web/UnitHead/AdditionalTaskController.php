@@ -130,7 +130,7 @@ class AdditionalTaskController extends Controller
             'bonus_amount'=> ['nullable','numeric','min:0'],
             'points'      => ['nullable','numeric','min:0'],
             'max_claims'  => ['nullable','integer','min:1','max:100'],
-            'supporting_file' => ['nullable','file','max:10240','mimes:doc,docx,xls,xlsx,ppt,pptx'],
+            'supporting_file' => ['nullable','file','max:10240','mimes:doc,docx,xls,xlsx,ppt,pptx,pdf'],
         ]);
 
         $hasBonus = $request->filled('bonus_amount');
@@ -256,7 +256,7 @@ class AdditionalTaskController extends Controller
             'bonus_amount'=> ['nullable','numeric','min:0'],
             'points'      => ['nullable','numeric','min:0'],
             'max_claims'  => ['nullable','integer','min:1','max:100'],
-            'supporting_file' => ['nullable','file','max:10240','mimes:doc,docx,xls,xlsx,ppt,pptx'],
+            'supporting_file' => ['nullable','file','max:10240','mimes:doc,docx,xls,xlsx,ppt,pptx,pdf'],
         ]);
 
         $hasBonus = $request->filled('bonus_amount');

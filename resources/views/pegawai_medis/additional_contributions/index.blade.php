@@ -269,7 +269,7 @@
                                         <template x-if="!fileName">
                                             <div>
                                                 <p class="text-sm font-medium text-slate-700">Klik untuk pilih atau tarik &amp; lepas</p>
-                                                <p class="text-xs text-slate-500">.doc, .xls, .ppt &bull; Maks. 10 MB</p>
+                                                <p class="text-xs text-slate-500">.doc, .xls, .ppt, .pdf &bull; Maks. 10 MB</p>
                                             </div>
                                         </template>
                                         <template x-if="fileName">
@@ -278,7 +278,7 @@
                                                 <span x-text="fileName"></span>
                                             </div>
                                         </template>
-                                        <input type="file" name="result_file" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx" class="hidden" required @change="fileName = $event.target.files.length ? $event.target.files[0].name : ''">
+                                        <input type="file" name="result_file" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf" class="hidden" required @change="fileName = $event.target.files.length ? $event.target.files[0].name : ''">
                                     </label>
                                     <textarea name="note" rows="3" class="w-full border border-slate-200 rounded-xl p-3 text-[15px]" placeholder="Catatan untuk kepala unit (opsional)"></textarea>
                                     <button class="w-full h-11 rounded-xl text-white font-semibold bg-gradient-to-r from-sky-400 to-blue-600 hover:brightness-110">Kirim untuk Review</button>
@@ -412,6 +412,64 @@
                     </div>
                 </div>
             @endforeach
+        </div>
+
+        {{-- CARD: Tugas Tidak Terklaim --}}
+        <div id="tugas-tidak-terklaim" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Evaluasi</p>
+                    <h2 class="text-xl font-semibold text-slate-800">Tugas yang Pernah Diberikan (Tidak Diklaim)</h2>
+                </div>
+                <a href="#tugas-tidak-terklaim" class="text-sm text-slate-500 hover:underline">#</a>
+            </div>
+            <div class="overflow-x-auto">
+                <x-ui.table min-width="860px">
+                    <x-slot name="head">
+                        <tr>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Tugas</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Jatuh Tempo</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Bonus / Poin</th>
+                            <th class="px-6 py-4 text-right whitespace-nowrap">Dokumen</th>
+                        </tr>
+                    </x-slot>
+                    @forelse($missedTasks as $t)
+                        @php
+                            $missedDue = $t->due_date
+                                ? \Illuminate\Support\Carbon::parse($t->due_date)->format('d M Y')
+                                : '-';
+                            $supportingUrl = $t->policy_doc_path
+                                ? asset('storage/'.ltrim($t->policy_doc_path,'/'))
+                                : null;
+                        @endphp
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-6 py-4 text-base">
+                                <div class="font-medium text-slate-900">{{ $t->title }}</div>
+                            </td>
+                            <td class="px-6 py-4 text-base">{{ $t->period?->name ?? '-' }}</td>
+                            <td class="px-6 py-4 text-base">{{ $missedDue }}</td>
+                            <td class="px-6 py-4 text-base">
+                                <span class="font-medium text-slate-900">{{ $t->bonus_amount ? 'Rp '.number_format($t->bonus_amount,0,',','.') : '-' }}</span>
+                                <span class="text-slate-500"> / Poin: {{ $t->points ?? '-' }}</span>
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                @if($supportingUrl)
+                                    <a href="{{ $supportingUrl }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm">
+                                        <i class="fa-solid fa-file-lines text-sky-500"></i> Dokumen
+                                    </a>
+                                @else
+                                    <span class="text-sm text-slate-400">-</span>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-slate-500">Belum ada data tugas yang terlewat.</td>
+                        </tr>
+                    @endforelse
+                </x-ui.table>
+            </div>
         </div>
     </div>
 </x-app-layout>

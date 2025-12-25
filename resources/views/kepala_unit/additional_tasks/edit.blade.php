@@ -62,8 +62,8 @@
                     <p class="text-xs text-slate-500">Isi salah satu: Bonus atau Poin. Semua waktu menggunakan zona Asia/Jakarta (UTC+7).</p>
                 </div>
                 <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-slate-600 mb-1">File Pendukung (Word/Excel/PPT)</label>
-                    <input type="file" name="supporting_file" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="block w-full text-sm text-slate-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100" />
+                    <label class="block text-sm font-medium text-slate-600 mb-1">File Pendukung (Word/Excel/PPT/PDF)</label>
+                    <input type="file" name="supporting_file" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="block w-full text-sm text-slate-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100" />
                     @if($item->policy_doc_path)
                         <p class="mt-1 text-xs text-slate-500">File saat ini: <a href="{{ asset('storage/'.$item->policy_doc_path) }}" class="text-amber-600 hover:underline" target="_blank">Download</a></p>
                     @endif

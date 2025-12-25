@@ -47,6 +47,32 @@
                     $dueDate = $claim->due_date ? Carbon::parse($claim->due_date)->format('d M Y') : '-';
                     $resultUrl = $claim->result_file_path ? Storage::url($claim->result_file_path) : null;
                     $policyUrl = $claim->policy_doc_path ? Storage::url($claim->policy_doc_path) : null;
+
+                    $resultExt = $claim->result_file_path
+                        ? strtolower(pathinfo($claim->result_file_path, PATHINFO_EXTENSION))
+                        : null;
+                    $resultBadge = match (true) {
+                        in_array($resultExt, ['xls', 'xlsx', 'csv']) => [
+                            'cls' => 'border-emerald-100 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
+                            'icon' => 'fa-file-excel',
+                        ],
+                        in_array($resultExt, ['doc', 'docx']) => [
+                            'cls' => 'border-sky-100 bg-sky-50 text-sky-800 hover:bg-sky-100',
+                            'icon' => 'fa-file-word',
+                        ],
+                        in_array($resultExt, ['ppt', 'pptx']) => [
+                            'cls' => 'border-amber-100 bg-amber-50 text-amber-800 hover:bg-amber-100',
+                            'icon' => 'fa-file-powerpoint',
+                        ],
+                        in_array($resultExt, ['pdf']) => [
+                            'cls' => 'border-rose-100 bg-rose-50 text-rose-800 hover:bg-rose-100',
+                            'icon' => 'fa-file-pdf',
+                        ],
+                        default => [
+                            'cls' => 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                            'icon' => 'fa-file-lines',
+                        ],
+                    };
                     $statusColor =
                         [
                             'submitted' => 'bg-amber-100 text-amber-700',
@@ -56,7 +82,7 @@
                         ][$claim->status] ?? 'bg-slate-100 text-slate-700';
                     $statusLabel =
                         [
-                            'submitted' => 'Menunggu Validasi',
+                            'submitted' => 'Menunggu Persetujuan',
                             'validated' => 'Menunggu Persetujuan',
                             'approved' => 'Disetujui',
                             'rejected' => 'Ditolak',
@@ -131,8 +157,8 @@
                             </div>
                             @if ($resultUrl)
                                 <a href="{{ $resultUrl }}" target="_blank"
-                                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-emerald-100 bg-emerald-50 text-sm font-medium text-emerald-800 hover:bg-emerald-100">
-                                    <i class="fa-solid fa-file-lines"></i> Lampiran hasil
+                                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium {{ $resultBadge['cls'] }}">
+                                    <i class="fa-solid {{ $resultBadge['icon'] }}"></i> Lampiran hasil
                                 </a>
                                 <p class="text-xs text-slate-500 mt-2">Buka tautan untuk memeriksa bukti pekerjaan sebelum mengambil keputusan.</p>
                             @else
@@ -143,27 +169,8 @@
 
                     <div class="flex flex-col gap-4">
 
-                        {{-- === SECTION VALIDASI (STATUS: submitted) === --}}
-                        @if ($claim->status === 'submitted')
-                            <form method="POST"
-                                action="{{ route('kepala_unit.additional_task_claims.review_update', $claim->id) }}"
-                                class="flex flex-wrap gap-3">
-                                @csrf
-                                <input type="hidden" name="action" value="validate">
-
-                                <button type="submit"
-                                    class="inline-flex items-center gap-2 px-5 h-12 rounded-2xl text-sm font-semibold bg-gradient-to-r from-sky-400 to-blue-600 text-white shadow-sm hover:brightness-110">
-                                    <i class="fa-solid fa-circle-check"></i> Tandai Valid
-                                </button>
-
-                                <p class="text-xs text-slate-500 self-center">
-                                    Validasi memastikan bukti lengkap sebelum persetujuan akhir.
-                                </p>
-                            </form>
-                        @endif
-
-                        {{-- === SECTION APPROVE (STATUS: validated) === --}}
-                        @if ($claim->status === 'validated')
+                        {{-- === SECTION APPROVE (STATUS: submitted/validated) === --}}
+                        @if (in_array($claim->status, ['submitted','validated']))
                             <form method="POST"
                                 action="{{ route('kepala_unit.additional_task_claims.review_update', $claim->id) }}"
                                 class="flex flex-wrap gap-3">

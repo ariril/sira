@@ -123,11 +123,6 @@ class AdditionalTaskClaimTest extends TestCase
         $this->assertEquals('submitted', $claim->status);
 
         // Validate
-        $this->actingAs($kepala)
-            ->post(route('kepala_unit.additional_task_claims.review_update', $claim->id), ['action' => 'validate'])
-            ->assertRedirect();
-        $claim->refresh();
-        $this->assertEquals('validated', $claim->status);
 
         // Approve
         $this->actingAs($kepala)
@@ -136,5 +131,31 @@ class AdditionalTaskClaimTest extends TestCase
         $claim->refresh();
         $this->assertEquals('approved', $claim->status);
         $this->assertNotNull($claim->completed_at);
+    }
+
+    public function test_submit_result_accepts_pdf(): void
+    {
+        $pegawai = $this->makeUser('pegawai_medis');
+        $task = $this->makeTask($pegawai->unit_id);
+        $claim = AdditionalTaskClaim::create([
+            'additional_task_id' => $task->id,
+            'user_id' => $pegawai->id,
+            'status' => 'active',
+            'claimed_at' => now(),
+            'cancel_deadline_at' => now()->addDay(),
+            'penalty_type' => 'none',
+            'penalty_value' => 0,
+        ]);
+
+        $this->actingAs($pegawai)
+            ->post(route('pegawai_medis.additional_task_claims.submit', $claim->id), [
+                'note' => 'Hasil PDF terlampir.',
+                'result_file' => UploadedFile::fake()->create('hasil.pdf', 100, 'application/pdf'),
+            ])
+            ->assertRedirect();
+
+        $claim->refresh();
+        $this->assertEquals('submitted', $claim->status);
+        $this->assertNotEmpty($claim->result_file_path);
     }
 }

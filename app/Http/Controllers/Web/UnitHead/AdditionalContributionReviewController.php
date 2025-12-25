@@ -16,6 +16,7 @@ use Illuminate\View\View;
 use App\Notifications\ContributionApprovedNotification;
 use App\Notifications\ContributionRejectedNotification;
 use App\Services\PeriodPerformanceAssessmentService;
+use App\Models\AdditionalTaskClaim;
 
 class AdditionalContributionReviewController extends Controller
 {
@@ -68,6 +69,16 @@ class AdditionalContributionReviewController extends Controller
             Notification::send($additionalContribution->user, new ContributionApprovedNotification($additionalContribution));
         }
 
+        // Jika kontribusi ini terkait klaim tugas tambahan, sinkronkan status klaim agar UI klaim & daftar tugas ikut berubah.
+        if (!empty($additionalContribution->claim_id)) {
+            $claim = AdditionalTaskClaim::with('task')->find($additionalContribution->claim_id);
+            if ($claim && $claim->task?->unit_id === $me->unit_id && in_array($claim->status, ['submitted', 'validated'])) {
+                if ($claim->approve($me, 'Disetujui melalui Kontribusi Tambahan')) {
+                    $claim->task?->refreshLifecycleStatus();
+                }
+            }
+        }
+
         // Recalculate Penilaian Saya for this period & unit+profession.
         $u = $additionalContribution->user;
         if ($u && $additionalContribution->assessment_period_id) {
@@ -92,6 +103,16 @@ class AdditionalContributionReviewController extends Controller
         $additionalContribution->refresh();
         if ($additionalContribution->user) {
             Notification::send($additionalContribution->user, new ContributionRejectedNotification($additionalContribution));
+        }
+
+        // Jika kontribusi ini terkait klaim tugas tambahan, sinkronkan status klaim.
+        if (!empty($additionalContribution->claim_id)) {
+            $claim = AdditionalTaskClaim::with('task')->find($additionalContribution->claim_id);
+            if ($claim && $claim->task?->unit_id === $me->unit_id && in_array($claim->status, ['submitted', 'validated'])) {
+                if ($claim->reject($data['comment'] ?? 'Ditolak melalui Kontribusi Tambahan', $me)) {
+                    $claim->task?->refreshLifecycleStatus();
+                }
+            }
         }
 
         // Recalculate Penilaian Saya for this period & unit+profession.

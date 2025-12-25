@@ -31,6 +31,7 @@ class AdditionalContributionController extends Controller
         $availableTasks = collect();
         $currentClaims = collect();
         $historyClaims = collect();
+        $missedTasks = collect();
         $latestRejected = null;
         $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
 
@@ -102,12 +103,32 @@ class AdditionalContributionController extends Controller
                 ->whereIn('status', ['approved', 'completed', 'rejected', 'cancelled'])
                 ->limit(30)
                 ->get();
+
+            // Tugas yang pernah diberikan tapi tidak sempat diklaim oleh user ini.
+            $tz = config('app.timezone');
+            $today = Carbon::now($tz)->toDateString();
+            $missedTasks = AdditionalTask::query()
+                ->with(['period:id,name'])
+                ->where('unit_id', $unitId)
+                ->where('status', '!=', 'draft')
+                ->whereDate('due_date', '<', $today)
+                ->where(function ($q) use ($me) {
+                    $q->whereNull('created_by')->orWhere('created_by', '!=', $me->id);
+                })
+                ->whereDoesntHave('claims', function ($q) use ($me) {
+                    $q->where('user_id', $me->id);
+                })
+                ->orderByDesc('due_date')
+                ->orderByDesc('id')
+                ->limit(30)
+                ->get();
         }
 
         return view('pegawai_medis.additional_contributions.index', [
             'availableTasks' => $availableTasks,
             'currentClaims' => $currentClaims,
             'historyClaims' => $historyClaims,
+            'missedTasks' => $missedTasks,
             'latestRejected' => $latestRejected,
             'activePeriod' => $activePeriod,
         ]);
