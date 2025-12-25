@@ -2,7 +2,7 @@
 
 namespace App\Services\MultiRater;
 
-use App\Models\MultiRaterScore;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 
 class SimpleFormData
@@ -13,11 +13,21 @@ class SimpleFormData
      */
     public static function build(int $periodId, int $raterId, Collection $targets, callable $criteriaResolver): array
     {
-        $scores = MultiRaterScore::query()
-            ->where('period_id', $periodId)
-            ->where('rater_user_id', $raterId)
+        $completedByTarget = DB::table('multi_rater_assessments as mra')
+            ->join('multi_rater_assessment_details as d', 'd.multi_rater_assessment_id', '=', 'mra.id')
+            ->where('mra.assessment_period_id', $periodId)
+            ->where('mra.assessor_id', $raterId)
+            ->select(['mra.assessee_id as target_user_id', 'd.performance_criteria_id'])
             ->get()
-            ->groupBy('target_user_id');
+            ->groupBy('target_user_id')
+            ->map(function ($rows) {
+                return collect($rows)
+                    ->pluck('performance_criteria_id')
+                    ->filter()
+                    ->map(fn($val) => (int) $val)
+                    ->unique()
+                    ->values();
+            });
 
         $criteriaCatalog = collect();
         $preparedTargets = collect();
@@ -37,9 +47,7 @@ class SimpleFormData
             $criteriaIds = $criteria->pluck('id')->map(fn($val) => (int) $val)->values();
             $totalAssignments += $criteriaIds->count();
 
-            $completed = collect($scores->get($target->id))
-                ->pluck('performance_criteria_id')
-                ->filter()
+            $completed = collect($completedByTarget->get($target->id, collect()))
                 ->map(fn($val) => (int) $val)
                 ->all();
 

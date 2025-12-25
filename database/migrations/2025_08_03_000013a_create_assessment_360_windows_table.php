@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -20,13 +21,19 @@ return new class extends Migration
 
         // Add generated column to enforce single active window per period
         // MySQL syntax via raw statements
-        Schema::table('assessment_360_windows', function (Blueprint $table) {
-            $table->unsignedBigInteger('active_period_key')->nullable()->storedAs("IF(is_active, assessment_period_id, NULL)");
-        });
-        Schema::table('assessment_360_windows', function (Blueprint $table) {
-            $table->unique('active_period_key', 'uniq_active_period_window');
-            $table->index('assessment_period_id');
-        });
+        if (DB::getDriverName() === 'mysql') {
+            Schema::table('assessment_360_windows', function (Blueprint $table) {
+                $table->unsignedBigInteger('active_period_key')->nullable()->storedAs("IF(is_active, assessment_period_id, NULL)");
+            });
+            Schema::table('assessment_360_windows', function (Blueprint $table) {
+                $table->unique('active_period_key', 'uniq_active_period_window');
+                $table->index('assessment_period_id');
+            });
+        } else {
+            Schema::table('assessment_360_windows', function (Blueprint $table) {
+                $table->index('assessment_period_id');
+            });
+        }
     }
 
     public function down(): void

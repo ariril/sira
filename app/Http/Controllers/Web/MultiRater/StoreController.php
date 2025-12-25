@@ -7,10 +7,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
 use App\Models\Assessment360Window;
-use App\Models\MultiRaterScore;
+use App\Models\MultiRaterAssessment;
+use App\Models\MultiRaterAssessmentDetail;
+use App\Models\CriteriaRaterRule;
 use App\Models\User;
 use App\Services\PeriodPerformanceAssessmentService;
 use App\Services\MultiRater\CriteriaResolver;
+use App\Services\MultiRater\AssessorTypeResolver;
 
 class StoreController extends Controller
 {
@@ -31,11 +34,17 @@ class StoreController extends Controller
         $targetId = (int) $validated['target_user_id'];
         $score = (int) $validated['score'];
 
-        if ($targetId === $raterId) {
-            return response()->json(['ok' => false, 'message' => 'Tidak bisa menilai diri sendiri.'], 400);
-        }
+        $target = User::query()
+            ->with('profession:id,code')
+            ->select('id', 'unit_id', 'profession_id', 'name')
+            ->findOrFail($targetId);
 
-        $target = User::select('id', 'unit_id', 'profession_id', 'name')->findOrFail($targetId);
+        $assessor = User::query()
+            ->with('profession:id,code')
+            ->select('id', 'unit_id', 'profession_id')
+            ->findOrFail($raterId);
+
+        $assessorType = AssessorTypeResolver::resolve($assessor, $target);
         $unitId = $validated['unit_id'] ?? $target->unit_id;
 
         $window = Assessment360Window::where('assessment_period_id', $periodId)
@@ -73,8 +82,50 @@ class StoreController extends Controller
             $targetCriteria = collect([$criteriaId]);
         }
 
-        foreach ($targetCriteria as $criteriaId) {
-            $this->persistScore($periodId, $raterId, $targetId, $criteriaId, $score);
+        // Apply criteria_rater_rules if present for this assessor type.
+        $allowedCriteriaIds = $this->filterCriteriaByAssessorType($targetCriteria, $assessorType);
+        if ($allowedCriteriaIds->isEmpty()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Kriteria tidak tersedia untuk tipe penilai ini.',
+            ], 422);
+        }
+
+        $assessment = MultiRaterAssessment::firstOrCreate(
+            [
+                'assessee_id' => $targetId,
+                'assessor_id' => $raterId,
+                'assessor_type' => $assessorType,
+                'assessment_period_id' => $periodId,
+            ],
+            [
+                'status' => 'in_progress',
+                'submitted_at' => null,
+            ]
+        );
+
+        if (in_array($assessment->status, ['cancelled'], true)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Undangan penilaian sudah dibatalkan.',
+            ], 422);
+        }
+
+        if ($assessment->status === 'invited') {
+            $assessment->status = 'in_progress';
+            $assessment->save();
+        }
+
+        foreach ($allowedCriteriaIds as $criteriaId) {
+            MultiRaterAssessmentDetail::updateOrCreate(
+                [
+                    'multi_rater_assessment_id' => $assessment->id,
+                    'performance_criteria_id' => $criteriaId,
+                ],
+                [
+                    'score' => $score,
+                ]
+            );
         }
 
         // Update Penilaian Saya for the assessee group (supports locked periods too).
@@ -84,15 +135,20 @@ class StoreController extends Controller
             $target->profession_id ? (int) $target->profession_id : null
         );
 
-        $completed = MultiRaterScore::query()
-            ->where('period_id', $periodId)
-            ->where('rater_user_id', $raterId)
-            ->where('target_user_id', $targetId)
+        $completed = MultiRaterAssessmentDetail::query()
+            ->where('multi_rater_assessment_id', $assessment->id)
             ->pluck('performance_criteria_id')
             ->filter()
             ->map(fn($id) => (int) $id);
 
         $pending = $criteriaIds->diff($completed)->values();
+
+        // Auto-submit when all criteria are filled for this target
+        if ($pending->isEmpty() && $assessment->status !== 'submitted') {
+            $assessment->status = 'submitted';
+            $assessment->submitted_at = now();
+            $assessment->save();
+        }
 
         return response()->json([
             'ok' => true,
@@ -101,20 +157,30 @@ class StoreController extends Controller
                 'id' => $target->id,
                 'name' => $target->name,
             ],
-            'filled' => $targetCriteria->values(),
+            'filled' => $allowedCriteriaIds->values(),
         ]);
     }
 
-    private function persistScore(int $periodId, int $raterId, int $targetId, int $criteriaId, int $score): void
+    private function filterCriteriaByAssessorType(Collection $candidateCriteriaIds, string $assessorType): Collection
     {
-        MultiRaterScore::updateOrCreate(
-            [
-                'period_id' => $periodId,
-                'rater_user_id' => $raterId,
-                'target_user_id' => $targetId,
-                'performance_criteria_id' => $criteriaId,
-            ],
-            ['score' => $score]
-        );
+        $candidateCriteriaIds = $candidateCriteriaIds->filter()->map(fn($id) => (int) $id)->values();
+        if ($candidateCriteriaIds->isEmpty()) {
+            return $candidateCriteriaIds;
+        }
+
+        $hasRules = CriteriaRaterRule::query()->whereIn('performance_criteria_id', $candidateCriteriaIds)->exists();
+        if (!$hasRules) {
+            return $candidateCriteriaIds;
+        }
+
+        $allowed = CriteriaRaterRule::query()
+            ->whereIn('performance_criteria_id', $candidateCriteriaIds)
+            ->where('assessor_type', $assessorType)
+            ->pluck('performance_criteria_id')
+            ->map(fn($id) => (int) $id)
+            ->all();
+
+        $allowedSet = array_flip($allowed);
+        return $candidateCriteriaIds->filter(fn($id) => isset($allowedSet[(int) $id]))->values();
     }
 }

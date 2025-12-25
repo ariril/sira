@@ -94,17 +94,27 @@ class MultiRaterSubmissionController extends Controller
                 $rolePivotTable = 'role_user';
                 $rolesTable = (new Role())->getTable();
 
-                $savedScores = \App\Models\MultiRaterScore::query()
-                    ->where('period_id', $periodId)
-                    ->where('rater_user_id', Auth::id())
-                    ->join('users as u', 'u.id', '=', 'multi_rater_scores.target_user_id')
+                $savedScores = \App\Models\MultiRaterAssessmentDetail::query()
+                    ->join('multi_rater_assessments as mra', 'mra.id', '=', 'multi_rater_assessment_details.multi_rater_assessment_id')
+                    ->join('users as u', 'u.id', '=', 'mra.assessee_id')
                     ->join($rolePivotTable . ' as ru', 'ru.user_id', '=', 'u.id')
                     ->join($rolesTable . ' as r', 'r.id', '=', 'ru.role_id')
                     ->where('r.slug', User::ROLE_PEGAWAI_MEDIS)
-                    ->leftJoin($criteriaTable . ' as pc', 'pc.id', '=', 'multi_rater_scores.performance_criteria_id')
+                    ->leftJoin($criteriaTable . ' as pc', 'pc.id', '=', 'multi_rater_assessment_details.performance_criteria_id')
+                    ->where('mra.assessment_period_id', $periodId)
+                    ->where('mra.assessor_id', Auth::id())
                     ->where('pc.input_method', '360')
                     ->orderBy('u.name')
-                    ->get(['multi_rater_scores.*','u.name as target_name','pc.name as criteria_name','pc.type as criteria_type']);
+                    ->get([
+                        'multi_rater_assessment_details.*',
+                        'mra.assessee_id as target_user_id',
+                        'mra.assessor_id as rater_user_id',
+                        'mra.assessor_type',
+                        'mra.assessment_period_id as period_id',
+                        'u.name as target_name',
+                        'pc.name as criteria_name',
+                        'pc.type as criteria_type',
+                    ]);
             }
         }
         $summary = SummaryService::build(Auth::id(), $request->get('summary_period_id'));

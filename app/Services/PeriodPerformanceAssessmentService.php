@@ -250,52 +250,7 @@ class PeriodPerformanceAssessmentService
             'rating' => [],
         ];
 
-            $ratingRows = DB::table('review_details as rd')
-                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
-                ->selectRaw('rd.medical_staff_id as user_id, AVG(rd.rating) as avg_rating, COUNT(rd.rating) as total_raters')
-                ->selectRaw('user_id, COUNT(*) as total_hadir')
-                ->whereIn('user_id', $userIds)
-                ->whereBetween('attendance_date', [$start, $end])
-                ->where('attendance_status', AttendanceStatus::HADIR->value)
-                ->groupBy('user_id')
-                ->whereNotNull('rd.rating')
-                ->pluck('total_hadir', 'user_id')
-                ->map(fn($v) => (float) $v)
-                ->all();
-        }
-
-        // Kedisiplinan (360): AVG score for the discipline criteria, submitted, by assessee
-        if (!empty($criteriaIds['kedisiplinan'])) {
-            $cid = (int) $criteriaIds['kedisiplinan'];
-            $fromDetails = DB::table('multi_rater_assessment_details as d')
-                ->join('multi_rater_assessments as mra', 'mra.id', '=', 'd.multi_rater_assessment_id')
-                ->selectRaw('mra.assessee_id as user_id, AVG(d.score) as avg_score')
-                ->where('mra.assessment_period_id', $period->id)
-                ->where('mra.status', 'submitted')
-                ->whereIn('mra.assessee_id', $userIds)
-                ->where('d.performance_criteria_id', $cid)
-                ->groupBy('mra.assessee_id')
-                ->pluck('avg_score', 'user_id')
-                ->map(fn($v) => (float) $v)
-                ->all();
-
-            // Fallback: simple 360 form saves to multi_rater_scores (no submitted status)
-            $fromScores = DB::table('multi_rater_scores')
-                ->selectRaw('target_user_id as user_id, AVG(score) as avg_score')
-                ->where('period_id', $period->id)
-                ->whereIn('target_user_id', $userIds)
-                ->where('performance_criteria_id', $cid)
-                ->groupBy('target_user_id')
-                ->pluck('avg_score', 'user_id')
-                ->map(fn($v) => (float) $v)
-                ->all();
-
-            // Prefer submitted details; otherwise use fallback scores
-            $raw['kedisiplinan'] = $fromDetails + array_diff_key($fromScores, $fromDetails);
-        }
-
-        // 360: Ambil rata-rata dari modul 360 yang dipakai UI (multi_rater_scores).
-        // Jika ada data header submitted (multi_rater_assessment_details), itu dipakai sebagai fallback.
+        // 360: Ambil rata-rata dari multi_rater_assessment_details (status submitted).
         if (!empty($criteriaIds['kedisiplinan'])) {
             $raw['kedisiplinan'] = $this->collect360Avg($period->id, (int) $criteriaIds['kedisiplinan'], $userIds);
         }
@@ -405,18 +360,6 @@ class PeriodPerformanceAssessmentService
      */
     private function collect360Avg(int $periodId, int $criteriaId, array $userIds): array
     {
-        // primary: scores saved from UI
-        $fromScores = DB::table('multi_rater_scores')
-            ->selectRaw('target_user_id as user_id, AVG(score) as avg_score')
-            ->where('period_id', $periodId)
-            ->where('performance_criteria_id', $criteriaId)
-            ->whereIn('target_user_id', $userIds)
-            ->groupBy('target_user_id')
-            ->pluck('avg_score', 'user_id')
-            ->map(fn($v) => (float) $v)
-            ->all();
-
-        // fallback: submitted header details
         $fromSubmitted = DB::table('multi_rater_assessment_details as d')
             ->join('multi_rater_assessments as mra', 'mra.id', '=', 'd.multi_rater_assessment_id')
             ->selectRaw('mra.assessee_id as user_id, AVG(d.score) as avg_score')
@@ -429,11 +372,6 @@ class PeriodPerformanceAssessmentService
             ->map(fn($v) => (float) $v)
             ->all();
 
-        // merge prefer multi_rater_scores
-        $out = $fromSubmitted;
-        foreach ($fromScores as $uid => $avg) {
-            $out[(int) $uid] = (float) $avg;
-        }
-        return $out;
+        return $fromSubmitted;
     }
 }
