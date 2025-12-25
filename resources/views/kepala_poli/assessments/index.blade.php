@@ -147,6 +147,11 @@
                         @php($st = $it->status ?? 'pending')
                         @php($isMyLevel = (int) ($it->level ?? 0) === 3)
                         <div class="inline-flex gap-2">
+                            <a href="{{ route('kepala_poliklinik.assessments.detail', $it->id) }}"
+                               class="inline-flex items-center gap-2 h-9 px-3 rounded-lg text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
+                                <i class="fa-solid fa-eye"></i>
+                                Detail
+                            </a>
                             @if($isMyLevel && $st === 'pending')
                                 <form method="POST" action="{{ route('kepala_poliklinik.assessments.approve', $it->id) }}">
                                     @csrf
@@ -157,9 +162,9 @@
 
                                 <form method="POST"
                                       action="{{ route('kepala_poliklinik.assessments.reject', $it->id) }}"
-                                      onsubmit="return confirm('Tolak penilaian ini?')">
+                                      onsubmit="const note = prompt('Catatan penolakan (wajib):'); if(!note){ return false; } this.note.value = note; return confirm('Tolak penilaian ini?');">
                                     @csrf
-                                    <input type="hidden" name="note" value="Ditolak oleh Kepala Poliklinik">
+                                    <input type="hidden" name="note" value="">
                                     <x-ui.button type="submit" variant="danger" class="h-9 px-3 text-xs">
                                         Reject
                                     </x-ui.button>

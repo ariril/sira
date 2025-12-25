@@ -8,6 +8,7 @@ use App\Models\AssessmentApproval;
 use App\Models\PerformanceAssessment;
 use App\Models\User;
 use App\Enums\AssessmentApprovalStatus;
+use App\Enums\AssessmentValidationStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Schema;
@@ -248,6 +249,10 @@ class AssessmentPeriodController extends Controller
                     'acted_at' => null,
                 ]
             );
+            // Reset global status to pending when entering approval phase.
+            $assessment->update([
+                'validation_status' => AssessmentValidationStatus::PENDING->value,
+            ]);
         }
     }
 }

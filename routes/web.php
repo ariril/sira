@@ -144,10 +144,10 @@ Route::middleware(['auth','verified','role:admin_rs'])
 
         // Multi-Level Assessment Approvals – Level 1 (Admin RS)
         Route::get('assessments/pending',             [\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
+        Route::get('assessments/{assessment}/detail', [\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'detail'])->name('assessments.detail');
         Route::post('assessments/{assessment}/approve',[\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'approve'])->name('assessments.approve');
         Route::post('assessments/{assessment}/reject', [\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'reject'])->name('assessments.reject');
-        Route::post('assessments/{assessment}/approve',[\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'approve'])->name('assessments.approve');
-        Route::post('assessments/{assessment}/reject', [\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'reject'])->name('assessments.reject');
+        Route::post('assessments/{assessment}/resubmit',[\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'resubmit'])->name('assessments.resubmit');
 
         // Alokasi Unit untuk remunerasi
         Route::resource('unit-remuneration-allocations', \App\Http\Controllers\Web\AdminHospital\UnitRemunerationAllocationController::class)
@@ -255,6 +255,7 @@ Route::middleware(['auth','verified','role:kepala_unit'])
 
         // Review & validasi penilaian – Level 2
         Route::get('assessments/pending',   [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
+        Route::get('assessments/{assessment}/detail', [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'detail'])->name('assessments.detail');
         Route::post('assessments/{assessment}/approve', [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'approve'])->name('assessments.approve');
         Route::post('assessments/{assessment}/reject',  [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'reject'])->name('assessments.reject');
 
@@ -289,6 +290,7 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
 
         // Approval final penilaian – Level 3
         Route::get('assessments/pending',   [\App\Http\Controllers\Web\PolyclinicHead\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
+        Route::get('assessments/{assessment}/detail', [\App\Http\Controllers\Web\PolyclinicHead\AssessmentApprovalController::class, 'detail'])->name('assessments.detail');
         Route::post('assessments/{assessment}/approve', [\App\Http\Controllers\Web\PolyclinicHead\AssessmentApprovalController::class, 'approve'])->name('assessments.approve');
         Route::post('assessments/{assessment}/reject',  [\App\Http\Controllers\Web\PolyclinicHead\AssessmentApprovalController::class, 'reject'])->name('assessments.reject');
 

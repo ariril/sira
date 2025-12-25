@@ -6,6 +6,8 @@ use App\Enums\AssessmentApprovalStatus as AStatus;
 use App\Http\Controllers\Controller;
 use App\Models\AssessmentApproval;
 use App\Services\AssessmentApprovalFlow;
+use App\Services\AssessmentApprovalDetailService;
+use App\Services\AssessmentApprovalService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -116,55 +118,54 @@ class AssessmentApprovalController extends Controller
     }
 
     /** Approve selected approval (level 3). */
-    public function approve(Request $request, AssessmentApproval $assessment): RedirectResponse
+    public function approve(Request $request, AssessmentApproval $assessment, AssessmentApprovalService $svc): RedirectResponse
     {
         $this->authorizeAccess();
-        // Only level 3 allowed here
-        if ((int) ($assessment->level ?? 0) !== 3) {
-            abort(403);
+        try {
+            $svc->approve($assessment, Auth::user(), (string) $request->input('note'));
+            return back()->with('status', 'Penilaian disetujui.');
+        } catch (\Throwable $e) {
+            return back()->withErrors(['status' => $e->getMessage()]);
         }
-        // Enum-safe comparisons (status is cast to enum in model)
-        if ($assessment->status === AStatus::APPROVED) {
-            return back()->with('status', 'Penilaian sudah disetujui.');
-        }
-        if ($assessment->status !== AStatus::PENDING) {
-            return back()->withErrors(['status' => 'Status saat ini tidak dapat disetujui.']);
-        }
-        // Require Level 2 approval before Level 3 can approve
-        $hasLvl2Approved = DB::table('assessment_approvals')
-            ->where('performance_assessment_id', $assessment->performance_assessment_id)
-            ->where('level', 2)
-            ->where('status', AStatus::APPROVED->value)
-            ->exists();
-        if (!$hasLvl2Approved) {
-            return back()->withErrors(['status' => 'Belum dapat menyetujui: menunggu persetujuan Level 2.']);
-        }
-        $assessment->update([
-            'status'   => AStatus::APPROVED->value,
-            'note'     => (string) $request->input('note'),
-            'acted_at' => now(),
-        ]);
-        return back()->with('status', 'Penilaian disetujui.');
     }
 
     /** Reject selected approval (level 3). */
-    public function reject(Request $request, AssessmentApproval $assessment): RedirectResponse
+    public function reject(Request $request, AssessmentApproval $assessment, AssessmentApprovalService $svc): RedirectResponse
     {
         $this->authorizeAccess();
-        if ((int) ($assessment->level ?? 0) !== 3) {
-            abort(403);
-        }
         $request->validate(['note' => ['required','string','max:500']]);
-        if ($assessment->status !== AStatus::PENDING) {
-            return back()->withErrors(['status' => 'Tidak dapat menolak karena status sudah ' . $assessment->status->value . '.']);
+        try {
+            $svc->reject($assessment, Auth::user(), (string) $request->input('note'));
+            return back()->with('status', 'Penilaian ditolak.');
+        } catch (\Throwable $e) {
+            return back()->withErrors(['status' => $e->getMessage()]);
         }
-        $assessment->update([
-            'status'   => AStatus::REJECTED->value,
-            'note'     => (string) $request->input('note'),
-            'acted_at' => now(),
+    }
+
+    public function detail(Request $request, AssessmentApproval $assessment, AssessmentApprovalService $approvalSvc, AssessmentApprovalDetailService $detailSvc): View
+    {
+        $this->authorizeAccess();
+
+        $assessment->load([
+            'performanceAssessment.user',
+            'performanceAssessment.assessmentPeriod',
+            'performanceAssessment.details.performanceCriteria',
+            'performanceAssessment.approvals.approver',
         ]);
-        AssessmentApprovalFlow::removeFutureLevels($assessment);
-        return back()->with('status', 'Penilaian ditolak.');
+
+        $pa = $assessment->performanceAssessment;
+        $approvalSvc->assertCanViewPerformanceAssessment(Auth::user(), $pa);
+
+        $breakdown = $detailSvc->getBreakdown($pa);
+        $raw = $detailSvc->getRawImportedValues($pa);
+
+        return view('shared.assessment_approval_detail', [
+            'approval' => $assessment,
+            'pa' => $pa,
+            'breakdown' => $breakdown,
+            'rawValues' => $raw,
+            'backUrl' => route('kepala_poliklinik.assessments.pending'),
+        ]);
     }
 
     private function authorizeAccess(): void

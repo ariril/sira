@@ -116,6 +116,11 @@
                         @php($lvl = (int) ($it->level ?? 1))
                         @php($lvl2Approved = (bool) ($it->has_lvl2_approved ?? false))
                         <div class="inline-flex gap-2">
+                            <a href="{{ route('admin_rs.assessments.detail', $it->id) }}"
+                               class="inline-flex items-center gap-2 h-9 px-3 rounded-lg text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
+                                <i class="fa-solid fa-eye"></i>
+                                Detail
+                            </a>
                             @if ($st === 'pending' && $lvl === 1)
                                 <form method="POST" action="{{ route('admin_rs.assessments.approve', $it->id) }}">
                                     @csrf
@@ -126,14 +131,24 @@
 
                                 @if (!$lvl2Approved)
                                     <form method="POST" action="{{ route('admin_rs.assessments.reject', $it->id) }}"
-                                        onsubmit="return confirm('Tolak penilaian ini?')">
+                                        onsubmit="const note = prompt('Catatan penolakan (wajib):'); if(!note){ return false; } this.note.value = note; return confirm('Tolak penilaian ini?');">
                                         @csrf
-                                        <input type="hidden" name="note" value="Ditolak oleh Admin RS">
+                                        <input type="hidden" name="note" value="">
                                         <x-ui.button type="submit" variant="danger" class="h-9 px-3 text-xs">
                                             Reject
                                         </x-ui.button>
                                     </form>
                                 @endif
+                            @endif
+
+                            @if ($st === 'rejected')
+                                <form method="POST" action="{{ route('admin_rs.assessments.resubmit', $it->id) }}"
+                                      onsubmit="return confirm('Ajukan ulang penilaian ini?')">
+                                    @csrf
+                                    <x-ui.button type="submit" variant="warning" class="h-9 px-3 text-xs">
+                                        Ajukan Ulang
+                                    </x-ui.button>
+                                </form>
                             @endif
                         </div>
                     </td>
