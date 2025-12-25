@@ -156,7 +156,14 @@
                         <td class="px-6 py-4">{{ $dateLabel }}</td>
                         <td class="px-6 py-4">{{ $checkIn ? $checkIn : '-' }}</td>
                         <td class="px-6 py-4">{{ $checkOut ? $checkOut : '-' }}</td>
-                        <td class="px-6 py-4 {{ $r->success ? '' : 'text-rose-700 font-medium' }}">{{ $statusText ?? '-' }}</td>
+                        <td class="px-6 py-4 {{ $r->success ? '' : 'text-rose-700 font-medium' }}">
+                            <span>{{ $statusText ?? '-' }}</span>
+                            @if(!$r->success && $r->error_message)
+                                <span class="ml-2 inline-flex items-center text-slate-500" title="{{ $r->error_message }}">
+                                    <i class="fa-solid fa-circle-info"></i>
+                                </span>
+                            @endif
+                        </td>
                     </tr>
                 @empty
                     <tr><td colspan="7" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>

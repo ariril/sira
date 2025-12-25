@@ -2,9 +2,14 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Upload Excel Absensi</h1>
-            <x-ui.button as="a" href="{{ route('admin_rs.attendances.batches') }}" variant="success" class="h-12 px-6 text-base">
-                <i class="fa-solid fa-database mr-2"></i> Lihat Batch Import
-            </x-ui.button>
+            <div class="flex items-center gap-3">
+                <x-ui.button as="a" href="{{ route('admin_rs.attendances.import.template') }}" variant="outline" class="h-12 px-6 text-base">
+                    <i class="fa-solid fa-download mr-2"></i> Unduh Template Excel
+                </x-ui.button>
+                <x-ui.button as="a" href="{{ route('admin_rs.attendances.batches') }}" variant="success" class="h-12 px-6 text-base">
+                    <i class="fa-solid fa-database mr-2"></i> Lihat Batch Import
+                </x-ui.button>
+            </div>
         </div>
     </x-slot>
 
@@ -35,6 +40,41 @@
                         <input id="file" type="file" name="file" accept=".xlsx,.xls,.csv,text/csv" class="hidden" required />
                     </label>
                     <p class="mt-2 text-xs text-slate-500" id="file-name"></p>
+
+                    <div class="mt-3 text-sm text-slate-600 space-y-1">
+                        <div>• Pastikan kolom NIP berformat TEXT (bukan Number). Jika muncul E+, ubah format ke Text.</div>
+                        <div>• Tanggal dapat berbentuk "Monday 01-12-2025", sistem akan mengambil tanggalnya.</div>
+                    </div>
+
+                    <div id="nip-warning" class="hidden mt-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
+                        <div class="font-semibold">Warning</div>
+                        <div>NIP terdeteksi format scientific (E+). Ubah format kolom NIP menjadi TEXT di Excel lalu simpan ulang agar tidak gagal.</div>
+                    </div>
+
+                    <div id="preview-box" class="hidden mt-4 rounded-2xl border border-slate-200 bg-white">
+                        <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                            <div class="text-sm font-semibold text-slate-800">Preview 5 Baris Pertama</div>
+                            <div id="preview-loading" class="hidden text-xs text-slate-500">Memuat preview...</div>
+                        </div>
+                        <div class="overflow-auto">
+                            <table class="min-w-[900px] w-full text-sm">
+                                <thead class="bg-slate-50 text-slate-600">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left">Row</th>
+                                        <th class="px-4 py-3 text-left">NIP</th>
+                                        <th class="px-4 py-3 text-left">Nama</th>
+                                        <th class="px-4 py-3 text-left">Tanggal</th>
+                                        <th class="px-4 py-3 text-left">Scan Masuk</th>
+                                        <th class="px-4 py-3 text-left">Scan Keluar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="preview-body" class="divide-y divide-slate-100">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="preview-error" class="hidden px-4 py-3 text-sm text-rose-700"></div>
+                    </div>
+
                     <script>
                         document.addEventListener('DOMContentLoaded', function(){
                             const input = document.getElementById('file');
@@ -45,6 +85,12 @@
                             const dropzone = document.getElementById('dropzone');
                             const dropLabel = document.getElementById('drop-label');
                             const dropIcon = document.getElementById('drop-icon');
+
+                            const previewBox = document.getElementById('preview-box');
+                            const previewBody = document.getElementById('preview-body');
+                            const previewLoading = document.getElementById('preview-loading');
+                            const previewError = document.getElementById('preview-error');
+                            const nipWarning = document.getElementById('nip-warning');
                             if (!input) return;
 
                             const resetState = () => {
@@ -85,8 +131,72 @@
                                         dropIcon.classList.remove('text-emerald-500');
                                         dropIcon.classList.add('text-emerald-600');
                                     }
+
+                                    // Fetch preview (5 rows)
+                                    if (previewBox) previewBox.classList.remove('hidden');
+                                    if (previewLoading) previewLoading.classList.remove('hidden');
+                                    if (previewError) previewError.classList.add('hidden');
+                                    if (previewBody) previewBody.innerHTML = '';
+                                    if (nipWarning) nipWarning.classList.add('hidden');
+
+                                    const formData = new FormData();
+                                    formData.append('file', file);
+                                    formData.append('_token', '{{ csrf_token() }}');
+
+                                    fetch('{{ route('admin_rs.attendances.import.preview') }}', {
+                                        method: 'POST',
+                                        body: formData,
+                                    })
+                                    .then(async (res) => {
+                                        const data = await res.json().catch(() => null);
+                                        if (!res.ok) {
+                                            const msg = data && data.message ? data.message : 'Gagal memuat preview.';
+                                            throw new Error(msg);
+                                        }
+                                        return data;
+                                    })
+                                    .then((data) => {
+                                        const rows = (data && data.preview) ? data.preview : [];
+                                        const warnings = (data && data.warnings) ? data.warnings : {};
+                                        const showWarn = !!(warnings.nip_scientific || warnings.nip_numeric_long);
+                                        if (showWarn && nipWarning) nipWarning.classList.remove('hidden');
+
+                                        if (previewBody) {
+                                            previewBody.innerHTML = rows.map(r => {
+                                                const esc = (v) => {
+                                                    const s = (v ?? '').toString();
+                                                    return s.replaceAll('&', '&amp;')
+                                                        .replaceAll('<', '&lt;')
+                                                        .replaceAll('>', '&gt;')
+                                                        .replaceAll('"', '&quot;')
+                                                        .replaceAll("'", '&#039;');
+                                                };
+                                                return `
+                                                    <tr class="hover:bg-slate-50">
+                                                        <td class="px-4 py-3">${esc(r.row_no)}</td>
+                                                        <td class="px-4 py-3">${esc(r.nip)}</td>
+                                                        <td class="px-4 py-3">${esc(r.nama || '-')}</td>
+                                                        <td class="px-4 py-3">${esc(r.tanggal || '-')}</td>
+                                                        <td class="px-4 py-3">${esc(r.scan_masuk || '-')}</td>
+                                                        <td class="px-4 py-3">${esc(r.scan_keluar || '-')}</td>
+                                                    </tr>
+                                                `;
+                                            }).join('');
+                                        }
+                                    })
+                                    .catch((e) => {
+                                        if (previewError) {
+                                            previewError.textContent = e && e.message ? e.message : 'Gagal memuat preview.';
+                                            previewError.classList.remove('hidden');
+                                        }
+                                    })
+                                    .finally(() => {
+                                        if (previewLoading) previewLoading.classList.add('hidden');
+                                    });
                                 } else {
                                     resetState();
+                                    if (previewBox) previewBox.classList.add('hidden');
+                                    if (nipWarning) nipWarning.classList.add('hidden');
                                 }
                             });
 

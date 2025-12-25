@@ -136,6 +136,8 @@ Route::middleware(['auth','verified','role:admin_rs'])
         // Import Kehadiran
         Route::get('attendances/import', [\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'create'])->name('attendances.import.form');
         Route::post('attendances/import',[\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'store'])->name('attendances.import.store');
+        Route::post('attendances/import/preview',[\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'preview'])->name('attendances.import.preview');
+        Route::get('attendances/import-template',[\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'template'])->name('attendances.import.template');
         Route::get('attendances/batches',[\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'index'])->name('attendances.batches');
         Route::get('attendances/batches/{batch}',[\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'show'])->name('attendances.batches.show');
         Route::resource('attendances',   \App\Http\Controllers\Web\AdminHospital\AttendanceController::class)->only(['index','show','update','destroy']);
