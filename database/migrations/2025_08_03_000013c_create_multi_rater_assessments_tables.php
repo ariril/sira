@@ -19,6 +19,10 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['assessee_id','assessment_period_id']);
+            $table->unique(
+                ['assessee_id', 'assessment_period_id', 'assessor_type', 'assessor_id'],
+                'uniq_mra_once_per_assessor_type'
+            );
         });
 
         Schema::create('multi_rater_assessment_details', function (Blueprint $table) {

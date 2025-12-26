@@ -18,6 +18,7 @@ return new class extends Migration
             // Added metadata columns 
             $table->enum('data_type', ['numeric','percentage','boolean','datetime','text'])->nullable();
             $table->enum('input_method', ['system','manual','import','360','public_review'])->nullable();
+            $table->boolean('is_360')->default(false);
             $table->enum('aggregation_method', ['sum','avg','count','latest','custom'])->nullable();
 
             $table->enum('normalization_basis', ['total_unit','max_unit','average_unit','custom_target'])
