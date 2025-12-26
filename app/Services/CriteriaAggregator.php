@@ -6,8 +6,9 @@ use App\Models\CriteriaMetric;
 use App\Models\PerformanceAssessment;
 use App\Models\PerformanceAssessmentDetail;
 use App\Models\PerformanceCriteria;
-use App\Models\RaterTypeWeight;
+use App\Models\RaterWeight;
 use App\Models\MultiRaterAssessment;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 class CriteriaAggregator
@@ -27,7 +28,7 @@ class CriteriaAggregator
                 $score = null;
                 $metric = null;
 
-                if ($criteria->input_method === '360') {
+                if ((bool) $criteria->is_360) {
                     $score = $this->aggregate360($criteria->id, $userId, $periodId);
                 } else {
                     // For non-360, assume metric is precomputed/imported; normalize as-is (0-100 expected)
@@ -54,52 +55,72 @@ class CriteriaAggregator
         });
     }
 
-    // Weighted aggregation for 360 based on rater_type_weights. Returns 0-100 or null.
+    // Weighted aggregation for 360 based on rater_weights (active per period + assessee profession). Returns 0-100 or null.
     private function aggregate360(int $criteriaId, int $userId, int $periodId): ?float
     {
-        $weights = RaterTypeWeight::where('performance_criteria_id', $criteriaId)->get()->keyBy('assessor_type');
-        if ($weights->isEmpty()) {
-            // default: supervisor 40, peer 30, subordinate 20, self 10
-            $defaults = [
-                'supervisor' => 40.0,
-                'peer' => 30.0,
-                'subordinate' => 20.0,
-                'self' => 10.0,
-            ];
-        } else {
-            $defaults = $weights->mapWithKeys(fn($w) => [$w->assessor_type => (float)$w->weight])->all();
+        $professionId = (int) (User::query()->whereKey($userId)->value('profession_id') ?? 0);
+        $weights = $this->resolveActiveWeights($periodId, $professionId);
+
+        $avgByType = DB::table('multi_rater_assessment_details as d')
+            ->join('multi_rater_assessments as mra', 'mra.id', '=', 'd.multi_rater_assessment_id')
+            ->selectRaw('mra.assessor_type as assessor_type, AVG(d.score) as avg_score')
+            ->where('mra.assessee_id', $userId)
+            ->where('mra.assessment_period_id', $periodId)
+            ->where('mra.status', 'submitted')
+            ->where('d.performance_criteria_id', $criteriaId)
+            ->groupBy('mra.assessor_type')
+            ->pluck('avg_score', 'assessor_type')
+            ->map(fn($v) => (float) $v)
+            ->all();
+
+        if (empty($avgByType)) {
+            return null;
         }
 
-        // Average per assessor_type for the criteria
-        $rows = MultiRaterAssessment::query()
-            ->where('assessee_id', $userId)
-            ->where('assessment_period_id', $periodId)
-            ->whereHas('details', function ($q) use ($criteriaId) {
-                $q->where('performance_criteria_id', $criteriaId);
-            })
-            ->with(['details' => function ($q) use ($criteriaId) {
-                $q->where('performance_criteria_id', $criteriaId);
-            }])
-            ->get();
-
-        if ($rows->isEmpty()) return null;
-
-        $grouped = [];
-        foreach ($rows as $r) {
-            $type = $r->assessor_type;
-            foreach ($r->details as $d) {
-                $grouped[$type][] = (float)$d->score;
+        $final = 0.0;
+        $hasAny = false;
+        foreach (['self', 'supervisor', 'peer', 'subordinate'] as $type) {
+            if (array_key_exists($type, $avgByType)) {
+                $hasAny = true;
             }
+            $avg = (float) ($avgByType[$type] ?? 0.0);
+            $w = (float) ($weights[$type] ?? 0.0);
+            $final += $avg * ($w / 100.0);
         }
 
-        $weightedSum = 0.0; $weightTotal = 0.0;
-        foreach ($grouped as $type => $scores) {
-            $avg = array_sum($scores) / max(count($scores),1);
-            $w = $defaults[$type] ?? 0.0;
-            if ($w > 0) { $weightedSum += $avg * $w; $weightTotal += $w; }
+        return $hasAny ? $final : null;
+    }
+
+    /**
+     * @return array<string,float> assessor_type => weight
+     */
+    private function resolveActiveWeights(int $periodId, int $professionId): array
+    {
+        $defaults = [
+            'supervisor' => 40.0,
+            'peer' => 30.0,
+            'subordinate' => 20.0,
+            'self' => 10.0,
+        ];
+
+        if ($periodId <= 0 || $professionId <= 0) {
+            return $defaults;
         }
 
-        if ($weightTotal <= 0.0) return null;
-        return $weightedSum / $weightTotal; // 0-100
+        $rows = RaterWeight::query()
+            ->where('assessment_period_id', $periodId)
+            ->where('assessee_profession_id', $professionId)
+            ->where('status', 'active')
+            ->get(['assessor_type', 'weight']);
+
+        if ($rows->isEmpty()) {
+            return $defaults;
+        }
+
+        $out = $defaults;
+        foreach ($rows as $row) {
+            $out[(string) $row->assessor_type] = (float) $row->weight;
+        }
+        return $out;
     }
 }

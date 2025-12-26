@@ -54,7 +54,6 @@
                             <span class="text-slate-500">Profil</span>
                         @endif
                     </li>
-                    <li><a href="{{ route('reviews.create') }}" class="hover:text-blue-400">Ulasan</a></li>
                     <li><a href="{{ route('contact') }}" class="hover:text-blue-400">Kontak</a></li>
                     <li><a href="{{ route('announcements.index') }}" class="hover:text-blue-400">Pengumuman</a></li>
                     <li><a href="{{ route('faqs.index') }}" class="hover:text-blue-400">FAQ</a></li>
@@ -66,7 +65,6 @@
                 <ul class="space-y-2">
                     <li><a href="{{ route('announcements.index') }}" class="hover:text-blue-400">Pengumuman</a></li>
                     <li><a href="{{ route('faqs.index') }}" class="hover:text-blue-400">FAQ</a></li>
-                    <li><a href="{{ route('reviews.create') }}" class="hover:text-blue-400">Ulasan</a></li>
                     @if($profilPages->firstWhere('type','tugas_fungsi') ?? $profilPages->firstWhere('tipe','tugas_fungsi'))
                         <li><a href="{{ route('about_pages.show','tugas_fungsi') }}" class="hover:text-blue-400">Panduan Teknis</a></li>
                     @endif

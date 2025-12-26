@@ -106,7 +106,7 @@ class PeriodPerformanceAssessmentService
         // Prefer explicit "Kedisiplinan (360)"; fallback to any 360 criteria
         $kedis = PerformanceCriteria::query()->where('name', 'like', '%Kedisiplinan%')->orderBy('id')->value('id');
         if (!$kedis) {
-            $kedis = PerformanceCriteria::query()->where('input_method', '360')->orderBy('id')->value('id');
+            $kedis = PerformanceCriteria::query()->where('is_360', true)->where('is_active', true)->orderBy('id')->value('id');
         }
 
         $kerjasama = PerformanceCriteria::query()->where('name', 'Kerjasama (360)')->orderBy('id')->value('id');

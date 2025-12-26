@@ -18,6 +18,8 @@ return new class extends Migration {
                 ->constrained('users')
                 ->cascadeOnDelete();
 
+            $table->enum('role', ['dokter', 'perawat', 'lainnya'])->nullable();
+
             $table->timestamps();
 
             $table->unique(['invitation_id', 'user_id'], 'uniq_inv_staff');

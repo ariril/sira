@@ -15,7 +15,7 @@ class MultiRaterController extends Controller
     public function index(Request $request)
     {
         $periods = AssessmentPeriod::orderByDesc('start_date')->get();
-        $periodId = (int)($request->get('period_id') ?? optional($periods->first())->id);
+        $periodId = (int)($request->get('assessment_period_id') ?? $request->get('period_id') ?? optional($periods->first())->id);
         $period = $periodId ? $periods->firstWhere('id', $periodId) : null;
 
         $latestWindow = $period ? Assessment360Window::where('assessment_period_id', $period->id)
@@ -46,7 +46,7 @@ class MultiRaterController extends Controller
             // Active 360 criteria within this period
             $summary['active360Criteria'] = \App\Models\PerformanceCriteria::query()
                 ->where('is_active', true)
-                ->where('input_method', '360')
+                ->where('is_360', true)
                 ->count();
             // Unit count under hospital
             $summary['unitCount'] = \DB::table('units')->count();
@@ -104,7 +104,7 @@ class MultiRaterController extends Controller
             ]);
         }
 
-        return redirect()->route('admin_rs.multi_rater.index', ['period_id' => $period->id])
+        return redirect()->route('admin_rs.multi_rater.index', ['assessment_period_id' => $period->id])
             ->with('status', 'Jadwal penilaian 360 dibuka.');
     }
 
@@ -113,7 +113,7 @@ class MultiRaterController extends Controller
         $request->validate(['assessment_period_id' => ['required','integer','exists:assessment_periods,id']]);
         Assessment360Window::where('assessment_period_id', (int)$request->assessment_period_id)
             ->where('is_active', true)->update(['is_active' => false]);
-        return redirect()->route('admin_rs.multi_rater.index', ['period_id' => (int)$request->assessment_period_id])
+        return redirect()->route('admin_rs.multi_rater.index', ['assessment_period_id' => (int)$request->assessment_period_id])
             ->with('status', 'Jadwal penilaian 360 ditutup.');
     }
 
@@ -127,7 +127,7 @@ class MultiRaterController extends Controller
         if (!$window) return back()->with('error','Buka jadwal 360 terlebih dahulu.');
 
         Artisan::call('mra:generate', ['period_id' => $periodId]);
-        return redirect()->route('admin_rs.multi_rater.index', ['period_id' => $periodId])
+        return redirect()->route('admin_rs.multi_rater.index', ['assessment_period_id' => $periodId])
             ->with('status', trim(Artisan::output()) ?: 'Undangan 360 dibuat/di-update.');
     }
 }

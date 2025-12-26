@@ -437,29 +437,46 @@ class DatabaseSeeder extends Seeder
             // 7) PERFORMANCE CRITERIAS
             // =========================================================
             $criterias = [
-                ['name' => 'Absensi', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'description' => 'Total hadir dalam periode', 'is_active' => 1],
-                ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kedisiplinan', 'is_active' => 1],
-                ['name' => 'Kerjasama (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kerjasama tim', 'is_active' => 1],
-                ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'aggregation_method' => 'sum', 'description' => 'Poin tugas / kontribusi tambahan dari modul tugas/kontribusi', 'is_active' => 1],
-                ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'description' => 'Total pasien ditangani', 'is_active' => 1],
-                ['name' => 'Jumlah Komplain Pasien', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'description' => 'Total komplain pasien (semakin kecil semakin baik)', 'is_active' => 1],
-                ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'aggregation_method' => 'avg', 'description' => 'Rerata rating pasien', 'is_active' => 1],
+                ['name' => 'Absensi', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Total hadir dalam periode', 'is_active' => 1],
+                ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'is_360' => 1, 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kedisiplinan', 'is_active' => 1],
+                ['name' => 'Kerjasama (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'is_360' => 1, 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kerjasama tim', 'is_active' => 1],
+                ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Poin tugas / kontribusi tambahan dari modul tugas/kontribusi', 'is_active' => 1],
+                ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Total pasien ditangani', 'is_active' => 1],
+                ['name' => 'Jumlah Komplain Pasien', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'import', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Total komplain pasien (semakin kecil semakin baik)', 'is_active' => 1],
+                ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'is_360' => 0, 'aggregation_method' => 'avg', 'description' => 'Rerata rating pasien', 'is_active' => 1],
             ];
             foreach ($criterias as &$k) {
                 $k['created_at'] = $now;
                 $k['updated_at'] = $now;
             }
-            DB::table('performance_criterias')->upsert($criterias, ['name'], ['type','data_type','input_method','aggregation_method','description','is_active','updated_at']);
+            DB::table('performance_criterias')->upsert($criterias, ['name'], ['type','data_type','input_method','is_360','aggregation_method','description','is_active','updated_at']);
 
-            // Seed default rater weights for kedisiplinan (360)
-            $kedisId = DB::table('performance_criterias')->where('name', 'Kedisiplinan (360)')->value('id');
-            if ($kedisId) {
-                DB::table('rater_type_weights')->upsert([
-                    ['performance_criteria_id' => $kedisId, 'assessor_type' => 'supervisor', 'weight' => 40.00, 'created_at' => $now, 'updated_at' => $now],
-                    ['performance_criteria_id' => $kedisId, 'assessor_type' => 'peer', 'weight' => 30.00, 'created_at' => $now, 'updated_at' => $now],
-                    ['performance_criteria_id' => $kedisId, 'assessor_type' => 'subordinate', 'weight' => 20.00, 'created_at' => $now, 'updated_at' => $now],
-                    ['performance_criteria_id' => $kedisId, 'assessor_type' => 'self', 'weight' => 10.00, 'created_at' => $now, 'updated_at' => $now],
-                ], ['performance_criteria_id', 'assessor_type'], ['weight','updated_at']);
+            // Seed default rater weights (per period + profession) for 360 recap weighting
+            $defaultWeightRows = function (int $periodId, int $professionId, ?int $decidedBy = null) use ($now) {
+                return [
+                    ['assessment_period_id' => $periodId, 'assessee_profession_id' => $professionId, 'assessor_type' => 'supervisor',  'weight' => 40.00, 'status' => 'active', 'proposed_by' => null, 'decided_by' => $decidedBy, 'decided_at' => $decidedBy ? $now : null, 'created_at' => $now, 'updated_at' => $now],
+                    ['assessment_period_id' => $periodId, 'assessee_profession_id' => $professionId, 'assessor_type' => 'peer',        'weight' => 30.00, 'status' => 'active', 'proposed_by' => null, 'decided_by' => $decidedBy, 'decided_at' => $decidedBy ? $now : null, 'created_at' => $now, 'updated_at' => $now],
+                    ['assessment_period_id' => $periodId, 'assessee_profession_id' => $professionId, 'assessor_type' => 'subordinate', 'weight' => 20.00, 'status' => 'active', 'proposed_by' => null, 'decided_by' => $decidedBy, 'decided_at' => $decidedBy ? $now : null, 'created_at' => $now, 'updated_at' => $now],
+                    ['assessment_period_id' => $periodId, 'assessee_profession_id' => $professionId, 'assessor_type' => 'self',        'weight' => 10.00, 'status' => 'active', 'proposed_by' => null, 'decided_by' => $decidedBy, 'decided_at' => $decidedBy ? $now : null, 'created_at' => $now, 'updated_at' => $now],
+                ];
+            };
+
+            $headPoliId = $userId('kepalapoli@rsud.local') ?? null;
+            $profDoctorUmum = (int) ($professionId('DOK-UM') ?? 0);
+            $profPerawat = (int) ($professionId('PRW') ?? 0);
+            $profDoctorSp = (int) ($professionId('DOK-SP') ?? 0);
+
+            $seedWeights = [];
+            foreach ([$profDoctorUmum, $profPerawat, $profDoctorSp] as $pid) {
+                if ($pid > 0 && $periodSeptId) $seedWeights = array_merge($seedWeights, $defaultWeightRows((int)$periodSeptId, $pid, $headPoliId));
+                if ($pid > 0 && $periodOctId) $seedWeights = array_merge($seedWeights, $defaultWeightRows((int)$periodOctId, $pid, $headPoliId));
+            }
+            if (!empty($seedWeights)) {
+                DB::table('rater_weights')->upsert(
+                    $seedWeights,
+                    ['assessment_period_id', 'assessee_profession_id', 'assessor_type'],
+                    ['weight', 'status', 'proposed_by', 'decided_by', 'decided_at', 'updated_at']
+                );
             }
 
             $criteriaId = fn(string $name) => DB::table('performance_criterias')->where('name', $name)->value('id');

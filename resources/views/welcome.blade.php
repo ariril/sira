@@ -20,9 +20,6 @@
                     <a href="#announcements" class="btn-primary">
                         Lihat Pengumuman
                     </a>
-                    <a href="{{ route('reviews.create') }}" class="btn-outline">
-                        Berikan Ulasan
-                    </a>
                 </div>
 
                 

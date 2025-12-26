@@ -94,6 +94,9 @@
         ['label'=>'Kriteria Kinerja','icon'=>'fa-list-check',
          'href'=>$href('admin_rs.performance-criterias.index','/admin-rs/performance-criterias'),
          'active'=>request()->routeIs('admin_rs.performance-criterias.*')],
+        ['label'=>'Aturan Kriteria 360','icon'=>'fa-shield-halved',
+        'href'=>$href('admin_rs.criteria_rater_rules.index','/admin-rs/criteria-rater-rules'),
+        'active'=>request()->routeIs('admin_rs.criteria_rater_rules.*')],
         ['label'=>'Bobot per Unit','icon'=>'fa-scale-balanced',
          'href'=>$href('admin_rs.unit-criteria-weights.index','/admin-rs/unit-criteria-weights'),
          'active'=>request()->routeIs('admin_rs.unit-criteria-weights.*')],
@@ -115,6 +118,11 @@
          'href'=>$href('admin_rs.remunerations.index','/admin-rs/remunerations'),
          'active'=>request()->routeIs('admin_rs.remunerations.index') || request()->routeIs('admin_rs.remunerations.show')],
       ]],
+      ['heading'=>'Ulasan Pasien','items'=>[
+        ['label'=>'Import Invitation Link','icon'=>'fa-link',
+         'href'=>$href('admin_rs.review_invitations.import.form','/admin-rs/review-invitations/import'),
+         'active'=>request()->is('admin-rs/review-invitations/*')],
+      ]],
     ];
 
     /* =======================
@@ -130,6 +138,9 @@
         ['label'=>'Bobot per Unit','icon'=>'fa-scale-balanced',
          'href'=>$href('kepala_unit.unit-criteria-weights.index','/kepala-unit/unit-criteria-weights'),
          'active'=>request()->routeIs('kepala_unit.unit-criteria-weights.*')],
+        ['label'=>'Bobot Penilai 360','icon'=>'fa-weight-hanging',
+        'href'=>$href('kepala_unit.rater_weights.index','/kepala-unit/rater-weights'),
+        'active'=>request()->routeIs('kepala_unit.rater_weights.*')],
       ]],
       ['heading'=>'Tugas Tambahan','items'=>[
         ['label'=>'Daftar Tugas','icon'=>'fa-list-ul',
@@ -170,6 +181,9 @@
         ['label'=>'Approval Bobot','icon'=>'fa-scale-balanced',
          'href'=>$href('kepala_poliklinik.unit_criteria_weights.index','/kepala-poliklinik/unit-criteria-weights'),
          'active'=>request()->routeIs('kepala_poliklinik.unit_criteria_weights.*')],
+        ['label'=>'Approval Bobot Penilai 360','icon'=>'fa-weight-hanging',
+        'href'=>$href('kepala_poliklinik.rater_weights.index','/kepala-poliklinik/rater-weights'),
+        'active'=>request()->routeIs('kepala_poliklinik.rater_weights.*')],
       ]],
       ['heading'=>'Penilaian Kinerja','items'=>[
         ['label'=>'Approval Final (Lv.3)','icon'=>'fa-list-check',

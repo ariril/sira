@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('criteria_rater_rules', function (Blueprint $table) {
             $table->id();
             $table->foreignId('performance_criteria_id')->constrained('performance_criterias')->cascadeOnDelete();
-            $table->enum('assessor_type', ['self', 'supervisor', 'peer', 'subordinate', 'patient', 'other']);
+            $table->enum('assessor_type', ['self', 'supervisor', 'peer', 'subordinate']);
             $table->timestamps();
 
             $table->unique(['performance_criteria_id', 'assessor_type'], 'uniq_criteria_rater_rule');

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Enums\MedicalStaffReviewRole;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ReviewDetail extends Model
 {
@@ -28,12 +29,17 @@ class ReviewDetail extends Model
     | RELATIONSHIPS
     |--------------------------------------------------------------------------
     */
-    public function review()
+    public function review(): BelongsTo
     {
         return $this->belongsTo(Review::class);
     }
 
-    public function medicalStaff()
+    public function medicalStaff(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'medical_staff_id');
+    }
+
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'medical_staff_id');
     }

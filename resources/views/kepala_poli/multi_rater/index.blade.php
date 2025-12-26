@@ -61,7 +61,7 @@
                             <td class="px-6 py-3">
                                 @if($allowInlineEdit)
                                     <form class="inline-flex items-center gap-2" onsubmit="event.preventDefault(); const fd=new FormData(this); fetch('{{ route('kepala_poliklinik.multi_rater.store') }}',{method:'POST',headers:{'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'},body:fd}).then(r=>r.json()).then(()=>location.reload());">
-                                        <input type="hidden" name="period_id" value="{{ $periodId }}">
+                                        <input type="hidden" name="assessment_period_id" value="{{ $periodId }}">
                                         <input type="hidden" name="target_user_id" value="{{ $s->target_user_id }}">
                                         <input type="hidden" name="performance_criteria_id" value="{{ $s->performance_criteria_id }}">
                                         <x-ui.input type="number" min="1" max="100" name="score" :value="$s->score" class="h-10 w-24 text-right text-sm" />

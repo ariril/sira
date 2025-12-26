@@ -15,6 +15,11 @@ class ReviewInvitationStaff extends Model
     protected $fillable = [
         'invitation_id',
         'user_id',
+        'role',
+    ];
+
+    protected $casts = [
+        'role' => 'string',
     ];
 
     public function invitation(): BelongsTo

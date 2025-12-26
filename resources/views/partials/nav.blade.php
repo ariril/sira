@@ -68,12 +68,6 @@
                     </a>
                 </li>
                 <li>
-                    <a href="{{ route('reviews.create') }}"
-                       class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400">
-                        <i class="fa-solid fa-star"></i> Ulasan
-                    </a>
-                </li>
-                <li>
                     <a href="{{ route('contact') }}"
                        class="flex items-center gap-2 px-6 py-4 border-b-2 border-transparent hover:bg-slate-700 hover:text-blue-400">
                         <i class="fa-solid fa-phone"></i> Kontak
@@ -105,7 +99,6 @@
             
             <li><a href="{{ route('announcements.index') }}" class="px-4 py-3 hover:bg-slate-700">Pengumuman</a></li>
             <li><a href="{{ route('faqs.index') }}" class="px-4 py-3 hover:bg-slate-700">FAQ</a></li>
-            <li><a href="{{ route('reviews.create') }}" class="px-4 py-3 hover:bg-slate-700">Ulasan</a></li>
             <li><a href="{{ route('contact') }}" class="px-4 py-3 hover:bg-slate-700">Kontak</a></li>
         </ul>
     </div>

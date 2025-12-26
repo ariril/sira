@@ -67,6 +67,24 @@
         </div>
     </div>
 
+    <div class="flex items-start gap-3" x-show="normalizationBasis !== null" x-cloak>
+        <div class="flex items-center gap-3">
+            <input type="hidden" name="is_360" value="0">
+            <x-ui.input
+                type="checkbox"
+                name="is_360"
+                value="1"
+                :checked="old('is_360', (bool) $item->is_360)"
+                class="h-5 w-5"
+                x-bind:disabled="document.querySelector('[name=\"input_method\"]')?.value !== '360'"
+            />
+        </div>
+        <div>
+            <div class="text-sm font-medium text-slate-700">Kriteria 360</div>
+            <div class="text-xs text-slate-500">Centang agar muncul di modul Penilaian 360.</div>
+        </div>
+    </div>
+
     <div class="grid md:grid-cols-2 gap-5">
         <div class="space-y-4">
             <div>
@@ -123,18 +141,3 @@
         <div class="text-xs text-amber-600 mt-1">Wajib dicentang bila mengubah kebijakan basis agar semua kriteria selaras.</div>
     @endif
 </div>
-@if(old('input_method', $item->input_method) === '360')
-<div class="mt-6 p-4 border border-amber-200 bg-amber-50 rounded-xl">
-    <div class="font-semibold text-amber-900 mb-3">Bobot Penilai (360°)</div>
-    <div class="grid md:grid-cols-3 gap-4">
-        @php($weights = optional($item->raterWeights)->keyBy('assessor_type'))
-        @foreach(['supervisor'=>'Atasan','peer'=>'Rekan','subordinate'=>'Bawahan','self'=>'Diri sendiri','patient'=>'Pasien','other'=>'Lainnya'] as $k=>$label)
-            <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">{{ $label }}</label>
-                <x-ui.input type="number" step="0.01" min="0" max="100" name="rater_weights[{{ $k }}]" :value="old('rater_weights.'.$k, $weights[$k]->weight ?? '')" placeholder="0-100" />
-            </div>
-        @endforeach
-    </div>
-    <div class="text-xs text-slate-600 mt-2">Total bobot sebaiknya 100.</div>
-</div>
-@endif

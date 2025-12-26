@@ -12,20 +12,34 @@ class ReviewInvitation extends Model
     use HasFactory;
 
     protected $fillable = [
+        'registration_ref',
+        'unit_id',
         'patient_name',
-        'phone',
-        'no_rm',
-        'token',
+        'contact',
+        'token_hash',
         'status',
         'expires_at',
+        'sent_at',
+        'opened_at',
+        'used_at',
+        'client_ip',
+        'user_agent',
     ];
 
     protected $casts = [
         'expires_at' => 'datetime',
+        'sent_at' => 'datetime',
+        'opened_at' => 'datetime',
+        'used_at' => 'datetime',
     ];
 
     public function staff(): HasMany
     {
         return $this->hasMany(ReviewInvitationStaff::class, 'invitation_id');
+    }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class);
     }
 }

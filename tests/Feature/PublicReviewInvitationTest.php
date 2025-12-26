@@ -36,37 +36,26 @@ class PublicReviewInvitationTest extends TestCase
         $staff1->roles()->syncWithoutDetaching([$role->id]);
         $staff2->roles()->syncWithoutDetaching([$role->id]);
 
-        $review = Review::create([
-            'registration_ref' => 'RM-TEST-1',
-            'unit_id' => $unit->id,
-            'overall_rating' => null,
-            'comment' => null,
-            'patient_name' => 'Pasien A',
-            'contact' => '081234',
-            'status' => \App\Enums\ReviewStatus::PENDING,
-        ]);
-
-        ReviewDetail::insert([
-            ['review_id' => $review->id, 'medical_staff_id' => $staff1->id, 'role' => 'dokter', 'rating' => null, 'comment' => null, 'created_at' => now(), 'updated_at' => now()],
-            ['review_id' => $review->id, 'medical_staff_id' => $staff2->id, 'role' => 'dokter', 'rating' => null, 'comment' => null, 'created_at' => now(), 'updated_at' => now()],
-        ]);
-
         $token = 'tok_' . rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
         $inv = ReviewInvitation::create([
-            'review_id' => $review->id,
+            'registration_ref' => 'REG-1',
+            'unit_id' => $unit->id,
+            'patient_name' => 'Pasien A',
+            'contact' => '081234',
             'token_hash' => hash('sha256', $token),
-            'status' => 'active',
+            'status' => 'sent',
             'expires_at' => Carbon::now()->addDays(2),
+            'sent_at' => Carbon::now(),
         ]);
 
         ReviewInvitationStaff::insert([
-            ['invitation_id' => $inv->id, 'medical_staff_id' => $staff1->id, 'created_at' => now(), 'updated_at' => now()],
-            ['invitation_id' => $inv->id, 'medical_staff_id' => $staff2->id, 'created_at' => now(), 'updated_at' => now()],
+            ['invitation_id' => $inv->id, 'user_id' => $staff1->id, 'role' => 'dokter', 'created_at' => now(), 'updated_at' => now()],
+            ['invitation_id' => $inv->id, 'user_id' => $staff2->id, 'role' => 'dokter', 'created_at' => now(), 'updated_at' => now()],
         ]);
 
         $resp = $this->get('/reviews/invite/' . $token);
         $resp->assertOk();
-        $resp->assertSee('RM-TEST-1');
+        $resp->assertSee('REG-1');
         $resp->assertSee('Poli Umum');
         $resp->assertSee($staff1->name);
         $resp->assertSee($staff2->name);
@@ -90,47 +79,45 @@ class PublicReviewInvitationTest extends TestCase
         $staff1->roles()->syncWithoutDetaching([$role->id]);
         $staff2->roles()->syncWithoutDetaching([$role->id]);
 
-        $review = Review::create([
-            'registration_ref' => 'RM-TEST-2',
-            'unit_id' => $unit->id,
-            'overall_rating' => null,
-            'comment' => null,
-            'patient_name' => 'Pasien B',
-            'contact' => '081234',
-            'status' => \App\Enums\ReviewStatus::PENDING,
-        ]);
-
-        ReviewDetail::insert([
-            ['review_id' => $review->id, 'medical_staff_id' => $staff1->id, 'role' => 'dokter', 'rating' => null, 'comment' => null, 'created_at' => now(), 'updated_at' => now()],
-            ['review_id' => $review->id, 'medical_staff_id' => $staff2->id, 'role' => 'dokter', 'rating' => null, 'comment' => null, 'created_at' => now(), 'updated_at' => now()],
-        ]);
-
         $token = 'tok_' . rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
         $inv = ReviewInvitation::create([
-            'review_id' => $review->id,
+            'registration_ref' => 'REG-2',
+            'unit_id' => $unit->id,
+            'patient_name' => 'Pasien B',
+            'contact' => '081234',
             'token_hash' => hash('sha256', $token),
-            'status' => 'active',
+            'status' => 'sent',
             'expires_at' => Carbon::now()->addDays(2),
+            'sent_at' => Carbon::now(),
         ]);
 
         ReviewInvitationStaff::insert([
-            ['invitation_id' => $inv->id, 'medical_staff_id' => $staff1->id, 'created_at' => now(), 'updated_at' => now()],
-            ['invitation_id' => $inv->id, 'medical_staff_id' => $staff2->id, 'created_at' => now(), 'updated_at' => now()],
+            ['invitation_id' => $inv->id, 'user_id' => $staff1->id, 'role' => 'dokter', 'created_at' => now(), 'updated_at' => now()],
+            ['invitation_id' => $inv->id, 'user_id' => $staff2->id, 'role' => 'dokter', 'created_at' => now(), 'updated_at' => now()],
         ]);
 
         $payload = [
+            'overall_rating' => 5,
+            'comment' => 'Mantap',
             'details' => [
-                $staff1->id => ['rating' => 5, 'comment' => 'Bagus'],
-                $staff2->id => ['rating' => 4, 'comment' => 'Cukup'],
+                ['user_id' => $staff1->id, 'rating' => 5, 'comment' => 'Bagus'],
+                ['user_id' => $staff2->id, 'rating' => 4, 'comment' => 'Cukup'],
             ],
         ];
 
         $resp = $this->post('/reviews/invite/' . $token, $payload);
-        $resp->assertRedirect('/reviews/invite/' . $token);
+        $resp->assertRedirect('/reviews/thanks');
 
         $inv->refresh();
         $this->assertSame('used', $inv->status);
         $this->assertNotNull($inv->used_at);
+
+        $this->assertDatabaseHas('reviews', [
+            'registration_ref' => 'REG-2',
+            'unit_id' => $unit->id,
+        ]);
+
+        $review = Review::query()->where('registration_ref', 'REG-2')->firstOrFail();
 
         $this->assertDatabaseHas('review_details', [
             'review_id' => $review->id,
@@ -140,7 +127,7 @@ class PublicReviewInvitationTest extends TestCase
 
         // Second submission should be blocked (invitation already used)
         $resp2 = $this->post('/reviews/invite/' . $token, $payload);
-        $resp2->assertRedirect('/reviews/invite/' . $token);
+        $resp2->assertStatus(410);
 
         $inv->refresh();
         $this->assertSame('used', $inv->status);

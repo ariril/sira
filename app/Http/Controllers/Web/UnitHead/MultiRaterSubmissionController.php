@@ -107,7 +107,7 @@ class MultiRaterSubmissionController extends Controller
                     ->leftJoin($criteriaTable . ' as pc', 'pc.id', '=', 'multi_rater_assessment_details.performance_criteria_id')
                     ->where('mra.assessment_period_id', $periodId)
                     ->where('mra.assessor_id', Auth::id())
-                    ->where('pc.input_method', '360')
+                    ->where('pc.is_360', true)
                     ->where('u.unit_id', $unitId)
                     ->orderBy('u.name')
                     ->get([
@@ -115,7 +115,6 @@ class MultiRaterSubmissionController extends Controller
                         'mra.assessee_id as target_user_id',
                         'mra.assessor_id as rater_user_id',
                         'mra.assessor_type',
-                        'mra.assessment_period_id as period_id',
                         'u.name as target_name',
                         'pc.name as criteria_name',
                         'pc.type as criteria_type',
@@ -156,7 +155,7 @@ class MultiRaterSubmissionController extends Controller
         $windowEndsAt = optional($window->end_date)?->copy()->endOfDay();
         $windowIsActive = $windowStartsAt && $windowEndsAt ? now()->between($windowStartsAt, $windowEndsAt, true) : false;
         $canSubmit = $windowIsActive && ($period?->status === AssessmentPeriod::STATUS_ACTIVE);
-        $criterias = PerformanceCriteria::where('input_method', '360')->where('is_active', true)->get();
+        $criterias = PerformanceCriteria::where('is_360', true)->where('is_active', true)->get();
         $details = $assessment->details()->get()->keyBy('performance_criteria_id');
         return view('kepala_unit.multi_rater.show', compact('assessment','criterias','details','window','canSubmit'));
     }
@@ -173,7 +172,7 @@ class MultiRaterSubmissionController extends Controller
             'comments.*' => 'nullable|string|max:1000',
         ]);
 
-        $criterias = PerformanceCriteria::where('input_method', '360')->where('is_active', true)->get();
+        $criterias = PerformanceCriteria::where('is_360', true)->where('is_active', true)->get();
         foreach ($criterias as $c) {
             $score = $payload['scores'][$c->id] ?? null;
             $comment = $payload['comments'][$c->id] ?? null;

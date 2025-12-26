@@ -15,6 +15,7 @@ class PerformanceCriteria extends Model
         'type',
         'data_type',
         'input_method',
+        'is_360',
         'aggregation_method',
         'normalization_basis',
         'custom_target_value',
@@ -25,6 +26,7 @@ class PerformanceCriteria extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_360' => 'boolean',
         'type'      => PerformanceCriteriaType::class,
         'suggested_weight' => 'decimal:2',
         'custom_target_value' => 'decimal:2',
@@ -50,8 +52,4 @@ class PerformanceCriteria extends Model
         return $this->hasMany(CriteriaMetric::class, 'performance_criteria_id');
     }
 
-    public function raterWeights()
-    {
-        return $this->hasMany(RaterTypeWeight::class, 'performance_criteria_id');
-    }
 }

@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use App\Models\User;
 use App\Models\MultiRaterAssessment;
 use App\Models\PerformanceCriteria;
+use App\Services\MultiRater\AssessorTypeResolver;
 
 class GenerateMultiRaterInvites extends Command
 {
@@ -17,46 +18,52 @@ class GenerateMultiRaterInvites extends Command
         $periodId = (int)$this->argument('period_id');
         $reset = (bool)$this->option('reset');
 
-        $criterias = PerformanceCriteria::where('input_method', '360')->where('is_active', true)->exists();
+        $criterias = PerformanceCriteria::where('is_360', true)->where('is_active', true)->exists();
         if (!$criterias) { $this->warn('No 360-based criteria active; nothing to generate.'); return 0; }
 
         if ($reset) {
             MultiRaterAssessment::where('assessment_period_id', $periodId)->delete();
         }
 
-        // Eager load roles pivot; 'role' kolom lama sudah dihapus.
-        $users = User::with('roles:id,slug')->get(['id','unit_id','last_role']);
+        // Assessor type must be determined by PROFESSION (not role), except kepala_poliklinik.
+        $users = User::query()
+            ->with(['roles:id,slug', 'profession:id,code'])
+            ->get(['id', 'unit_id', 'profession_id', 'last_role']);
         $byUnit = $users->groupBy('unit_id');
+
+        $polyclinicHeads = $users->filter(fn ($u) => $u->hasRole('kepala_poliklinik'));
 
         $count = 0;
         foreach ($users as $u) {
-            $isMedis = $u->hasRole('pegawai_medis');
-            $isKepalaUnit = $u->hasRole('kepala_unit');
-            if (!$isMedis && !$isKepalaUnit) continue; // only assess medis or kepala_unit
+            $code = $u->profession?->code;
+            $isDoctorOrNurse = $code && (str_starts_with($code, 'DOK') || $code === 'PRW');
+            if (!$isDoctorOrNurse) {
+                continue;
+            }
 
             // Self assessment
             $count += $this->ensureInvite($u->id, $u->id, 'self', $periodId);
 
-            // Supervisor: kepala_unit of same unit when assessee is medis
-            if ($isMedis) {
-                $supervisor = $users->first(fn($x) => $x->unit_id === $u->unit_id && $x->hasRole('kepala_unit'));
-                if ($supervisor) $count += $this->ensureInvite($u->id, $supervisor->id, 'supervisor', $periodId);
+            // Kepala Poliklinik acts as supervisor for dokter/perawat
+            foreach ($polyclinicHeads as $head) {
+                $count += $this->ensureInvite($u->id, $head->id, 'supervisor', $periodId);
             }
 
-            // Kepala Poliklinik as additional supervisor (if exists)
-            $polichief = $users->first(fn($x) => $x->hasRole('kepala_poliklinik'));
-            if ($polichief) $count += $this->ensureInvite($u->id, $polichief->id, 'supervisor', $periodId);
+            // Within same unit: generate invites using profession-based assessor_type
+            $candidates = ($byUnit[$u->unit_id] ?? collect())
+                ->filter(function ($x) {
+                    $c = $x->profession?->code;
+                    return $c && (str_starts_with($c, 'DOK') || $c === 'PRW');
+                })
+                ->filter(fn ($x) => (int) $x->id !== (int) $u->id);
 
-            // Peer medis in same unit (exclude self)
-            if ($isMedis) {
-                $peers = ($byUnit[$u->unit_id] ?? collect())
-                    ->filter(fn($x) => $x->hasRole('pegawai_medis') && $x->id !== $u->id)
-                    ->take(2);
-                foreach ($peers as $peer) {
-                    $count += $this->ensureInvite($u->id, $peer->id, 'peer', $periodId);
+            foreach ($candidates as $assessor) {
+                $type = AssessorTypeResolver::resolve($assessor, $u);
+                if ($type === 'self') {
+                    continue;
                 }
+                $count += $this->ensureInvite($u->id, $assessor->id, $type, $periodId);
             }
-            // Subordinate mapping reserved for future
         }
 
         $this->info("Generated/ensured {$count} invitations for period {$periodId}.");

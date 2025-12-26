@@ -4,15 +4,17 @@ namespace App\Console\Commands;
 
 use App\Models\ReviewInvitation;
 use App\Models\ReviewInvitationStaff;
+use App\Models\Unit;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ImportReviewInvitations extends Command
 {
-    protected $signature = 'reviews:import-invitations {file : Path to .xlsx file} {--expires-days=7 : Invitation expiry in days}';
+    protected $signature = 'reviews:import-invitations {file : Path to .xlsx file} {--expires-days=5 : Invitation expiry in days}';
 
     protected $description = 'Import patient review invitations from Excel (.xlsx) and generate invitation links.';
 
@@ -31,52 +33,90 @@ class ImportReviewInvitations extends Command
         $highestRow = (int) $sheet->getHighestDataRow();
 
         $this->info('Expected columns:');
-        $this->line('A=no_rm, B=patient_name, C=patient_phone, D=clinic, E=employee_numbers (comma separated NIP)');
+        $this->line('A=registration_ref, B=patient_name, C=phone, D=unit, E=staff_numbers (semicolon separated employee_number)');
 
         $created = 0;
         $skipped = 0;
 
         for ($row = 2; $row <= $highestRow; $row++) {
-            $noRm = trim((string) $sheet->getCell("A{$row}")->getValue());
+            $registrationRef = trim((string) $sheet->getCell("A{$row}")->getValue());
             $patientName = trim((string) $sheet->getCell("B{$row}")->getValue());
             $phone = trim((string) $sheet->getCell("C{$row}")->getValue());
-            $employeeNumbersRaw = (string) $sheet->getCell("E{$row}")->getValue();
+            $unitName = trim((string) $sheet->getCell("D{$row}")->getValue());
+            $staffNumbersRaw = (string) $sheet->getCell("E{$row}")->getValue();
 
-            if ($patientName === '' && $noRm === '' && trim($employeeNumbersRaw) === '') {
+            if ($patientName === '' && $registrationRef === '' && trim($staffNumbersRaw) === '') {
                 continue;
             }
 
-            $employeeNumbers = $this->parseEmployeeNumbers($employeeNumbersRaw);
-            if (empty($employeeNumbers)) {
-                $this->warn("Row {$row}: skipped (no employee_numbers)");
+            if ($registrationRef === '') {
+                $this->warn("Row {$row}: skipped (missing registration_ref)");
                 $skipped++;
                 continue;
             }
 
-            $staff = User::query()->whereIn('employee_number', $employeeNumbers)->get(['id', 'employee_number']);
-            if ($staff->isEmpty()) {
-                $this->warn("Row {$row}: skipped (no staff found for given employee_numbers)");
+            if ($unitName === '') {
+                $this->warn("Row {$row}: skipped (missing unit)");
                 $skipped++;
                 continue;
             }
 
-            [$rawToken, $invUrl] = DB::transaction(function () use ($noRm, $patientName, $phone, $staff, $expiresDays) {
+            $unit = Unit::query()->whereRaw('LOWER(name) = ?', [Str::lower($unitName)])->first();
+            if (!$unit) {
+                $this->warn("Row {$row}: skipped (unit not found: {$unitName})");
+                $skipped++;
+                continue;
+            }
+
+            $staffNumbers = $this->parseStaffNumbers($staffNumbersRaw);
+            if (empty($staffNumbers)) {
+                $this->warn("Row {$row}: skipped (no staff_numbers)");
+                $skipped++;
+                continue;
+            }
+
+            $staff = User::query()->whereIn('employee_number', $staffNumbers)->get(['id', 'employee_number']);
+            $missing = collect($staffNumbers)->diff($staff->pluck('employee_number')->map(fn ($v) => (string) $v))->values();
+            if ($missing->isNotEmpty()) {
+                $this->warn("Row {$row}: skipped (staff not found: {$missing->implode(', ')})");
+                $skipped++;
+                continue;
+            }
+
+            $duplicate = ReviewInvitation::query()
+                ->where('registration_ref', $registrationRef)
+                ->whereIn('status', ['created', 'sent', 'opened'])
+                ->where(function ($q) {
+                    $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                })
+                ->exists();
+
+            if ($duplicate) {
+                $this->warn("Row {$row}: skipped (duplicate active invitation)");
+                $skipped++;
+                continue;
+            }
+
+            [$rawToken, $invUrl] = DB::transaction(function () use ($registrationRef, $patientName, $phone, $unit, $staff, $expiresDays) {
                 $now = Carbon::now();
 
-                $rawToken = $this->generateUniqueToken();
+                [$rawToken, $tokenHash] = $this->generateToken();
 
                 $invitation = ReviewInvitation::create([
-                    'patient_name' => $patientName !== '' ? $patientName : 'Pasien',
-                    'phone' => $phone !== '' ? $phone : null,
-                    'no_rm' => $noRm !== '' ? $noRm : null,
-                    'token' => $rawToken,
+                    'registration_ref' => $registrationRef,
+                    'unit_id' => $unit->id,
+                    'patient_name' => $patientName !== '' ? $patientName : null,
+                    'contact' => $phone !== '' ? $phone : null,
+                    'token_hash' => $tokenHash,
                     'expires_at' => $now->copy()->addDays($expiresDays),
-                    'status' => 'pending',
+                    'status' => 'sent',
+                    'sent_at' => $now,
                 ]);
 
                 $mapRows = $staff->map(fn (User $u) => [
                     'invitation_id' => $invitation->id,
                     'user_id' => $u->id,
+                    'role' => null,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ])->all();
@@ -95,14 +135,14 @@ class ImportReviewInvitations extends Command
         return 0;
     }
 
-    private function parseEmployeeNumbers(string $raw): array
+    private function parseStaffNumbers(string $raw): array
     {
         $raw = trim($raw);
         if ($raw === '') {
             return [];
         }
 
-        $parts = preg_split('/\s*,\s*/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $parts = preg_split('/\s*;\s*/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
         $out = [];
         foreach ($parts as $p) {
             $p = $this->normalizeEmployeeNumber((string) $p);
@@ -167,13 +207,17 @@ class ImportReviewInvitations extends Command
         return $digits;
     }
 
-    private function generateUniqueToken(): string
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function generateToken(): array
     {
         for ($i = 0; $i < 5; $i++) {
-            $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
-            $exists = ReviewInvitation::query()->where('token', $token)->exists();
+            $tokenPlain = Str::random(40);
+            $tokenHash = hash('sha256', $tokenPlain);
+            $exists = ReviewInvitation::query()->where('token_hash', $tokenHash)->exists();
             if (!$exists) {
-                return $token;
+                return [$tokenPlain, $tokenHash];
             }
         }
 

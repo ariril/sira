@@ -20,14 +20,14 @@ class CriteriaResolver
             ->orderBy('id')
             ->get()
             ->unique('performance_criteria_id')
-            ->filter(fn($w) => $w->performanceCriteria && $w->performanceCriteria->input_method === '360' && $w->performanceCriteria->is_active);
+            ->filter(fn($w) => $w->performanceCriteria && (bool) $w->performanceCriteria->is_360 && (bool) $w->performanceCriteria->is_active);
 
         if ($weights->isNotEmpty()) {
             $weighted = $weights->map(fn($weight) => self::mapCriteria($weight->performanceCriteria));
             $weightedIds = $weighted->pluck('id')->filter()->all();
 
             $unweighted = PerformanceCriteria::query()
-                ->where('input_method', '360')
+                ->where('is_360', true)
                 ->where('is_active', true)
                 ->when(!empty($weightedIds), fn($q) => $q->whereNotIn('id', $weightedIds))
                 ->orderBy('name')
@@ -38,7 +38,7 @@ class CriteriaResolver
         }
 
         return PerformanceCriteria::query()
-            ->where('input_method', '360')
+            ->where('is_360', true)
             ->where('is_active', true)
             ->orderBy('name')
             ->get()

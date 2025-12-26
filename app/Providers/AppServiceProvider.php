@@ -2,8 +2,11 @@
 
 namespace App\Providers;
 
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\{DB, Log, View, Cache, Schema, Blade};
 use App\Models\{Profession, SiteSetting, AboutPage};
 
@@ -13,6 +16,14 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        RateLimiter::for('review-invite', function (Request $request) {
+            return Limit::perMinute(30)->by((string) $request->ip());
+        });
+
+        RateLimiter::for('review-submit', function (Request $request) {
+            return Limit::perMinute(10)->by((string) $request->ip());
+        });
+
         // (opsional) inisialisasi DB - dibungkus try/catch
         try {
             DB::statement('CREATE DATABASE IF NOT EXISTS sira');

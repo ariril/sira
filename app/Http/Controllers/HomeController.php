@@ -144,7 +144,6 @@ class HomeController extends Controller
         // 6) Quick links (tanpa akses data remunerasi publik)
         $links = [
             ['icon' => 'fa-bullhorn',   'title' => 'Pengumuman',    'desc' => 'Lihat informasi terbaru',   'href' => route('announcements.index')],
-            ['icon' => 'fa-comment',    'title' => 'Berikan Ulasan','desc' => 'Sampaikan masukan Anda',     'href' => route('reviews.create')],
             ['icon' => 'fa-circle-question','title' => 'FAQ',        'desc' => 'Pertanyaan yang sering diajukan', 'href' => route('faqs.index')],
             ['icon' => 'fa-phone',      'title' => 'Kontak',        'desc' => 'Alamat & nomor telepon',    'href' => route('contact')],
         ];

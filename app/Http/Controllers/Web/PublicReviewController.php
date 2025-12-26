@@ -2,212 +2,202 @@
 
 namespace App\Http\Controllers\Web;
 
-use App\Enums\ReviewStatus;
 use App\Http\Controllers\Controller;
+use App\Models\Review;
+use App\Models\ReviewDetail;
 use App\Models\ReviewInvitation;
-use App\Models\ReviewInvitationStaff;
-use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
-use App\Support\AssessmentPeriodGuard;
 
 class PublicReviewController extends Controller
 {
-    public function create(Request $request): View
+    public function show(Request $request, string $token): View
     {
-        // Open review (manual NO RM input) is disabled. Patients must use invitation links.
-        return view('pages.reviews.create');
-    }
+        $tokenHash = hash('sha256', $token);
 
-    public function show(string $token): View
-    {
+        /** @var ReviewInvitation|null $invitation */
         $invitation = ReviewInvitation::query()
-            ->where('token', $token)
+            ->with([
+                'unit:id,name',
+                'staff.user:id,name,employee_number,profession_id,unit_id',
+                'staff.user.unit:id,name',
+                'staff.user.profession:id,name',
+            ])
+            ->where('token_hash', $tokenHash)
             ->first();
 
         if (!$invitation) {
-            return view('pages.reviews.invite', ['state' => 'invalid']);
+            abort(404);
         }
 
         $now = Carbon::now();
-        if ($invitation->status === 'pending' && $invitation->expires_at && $now->greaterThan($invitation->expires_at)) {
-            $invitation->update(['status' => 'expired']);
-            $invitation->refresh();
+
+        if ($invitation->status === 'cancelled') {
+            abort(410, 'Link tidak aktif.');
         }
 
-        $state = match ($invitation->status) {
-            'used' => 'used',
-            'expired' => 'expired',
-            'revoked' => 'revoked',
-            default => 'active',
-        };
+        if ($invitation->status === 'used' || $invitation->used_at) {
+            abort(410, 'Link sudah digunakan.');
+        }
 
-        $staffIds = ReviewInvitationStaff::query()
-            ->where('invitation_id', $invitation->id)
-            ->pluck('user_id')
-            ->all();
+        if ($invitation->status === 'expired' || ($invitation->expires_at && $now->greaterThan($invitation->expires_at))) {
+            if ($invitation->status !== 'expired') {
+                $invitation->forceFill(['status' => 'expired'])->save();
+            }
+            abort(410, 'Link kedaluwarsa.');
+        }
 
-        $staff = User::query()
-            ->whereIn('id', $staffIds)
-            ->with(['unit:id,name', 'profession:id,name'])
-            ->orderBy('name')
-            ->get()
-            ->map(fn (User $u) => [
-                'id' => $u->id,
-                'name' => $u->name,
-                'unit_name' => $u->unit?->name,
-                'profession' => $u->profession?->name,
-            ])
+        if ($invitation->opened_at === null) {
+            $invitation->forceFill([
+                'opened_at' => $now,
+                'status' => $invitation->status === 'sent' || $invitation->status === 'created' ? 'opened' : $invitation->status,
+                'client_ip' => $request->ip(),
+                'user_agent' => substr((string) $request->header('User-Agent'), 0, 255),
+            ])->save();
+        }
+
+        $staff = $invitation->staff
+            ->map(function ($row) {
+                $u = $row->user;
+                return [
+                    'id' => $u?->id,
+                    'name' => $u?->name,
+                    'employee_number' => $u?->employee_number,
+                    'role' => $row->role,
+                    'unit_name' => $u?->unit?->name,
+                    'profession' => $u?->profession?->name,
+                ];
+            })
+            ->filter(fn ($r) => !empty($r['id']))
             ->values();
 
-        $existing = collect();
-
-        return view('pages.reviews.invite', [
-            'state' => $state,
+        return view('public.reviews.invite', [
             'token' => $token,
             'invitation' => $invitation,
             'staff' => $staff,
-            'existing' => $existing,
         ]);
     }
 
     public function store(Request $request, string $token): RedirectResponse
     {
-        $activePeriod = AssessmentPeriodGuard::resolveActive();
-        AssessmentPeriodGuard::requireActive($activePeriod, 'Pengisian Ulasan');
+        $tokenHash = hash('sha256', $token);
 
-        $result = DB::transaction(function () use ($request, $token) {
-            /** @var ReviewInvitation|null $invitation */
+        $validated = Validator::make($request->all(), [
+            'overall_rating' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'comment' => ['nullable', 'string', 'max:2000'],
+            'details' => ['nullable', 'array'],
+            'details.*.user_id' => ['required_with:details', 'integer'],
+            'details.*.rating' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'details.*.comment' => ['nullable', 'string', 'max:2000'],
+        ])->validate();
+
+        DB::transaction(function () use ($request, $tokenHash, $validated) {
+            /** @var ReviewInvitation $invitation */
             $invitation = ReviewInvitation::query()
-                ->where('token', $token)
+                ->where('token_hash', $tokenHash)
                 ->lockForUpdate()
-                ->first();
-
-            if (!$invitation) {
-                return ['ok' => false, 'state' => 'invalid'];
-            }
+                ->firstOrFail();
 
             $now = Carbon::now();
-            if ($invitation->status === 'pending' && $invitation->expires_at && $now->greaterThan($invitation->expires_at)) {
-                $invitation->update(['status' => 'expired']);
-                return ['ok' => false, 'state' => 'expired'];
-            }
-            if ($invitation->status === 'used') {
-                return ['ok' => false, 'state' => 'used'];
-            }
-            if ($invitation->status !== 'pending') {
-                return ['ok' => false, 'state' => $invitation->status];
+
+            if ($invitation->status === 'cancelled') {
+                abort(410, 'Link tidak aktif.');
             }
 
-            $allowedStaffIds = ReviewInvitationStaff::query()
-                ->where('invitation_id', $invitation->id)
-                ->pluck('user_id')
-                ->map(fn ($v) => (int) $v)
-                ->all();
+            if ($invitation->status === 'used' || $invitation->used_at) {
+                abort(410, 'Link sudah digunakan.');
+            }
 
-            $validator = Validator::make($request->all(), [
-                'details' => ['required', 'array'],
-                'details.*.rating' => ['nullable', 'integer', 'min:1', 'max:5'],
-                'details.*.comment' => ['nullable', 'string', 'max:2000'],
-            ], [
-                'details.required' => 'Form ulasan tidak valid.',
-            ]);
-
-            $validator->after(function ($validator) use ($request, $allowedStaffIds) {
-                $details = $request->input('details', []);
-                if (!is_array($details)) {
-                    $validator->errors()->add('details', 'Form ulasan tidak valid.');
-                    return;
+            if ($invitation->status === 'expired' || ($invitation->expires_at && $now->greaterThan($invitation->expires_at))) {
+                if ($invitation->status !== 'expired') {
+                    $invitation->forceFill(['status' => 'expired'])->save();
                 }
+                abort(410, 'Link kedaluwarsa.');
+            }
 
-                // Require rating for all invited staff and disallow non-invited staff.
-                $postedStaffIds = collect(array_keys($details))
-                    ->map(fn ($id) => (int) $id)
-                    ->filter(fn ($id) => $id > 0)
-                    ->values();
+            $allowedStaff = $invitation->staff()->get(['user_id', 'role']);
+            $allowedStaffIds = $allowedStaff->pluck('user_id')->map(fn ($v) => (int) $v)->values();
+            $roleByUserId = $allowedStaff->mapWithKeys(fn ($r) => [(int) $r->user_id => $r->role])->all();
 
-                $extra = $postedStaffIds->diff($allowedStaffIds);
-                if ($extra->isNotEmpty()) {
-                    $validator->errors()->add('details', 'Form ulasan tidak valid.');
-                }
+            $details = collect($validated['details'] ?? [])
+                ->filter(fn ($row) => is_array($row))
+                ->map(fn ($row) => [
+                    'user_id' => (int) ($row['user_id'] ?? 0),
+                    'rating' => $row['rating'] ?? null,
+                    'comment' => $row['comment'] ?? null,
+                ])
+                ->filter(fn ($row) => $row['user_id'] > 0)
+                ->values();
 
-                foreach ($allowedStaffIds as $staffId) {
-                    $rating = data_get($details, $staffId . '.rating');
-                    if ($rating === null || $rating === '' || !is_numeric($rating)) {
-                        $validator->errors()->add("details.$staffId.rating", 'Rating wajib diisi.');
-                    }
-                }
-            });
+            $postedIds = $details->pluck('user_id');
+            if ($postedIds->count() !== $postedIds->unique()->count()) {
+                abort(422, 'Form ulasan tidak valid.');
+            }
 
-            $validator->validateWithBag('reviewForm');
+            $extra = $postedIds->diff($allowedStaffIds);
+            if ($extra->isNotEmpty()) {
+                abort(422, 'Form ulasan tidak valid.');
+            }
 
-            $detailsInput = (array) $request->input('details', []);
+            $detailsByUserId = $details->keyBy('user_id');
 
-            $reviewId = DB::table('reviews')->insertGetId([
-                'registration_ref' => 'INV-' . $invitation->id,
-                'unit_id' => null,
-                'overall_rating' => null,
-                'comment' => null,
-                'status' => ReviewStatus::PENDING->value,
-                'decision_note' => null,
-                'decided_by' => null,
-                'decided_at' => null,
-                'patient_name' => $invitation->patient_name,
-                'contact' => $invitation->phone,
-                'client_ip' => $request->ip(),
-                'user_agent' => substr((string) $request->header('User-Agent'), 0, 255),
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+            $review = Review::query()->updateOrCreate(
+                ['registration_ref' => $invitation->registration_ref],
+                [
+                    'unit_id' => $invitation->unit_id,
+                    'patient_name' => $invitation->patient_name,
+                    'contact' => $invitation->contact,
+                    'status' => \App\Enums\ReviewStatus::PENDING,
+                    'overall_rating' => $validated['overall_rating'] ?? null,
+                    'comment' => $validated['comment'] ?? null,
+                    'client_ip' => $request->ip(),
+                    'user_agent' => substr((string) $request->header('User-Agent'), 0, 255),
+                ]
+            );
 
-            $rows = collect($allowedStaffIds)->map(function (int $staffId) use ($detailsInput, $now, $reviewId) {
-                $rating = (int) data_get($detailsInput, $staffId . '.rating');
-                $comment = (string) (data_get($detailsInput, $staffId . '.comment') ?? '');
-                $comment = trim($comment) !== '' ? $comment : null;
+            $rows = $allowedStaffIds->map(function (int $userId) use ($detailsByUserId, $now, $review, $roleByUserId) {
+                $input = $detailsByUserId->get($userId, []);
+
+                $rating = $input['rating'] ?? null;
+                $rating = ($rating === '' || $rating === null) ? null : (int) $rating;
+
+                $comment = $input['comment'] ?? null;
+                $comment = is_string($comment) ? trim($comment) : null;
+                $comment = $comment !== '' ? $comment : null;
 
                 return [
-                    'review_id' => $reviewId,
-                    'medical_staff_id' => $staffId,
-                    'role' => null,
+                    'review_id' => $review->id,
+                    'medical_staff_id' => $userId,
+                    'role' => $roleByUserId[$userId] ?? null,
                     'rating' => $rating,
                     'comment' => $comment,
-                    'updated_at' => $now,
                     'created_at' => $now,
-                ];
-            });
-
-            DB::table('review_details')->insert($rows->all());
-
-            $avgRating = (int) round(max(1, $rows->avg('rating') ?: 0));
-
-            DB::table('reviews')
-                ->where('id', $reviewId)
-                ->update([
-                    'overall_rating' => $avgRating,
-                    'status' => ReviewStatus::PENDING->value,
                     'updated_at' => $now,
-                ]);
+                ];
+            })->all();
 
-            $invitation->update([
+            DB::table('review_details')->upsert(
+                $rows,
+                ['review_id', 'medical_staff_id'],
+                ['role', 'rating', 'comment', 'updated_at']
+            );
+
+            $invitation->forceFill([
                 'status' => 'used',
-                'updated_at' => $now,
-            ]);
-
-            return ['ok' => true, 'state' => 'used'];
+                'used_at' => $now,
+            ])->save();
         });
 
-        if (!($result['ok'] ?? false)) {
-            return redirect()->route('reviews.invite.show', ['token' => $token])
-                ->with('invite_state', $result['state'] ?? 'invalid');
-        }
+        return redirect()->route('reviews.thanks');
+    }
 
-        return redirect()->route('reviews.invite.show', ['token' => $token])
-            ->with('status', 'Terima kasih, ulasan Anda telah direkam.')
-            ->with('invite_state', 'used');
+    public function thanks(): View
+    {
+        return view('public.reviews.thanks');
     }
 }
 

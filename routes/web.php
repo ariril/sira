@@ -38,16 +38,16 @@ Route::get('/contact',              [ContactController::class, 'index'])->name('
 // Dipindahkan ke area pegawai_medis (tidak publik lagi)
 // Route::get('/remuneration-data',    [RemunerationDataController::class, 'index'])->name('remuneration.data');
 
-// Public review form (English slug)
-Route::get('/reviews',              [PublicReviewController::class, 'create'])->name('reviews.create');
-
 // Invitation-based public reviews (one-time token)
 Route::get('/reviews/invite/{token}', [PublicReviewController::class, 'show'])
-    ->middleware('throttle:30,1')
+    ->middleware('throttle:review-invite')
     ->name('reviews.invite.show');
 Route::post('/reviews/invite/{token}', [PublicReviewController::class, 'store'])
-    ->middleware('throttle:10,1')
+    ->middleware('throttle:review-submit')
     ->name('reviews.invite.store');
+
+Route::get('/reviews/thanks', [PublicReviewController::class, 'thanks'])
+    ->name('reviews.thanks');
 
 /**
  * Authenticated dashboard redirect
@@ -170,11 +170,27 @@ Route::middleware(['auth','verified','role:admin_rs'])
         Route::post('metrics/template', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'downloadTemplate'])->name('metrics.template');
         Route::post('metrics/upload-csv', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'uploadCsv'])->name('metrics.upload_csv');
 
+        // Review Invitations (import invitation links from Excel)
+        Route::get('review-invitations/import', [\App\Http\Controllers\Web\AdminHospital\ReviewInvitationImportController::class, 'form'])
+            ->name('review_invitations.import.form');
+        Route::post('review-invitations/import', [\App\Http\Controllers\Web\AdminHospital\ReviewInvitationImportController::class, 'process'])
+            ->name('review_invitations.import.process');
+        Route::get('review-invitations/import/export', [\App\Http\Controllers\Web\AdminHospital\ReviewInvitationImportController::class, 'exportCsv'])
+            ->name('review_invitations.import.export');
+
         // 360 Invitations management (URL diselaraskan dengan folder view: admin_rs/multi_rater)
         Route::get('multi-rater', [\App\Http\Controllers\Web\AdminHospital\MultiRaterController::class, 'index'])->name('multi_rater.index');
         Route::post('multi-rater/open', [\App\Http\Controllers\Web\AdminHospital\MultiRaterController::class, 'openWindow'])->name('multi_rater.open');
         Route::post('multi-rater/close', [\App\Http\Controllers\Web\AdminHospital\MultiRaterController::class, 'closeWindow'])->name('multi_rater.close');
         Route::post('multi-rater/generate', [\App\Http\Controllers\Web\AdminHospital\MultiRaterController::class, 'generate'])->name('multi_rater.generate');
+
+        // Aturan Kriteria 360 (criteria_rater_rules)
+        Route::get('criteria-rater-rules', [\App\Http\Controllers\Web\AdminHospital\CriteriaRaterRuleController::class, 'index'])->name('criteria_rater_rules.index');
+        Route::get('criteria-rater-rules/create', [\App\Http\Controllers\Web\AdminHospital\CriteriaRaterRuleController::class, 'create'])->name('criteria_rater_rules.create');
+        Route::post('criteria-rater-rules', [\App\Http\Controllers\Web\AdminHospital\CriteriaRaterRuleController::class, 'store'])->name('criteria_rater_rules.store');
+        Route::get('criteria-rater-rules/{criteria_rater_rule}/edit', [\App\Http\Controllers\Web\AdminHospital\CriteriaRaterRuleController::class, 'edit'])->name('criteria_rater_rules.edit');
+        Route::put('criteria-rater-rules/{criteria_rater_rule}', [\App\Http\Controllers\Web\AdminHospital\CriteriaRaterRuleController::class, 'update'])->name('criteria_rater_rules.update');
+        Route::delete('criteria-rater-rules/{criteria_rater_rule}', [\App\Http\Controllers\Web\AdminHospital\CriteriaRaterRuleController::class, 'destroy'])->name('criteria_rater_rules.destroy');
 
     // Approval usulan kriteria baru
     Route::get('criteria-proposals', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'index'])->name('criteria_proposals.index');
@@ -266,6 +282,15 @@ Route::middleware(['auth','verified','role:kepala_unit'])
         Route::post('multi-rater/store', [MRStoreController::class, 'store'])->name('multi_rater.store');
         Route::get('multi-rater/{assessment}', [\App\Http\Controllers\Web\UnitHead\MultiRaterSubmissionController::class, 'show'])->name('multi_rater.show');
         Route::post('multi-rater/{assessment}', [\App\Http\Controllers\Web\UnitHead\MultiRaterSubmissionController::class, 'submit'])->name('multi_rater.submit');
+
+        // Bobot Penilai 360 (rater_weights) – draft & submit
+        Route::get('rater-weights', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'index'])->name('rater_weights.index');
+        Route::get('rater-weights/create', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'create'])->name('rater_weights.create');
+        Route::post('rater-weights', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'store'])->name('rater_weights.store');
+        Route::get('rater-weights/{raterWeight}/edit', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'edit'])->name('rater_weights.edit');
+        Route::put('rater-weights/{raterWeight}', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'update'])->name('rater_weights.update');
+        Route::post('rater-weights/{raterWeight}/submit', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'submit'])->name('rater_weights.submit');
+        Route::delete('rater-weights/{raterWeight}', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'destroy'])->name('rater_weights.destroy');
     });
 
 /**
@@ -305,6 +330,11 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
         Route::post('multi-rater/store', [MRStoreController::class, 'store'])->name('multi_rater.store');
         Route::get('multi-rater/{assessment}', [\App\Http\Controllers\Web\PolyclinicHead\MultiRaterSubmissionController::class, 'show'])->name('multi_rater.show');
         Route::post('multi-rater/{assessment}', [\App\Http\Controllers\Web\PolyclinicHead\MultiRaterSubmissionController::class, 'submit'])->name('multi_rater.submit');
+
+        // Bobot Penilai 360 (rater_weights) – approval
+        Route::get('rater-weights', [\App\Http\Controllers\Web\PolyclinicHead\RaterWeightApprovalController::class, 'index'])->name('rater_weights.index');
+        Route::post('rater-weights/{raterWeight}/approve', [\App\Http\Controllers\Web\PolyclinicHead\RaterWeightApprovalController::class, 'approve'])->name('rater_weights.approve');
+        Route::post('rater-weights/{raterWeight}/reject', [\App\Http\Controllers\Web\PolyclinicHead\RaterWeightApprovalController::class, 'reject'])->name('rater_weights.reject');
     });
 
 /**

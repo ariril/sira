@@ -22,7 +22,8 @@ class StoreController extends Controller
     {
         $applyAll = $req->boolean('apply_all');
         $rules = [
-            'period_id' => 'required|integer',
+            'assessment_period_id' => ['required_without:period_id', 'integer'],
+            'period_id' => ['required_without:assessment_period_id', 'integer'],
             'target_user_id' => 'required|integer',
             'unit_id' => 'nullable|integer',
             'score' => 'required|integer|min:1|max:100',
@@ -31,7 +32,7 @@ class StoreController extends Controller
         $validated = $req->validate($rules);
 
         $raterId = Auth::id();
-        $periodId = (int) $validated['period_id'];
+        $periodId = (int) ($validated['assessment_period_id'] ?? $validated['period_id']);
         $targetId = (int) $validated['target_user_id'];
         $score = (int) $validated['score'];
 

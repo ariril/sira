@@ -19,7 +19,7 @@
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
                     <x-ui.select
-                        name="period_id"
+                        name="assessment_period_id"
                         :options="$periods->pluck('name','id')->toArray()"
                         :value="optional($period)->id"
                     />

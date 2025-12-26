@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('assessment_period_id')->constrained('assessment_periods')->cascadeOnDelete();
             $table->foreignId('assessee_profession_id')->constrained('professions')->cascadeOnDelete();
-            $table->enum('assessor_type', ['self', 'supervisor', 'peer', 'subordinate', 'patient', 'other']);
+            $table->enum('assessor_type', ['self', 'supervisor', 'peer', 'subordinate']);
             $table->decimal('weight', 5, 2); // percent
             $table->enum('status', ['draft', 'pending', 'active', 'rejected', 'archived'])->default('draft');
             $table->foreignId('proposed_by')->nullable()->constrained('users')->nullOnDelete();

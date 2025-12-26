@@ -6,7 +6,7 @@ use App\Models\User;
 
 class AssessorTypeResolver
 {
-    public const TYPES = ['self', 'supervisor', 'peer', 'subordinate', 'patient', 'other'];
+    public const TYPES = ['self', 'supervisor', 'peer', 'subordinate'];
 
     public static function resolve(User $assessor, User $assessee): string
     {
@@ -16,10 +16,6 @@ class AssessorTypeResolver
 
         // Leadership roles are treated as supervisor relationship.
         if ($assessor->hasRole('kepala_poliklinik')) {
-            return 'supervisor';
-        }
-
-        if ($assessor->hasRole('kepala_unit') && $assessor->unit_id && ((int) $assessor->unit_id === (int) $assessee->unit_id)) {
             return 'supervisor';
         }
 

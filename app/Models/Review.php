@@ -37,11 +37,6 @@ class Review extends Model
     | RELATIONSHIPS
     |--------------------------------------------------------------------------
     */
-    public function visit(): BelongsTo
-    {
-        return $this->belongsTo(Visit::class);
-    }
-
     public function details(): HasMany
     {
         return $this->hasMany(ReviewDetail::class);

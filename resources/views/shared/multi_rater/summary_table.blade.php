@@ -40,7 +40,7 @@
                     <tr>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Kriteria</th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Tipe</th>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Rata-rata</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Nilai Final</th>
                     </tr>
                 </x-slot>
                 @foreach($rowsCollection as $row)

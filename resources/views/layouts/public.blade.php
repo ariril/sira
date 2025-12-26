@@ -6,7 +6,12 @@
     <title>@yield('title','Unit Remuneration - Universitas Sebelas Maret')</title>
 
     {{-- Tailwind v4 (via Vite) --}}
-    @vite(['resources/css/app.css','resources/js/app.js'])
+    @php
+        $hasVite = file_exists(public_path('hot')) || file_exists(public_path('build/manifest.json'));
+    @endphp
+    @if ($hasVite)
+        @vite(['resources/css/app.css','resources/js/app.js'])
+    @endif
 
     {{-- Font Awesome (ikon sesuai mockup) --}}
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">

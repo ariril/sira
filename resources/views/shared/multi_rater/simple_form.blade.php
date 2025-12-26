@@ -230,7 +230,7 @@
                     this.submitting = true;
 
                     const fd = new FormData();
-                    fd.set('period_id', periodId);
+                    fd.set('assessment_period_id', periodId);
                     if (unitId) fd.set('unit_id', unitId);
                     fd.set('rater_role', raterRole);
                     fd.set('target_user_id', this.selectedTargetId);
@@ -399,7 +399,7 @@
                 const inputClass = `${inputBase} h-10 text-sm text-right`;
                 return `
 <form class="inline-flex items-center gap-2" onsubmit="event.preventDefault(); const fd=new FormData(this); fetch('${editUrl}',{method:'POST',headers:{'X-CSRF-TOKEN':'${csrf}','Accept':'application/json'},body:fd}).then(r=>r.json()).then(()=>location.reload());">
-    <input type="hidden" name="period_id" value="${periodId}">
+    <input type="hidden" name="assessment_period_id" value="${periodId}">
     <input type="hidden" name="target_user_id" value="${targetId}">
     <input type="hidden" name="performance_criteria_id" value="${criteriaId}">
     <div class="relative w-24">
