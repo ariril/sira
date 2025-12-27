@@ -26,6 +26,10 @@ class AdditionalTask extends Model
         'bonus_amount',
         'points',
         'max_claims',
+        'cancel_window_hours',
+        'default_penalty_type',
+        'default_penalty_value',
+        'penalty_base',
         'status',
         'created_by',
     ];
@@ -37,6 +41,8 @@ class AdditionalTask extends Model
         'due_time'     => 'string',
         'bonus_amount' => 'decimal:2',
         'points'       => 'decimal:2',
+        'cancel_window_hours' => 'integer',
+        'default_penalty_value' => 'decimal:2',
     ];
 
     /* ============================================================

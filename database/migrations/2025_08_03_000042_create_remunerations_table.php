@@ -19,7 +19,7 @@ return new class extends Migration
             ->constrained('assessment_periods')
                 ->onDelete('cascade');
 
-            $table->decimal('amount', 15, 2); // nilai_remunerasi
+            $table->decimal('amount', 15, 2); 
             $table->date('payment_date')->nullable();
 
             $table->enum('payment_status', [
@@ -28,7 +28,7 @@ return new class extends Migration
                 'Ditahan',
             ])->default('Belum Dibayar');
 
-            $table->json('calculation_details')->nullable(); // rincian_perhitungan (JSON)
+            $table->json('calculation_details')->nullable(); 
 
             $table->timestamp('published_at')->nullable();
             $table->timestamp('calculated_at')->nullable();

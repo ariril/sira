@@ -12,7 +12,14 @@
                 action="{{ route('kepala_unit.additional-tasks.update', $item->id) }}"
                 enctype="multipart/form-data"
                 class="grid md:grid-cols-2 gap-5"
-                x-data="{ bonus: @js($item->bonus_amount), points: @js($item->points) }"
+                x-data="{
+                    bonus: @js($item->bonus_amount),
+                    points: @js($item->points),
+                    cancelWindow: @js(old('cancel_window_hours', $item->cancel_window_hours ?? 24)),
+                    penaltyType: @js(old('default_penalty_type', $item->default_penalty_type ?? 'none')),
+                    penaltyValue: @js(old('default_penalty_value', $item->default_penalty_value ?? 0)),
+                    penaltyBase: @js(old('penalty_base', $item->penalty_base ?? 'task_bonus')),
+                }"
             >
                 @csrf
                 @method('PUT')
@@ -72,6 +79,58 @@
                     <label class="block text-sm font-medium text-slate-600 mb-1">Maks. Klaim</label>
                     <x-ui.input type="number" name="max_claims" :value="$item->max_claims" />
                 </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">
+                        Cancel Window (jam)
+                        <span class="ml-1 text-amber-600 cursor-help" title="Batas waktu pembatalan klaim (jam) sejak klaim dibuat.">!</span>
+                    </label>
+                    <x-ui.input type="number" name="cancel_window_hours" x-model.number="cancelWindow" min="0" max="720" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Default Penalty Type</label>
+                    <x-ui.select
+                        name="default_penalty_type"
+                        x-model="penaltyType"
+                        :options="[
+                            'none' => 'None',
+                            'percent' => 'Percent',
+                            'amount' => 'Amount',
+                        ]"
+                    />
+                </div>
+
+                <div x-show="penaltyType !== 'none'" x-cloak>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Default Penalty Value</label>
+                    <x-ui.input
+                        type="number"
+                        step="0.01"
+                        name="default_penalty_value"
+                        x-model.number="penaltyValue"
+                        x-bind:disabled="penaltyType === 'none'"
+                        x-bind:min="0"
+                        x-bind:max="penaltyType === 'percent' ? 100 : null"
+                    />
+                    <p class="mt-1 text-xs text-slate-500" x-show="penaltyType === 'percent'">Range: 0–100</p>
+                    <p class="mt-1 text-xs text-slate-500" x-show="penaltyType === 'amount'">Minimal: 0</p>
+                </div>
+
+                <div x-show="penaltyType === 'percent'" x-cloak>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Penalty Base</label>
+                    <x-ui.select
+                        name="penalty_base"
+                        x-model="penaltyBase"
+                        x-bind:disabled="penaltyType !== 'percent'"
+                        :options="[
+                            'task_bonus' => 'Task Bonus',
+                            'remuneration' => 'Remuneration',
+                        ]"
+                    />
+                </div>
+
+                <input type="hidden" name="default_penalty_value" value="0" x-bind:disabled="penaltyType !== 'none'">
+                <input type="hidden" name="penalty_base" x-bind:value="penaltyBase" x-bind:disabled="penaltyType === 'percent'">
                 <div class="md:col-span-2 flex items-center justify-between pt-2">
                     <x-ui.button as="a" href="{{ route('kepala_unit.additional-tasks.index') }}" variant="outline">
                         <i class="fa-solid fa-arrow-left"></i> Kembali
@@ -81,6 +140,27 @@
                     </x-ui.button>
                 </div>
             </form>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            @php
+                $pt = (string)($item->default_penalty_type ?? 'none');
+                $pv = (float)($item->default_penalty_value ?? 0);
+                $pb = (string)($item->penalty_base ?? 'task_bonus');
+                if ($pt === 'none') {
+                    $snap = 'Tidak ada sanksi.';
+                } elseif ($pt === 'amount') {
+                    $snap = 'Potong Rp ' . number_format($pv, 0, ',', '.') . '.';
+                } else {
+                    $baseLbl = $pb === 'remuneration' ? 'remunerasi' : 'bonus tugas';
+                    $snap = rtrim(rtrim(number_format($pv, 2, ',', '.'), '0'), ',') . '% dari ' . $baseLbl . '.';
+                }
+            @endphp
+            <div class="text-sm text-slate-600">
+                <div class="font-semibold text-slate-800">Ringkasan Aturan</div>
+                <div class="mt-1">Batas pembatalan: <span class="font-medium text-slate-800">{{ (int)($item->cancel_window_hours ?? 24) }} jam</span></div>
+                <div>Aturan sanksi: <span class="font-medium text-slate-800">{{ $snap }}</span></div>
+            </div>
         </div>
     </div>
 </x-app-layout>

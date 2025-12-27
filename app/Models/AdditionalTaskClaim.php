@@ -19,10 +19,12 @@ class AdditionalTaskClaim extends Model
         'claimed_at',
         'completed_at',
         'cancelled_at',
+        'cancelled_by',
         'cancel_deadline_at',
         'cancel_reason',
         'penalty_type',
         'penalty_value',
+        'penalty_base',
         'penalty_applied',
         'penalty_applied_at',
         'penalty_amount',
@@ -98,67 +100,10 @@ class AdditionalTaskClaim extends Model
     // Cek apakah user masih boleh cancel
     public function canCancel(): bool
     {
-        if ($this->status !== 'active') {
-            return false;
-        }
-        if (!$this->cancel_deadline_at) {
-            return true;
-        }
-        return now()->lessThanOrEqualTo($this->cancel_deadline_at);
+        return $this->status === 'active';
     }
 
-    // Hitung sanksi aktual (percent/amount)
-    public function calculatePenalty(): float
-    {
-        if ($this->penalty_type === 'none') {
-            return 0;
-        }
-
-        if ($this->penalty_type === 'amount') {
-            return (float) $this->penalty_value;
-        }
-
-        if ($this->penalty_type === 'percent' && $this->task && $this->task->bonus_amount) {
-            // misal: sanksi % terhadap bonus task
-            return ($this->penalty_value / 100) * $this->task->bonus_amount;
-        }
-
-        return 0;
-    }
-
-    // Terapkan sanksi (simulasi logika potong remunerasi)
-    public function applyPenalty(?string $note = null): void
-    {
-        $this->penalty_applied   = true;
-        $this->penalty_applied_at = now();
-        $this->penalty_note       = $note ?? 'Sanksi otomatis karena lewat tenggat cancel';
-        $this->save();
-    }
-
-    // Tandai cancel
-    public function cancel(string $reason = null): bool
-    {
-        if (!$this->canCancel()) {
-            // batal lewat tenggat -> violation & sanksi default bila belum ada
-            $this->status = 'cancelled';
-            $this->cancelled_at = now();
-            $this->cancel_reason = $reason;
-            $this->is_violation = true;
-            $this->penalty_type  = $this->penalty_type === 'none' ? 'percent' : $this->penalty_type;
-            $this->penalty_value = $this->penalty_value ?: 10; // default 10%
-            $this->applyPenalty('Batal lewat tenggat waktu');
-            $this->save();
-            return true;
-        }
-
-        $this->update([
-            'status'        => 'cancelled',
-            'cancelled_at'  => now(),
-            'cancel_reason' => $reason,
-            'is_violation'  => false,
-        ]);
-        return true;
-    }
+    // Penalty diterapkan saat proses perhitungan remunerasi (bukan saat cancel)
 
     // Submit hasil tugas oleh user (transisi active -> submitted)
     public function submitResult(): bool

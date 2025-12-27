@@ -2,11 +2,18 @@
     <div class="container-px py-6 space-y-6">
         <h1 class="text-2xl font-semibold text-slate-800">Remunerasi Saya</h1>
 
+        @php
+            $banners = $banners ?? [];
+            $statusCard = $statusCard ?? null;
+        @endphp
+
         @if(!empty($banners))
             <div class="space-y-3">
                 @foreach($banners as $b)
-                    @php($type = $b['type'] ?? 'info')
-                    @php($msg = $b['message'] ?? '')
+                    @php
+                        $type = $b['type'] ?? 'info';
+                        $msg = $b['message'] ?? '';
+                    @endphp
                     @if($msg)
                         @if($type === 'warning')
                             <div class="rounded-xl bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 text-sm flex items-start gap-2">
@@ -76,7 +83,7 @@
                             <div class="font-medium">Periode {{ $statusCard['period_name'] ?? '-' }}</div>
                             <div class="text-sm text-slate-600">
                                 Level disetujui: {{ $statusCard['highestApproved'] ?? 0 }} • Status saat ini:
-                                @php($st = $statusCard['currentStatus'] ?? 'pending')
+                                @php $st = $statusCard['currentStatus'] ?? 'pending'; @endphp
                                 @if($st === 'approved')
                                     <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700">Approved</span>
                                 @elseif($st === 'rejected')
@@ -101,8 +108,10 @@
                                     </thead>
                                     <tbody>
                                         @for($i = 1; $i <= 3; $i++)
-                                            @php($lv = $byLevel->get($i))
-                                            @php($st = $lv->status ?? null)
+                                            @php
+                                                $lv = $byLevel->get($i);
+                                                $st = $lv->status ?? null;
+                                            @endphp
                                             <tr class="border-t border-slate-100">
                                                 <td class="px-4 py-2 font-medium">Level {{ $i }}</td>
                                                 <td class="px-4 py-2">
@@ -117,7 +126,7 @@
                                                     @endif
                                                 </td>
                                                 <td class="px-4 py-2 text-slate-600">
-                                                    @php($acted = $lv->acted_at ?? null)
+                                                    @php $acted = $lv->acted_at ?? null; @endphp
                                                     {{ $acted ? \Carbon\Carbon::parse($acted)->format('d M Y H:i') : '-' }}
                                                 </td>
                                             </tr>

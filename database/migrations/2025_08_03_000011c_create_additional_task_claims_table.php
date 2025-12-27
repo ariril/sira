@@ -38,6 +38,11 @@ return new class extends Migration {
             $table->timestamp('completed_at')->nullable();
             $table->timestamp('cancelled_at')->nullable();
 
+            $table->foreignId('cancelled_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
             // Batas maksimal cancel utk klaim ini (per-klaim, bukan global)
             $table->timestamp('cancel_deadline_at')->nullable()->index();
 
@@ -53,6 +58,9 @@ return new class extends Migration {
 
             // Nilai kebijakan sanksi (mis. 15.00 untuk 15% atau 50000.00 untuk Rp 50.000)
             $table->decimal('penalty_value', 12, 2)->default(0);
+
+            // Basis hitung penalty persen (snapshot dari task)
+            $table->enum('penalty_base', ['task_bonus', 'remuneration'])->default('task_bonus');
 
             // Realisasi sanksi (jika diterapkan)
             $table->boolean('penalty_applied')->default(false)->index();

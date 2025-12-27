@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\MedicalStaff;
 use App\Http\Controllers\Controller;
 use App\Models\AdditionalTask;
 use App\Models\AdditionalTaskClaim;
+use App\Http\Requests\CancelAdditionalTaskClaimRequest;
 use App\Http\Requests\SubmitAdditionalTaskClaimResultRequest;
 use Illuminate\Support\Facades\Notification as Notify;
 use App\Notifications\ClaimSubmittedNotification;
@@ -78,14 +79,24 @@ class AdditionalTaskClaimController extends Controller
                 ->count();
             if (!empty($task->max_claims) && $used >= (int)$task->max_claims) { $reason = 'Kuota klaim habis.'; return; }
 
+            $cancelWindowHours = (int) ($lockedTask->cancel_window_hours ?? 24);
+            if ($cancelWindowHours < 0) $cancelWindowHours = 0;
+
             AdditionalTaskClaim::create([
                 'additional_task_id' => $task->id,
                 'user_id'            => $me->id,
                 'status'             => 'active',
                 'claimed_at'         => now(),
-                'cancel_deadline_at' => now()->addDay(),
-                'penalty_type'       => 'none',
-                'penalty_value'      => 0,
+                'cancel_deadline_at' => now()->addHours($cancelWindowHours),
+                // Snapshot policy saat claim
+                'penalty_type'       => (string) ($lockedTask->default_penalty_type ?? 'none'),
+                'penalty_value'      => (float) ($lockedTask->default_penalty_value ?? 0),
+                'penalty_base'       => (string) ($lockedTask->penalty_base ?? 'task_bonus'),
+                // Snapshot nilai/bonus task agar tidak berubah jika task di-edit
+                'awarded_points'     => $lockedTask->points,
+                'awarded_bonus_amount' => $lockedTask->bonus_amount,
+                'is_violation'       => false,
+                'penalty_applied'    => false,
             ]);
             $created = true; $reason = 'Tugas berhasil diklaim.';
         });
@@ -94,7 +105,7 @@ class AdditionalTaskClaimController extends Controller
     }
 
     /** Cancel my active claim. */
-    public function cancel(AdditionalTaskClaim $claim): RedirectResponse
+    public function cancel(CancelAdditionalTaskClaimRequest $request, AdditionalTaskClaim $claim): RedirectResponse
     {
         $me = Auth::user();
         abort_unless($me && $claim->user_id === $me->id, 403);
@@ -102,7 +113,23 @@ class AdditionalTaskClaimController extends Controller
         $claim->loadMissing('task.period');
         AssessmentPeriodGuard::requireActive($claim->task?->period, 'Batalkan Klaim Tugas Tambahan');
 
-        $claim->cancel('Dibatalkan oleh pegawai');
+        if ($claim->status !== 'active') {
+            return back()->with('status', 'Tidak dapat membatalkan klaim pada status saat ini.');
+        }
+
+        $now = now();
+        $deadline = $claim->cancel_deadline_at;
+        $isViolation = $deadline ? $now->greaterThan($deadline) : false;
+
+        $claim->update([
+            'status' => 'cancelled',
+            'cancelled_at' => $now,
+            'cancelled_by' => $me->id,
+            'cancel_reason' => $request->input('reason'),
+            'is_violation' => $isViolation,
+            // Penalty TIDAK diaplikasikan saat cancel
+            'penalty_applied' => false,
+        ]);
 
         // Jika slot kembali tersedia (kuota belum penuh) kirim notifikasi ke pegawai medis lain di unit
         $task = $claim->task;

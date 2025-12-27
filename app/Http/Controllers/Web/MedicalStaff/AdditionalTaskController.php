@@ -77,6 +77,10 @@ class AdditionalTaskController extends Controller
                             : '-',
                         'points' => $task->points,
                         'bonus_amount' => $task->bonus_amount,
+                        'cancel_window_hours' => (int) ($task->cancel_window_hours ?? 24),
+                        'default_penalty_type' => (string) ($task->default_penalty_type ?? 'none'),
+                        'default_penalty_value' => (float) ($task->default_penalty_value ?? 0),
+                        'penalty_base' => (string) ($task->penalty_base ?? 'task_bonus'),
                         'max_claims' => $task->max_claims,
                         'active_claims' => $task->active_claims,
                         'supporting_file_url' => $task->policy_doc_path

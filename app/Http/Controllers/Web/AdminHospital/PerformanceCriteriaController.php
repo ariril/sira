@@ -105,13 +105,10 @@ class PerformanceCriteriaController extends Controller
     {
         $data = $this->validateData($request);
         $data['is_active'] = (bool)($data['is_active'] ?? false);
-        $data['is_360'] = (bool)($data['is_360'] ?? false);
-        if (($data['input_method'] ?? null) !== '360') {
-            $data['is_360'] = false;
-        }
         $applyAll = (bool)$request->boolean('apply_basis_to_all');
         $this->ensureNormalizationPolicy($data['normalization_basis'] ?? null, $applyAll);
         $item = PerformanceCriteria::create($data);
+        $this->syncRaterWeights($request, $item);
         return redirect()->route('admin_rs.performance-criterias.index')
             ->with('status', 'Kriteria berhasil dibuat.');
     }
@@ -130,13 +127,10 @@ class PerformanceCriteriaController extends Controller
     {
         $data = $this->validateData($request, isUpdate: true);
         $data['is_active'] = (bool)($data['is_active'] ?? false);
-        $data['is_360'] = (bool)($data['is_360'] ?? false);
-        if (($data['input_method'] ?? null) !== '360') {
-            $data['is_360'] = false;
-        }
         $applyAll = (bool)$request->boolean('apply_basis_to_all');
         $this->ensureNormalizationPolicy($data['normalization_basis'] ?? null, $applyAll, $performance_criteria->id);
         $performance_criteria->update($data);
+        $this->syncRaterWeights($request, $performance_criteria);
         return redirect()->route('admin_rs.performance-criterias.index')
             ->with('status', 'Kriteria diperbarui.');
     }
@@ -182,7 +176,6 @@ class PerformanceCriteriaController extends Controller
         $hasConflict = collect($existingBases)->reject(fn($b) => $b === $basis)->isNotEmpty();
 
         if ($hasConflict && !$applyAll) {
-                    'is_360'      => ['nullable', 'boolean'],
             abort(redirect()->back()->withErrors([
                 'normalization_basis' => 'Kebijakan normalisasi harus sama untuk seluruh kriteria. Centang "Terapkan ke semua kriteria" untuk menyamakan.',
             ]));
@@ -190,6 +183,20 @@ class PerformanceCriteriaController extends Controller
 
         if ($hasConflict && $applyAll) {
             PerformanceCriteria::query()->update(['normalization_basis' => $basis]);
+        }
+    }
+
+    private function syncRaterWeights(\Illuminate\Http\Request $request, \App\Models\PerformanceCriteria $criteria): void
+    {
+        if ($criteria->input_method !== '360') return;
+        $weights = $request->input('rater_weights', []);
+        foreach (['supervisor','peer','subordinate','self'] as $type) {
+            $val = $weights[$type] ?? null;
+            if ($val === null || $val === '') { $criteria->raterWeights()->where('assessor_type',$type)->delete(); continue; }
+            \App\Models\RaterTypeWeight::updateOrCreate(
+                ['performance_criteria_id' => $criteria->id, 'assessor_type' => $type],
+                ['weight' => (float)$val]
+            );
         }
     }
 }

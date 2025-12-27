@@ -4,6 +4,8 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class FiveStaffKpiSeeder extends Seeder
@@ -18,11 +20,63 @@ class FiveStaffKpiSeeder extends Seeder
             return;
         }
 
+        $unitPoliUmumId = (int) (DB::table('units')->where('slug', 'poliklinik-umum')->value('id') ?? 0);
+
         // Helpers
         $criteriaId = fn(string $name) => DB::table('performance_criterias')->where('name', $name)->value('id');
         $userId = fn(string $email) => DB::table('users')->where('email', $email)->value('id');
         $professionId = fn(string $code) => DB::table('professions')->where('code', $code)->value('id');
         $unitId = fn(string $slug) => DB::table('units')->where('slug', $slug)->value('id');
+
+        // Ensure we have >= 3 staff in the SAME unit+profession (poliklinik-umum + DOK-UM)
+        $ensurePegawaiMedis = function (string $email, string $name, string $employeeNumber, string $unitSlug, string $professionCode) use ($now, $userId, $unitId, $professionId) {
+            $existingId = $userId($email);
+            if ($existingId) {
+                return (int) $existingId;
+            }
+
+            $uId = (int) ($unitId($unitSlug) ?? 0);
+            $pId = (int) ($professionId($professionCode) ?? 0);
+
+            $newId = DB::table('users')->insertGetId([
+                'employee_number' => $employeeNumber,
+                'name' => $name,
+                'start_date' => '2022-01-01',
+                'gender' => 'Laki-laki',
+                'nationality' => 'Indonesia',
+                'address' => 'Atambua',
+                'phone' => '0812-0000-9999',
+                'email' => $email,
+                'last_education' => 'S.Ked',
+                'position' => 'Dokter Umum',
+                'unit_id' => $uId ?: null,
+                'profession_id' => $pId ?: null,
+                'password' => Hash::make('password'),
+                'last_role' => 'pegawai_medis',
+                'email_verified_at' => $now,
+                'remember_token' => Str::random(10),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            $roleId = (int) (DB::table('roles')->where('slug', 'pegawai_medis')->value('id') ?? 0);
+            if ($roleId > 0) {
+                DB::table('role_user')->updateOrInsert([
+                    'user_id' => (int) $newId,
+                    'role_id' => $roleId,
+                ], []);
+            }
+
+            return (int) $newId;
+        };
+
+        $dokterUmum3Id = $ensurePegawaiMedis(
+            email: 'dokter.umum3@rsud.local',
+            name: 'dr. Raka Pratama',
+            employeeNumber: '197001012025123001',
+            unitSlug: 'poliklinik-umum',
+            professionCode: 'DOK-UM'
+        );
 
         $absensiId    = $criteriaId('Absensi');
         $kedis360Id   = $criteriaId('Kedisiplinan (360)');
@@ -44,6 +98,11 @@ class FiveStaffKpiSeeder extends Seeder
             ],
             'theodorus' => [
                 'id' => $userId('dokter.umum@rsud.local'),
+                'unit_slug' => 'poliklinik-umum',
+                'profession' => 'DOK-UM',
+            ],
+            'raka' => [
+                'id' => $dokterUmum3Id,
                 'unit_slug' => 'poliklinik-umum',
                 'profession' => 'DOK-UM',
             ],
@@ -90,6 +149,8 @@ class FiveStaffKpiSeeder extends Seeder
             'felix' => ['attendance' => 26, 'discipline' => 92, 'contrib' => 12, 'patients' => 230, 'rating' => 4.7],
             'fransisca' => ['attendance' => 25, 'discipline' => 83, 'contrib' => 9,  'patients' => 140, 'rating' => 4.5],
             'theodorus' => ['attendance' => 26, 'discipline' => 86, 'contrib' => 10, 'patients' => 175, 'rating' => 4.6],
+            // Third DOK-UM in the same unit (poliklinik-umum) to demonstrate relative-score scaling (100 / ~87 / ~76)
+            'raka' => ['attendance' => 24, 'discipline' => 88, 'contrib' => 11, 'patients' => 200, 'rating' => 4.8],
             'melria' => ['attendance' => 25, 'discipline' => 82, 'contrib' => 8,  'patients' => 120, 'rating' => 4.4],
             'janBeria' => ['attendance' => 25, 'discipline' => 80, 'contrib' => 7,  'patients' => 110, 'rating' => 4.3],
         ];
@@ -97,6 +158,7 @@ class FiveStaffKpiSeeder extends Seeder
             'felix' => ['attendance' => 25, 'discipline' => 87, 'contrib' => 10, 'patients' => 205, 'rating' => 4.6],
             'fransisca' => ['attendance' => 24, 'discipline' => 80, 'contrib' => 8,  'patients' => 135, 'rating' => 4.4],
             'theodorus' => ['attendance' => 24, 'discipline' => 82, 'contrib' => 9,  'patients' => 150, 'rating' => 4.5],
+            'raka' => ['attendance' => 23, 'discipline' => 84, 'contrib' => 9,  'patients' => 165, 'rating' => 4.6],
             'melria' => ['attendance' => 23, 'discipline' => 78, 'contrib' => 6,  'patients' => 95,  'rating' => 4.2],
             'janBeria' => ['attendance' => 23, 'discipline' => 77, 'contrib' => 6,  'patients' => 90,  'rating' => 4.1],
         ];
@@ -125,7 +187,8 @@ class FiveStaffKpiSeeder extends Seeder
             paymentDate: Carbon::create(2025, 11, 10),
             allocations: $allocations,
             professionIdResolver: $professionId,
-            unitIdResolver: $unitId
+            unitIdResolver: $unitId,
+            exampleInactiveUnitId: $unitPoliUmumId
         );
 
         $this->seedPeriod(
@@ -140,7 +203,8 @@ class FiveStaffKpiSeeder extends Seeder
             paymentDate: null,
             allocations: $allocations,
             professionIdResolver: $professionId,
-            unitIdResolver: $unitId
+            unitIdResolver: $unitId,
+            exampleInactiveUnitId: null
         );
     }
 
@@ -156,7 +220,8 @@ class FiveStaffKpiSeeder extends Seeder
         ?Carbon $paymentDate,
         array $allocations,
         callable $professionIdResolver,
-        callable $unitIdResolver
+        callable $unitIdResolver,
+        ?int $exampleInactiveUnitId
     ): void {
         $now = Carbon::now();
 
@@ -182,14 +247,21 @@ class FiveStaffKpiSeeder extends Seeder
         ];
 
         $weightRows = [];
+        $activeWeightsByUnit = [];
+        $sumWeightByUnit = [];
         foreach ($unitIds as $uId) {
             foreach ($defaultWeights as $critId => $weight) {
+                $status = 'active';
+                // Example: make one criterion NON-AKTIF (draft) for a unit in this period.
+                if ($exampleInactiveUnitId && (int) $uId === (int) $exampleInactiveUnitId && (int) $critId === (int) $ratingId) {
+                    $status = 'draft';
+                }
                 $weightRows[] = [
                     'unit_id' => $uId,
                     'performance_criteria_id' => $critId,
                     'weight' => $weight,
                     'assessment_period_id' => $period->id,
-                    'status' => 'active',
+                    'status' => $status,
                     'policy_doc_path' => null,
                     'policy_note' => 'Seeder bobot default',
                     'unit_head_id' => null,
@@ -198,6 +270,11 @@ class FiveStaffKpiSeeder extends Seeder
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
+
+                if ($status === 'active') {
+                    $activeWeightsByUnit[(int) $uId][(int) $critId] = (float) $weight;
+                    $sumWeightByUnit[(int) $uId] = ($sumWeightByUnit[(int) $uId] ?? 0.0) + (float) $weight;
+                }
             }
         }
         if (!empty($weightRows)) {
@@ -383,7 +460,19 @@ class FiveStaffKpiSeeder extends Seeder
                 'rating' => $ratingScore,
             ];
             $perUserScores[$uid] = $scores;
-            $totalWsm = array_sum($scores) / count($scores);
+
+            // Total WSM must only count criteria with ACTIVE weights for the period.
+            $weightsActive = (array) ($activeWeightsByUnit[(int) $unitId] ?? []);
+            $sumWeightActive = (float) ($sumWeightByUnit[(int) $unitId] ?? 0.0);
+            $weightedSum = 0.0;
+            if ($sumWeightActive > 0 && !empty($weightsActive)) {
+                $weightedSum += ((float) ($weightsActive[(int) $absensiId] ?? 0.0)) * (float) $absScore;
+                $weightedSum += ((float) ($weightsActive[(int) $kedis360Id] ?? 0.0)) * (float) $discScore;
+                $weightedSum += ((float) ($weightsActive[(int) $kontribusiId] ?? 0.0)) * (float) $contribScore;
+                $weightedSum += ((float) ($weightsActive[(int) $pasienId] ?? 0.0)) * (float) $patientScore;
+                $weightedSum += ((float) ($weightsActive[(int) $ratingId] ?? 0.0)) * (float) $ratingScore;
+            }
+            $totalWsm = $sumWeightActive > 0 ? ($weightedSum / $sumWeightActive) : 0.0;
 
             $assessmentId = DB::table('performance_assessments')->insertGetId([
                 'user_id' => $uid,
@@ -476,17 +565,28 @@ class FiveStaffKpiSeeder extends Seeder
                 $share = $amount * ($wsm / $sumWsm);
 
                 $scores = $perUserScores[$uid] ?? [];
-                $scoreSum = array_sum($scores) ?: 1;
-
-                $comp = [
-                    'absensi' => ($scores['absensi'] ?? 0) / $scoreSum * $share,
-                    'kedisiplinan' => ($scores['kedisiplinan'] ?? 0) / $scoreSum * $share,
-                    'kontribusi' => ($scores['kontribusi'] ?? 0) / $scoreSum * $share,
-                    'pasien' => ($scores['pasien'] ?? 0) / $scoreSum * $share,
-                    'rating' => ($scores['rating'] ?? 0) / $scoreSum * $share,
-                ];
 
                 $raw = $rawByUser[$uid] ?? [];
+                $unitIdForUser = (int) ($raw['unit_id'] ?? 0);
+                $weightsActive = (array) ($activeWeightsByUnit[$unitIdForUser] ?? []);
+                $usedScores = [];
+                if (!empty($weightsActive)) {
+                    if (isset($weightsActive[(int) $absensiId])) $usedScores['absensi'] = (float) ($scores['absensi'] ?? 0);
+                    if (isset($weightsActive[(int) $kedis360Id])) $usedScores['kedisiplinan'] = (float) ($scores['kedisiplinan'] ?? 0);
+                    if (isset($weightsActive[(int) $kontribusiId])) $usedScores['kontribusi'] = (float) ($scores['kontribusi'] ?? 0);
+                    if (isset($weightsActive[(int) $pasienId])) $usedScores['pasien'] = (float) ($scores['pasien'] ?? 0);
+                    if (isset($weightsActive[(int) $ratingId])) $usedScores['rating'] = (float) ($scores['rating'] ?? 0);
+                }
+
+                $scoreSum = array_sum($usedScores) ?: 1;
+
+                $comp = [
+                    'absensi' => ($usedScores['absensi'] ?? 0) / $scoreSum * $share,
+                    'kedisiplinan' => ($usedScores['kedisiplinan'] ?? 0) / $scoreSum * $share,
+                    'kontribusi' => ($usedScores['kontribusi'] ?? 0) / $scoreSum * $share,
+                    'pasien' => ($usedScores['pasien'] ?? 0) / $scoreSum * $share,
+                    'rating' => ($usedScores['rating'] ?? 0) / $scoreSum * $share,
+                ];
                 $raterCount = $raw['rating_count'] ?? 0;
                 $contribCount = ($raw['kontribusi'] ?? 0) > 0 ? 1 : 0;
 

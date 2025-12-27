@@ -108,6 +108,23 @@
                                 <span>Periode: <span class="font-medium text-slate-800">{{ $t->period_name ?? '-' }}</span></span>
                                 <span>Jatuh tempo: <span class="font-medium text-slate-800">{{ $availableDue }}</span></span>
                             </div>
+                            @php
+                                $pt = (string)($t->default_penalty_type ?? 'none');
+                                $pv = (float)($t->default_penalty_value ?? 0);
+                                $pb = (string)($t->penalty_base ?? 'task_bonus');
+                                if ($pt === 'none') {
+                                    $policyPenalty = 'Tidak ada sanksi.';
+                                } elseif ($pt === 'amount') {
+                                    $policyPenalty = 'Potong Rp '.number_format($pv,0,',','.').'.';
+                                } else {
+                                    $baseLbl = $pb === 'remuneration' ? 'remunerasi' : 'bonus tugas';
+                                    $policyPenalty = rtrim(rtrim(number_format($pv,2,',','.'),'0'),',').'% dari '.$baseLbl.'.';
+                                }
+                            @endphp
+                            <div class="flex flex-wrap gap-3 text-sm">
+                                <span>Batas pembatalan: <span class="font-medium text-slate-800">{{ (int)($t->cancel_window_hours ?? 24) }} jam</span></span>
+                                <span>Aturan sanksi: <span class="font-medium text-slate-800">{{ $policyPenalty }}</span></span>
+                            </div>
                             @if($t->supporting_file_url)
                                 <a href="{{ $t->supporting_file_url }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm">
                                     <i class="fa-solid fa-file-lines text-sky-500"></i> Dokumen Pendukung
@@ -158,9 +175,10 @@
                             <td class="px-6 py-4 text-base font-medium">{{ optional($claim->cancel_deadline_at?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}</td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2 flex-wrap">
-                                    @if(($activePeriod ?? null) && ($claim->task?->period?->status ?? null) === 'active' && $claim->status === 'active' && $claim->canCancel())
-                                        <form method="POST" action="{{ route('pegawai_medis.additional_task_claims.cancel', $claim->id) }}" onsubmit="return confirm('Batalkan klaim ini?')">
+                                    @if(($activePeriod ?? null) && ($claim->task?->period?->status ?? null) === 'active' && $claim->status === 'active')
+                                        <form method="POST" action="{{ route('pegawai_medis.additional_task_claims.cancel', $claim->id) }}" onsubmit="const r = prompt('Alasan pembatalan (opsional):'); if (r === null) return false; this.querySelector('[name=reason]').value = r; return confirm('Batalkan klaim ini?')">
                                             @csrf
+                                            <input type="hidden" name="reason" value="">
                                             <button class="px-5 py-2.5 rounded-lg ring-1 ring-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-medium">Batalkan</button>
                                         </form>
                                     @endif
@@ -211,7 +229,7 @@
                         </button>
                     </div>
 
-                    <div class="mt-4 grid gap-4 md:grid-cols-3">
+                    <div class="mt-4 grid gap-4 md:grid-cols-4">
                         <div class="p-4 rounded-xl bg-white border border-slate-100">
                             <p class="text-xs text-slate-500">Status Saat Ini</p>
                             <p class="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$claim->status] ?? 'bg-slate-200 text-slate-700' }}">
@@ -227,6 +245,24 @@
                             <p class="text-xs text-slate-500">Bonus / Poin</p>
                             <p class="mt-2 text-sm font-medium text-slate-800">{{ $claim->task?->bonus_amount ? 'Rp '.number_format($claim->task->bonus_amount,0,',','.') : '-' }}</p>
                             <p class="text-xs text-slate-500">Poin: {{ $claim->task?->points ?? '-' }}</p>
+                        </div>
+                        @php
+                            $pt = (string)($claim->penalty_type ?? 'none');
+                            $pv = (float)($claim->penalty_value ?? 0);
+                            $pb = (string)($claim->penalty_base ?? 'task_bonus');
+                            if ($pt === 'none') {
+                                $snap = 'Tidak ada sanksi.';
+                            } elseif ($pt === 'amount') {
+                                $snap = 'Rp '.number_format($pv,0,',','.');
+                            } else {
+                                $baseLbl = $pb === 'remuneration' ? 'remunerasi' : 'bonus tugas';
+                                $snap = rtrim(rtrim(number_format($pv,2,',','.'),'0'),',').'% dari '.$baseLbl;
+                            }
+                        @endphp
+                        <div class="p-4 rounded-xl bg-white border border-slate-100">
+                            <p class="text-xs text-slate-500">Penalty Snapshot</p>
+                            <p class="mt-2 text-sm font-medium text-slate-800">{{ $snap }}</p>
+                            <p class="text-xs text-slate-500">Batas batal: {{ optional($claim->cancel_deadline_at?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}</p>
                         </div>
                     </div>
 
@@ -361,7 +397,7 @@
                         </div>
                         <button type="button" class="text-sm text-slate-500 hover:text-slate-700" @click="historyDetail = null">Tutup</button>
                     </div>
-                    <div class="grid gap-4 md:grid-cols-3">
+                    <div class="grid gap-4 md:grid-cols-4">
                         <div class="p-4 rounded-xl bg-white border border-slate-100">
                             <p class="text-xs text-slate-500">Status Akhir</p>
                             <p class="mt-2 inline-flex px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$claim->status] ?? 'bg-slate-200 text-slate-700' }}">
@@ -376,6 +412,27 @@
                             <p class="text-xs text-slate-500">Bonus / Poin</p>
                             <p class="mt-2 text-sm font-medium text-slate-800">{{ $claim->task?->bonus_amount ? 'Rp '.number_format($claim->task->bonus_amount,0,',','.') : '-' }}</p>
                             <p class="text-xs text-slate-500">Poin: {{ $claim->task?->points ?? '-' }}</p>
+                        </div>
+                        @php
+                            $ptH = (string)($claim->penalty_type ?? 'none');
+                            $pvH = (float)($claim->penalty_value ?? 0);
+                            $pbH = (string)($claim->penalty_base ?? 'task_bonus');
+                            if ($ptH === 'none') {
+                                $snapH = 'Tidak ada sanksi.';
+                            } elseif ($ptH === 'amount') {
+                                $snapH = 'Rp '.number_format($pvH,0,',','.');
+                            } else {
+                                $baseLblH = $pbH === 'remuneration' ? 'remunerasi' : 'bonus tugas';
+                                $snapH = rtrim(rtrim(number_format($pvH,2,',','.'),'0'),',').'% dari '.$baseLblH;
+                            }
+                        @endphp
+                        <div class="p-4 rounded-xl bg-white border border-slate-100">
+                            <p class="text-xs text-slate-500">Violation / Penalty</p>
+                            <p class="mt-2 text-sm font-medium text-slate-800">{{ $claim->is_violation ? 'Violation' : 'Tidak violation' }}</p>
+                            <p class="text-xs text-slate-500">Snapshot: {{ $snapH }}</p>
+                            @if($claim->penalty_applied)
+                                <p class="text-xs text-slate-500">Penalty applied: Rp {{ number_format((float)($claim->penalty_amount ?? 0),0,',','.') }}</p>
+                            @endif
                         </div>
                     </div>
                     <div class="grid gap-4 md:grid-cols-2">

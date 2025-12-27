@@ -22,6 +22,10 @@
                 x-data="{
                     bonus: null,
                     points: null,
+                    cancelWindow: @js(old('cancel_window_hours', 24)),
+                    penaltyType: @js(old('default_penalty_type', 'none')),
+                    penaltyValue: @js(old('default_penalty_value', 0)),
+                    penaltyBase: @js(old('penalty_base', 'task_bonus')),
                     get bonusFilled() {
                         const v = Number(this.bonus);
                         return !Number.isNaN(v) && v > 0;
@@ -100,6 +104,58 @@
                     <label class="block text-sm font-medium text-slate-600 mb-1">Maks. Klaim</label>
                     <x-ui.input type="number" name="max_claims" value="1" />
                 </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">
+                        Cancel Window (jam)
+                        <span class="ml-1 text-amber-600 cursor-help" title="Batas waktu pembatalan klaim (jam) sejak klaim dibuat.">!</span>
+                    </label>
+                    <x-ui.input type="number" name="cancel_window_hours" x-model.number="cancelWindow" min="0" max="720" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Default Penalty Type</label>
+                    <x-ui.select
+                        name="default_penalty_type"
+                        x-model="penaltyType"
+                        :options="[
+                            'none' => 'None',
+                            'percent' => 'Percent',
+                            'amount' => 'Amount',
+                        ]"
+                    />
+                </div>
+
+                <div x-show="penaltyType !== 'none'" x-cloak>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Default Penalty Value</label>
+                    <x-ui.input
+                        type="number"
+                        step="0.01"
+                        name="default_penalty_value"
+                        x-model.number="penaltyValue"
+                        x-bind:disabled="penaltyType === 'none'"
+                        x-bind:min="0"
+                        x-bind:max="penaltyType === 'percent' ? 100 : null"
+                    />
+                    <p class="mt-1 text-xs text-slate-500" x-show="penaltyType === 'percent'">Range: 0–100</p>
+                    <p class="mt-1 text-xs text-slate-500" x-show="penaltyType === 'amount'">Minimal: 0</p>
+                </div>
+
+                <div x-show="penaltyType === 'percent'" x-cloak>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Penalty Base</label>
+                    <x-ui.select
+                        name="penalty_base"
+                        x-model="penaltyBase"
+                        x-bind:disabled="penaltyType !== 'percent'"
+                        :options="[
+                            'task_bonus' => 'Task Bonus',
+                            'remuneration' => 'Remuneration',
+                        ]"
+                    />
+                </div>
+
+                <input type="hidden" name="default_penalty_value" value="0" x-bind:disabled="penaltyType !== 'none'">
+                <input type="hidden" name="penalty_base" x-bind:value="penaltyBase" x-bind:disabled="penaltyType === 'percent'">
                 <input type="hidden" name="status" value="open" />
                 <div class="md:col-span-2 flex items-center justify-between pt-2">
                     <x-ui.button as="a" href="{{ route('kepala_unit.additional-tasks.index') }}" variant="outline">

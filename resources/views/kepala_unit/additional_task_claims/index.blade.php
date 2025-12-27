@@ -6,7 +6,7 @@
     <div class="container-px py-6 space-y-6">
         <form method="GET" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="grid gap-5 md:grid-cols-12">
-                <div class="md:col-span-5">
+                <div class="md:col-span-4">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Cari</label>
                     <x-ui.input name="q" :value="$q" placeholder="Nama Pegawai / Judul / Periode" addonLeft="fa-magnifying-glass" />
                 </div>
@@ -23,9 +23,19 @@
                         'auto_unclaim'=>'Dilepas Otomatis',
                     ]" placeholder="(Semua)" />
                 </div>
-                <div class="md:col-span-2 flex items-end">
+                <div class="md:col-span-1 flex items-end">
                     <label class="inline-flex items-center gap-2 text-sm text-slate-700">
                         <input type="checkbox" name="overdue" value="1" @checked($overdue) class="rounded border-slate-300"> Overdue
+                    </label>
+                </div>
+                <div class="md:col-span-1 flex items-end">
+                    <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" name="violation" value="1" @checked($violation ?? false) class="rounded border-slate-300"> Violation only
+                    </label>
+                </div>
+                <div class="md:col-span-1 flex items-end">
+                    <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" name="penalty_applied" value="1" @checked($penaltyAppliedOnly ?? false) class="rounded border-slate-300"> Penalty applied only
                     </label>
                 </div>
                 <div class="md:col-span-2">
@@ -51,6 +61,10 @@
                     <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Claimed</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Deadline Cancel</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Violation?</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Penalty Snapshot</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Penalty Applied?</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Penalty Amount</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">
                         Status
                         <span class="inline-block ml-1 text-amber-600 cursor-help" title="Status klaim menggambarkan progres pekerjaan pegawai: diklaim → dikirim → validasi → persetujuan → selesai/ditolak/dibatalkan.">!</span>
@@ -64,6 +78,39 @@
                     <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
                     <td class="px-6 py-4">{{ $it->claimed_at }}</td>
                     <td class="px-6 py-4">{{ $it->cancel_deadline_at ?? '-' }}</td>
+                    <td class="px-6 py-4">
+                        @if($it->is_violation)
+                            <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Ya</span>
+                        @else
+                            <span class="px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">Tidak</span>
+                        @endif
+                    </td>
+                    <td class="px-6 py-4">
+                        @php
+                            $pt = (string)($it->penalty_type ?? 'none');
+                            $pv = (float)($it->penalty_value ?? 0);
+                            $pb = (string)($it->penalty_base ?? 'task_bonus');
+                            if ($pt === 'none') {
+                                $snap = 'None';
+                            } elseif ($pt === 'amount') {
+                                $snap = 'Rp ' . number_format($pv, 0, ',', '.');
+                            } else {
+                                $baseLbl = $pb === 'remuneration' ? 'remunerasi' : 'bonus tugas';
+                                $snap = rtrim(rtrim(number_format($pv, 2, ',', '.'), '0'), ',') . '% dari ' . $baseLbl;
+                            }
+                        @endphp
+                        <span class="text-sm text-slate-700">{{ $snap }}</span>
+                    </td>
+                    <td class="px-6 py-4">
+                        @if($it->penalty_applied)
+                            <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">Ya</span>
+                        @else
+                            <span class="px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">Tidak</span>
+                        @endif
+                    </td>
+                    <td class="px-6 py-4">
+                        {{ $it->penalty_amount !== null ? ('Rp ' . number_format((float)$it->penalty_amount, 0, ',', '.')) : '-' }}
+                    </td>
                     <td class="px-6 py-4">
                         @php
                             $st = $it->status;
@@ -83,7 +130,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Belum ada data.</td></tr>
+                <tr><td colspan="10" class="px-6 py-8 text-center text-slate-500">Belum ada data.</td></tr>
             @endforelse
         </x-ui.table>
 

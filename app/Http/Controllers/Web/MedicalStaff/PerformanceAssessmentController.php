@@ -82,13 +82,43 @@ class PerformanceAssessmentController extends Controller
 
         $kinerja = app(PerformanceScoreService::class)->computeBreakdownForAssessment($assessment);
 
-        $visibleDetails = $assessment->details;
-        if (($kinerja['applicable'] ?? false) && ($kinerja['hasWeights'] ?? false)) {
-            $allowed = array_flip(array_map('intval', array_keys($kinerja['weights'] ?? [])));
-            $visibleDetails = $assessment->details->filter(fn($d) => isset($allowed[(int) $d->performance_criteria_id]))->values();
-        }
+        $activeCriteriaIdSet = array_flip(array_map('intval', array_keys($kinerja['weights'] ?? [])));
 
-        return view('pegawai_medis.assessments.show', compact('assessment', 'rawMetrics', 'kinerja', 'visibleDetails'));
+        $activeCriteria = $assessment->details
+            ->filter(fn($d) => isset($activeCriteriaIdSet[(int) $d->performance_criteria_id]))
+            ->map(fn($d) => (string) ($d->performanceCriteria?->name ?? ('Kriteria #' . (int) $d->performance_criteria_id)))
+            ->values()
+            ->all();
+        $inactiveCriteria = $assessment->details
+            ->filter(fn($d) => !isset($activeCriteriaIdSet[(int) $d->performance_criteria_id]))
+            ->map(fn($d) => (string) ($d->performanceCriteria?->name ?? ('Kriteria #' . (int) $d->performance_criteria_id)))
+            ->values()
+            ->all();
+
+        $inactiveCriteriaRows = $assessment->details
+            ->filter(fn($d) => !isset($activeCriteriaIdSet[(int) $d->performance_criteria_id]))
+            ->map(function ($d) {
+                return [
+                    'criteria_id' => (int) $d->performance_criteria_id,
+                    'criteria_name' => (string) ($d->performanceCriteria?->name ?? ('Kriteria #' . (int) $d->performance_criteria_id)),
+                    'score_wsm' => $d->score !== null ? (float) $d->score : 0.0,
+                ];
+            })
+            ->values()
+            ->all();
+
+        $visibleDetails = $assessment->details;
+
+        return view('pegawai_medis.assessments.show', compact(
+            'assessment',
+            'rawMetrics',
+            'kinerja',
+            'visibleDetails',
+            'activeCriteria',
+            'inactiveCriteria',
+            'inactiveCriteriaRows',
+            'activeCriteriaIdSet'
+        ));
     }
 
     /**

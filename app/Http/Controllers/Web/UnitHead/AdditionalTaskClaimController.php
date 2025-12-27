@@ -27,11 +27,15 @@ class AdditionalTaskClaimController extends Controller
             'q'        => ['nullable','string','max:100'],
             'status'   => ['nullable','string','in:active,submitted,validated,approved,rejected,completed,cancelled,auto_unclaim'],
             'overdue'  => ['nullable','boolean'],
+            'violation' => ['nullable','boolean'],
+            'penalty_applied' => ['nullable','boolean'],
             'per_page' => ['nullable','integer','in:' . implode(',', $perPageOptions)],
         ]);
         $q = (string)($data['q'] ?? '');
         $status = $data['status'] ?? '';
         $overdue = (bool)($data['overdue'] ?? false);
+        $violation = (bool)($data['violation'] ?? false);
+        $penaltyAppliedOnly = (bool)($data['penalty_applied'] ?? false);
         $perPage = (int) ($data['per_page'] ?? 20);
 
         if ($unitId && Schema::hasTable('additional_task_claims') && Schema::hasTable('additional_tasks')) {
@@ -39,7 +43,7 @@ class AdditionalTaskClaimController extends Controller
                 ->join('users as u', 'u.id', '=', 'c.user_id')
                 ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
                 ->leftJoin('assessment_periods as ap', 'ap.id', '=', 't.assessment_period_id')
-                ->selectRaw('c.id, c.status, c.claimed_at, c.completed_at, c.cancelled_at, c.cancel_deadline_at, u.name as user_name, t.title as task_title, ap.name as period_name')
+                ->selectRaw('c.id, c.status, c.claimed_at, c.completed_at, c.cancelled_at, c.cancel_deadline_at, c.is_violation, c.penalty_type, c.penalty_value, c.penalty_base, c.penalty_applied, c.penalty_amount, u.name as user_name, t.title as task_title, ap.name as period_name')
                 ->where('t.unit_id', $unitId)
                 ->orderByDesc('c.id');
 
@@ -53,6 +57,12 @@ class AdditionalTaskClaimController extends Controller
             if (!empty($status)) $builder->where('c.status', $status);
             if ($overdue) {
                 $builder->whereNotNull('c.cancel_deadline_at')->where('c.cancel_deadline_at', '<', Carbon::now())->where('c.status','active');
+            }
+            if ($violation) {
+                $builder->where('c.is_violation', 1);
+            }
+            if ($penaltyAppliedOnly) {
+                $builder->where('c.penalty_applied', 1);
             }
 
             $items = $builder->paginate($perPage)->withQueryString();
@@ -68,6 +78,8 @@ class AdditionalTaskClaimController extends Controller
             'q' => $q,
             'status' => $status,
             'overdue' => $overdue,
+            'violation' => $violation,
+            'penaltyAppliedOnly' => $penaltyAppliedOnly,
             'perPage' => $perPage,
             'perPageOptions' => $perPageOptions,
         ]);

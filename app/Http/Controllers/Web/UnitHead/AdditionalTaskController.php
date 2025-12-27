@@ -133,8 +133,23 @@ class AdditionalTaskController extends Controller
             'bonus_amount'=> ['nullable','numeric','min:0'],
             'points'      => ['nullable','numeric','min:0'],
             'max_claims'  => ['nullable','integer','min:1','max:100'],
+            'cancel_window_hours' => ['nullable','integer','min:0','max:720'],
+            'default_penalty_type' => ['nullable','string','in:none,percent,amount'],
+            'default_penalty_value' => ['nullable','numeric','min:0'],
+            'penalty_base' => ['nullable','string','in:task_bonus,remuneration'],
             'supporting_file' => ['nullable','file','max:10240','mimes:doc,docx,xls,xlsx,ppt,pptx,pdf'],
         ]);
+
+        $penaltyType = (string) ($data['default_penalty_type'] ?? 'none');
+        $penaltyValue = (float) ($data['default_penalty_value'] ?? 0);
+        if ($penaltyType === 'none') {
+            $penaltyValue = 0;
+        }
+        if ($penaltyType === 'percent' && $penaltyValue > 100) {
+            return back()->withErrors([
+                'default_penalty_value' => 'Penalty percent harus di antara 0–100.',
+            ])->withInput();
+        }
 
         $hasBonus = $request->filled('bonus_amount');
         $hasPoints = $request->filled('points');
@@ -187,6 +202,10 @@ class AdditionalTaskController extends Controller
             'bonus_amount' => $data['bonus_amount'] ?? null,
             'points' => $data['points'] ?? null,
             'max_claims' => $data['max_claims'] ?? 1,
+            'cancel_window_hours' => (int) ($data['cancel_window_hours'] ?? 24),
+            'default_penalty_type' => $penaltyType,
+            'default_penalty_value' => $penaltyValue,
+            'penalty_base' => (string) ($data['penalty_base'] ?? 'task_bonus'),
             'status' => 'open',
             'policy_doc_path' => $filePath,
             'created_by' => $me->id,
@@ -262,8 +281,23 @@ class AdditionalTaskController extends Controller
             'bonus_amount'=> ['nullable','numeric','min:0'],
             'points'      => ['nullable','numeric','min:0'],
             'max_claims'  => ['nullable','integer','min:1','max:100'],
+            'cancel_window_hours' => ['nullable','integer','min:0','max:720'],
+            'default_penalty_type' => ['nullable','string','in:none,percent,amount'],
+            'default_penalty_value' => ['nullable','numeric','min:0'],
+            'penalty_base' => ['nullable','string','in:task_bonus,remuneration'],
             'supporting_file' => ['nullable','file','max:10240','mimes:doc,docx,xls,xlsx,ppt,pptx,pdf'],
         ]);
+
+        $penaltyType = (string) ($data['default_penalty_type'] ?? ($task->default_penalty_type ?? 'none'));
+        $penaltyValue = (float) ($data['default_penalty_value'] ?? ($task->default_penalty_value ?? 0));
+        if ($penaltyType === 'none') {
+            $penaltyValue = 0;
+        }
+        if ($penaltyType === 'percent' && $penaltyValue > 100) {
+            return back()->withErrors([
+                'default_penalty_value' => 'Penalty percent harus di antara 0–100.',
+            ])->withInput();
+        }
 
         $targetPeriod = AssessmentPeriod::query()->find((int) $data['assessment_period_id']);
         AssessmentPeriodGuard::requireActive($targetPeriod, 'Ubah Tugas Tambahan');
@@ -315,6 +349,10 @@ class AdditionalTaskController extends Controller
             'bonus_amount' => $data['bonus_amount'] ?? null,
             'points' => $data['points'] ?? null,
             'max_claims' => $data['max_claims'] ?? 1,
+            'cancel_window_hours' => (int) ($data['cancel_window_hours'] ?? ($task->cancel_window_hours ?? 24)),
+            'default_penalty_type' => $penaltyType,
+            'default_penalty_value' => $penaltyValue,
+            'penalty_base' => (string) ($data['penalty_base'] ?? ($task->penalty_base ?? 'task_bonus')),
             'policy_doc_path' => $filePath,
         ]);
         $task->refreshLifecycleStatus();

@@ -35,6 +35,12 @@ return new class extends Migration
 
             $table->tinyInteger('max_claims')->default(1);
 
+            // Policy default (transparansi sebelum klaim)
+            $table->unsignedSmallInteger('cancel_window_hours')->default(24);
+            $table->enum('default_penalty_type', ['none', 'percent', 'amount'])->default('none');
+            $table->decimal('default_penalty_value', 12, 2)->default(0);
+            $table->enum('penalty_base', ['task_bonus', 'remuneration'])->default('task_bonus');
+
             $table->enum('status', ['draft','open','closed','cancelled'])
                 ->default('open');
 
