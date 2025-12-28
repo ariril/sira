@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\PolyclinicHead;
 use App\Http\Controllers\Controller;
 use App\Models\UnitCriteriaWeight as Weight;
 use App\Enums\UnitCriteriaWeightStatus as UCWStatus;
+use App\Models\AssessmentPeriod;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -160,7 +161,7 @@ class UnitCriteriaApprovalController extends Controller
         }
         $periods = collect();
         if (Schema::hasTable('assessment_periods')) {
-            $periods = DB::table('assessment_periods')->orderByDesc(DB::raw("status='active'"))->orderByDesc('id')->get();
+              $periods = DB::table('assessment_periods')->orderByDesc(DB::raw("status='" . AssessmentPeriod::STATUS_ACTIVE . "'"))->orderByDesc('id')->get();
         }
         $rows = collect();
         if (Schema::hasTable('unit_criteria_weights')) {

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Web\UnitHead;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreAdditionalTaskRequest;
+use App\Http\Requests\UpdateAdditionalTaskRequest;
 use App\Models\AdditionalTask;
 use App\Services\AdditionalTaskStatusService;
 use Illuminate\Http\RedirectResponse;
@@ -103,7 +105,7 @@ class AdditionalTaskController extends Controller
         return view('kepala_unit.additional_tasks.create', ['activePeriod' => $activePeriod]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(StoreAdditionalTaskRequest $request): RedirectResponse
     {
         $this->authorizeAccess();
         $me = Auth::user();
@@ -123,47 +125,12 @@ class AdditionalTaskController extends Controller
 
         AssessmentPeriodGuard::requireActive($activePeriod, 'Buat Tugas Tambahan');
 
-        $data = $request->validate([
-            'title'       => ['required','string','max:200'],
-            'description' => ['nullable','string','max:2000'],
-            'start_date'  => ['required','date'],
-            'start_time'  => ['nullable','date_format:H:i'],
-            'due_date'    => ['required','date','after_or_equal:start_date'],
-            'due_time'    => ['nullable','date_format:H:i'],
-            'bonus_amount'=> ['nullable','numeric','min:0'],
-            'points'      => ['nullable','numeric','min:0'],
-            'max_claims'  => ['nullable','integer','min:1','max:100'],
-            'cancel_window_hours' => ['nullable','integer','min:0','max:720'],
-            'default_penalty_type' => ['nullable','string','in:none,percent,amount'],
-            'default_penalty_value' => ['nullable','numeric','min:0'],
-            'penalty_base' => ['nullable','string','in:task_bonus,remuneration'],
-            'supporting_file' => ['nullable','file','max:10240','mimes:doc,docx,xls,xlsx,ppt,pptx,pdf'],
-        ]);
+        $data = $request->validated();
 
         $penaltyType = (string) ($data['default_penalty_type'] ?? 'none');
         $penaltyValue = (float) ($data['default_penalty_value'] ?? 0);
         if ($penaltyType === 'none') {
             $penaltyValue = 0;
-        }
-        if ($penaltyType === 'percent' && $penaltyValue > 100) {
-            return back()->withErrors([
-                'default_penalty_value' => 'Penalty percent harus di antara 0–100.',
-            ])->withInput();
-        }
-
-        $hasBonus = $request->filled('bonus_amount');
-        $hasPoints = $request->filled('points');
-        if (!$hasBonus && !$hasPoints) {
-            return back()->withErrors([
-                'bonus_amount' => 'Isi Bonus atau Poin minimal salah satu.',
-                'points' => 'Isi Bonus atau Poin minimal salah satu.',
-            ])->withInput();
-        }
-        if ($hasBonus && $hasPoints) {
-            return back()->withErrors([
-                'bonus_amount' => 'Pilih salah satu antara Bonus atau Poin.',
-                'points' => 'Pilih salah satu antara Bonus atau Poin.',
-            ])->withInput();
         }
 
         $tz = config('app.timezone');
@@ -259,7 +226,7 @@ class AdditionalTaskController extends Controller
         return view('kepala_unit.additional_tasks.edit', ['item' => $row, 'periods' => $periods]);
     }
 
-    public function update(Request $request, string $id): RedirectResponse
+    public function update(UpdateAdditionalTaskRequest $request, string $id): RedirectResponse
     {
         $this->authorizeAccess();
         $me = Auth::user();
@@ -270,23 +237,7 @@ class AdditionalTaskController extends Controller
         $task->loadMissing('period');
         AssessmentPeriodGuard::requireActive($task->period, 'Ubah Tugas Tambahan');
 
-        $data = $request->validate([
-            'assessment_period_id' => ['required','integer','exists:assessment_periods,id'],
-            'title'       => ['required','string','max:200'],
-            'description' => ['nullable','string','max:2000'],
-            'start_date'  => ['required','date'],
-            'start_time'  => ['nullable','date_format:H:i'],
-            'due_date'    => ['required','date','after_or_equal:start_date'],
-            'due_time'    => ['nullable','date_format:H:i'],
-            'bonus_amount'=> ['nullable','numeric','min:0'],
-            'points'      => ['nullable','numeric','min:0'],
-            'max_claims'  => ['nullable','integer','min:1','max:100'],
-            'cancel_window_hours' => ['nullable','integer','min:0','max:720'],
-            'default_penalty_type' => ['nullable','string','in:none,percent,amount'],
-            'default_penalty_value' => ['nullable','numeric','min:0'],
-            'penalty_base' => ['nullable','string','in:task_bonus,remuneration'],
-            'supporting_file' => ['nullable','file','max:10240','mimes:doc,docx,xls,xlsx,ppt,pptx,pdf'],
-        ]);
+        $data = $request->validated();
 
         $penaltyType = (string) ($data['default_penalty_type'] ?? ($task->default_penalty_type ?? 'none'));
         $penaltyValue = (float) ($data['default_penalty_value'] ?? ($task->default_penalty_value ?? 0));
@@ -301,21 +252,6 @@ class AdditionalTaskController extends Controller
 
         $targetPeriod = AssessmentPeriod::query()->find((int) $data['assessment_period_id']);
         AssessmentPeriodGuard::requireActive($targetPeriod, 'Ubah Tugas Tambahan');
-
-        $hasBonus = $request->filled('bonus_amount');
-        $hasPoints = $request->filled('points');
-        if (!$hasBonus && !$hasPoints) {
-            return back()->withErrors([
-                'bonus_amount' => 'Isi Bonus atau Poin minimal salah satu.',
-                'points' => 'Isi Bonus atau Poin minimal salah satu.',
-            ])->withInput();
-        }
-        if ($hasBonus && $hasPoints) {
-            return back()->withErrors([
-                'bonus_amount' => 'Pilih salah satu antara Bonus atau Poin.',
-                'points' => 'Pilih salah satu antara Bonus atau Poin.',
-            ])->withInput();
-        }
 
         $startTime = $data['start_time'] ?? ($task->start_time ? substr($task->start_time, 0, 5) : '00:00');
         $dueTime = $data['due_time'] ?? ($task->due_time ? substr($task->due_time, 0, 5) : '23:59');

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\UnitHead;
 
 use App\Http\Controllers\Controller;
+use App\Models\AssessmentPeriod;
 use App\Models\UnitCriteriaWeight;
 use App\Models\PerformanceCriteria;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
+use App\Services\RaterWeightGenerator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -56,13 +58,13 @@ class UnitCriteriaWeightController extends Controller
         $periods = collect();
         if (Schema::hasTable('assessment_periods')) {
             $periods = DB::table('assessment_periods')
-                ->orderByDesc(DB::raw("status = 'active'"))
+                ->orderByDesc(DB::raw("status = '" . AssessmentPeriod::STATUS_ACTIVE . "'"))
                 ->orderByDesc('id')->get();
         }
         $criteria = collect();
         $activePeriod = null;
         if (Schema::hasTable('assessment_periods')) {
-            $activePeriod = DB::table('assessment_periods')->where('status', 'active')->first();
+            $activePeriod = DB::table('assessment_periods')->where('status', AssessmentPeriod::STATUS_ACTIVE)->first();
         }
         $activePeriodId = $activePeriod?->id;
         $this->archiveNonActivePeriods($unitId, $activePeriodId);
@@ -195,7 +197,7 @@ class UnitCriteriaWeightController extends Controller
             'weight'                  => ['required','numeric','min:0','max:100'],
         ]);
         // Gunakan periode aktif jika tidak dikirim / abaikan input manual
-        $activePeriodId = DB::table('assessment_periods')->where('status','active')->value('id');
+        $activePeriodId = DB::table('assessment_periods')->where('status', AssessmentPeriod::STATUS_ACTIVE)->value('id');
         if (!$activePeriodId) {
             return back()->withErrors(['assessment_period_id' => 'Tidak ada periode aktif. Hubungi Admin RS.'])->withInput();
         }
@@ -235,7 +237,45 @@ class UnitCriteriaWeightController extends Controller
             'created_at'              => now(),
             'updated_at'              => now(),
         ]);
-        return back()->with('status', 'Bobot ditambahkan sebagai draft.');
+
+        $extraStatus = null;
+        if (
+            Schema::hasTable('criteria_rater_rules') &&
+            Schema::hasTable('unit_rater_weights') &&
+            Schema::hasTable('users') &&
+            Schema::hasTable('performance_criterias')
+        ) {
+            $criteria = DB::table('performance_criterias')
+                ->select('id', 'name', 'is_360')
+                ->where('id', $data['performance_criteria_id'])
+                ->first();
+
+            if ($criteria && (bool) $criteria->is_360) {
+                $assessorTypes = DB::table('criteria_rater_rules')
+                    ->where('performance_criteria_id', (int) $criteria->id)
+                    ->distinct()
+                    ->pluck('assessor_type')
+                    ->filter(fn($v) => !empty($v))
+                    ->values();
+
+                if ($assessorTypes->count() === 1) {
+                    $assessorType = (string) $assessorTypes->first();
+
+                    $sync = app(\App\Services\RaterWeightGenerator::class)->syncForUnitPeriod($unitId, (int) $data['assessment_period_id']);
+                    $created = (int) ($sync['created'] ?? 0);
+                    if ($created > 0) {
+                        $extraStatus = "Aturan kriteria 360 '{$criteria->name}' hanya memiliki 1 tipe penilai ('{$assessorType}'). Sistem menyinkronkan draft Bobot Penilai 360 (dibuat {$created} baris baru).";
+                    }
+                }
+            }
+        }
+
+        $message = 'Bobot ditambahkan sebagai draft.';
+        if (!empty($extraStatus)) {
+            $message .= ' ' . $extraStatus;
+        }
+
+        return back()->with('status', $message);
     }
 
     /**
@@ -325,7 +365,7 @@ class UnitCriteriaWeightController extends Controller
         $unitId = $me->unit_id;
         if (!$unitId) abort(403);
 
-        $periodId = $request->integer('period_id') ?: DB::table('assessment_periods')->where('status','active')->value('id');
+        $periodId = $request->integer('period_id') ?: DB::table('assessment_periods')->where('status', AssessmentPeriod::STATUS_ACTIVE)->value('id');
         if (!$periodId) {
             return back()->withErrors(['period_id' => 'Tidak ada periode aktif untuk diajukan.']);
         }
@@ -355,6 +395,26 @@ class UnitCriteriaWeightController extends Controller
             if (empty($w->unit_head_note)) $w->unit_head_note = 'Pengajuan massal';
             $w->save();
         }
+
+        // If submitted list contains any 360 criteria, remind and auto-generate rater weights.
+        $submittedCriteriaIds = $weights->pluck('performance_criteria_id')->map(fn($v) => (int) $v)->filter()->values()->all();
+        $has360 = false;
+        if (!empty($submittedCriteriaIds) && Schema::hasTable('performance_criterias')) {
+            $has360 = DB::table('performance_criterias')
+                ->whereIn('id', $submittedCriteriaIds)
+                ->where('is_360', true)
+                ->exists();
+        }
+
+        if ($has360) {
+            app(RaterWeightGenerator::class)->syncForUnitPeriod((int) $unitId, (int) $periodId);
+
+            return back()
+                ->with('status', 'Seluruh bobot diajukan untuk persetujuan.')
+                ->with('warning_360_message', 'Bobot penilaian 360 perlu diatur')
+                ->with('warning_360_url', route('kepala_unit.rater_weights.index', ['assessment_period_id' => (int) $periodId]));
+        }
+
         return back()->with('status', 'Seluruh bobot diajukan untuk persetujuan.');
     }
 
@@ -368,7 +428,7 @@ class UnitCriteriaWeightController extends Controller
         $unitId = $me?->unit_id;
         if (!$unitId) abort(403);
 
-        $periodId = $request->integer('period_id') ?: DB::table('assessment_periods')->where('status','active')->value('id');
+        $periodId = $request->integer('period_id') ?: DB::table('assessment_periods')->where('status', AssessmentPeriod::STATUS_ACTIVE)->value('id');
         if (!$periodId) {
             return back()->withErrors(['period_id' => 'Tidak ada periode aktif untuk diajukan ulang.']);
         }
@@ -433,7 +493,7 @@ class UnitCriteriaWeightController extends Controller
             return back()->withErrors(['status' => 'Tabel periode atau bobot belum tersedia.']);
         }
 
-        $activePeriod = DB::table('assessment_periods')->where('status','active')->first();
+        $activePeriod = DB::table('assessment_periods')->where('status', AssessmentPeriod::STATUS_ACTIVE)->first();
         if (!$activePeriod) return back()->withErrors(['status' => 'Tidak ada periode aktif.']);
 
         $previousPeriod = $this->previousPeriod($activePeriod, $unitId);

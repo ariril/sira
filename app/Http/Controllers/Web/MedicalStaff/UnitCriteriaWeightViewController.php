@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Web\MedicalStaff;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\AssessmentPeriod;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Support\AssessmentPeriodGuard;
 
 class UnitCriteriaWeightViewController extends Controller
 {
@@ -18,9 +20,10 @@ class UnitCriteriaWeightViewController extends Controller
 
         // Find active assessment period
         $activePeriodId = null; $activePeriodName = null;
-        if (Schema::hasTable('assessment_periods')) {
-            $active = DB::table('assessment_periods')->where('status','active')->first();
-            if ($active) { $activePeriodId = $active->id; $activePeriodName = $active->name; }
+        $active = AssessmentPeriodGuard::resolveActive();
+        if ($active) {
+            $activePeriodId = $active->id;
+            $activePeriodName = $active->name;
         }
 
         $items = collect();

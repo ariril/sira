@@ -58,8 +58,10 @@ class CriteriaAggregator
     // Weighted aggregation for 360 based on rater_weights (active per period + assessee profession). Returns 0-100 or null.
     private function aggregate360(int $criteriaId, int $userId, int $periodId): ?float
     {
-        $professionId = (int) (User::query()->whereKey($userId)->value('profession_id') ?? 0);
-        $weights = $this->resolveActiveWeights($periodId, $professionId);
+        $user = User::query()->whereKey($userId)->first(['id', 'unit_id', 'profession_id']);
+        $unitId = (int) ($user?->unit_id ?? 0);
+        $professionId = (int) ($user?->profession_id ?? 0);
+        $weights = $this->resolveActiveWeights($periodId, $unitId, $criteriaId, $professionId);
 
         $avgByType = DB::table('multi_rater_assessment_details as d')
             ->join('multi_rater_assessments as mra', 'mra.id', '=', 'd.multi_rater_assessment_id')
@@ -94,7 +96,7 @@ class CriteriaAggregator
     /**
      * @return array<string,float> assessor_type => weight
      */
-    private function resolveActiveWeights(int $periodId, int $professionId): array
+    private function resolveActiveWeights(int $periodId, int $unitId, int $criteriaId, int $professionId): array
     {
         $defaults = [
             'supervisor' => 40.0,
@@ -103,15 +105,19 @@ class CriteriaAggregator
             'self' => 10.0,
         ];
 
-        if ($periodId <= 0 || $professionId <= 0) {
+        if ($periodId <= 0 || $unitId <= 0 || $criteriaId <= 0 || $professionId <= 0) {
             return $defaults;
         }
 
         $rows = RaterWeight::query()
             ->where('assessment_period_id', $periodId)
+            ->where('unit_id', $unitId)
+            ->where('performance_criteria_id', $criteriaId)
             ->where('assessee_profession_id', $professionId)
             ->where('status', 'active')
-            ->get(['assessor_type', 'weight']);
+            ->selectRaw('assessor_type, SUM(weight) as weight')
+            ->groupBy('assessor_type')
+            ->get();
 
         if ($rows->isEmpty()) {
             return $defaults;

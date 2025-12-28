@@ -8,6 +8,7 @@ use App\Services\PerformanceScoreService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\AssessmentPeriod;
 use Illuminate\View\View;
 
 class PerformanceAssessmentController extends Controller
@@ -22,12 +23,13 @@ class PerformanceAssessmentController extends Controller
             session(['approval_seen_' . (int)$request->input('assessment_id') => true]);
             return redirect()->route('pegawai_medis.assessments.index');
         }
+
         $assessments = PerformanceAssessment::with('assessmentPeriod')
             ->where('user_id', Auth::id())
             ->orderByDesc('id')
             ->paginate(10);
 
-        $activePeriodId = (int) (DB::table('assessment_periods')->where('status', 'active')->value('id') ?? 0);
+        $activePeriodId = (int) (DB::table('assessment_periods')->where('status', AssessmentPeriod::STATUS_ACTIVE)->value('id') ?? 0);
         $unitId = (int) (Auth::user()?->unit_id ?? 0);
 
         $kinerjaTotalsByAssessmentId = [];
@@ -133,7 +135,10 @@ class PerformanceAssessmentController extends Controller
     /**
      * Kumpulkan data mentah per kriteria (pra-normalisasi) agar ditampilkan ke pengguna.
      * Menggunakan rumus domain saat ini:
-     * - Absensi: total hari Hadir dalam periode.
+        * - Kehadiran: total hari Hadir / total hari pada periode.
+        * - Jam Kerja: total menit kerja, dibandingkan terhadap nilai tertinggi pada unit+profesi+periode.
+        * - Lembur: jumlah kejadian lembur, dibandingkan terhadap nilai tertinggi pada unit+profesi+periode.
+        * - Keterlambatan: total menit terlambat (cost), dibandingkan terhadap nilai tertinggi pada unit+profesi+periode.
      * - Kedisiplinan (360): rata-rata skor 360 (submitted) dalam periode.
      * - Kontribusi Tambahan: total poin (score) kontribusi Disetujui pada periode.
      * - Jumlah Pasien Ditangani: total value_numeric metric pada periode.
@@ -154,6 +159,25 @@ class PerformanceAssessmentController extends Controller
 
         $attendanceDays = $attendanceQuery->count();
         $workMinutes = (int) $attendanceQuery->sum('work_duration_minutes');
+        $lateMinutes = (int) $attendanceQuery->sum('late_minutes');
+        $overtimeCount = (int) (clone $attendanceQuery)
+            ->where(function ($q) {
+                $q->where('overtime_shift', 1)
+                    ->orWhereNotNull('overtime_end')
+                    ->orWhereNotNull('overtime_note');
+            })
+            ->count();
+
+        $totalDaysInPeriod = 0;
+        if ($period->start_date && $period->end_date) {
+            try {
+                $s = \Illuminate\Support\Carbon::parse((string) $period->start_date)->startOfDay();
+                $e = \Illuminate\Support\Carbon::parse((string) $period->end_date)->startOfDay();
+                $totalDaysInPeriod = $s->diffInDays($e) + 1;
+            } catch (\Throwable $t) {
+                $totalDaysInPeriod = 0;
+            }
+        }
 
         $disciplineQuery = \App\Models\MultiRaterAssessmentDetail::query()
             ->join('multi_rater_assessments as mra', 'mra.id', '=', 'multi_rater_assessment_details.multi_rater_assessment_id')
@@ -200,14 +224,26 @@ class PerformanceAssessmentController extends Controller
         $userProfessionId = $assessment->user?->profession_id;
 
         // Peer totals per unit+profession (same period)
-        $peerAttendance = \App\Models\Attendance::query()
+        $peerAttendanceRows = \App\Models\Attendance::query()
             ->join('users as u', 'u.id', '=', 'attendances.user_id')
             ->where('u.unit_id', $userUnitId)
             ->where('u.profession_id', $userProfessionId)
             ->whereBetween('attendance_date', [$period->start_date, $period->end_date])
             ->where('attendance_status', \App\Enums\AttendanceStatus::HADIR)
-            ->selectRaw('COUNT(*) as days, SUM(work_duration_minutes) as minutes')
-            ->first();
+            ->groupBy('attendances.user_id')
+            ->selectRaw(
+                'attendances.user_id,
+                 COUNT(*) as days,
+                 COALESCE(SUM(work_duration_minutes),0) as minutes,
+                 COALESCE(SUM(late_minutes),0) as late,
+                 COALESCE(SUM(CASE WHEN (overtime_shift = 1 OR overtime_end IS NOT NULL OR overtime_note IS NOT NULL) THEN 1 ELSE 0 END),0) as lembur'
+            )
+            ->get();
+
+            $peerSumAttendanceDays = (int) $peerAttendanceRows->sum('days');
+            $peerSumWorkMinutes = (int) $peerAttendanceRows->sum('minutes');
+        $peerMaxLateMinutes = (int) ($peerAttendanceRows->max('late') ?? 0);
+            $peerSumOvertimeCount = (int) $peerAttendanceRows->sum('lembur');
 
         $peerDiscipline = DB::table('multi_rater_assessments as mra')
             ->join('users as u', 'u.id', '=', 'mra.assessee_id')
@@ -257,7 +293,10 @@ class PerformanceAssessmentController extends Controller
             $criteria = $detail->performanceCriteria;
             $name = strtolower($criteria->name ?? '');
             $key = match (true) {
-                str_contains($name, 'absensi') => 'absensi',
+                str_contains($name, 'kehadiran') => 'kehadiran',
+                str_contains($name, 'jam kerja') || str_contains($name, 'jam_kerja') => 'jam_kerja',
+                str_contains($name, 'lembur') => 'lembur',
+                str_contains($name, 'keterlambatan') || str_contains($name, 'terlambat') => 'keterlambatan',
                 str_contains($name, 'disiplin') || str_contains($name, 'kedisiplinan') => 'kedisiplinan',
                 str_contains($name, 'kontribusi') => 'kontribusi',
                 str_contains($name, 'pasien') => 'pasien',
@@ -269,16 +308,40 @@ class PerformanceAssessmentController extends Controller
                 continue;
             }
 
+            $formulaType = 'benefit';
+
             [$rawLines, $rawValue, $peerTotal] = match ($key) {
-                'absensi' => [
+                'kehadiran' => [
                     [
-                        ['label' => 'Total jam kerja selama periode', 'value' => number_format($workMinutes / 60, 1) . ' jam', 'hint' => 'Akumulasi durasi kerja (check-in sampai check-out) status Hadir'],
                         ['label' => 'Total kehadiran', 'value' => $attendanceDays . ' hari', 'hint' => 'Berdasarkan absensi berstatus Hadir'],
+                        ['label' => 'Total hari pada periode', 'value' => $totalDaysInPeriod > 0 ? ($totalDaysInPeriod . ' hari') : '-', 'hint' => 'Rentang tanggal periode (inklusif)'],
                     ],
-                    $workMinutes > 0 ? $workMinutes / 60 : ($attendanceDays > 0 ? $attendanceDays : 0),
-                    ($workMinutes > 0
-                        ? ((int)($peerAttendance->minutes ?? 0) / 60)
-                        : (int) ($peerAttendance->days ?? 0)),
+                    (float) $attendanceDays,
+                    (float) $totalDaysInPeriod,
+                ],
+                'jam_kerja' => [
+                    [
+                        ['label' => 'Total jam kerja selama periode', 'value' => number_format($workMinutes / 60, 1) . ' jam', 'hint' => 'Akumulasi durasi kerja (menit) untuk absensi Hadir'],
+                            ['label' => 'Pembanding (total) unit+profesi', 'value' => $peerSumWorkMinutes > 0 ? number_format($peerSumWorkMinutes / 60, 1) . ' jam' : '-', 'hint' => 'Total jam kerja pada unit + profesi + periode yang sama'],
+                    ],
+                    (float) $workMinutes,
+                        (float) $peerSumWorkMinutes,
+                ],
+                'lembur' => [
+                    [
+                        ['label' => 'Jumlah kejadian lembur', 'value' => $overtimeCount . ' kali', 'hint' => 'Dihitung per hari dengan indikasi lembur (shift lembur / overtime_end / overtime_note)'],
+                            ['label' => 'Pembanding (total) unit+profesi', 'value' => $peerSumOvertimeCount > 0 ? ($peerSumOvertimeCount . ' kali') : '-', 'hint' => 'Total kejadian lembur pada unit + profesi + periode yang sama'],
+                    ],
+                    (float) $overtimeCount,
+                        (float) $peerSumOvertimeCount,
+                ],
+                'keterlambatan' => [
+                    [
+                        ['label' => 'Total keterlambatan', 'value' => $lateMinutes . ' menit', 'hint' => 'Akumulasi late_minutes pada absensi Hadir'],
+                        ['label' => 'Pembanding (maks) unit+profesi', 'value' => $peerMaxLateMinutes > 0 ? ($peerMaxLateMinutes . ' menit') : '-', 'hint' => 'Nilai tertinggi pada unit + profesi + periode yang sama'],
+                    ],
+                    (float) $lateMinutes,
+                    (float) $peerMaxLateMinutes,
                 ],
                 'kedisiplinan' => [
                     [
@@ -316,6 +379,10 @@ class PerformanceAssessmentController extends Controller
                 default => [[], 0, null],
             };
 
+            if ($key === 'keterlambatan') {
+                $formulaType = 'cost';
+            }
+
             $score = $detail->score !== null ? (float)$detail->score : null;
             $denominator = $peerTotal && $peerTotal > 0 ? $peerTotal : (($rawValue && $score) ? ($rawValue / ($score / 100)) : null);
 
@@ -323,6 +390,7 @@ class PerformanceAssessmentController extends Controller
                 'title' => $criteria->name ?? 'Data mentah',
                 'lines' => $rawLines,
                 'formula' => [
+                    'type' => $formulaType,
                     'raw' => $rawValue,
                     'denominator' => $denominator,
                     'result' => $score,

@@ -19,8 +19,28 @@ class SummaryService
         $rows = collect();
 
         if ($selectedPeriod) {
-            $professionId = (int) (User::query()->whereKey($userId)->value('profession_id') ?? 0);
-            $weights = self::resolveActiveWeights((int) $selectedPeriod->id, $professionId);
+            $user = User::query()->whereKey($userId)->first(['id', 'unit_id', 'profession_id']);
+            $unitId = (int) ($user?->unit_id ?? 0);
+            $professionId = (int) ($user?->profession_id ?? 0);
+
+            $weightRows = collect();
+            if ($unitId > 0 && $professionId > 0) {
+                $weightRows = RaterWeight::query()
+                    ->where('assessment_period_id', (int) $selectedPeriod->id)
+                    ->where('unit_id', $unitId)
+                    ->where('assessee_profession_id', $professionId)
+                    ->where('status', 'active')
+                    ->get(['performance_criteria_id', 'assessor_type', 'weight']);
+            }
+
+            $weightMap = [];
+            foreach ($weightRows as $rw) {
+                $cid = (int) ($rw->performance_criteria_id ?? 0);
+                $type = (string) ($rw->assessor_type ?? '');
+                if ($cid > 0 && $type !== '') {
+                    $weightMap[$cid][$type] = (float) (($weightMap[$cid][$type] ?? 0.0) + (float) ($rw->weight ?? 0));
+                }
+            }
 
             $avgByCriteriaAndType = DB::table('multi_rater_assessment_details as d')
                 ->join('multi_rater_assessments as mra', 'mra.id', '=', 'd.multi_rater_assessment_id')
@@ -43,9 +63,18 @@ class SummaryService
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get()
-                ->map(function ($criteria) use ($avgMap, $weights) {
+                ->map(function ($criteria) use ($avgMap, $weightMap) {
                     $type = $criteria->type?->value ?? 'benefit';
                     $avgs = $avgMap[(int) $criteria->id] ?? [];
+
+                    $defaults = [
+                        'supervisor' => 40.0,
+                        'peer' => 30.0,
+                        'subordinate' => 20.0,
+                        'self' => 10.0,
+                    ];
+                    $weights = array_merge($defaults, $weightMap[(int) $criteria->id] ?? []);
+
                     $final = 0.0;
                     $hasAny = false;
                     foreach (['self', 'supervisor', 'peer', 'subordinate'] as $assessorType) {
@@ -78,35 +107,7 @@ class SummaryService
     /**
      * @return array<string,float> assessor_type => weight
      */
-    protected static function resolveActiveWeights(int $periodId, int $professionId): array
-    {
-        $defaults = [
-            'supervisor' => 40.0,
-            'peer' => 30.0,
-            'subordinate' => 20.0,
-            'self' => 10.0,
-        ];
-
-        if ($periodId <= 0 || $professionId <= 0) {
-            return $defaults;
-        }
-
-        $rows = RaterWeight::query()
-            ->where('assessment_period_id', $periodId)
-            ->where('assessee_profession_id', $professionId)
-            ->where('status', 'active')
-            ->get(['assessor_type', 'weight']);
-
-        if ($rows->isEmpty()) {
-            return $defaults;
-        }
-
-        $out = $defaults;
-        foreach ($rows as $row) {
-            $out[(string) $row->assessor_type] = (float) $row->weight;
-        }
-        return $out;
-    }
+    // resolveActiveWeights removed (weights are per-criteria now)
 
     protected static function resolveSelectedPeriod(Collection $periods, ?int $requested): ?AssessmentPeriod
     {

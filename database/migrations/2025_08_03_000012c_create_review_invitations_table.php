@@ -20,6 +20,13 @@ return new class extends Migration {
             $table->string('patient_name')->nullable();
             $table->string('contact')->nullable();
 
+            // Optional link to assessment period (for lifecycle validation).
+            // Note: existing DBs might not have this column; application code falls back safely.
+            $table->foreignId('assessment_period_id')
+                ->nullable()
+                ->constrained('assessment_periods')
+                ->nullOnDelete();
+
             // One-time token: store hash only (SHA256, 64 hex chars)
             $table->string('token_hash', 64)->unique();
 

@@ -12,6 +12,7 @@ class ReviewInvitation extends Model
     use HasFactory;
 
     protected $fillable = [
+        'assessment_period_id',
         'registration_ref',
         'unit_id',
         'patient_name',

@@ -46,6 +46,13 @@
                 <div class="mb-4 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm">
                     {{ session('danger') }}
                 </div>
+            @elseif(session('warning_360_message'))
+                <div class="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-center justify-between gap-3">
+                    <span>{{ session('warning_360_message') }}</span>
+                    @if(session('warning_360_url'))
+                        <x-ui.button as="a" href="{{ session('warning_360_url') }}" variant="outline" class="h-10 px-4">Lihat</x-ui.button>
+                    @endif
+                </div>
             @elseif(($pendingCount ?? 0) > 0)
                 <div class="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm">
                     Pengajuan bobot sedang menunggu persetujuan Kepala Poliklinik.

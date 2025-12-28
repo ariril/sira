@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 use App\Support\AssessmentPeriodGuard;
+use App\Models\AssessmentPeriod;
 
 class AdditionalTaskController extends Controller
 {
@@ -45,7 +46,7 @@ class AdditionalTaskController extends Controller
                     },
                 ])
                 ->where('unit_id', $me->unit_id)
-                ->whereHas('period', fn($q) => $q->where('status', 'active'))
+                ->whereHas('period', fn($q) => $q->where('status', AssessmentPeriod::STATUS_ACTIVE))
                 ->where('status', 'open')
                 ->where(function ($q) use ($me) {
                     $q->whereNull('created_by')->orWhere('created_by', '!=', $me->id);

@@ -79,7 +79,7 @@
             @php
                 $money = function($v){ return 'Rp '.number_format((float)($v ?? 0),0,',','.'); };
                 $rows = [
-                    ['label' => 'Absensi', 'path' => 'komponen.absensi'],
+                    ['label' => 'Kehadiran (Absensi)', 'path' => 'komponen.absensi'],
                     ['label' => 'Kedisiplinan (360)', 'path' => 'komponen.kedisiplinan'],
                     ['label' => 'Kontribusi Tambahan', 'path' => 'komponen.kontribusi_tambahan'],
                     ['label' => 'Pasien Ditangani', 'path' => 'komponen.pasien_ditangani'],

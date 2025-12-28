@@ -57,7 +57,7 @@ class CriteriaMetricsController extends Controller
             ->where('status', AssessmentPeriod::STATUS_LOCKED)
             ->orderByDesc('start_date')
             ->pluck('name', 'id');
-        // Manual Metrics hanya untuk kriteria input_method=import selain Absensi (karena Absensi punya modul sendiri)
+        // Manual Metrics hanya untuk kriteria input_method=import yang bukan bersumber dari modul Absensi.
         $criterias = PerformanceCriteria::query()
             ->where('is_active', true)
             ->where('input_method', 'import')

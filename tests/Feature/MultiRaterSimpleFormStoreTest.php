@@ -34,6 +34,7 @@ class MultiRaterSimpleFormStoreTest extends TestCase
             'name' => 'Kedisiplinan (360)',
             'type' => 'benefit',
             'input_method' => '360',
+            'is_360' => true,
             'is_active' => true,
         ]);
 

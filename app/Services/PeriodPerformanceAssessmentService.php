@@ -10,10 +10,18 @@ use App\Models\PerformanceAssessment;
 use App\Models\PerformanceAssessmentDetail;
 use App\Models\PerformanceCriteria;
 use App\Models\User;
+use App\Services\CriteriaEngine\CriteriaRegistry;
+use App\Services\CriteriaEngine\PerformanceScoreService as CriteriaEnginePerformanceScoreService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PeriodPerformanceAssessmentService
 {
+    public function __construct(
+        private readonly CriteriaEnginePerformanceScoreService $engine,
+        private readonly CriteriaRegistry $registry,
+    ) {
+    }
     /**
      * Ensure PerformanceAssessment (Penilaian Saya) exists for ALL pegawai medis in a period,
      * then (re)calculate normalized scores + total_wsm_score.
@@ -70,9 +78,6 @@ class PeriodPerformanceAssessmentService
      */
     private function recalculateForUsers(AssessmentPeriod $period, array $users): void
     {
-        // Resolve criteria IDs (based on naming convention used across the app and seeder)
-        $criteriaIds = $this->resolveCriteriaIds();
-
         // Group users by unit+profession as required by the business rule
         $groups = [];
         foreach ($users as $u) {
@@ -88,53 +93,26 @@ class PeriodPerformanceAssessmentService
         }
 
         foreach ($groups as $g) {
-            $this->recalculateGroup($period, (array) $criteriaIds, (array) $g['user_ids'], $g['unit_id'], $g['profession_id']);
+            $this->recalculateGroup($period, (array) $g['user_ids'], $g['unit_id'], $g['profession_id']);
         }
     }
 
     /**
-     * @return array{absensi:?int,kedisiplinan:?int,keterlambatan:?int,kontribusi:?int,pasien:?int,komplain:?int,rating:?int}
-     */
-    private function resolveCriteriaIds(): array
-    {
-        $absensi = PerformanceCriteria::query()->where('name', 'Absensi')->orderBy('id')->value('id');
-        $kontribusi = PerformanceCriteria::query()->where('name', 'Kontribusi Tambahan')->orderBy('id')->value('id');
-        $pasien = PerformanceCriteria::query()->where('name', 'Jumlah Pasien Ditangani')->orderBy('id')->value('id');
-        $komplain = PerformanceCriteria::query()->where('name', 'Jumlah Komplain Pasien')->orderBy('id')->value('id');
-        $rating = PerformanceCriteria::query()->where('name', 'Rating')->orderBy('id')->value('id');
-
-        // Prefer explicit "Kedisiplinan (360)"; fallback to any 360 criteria
-        $kedis = PerformanceCriteria::query()->where('name', 'like', '%Kedisiplinan%')->orderBy('id')->value('id');
-        if (!$kedis) {
-            $kedis = PerformanceCriteria::query()->where('is_360', true)->where('is_active', true)->orderBy('id')->value('id');
-        }
-
-        $kerjasama = PerformanceCriteria::query()->where('name', 'Kerjasama (360)')->orderBy('id')->value('id');
-
-        return [
-            'absensi' => $absensi ? (int) $absensi : null,
-            'kedisiplinan' => $kedis ? (int) $kedis : null,
-            'kerjasama' => $kerjasama ? (int) $kerjasama : null,
-            'kontribusi' => $kontribusi ? (int) $kontribusi : null,
-            'pasien' => $pasien ? (int) $pasien : null,
-            'komplain' => $komplain ? (int) $komplain : null,
-            'rating' => $rating ? (int) $rating : null,
-        ];
-    }
-
-    /**
-    * @param array{absensi:?int,kedisiplinan:?int,keterlambatan:?int,kontribusi:?int,pasien:?int,komplain:?int,rating:?int} $criteriaIds
      * @param array<int> $userIds
      */
-    private function recalculateGroup(AssessmentPeriod $period, array $criteriaIds, array $userIds, ?int $unitId, ?int $professionId): void
+    private function recalculateGroup(AssessmentPeriod $period, array $userIds, ?int $unitId, ?int $professionId): void
     {
         $userIds = array_values(array_unique(array_map('intval', $userIds)));
         if (empty($userIds)) {
             return;
         }
 
+        if (!$unitId) {
+            return;
+        }
+
         // Ensure PerformanceAssessment exists for each user in this period
-        DB::transaction(function () use ($period, $criteriaIds, $userIds, $unitId, $professionId) {
+        DB::transaction(function () use ($period, $userIds, $unitId, $professionId) {
             foreach ($userIds as $uid) {
                 PerformanceAssessment::firstOrCreate(
                     ['user_id' => $uid, 'assessment_period_id' => $period->id],
@@ -147,13 +125,9 @@ class PeriodPerformanceAssessmentService
                 );
             }
 
-            [$raw, $totals] = $this->collectRawAndTotals($period, $criteriaIds, $userIds, $unitId);
-
+            // Active criteria MUST come from configuration (unit_criteria_weights)
             $weightByCriteriaId = $this->resolveWeightByCriteriaId($period, $unitId);
-            $sumWeight = 0.0;
-            foreach ($weightByCriteriaId as $w) {
-                $sumWeight += (float) $w;
-            }
+            $activeCriteriaIds = array_values(array_map('intval', array_keys($weightByCriteriaId)));
 
             // Map assessment ids for fast upsert
             $assessmentMap = PerformanceAssessment::query()
@@ -161,19 +135,42 @@ class PeriodPerformanceAssessmentService
                 ->whereIn('user_id', $userIds)
                 ->pluck('id', 'user_id');
 
-            $criteriaTypeByKey = [];
-            $ids = array_values(array_filter(array_map('intval', array_values($criteriaIds))));
-            if (!empty($ids)) {
-                $typeRows = PerformanceCriteria::query()->whereIn('id', $ids)->get(['id', 'type']);
-                $typeById = [];
-                foreach ($typeRows as $row) {
-                    $typeById[(int) $row->id] = $row->type?->value ?? (string) $row->type;
+            if (empty($activeCriteriaIds)) {
+                // No configured criteria -> store total_wsm_score as null (not available)
+                foreach ($userIds as $uid) {
+                    $assessmentId = (int) ($assessmentMap[$uid] ?? 0);
+                    if ($assessmentId <= 0) continue;
+
+                    PerformanceAssessment::query()
+                        ->where('id', $assessmentId)
+                        ->update([
+                            'assessment_date' => $period->end_date ?? now()->toDateString(),
+                            'total_wsm_score' => null,
+                            'supervisor_comment' => 'Belum ada konfigurasi bobot kriteria untuk unit ini.',
+                        ]);
                 }
-                foreach ($criteriaIds as $key => $cid) {
-                    if (!$cid) continue;
-                    $criteriaTypeByKey[$key] = $typeById[(int) $cid] ?? 'benefit';
+                return;
+            }
+
+            // Build key => criteria_id map for active criteria
+            $cols = ['id', 'name', 'input_method', 'is_360', 'type'];
+            if (Schema::hasColumn('performance_criterias', 'source')) {
+                $cols[] = 'source';
+            }
+
+            $criteriaRows = PerformanceCriteria::query()
+                ->whereIn('id', $activeCriteriaIds)
+                ->get($cols);
+
+            $criteriaIdByKey = [];
+            foreach ($criteriaRows as $c) {
+                $key = $this->registry->keyForCriteria($c);
+                if ($key) {
+                    $criteriaIdByKey[$key] = (int) $c->id;
                 }
             }
+
+            $calc = $this->engine->calculate((int) $unitId, $period, $userIds, $professionId);
 
             foreach ($userIds as $uid) {
                 $assessmentId = (int) ($assessmentMap[$uid] ?? 0);
@@ -181,53 +178,32 @@ class PeriodPerformanceAssessmentService
                     continue;
                 }
 
-                $scores = [];
-                foreach ($totals as $key => $total) {
-                    $value = (float)($raw[$key][$uid] ?? 0.0);
-                    if ($total <= 0) {
-                        $scores[$key] = 0.0;
-                        continue;
-                    }
-                    $ratio = $value / $total;
-                    $ratio = max(0.0, min(1.0, $ratio));
-                    $score = $ratio * 100.0;
-                    if (($criteriaTypeByKey[$key] ?? 'benefit') === 'cost') {
-                        $score = (1.0 - $ratio) * 100.0;
-                    }
-                    $scores[$key] = max(0.0, min(100.0, $score));
-                }
-
-                // Total score uses unit-specific active weights for the period.
-                // If no weights exist (or sum is 0), store null to indicate "not available".
-                $totalWsm = null;
-                if ($sumWeight > 0 && !empty($weightByCriteriaId)) {
-                    $weightedSum = 0.0;
-                    foreach ($criteriaIds as $key => $criteriaId) {
-                        if (!$criteriaId) {
-                            continue;
-                        }
-                        $w = (float) ($weightByCriteriaId[(int) $criteriaId] ?? 0.0);
-                        if ($w <= 0) {
-                            continue;
-                        }
-                        $weightedSum += $w * (float) ($scores[$key] ?? 0.0);
-                    }
-                    $totalWsm = $weightedSum / $sumWeight;
-                }
+                $userRow = $calc['users'][(int) $uid] ?? null;
+                $totalWsm = $userRow ? (float) ($userRow['total_wsm'] ?? 0.0) : 0.0;
 
                 PerformanceAssessment::query()
                     ->where('id', $assessmentId)
                     ->update([
                         'assessment_date' => $period->end_date ?? now()->toDateString(),
-                        'total_wsm_score' => $totalWsm !== null ? round((float) $totalWsm, 2) : null,
+                        'total_wsm_score' => round($totalWsm, 2),
                         'supervisor_comment' => 'Dihitung otomatis dari data tabel.',
                     ]);
 
-                foreach ($criteriaIds as $key => $criteriaId) {
-                    if (!$criteriaId) {
+                // Remove old details for criteria that are no longer active
+                PerformanceAssessmentDetail::query()
+                    ->where('performance_assessment_id', $assessmentId)
+                    ->whereNotIn('performance_criteria_id', $activeCriteriaIds)
+                    ->delete();
+
+                $criteriaRows = $userRow['criteria'] ?? [];
+                foreach ($criteriaRows as $row) {
+                    $key = (string) ($row['key'] ?? '');
+                    $criteriaId = (int) ($criteriaIdByKey[$key] ?? 0);
+                    if ($criteriaId <= 0) {
                         continue;
                     }
-                    $score = round((float)($scores[$key] ?? 0.0), 2);
+
+                    $score = round((float) ($row['normalized'] ?? 0.0), 2);
                     PerformanceAssessmentDetail::updateOrCreate(
                         [
                             'performance_assessment_id' => $assessmentId,
@@ -288,17 +264,20 @@ class PeriodPerformanceAssessmentService
     }
 
     /**
-        * @param array{absensi:?int,kedisiplinan:?int,keterlambatan:?int,kontribusi:?int,pasien:?int,komplain:?int,rating:?int} $criteriaIds
+     * @param array{kehadiran:?int,jam_kerja:?int,lembur:?int,keterlambatan:?int,kedisiplinan:?int,kerjasama:?int,kontribusi:?int,pasien:?int,komplain:?int,rating:?int} $criteriaIds
      * @param array<int> $userIds
      * @return array{0: array<string, array<int, float>>, 1: array<string, float>}
      */
-    private function collectRawAndTotals(AssessmentPeriod $period, array $criteriaIds, array $userIds, ?int $unitId): array
+    private function collectRawAndDenominators(AssessmentPeriod $period, array $criteriaIds, array $userIds, ?int $unitId): array
     {
         $start = $period->start_date;
         $end = $period->end_date;
 
         $raw = [
-            'absensi' => [],
+            'kehadiran' => [],
+            'jam_kerja' => [],
+            'lembur' => [],
+            'keterlambatan' => [],
             'kedisiplinan' => [],
             'kerjasama' => [],
             'kontribusi' => [],
@@ -306,6 +285,42 @@ class PeriodPerformanceAssessmentService
             'komplain' => [],
             'rating' => [],
         ];
+
+        // Attendance-derived metrics (Hadir only)
+        if (($criteriaIds['kehadiran'] ?? null) || ($criteriaIds['jam_kerja'] ?? null) || ($criteriaIds['lembur'] ?? null) || ($criteriaIds['keterlambatan'] ?? null)) {
+            $attendanceRows = DB::table('attendances')
+                ->selectRaw(
+                    'user_id,
+                     COUNT(*) as hadir_days,
+                     COALESCE(SUM(work_duration_minutes),0) as work_minutes,
+                     COALESCE(SUM(late_minutes),0) as late_minutes,
+                     COALESCE(SUM(CASE WHEN (overtime_shift = 1 OR overtime_end IS NOT NULL OR overtime_note IS NOT NULL) THEN 1 ELSE 0 END),0) as overtime_count'
+                )
+                ->whereIn('user_id', $userIds)
+                ->where('attendance_status', AttendanceStatus::HADIR->value)
+                ->when($start && $end, fn($q) => $q->whereBetween('attendance_date', [$start, $end]))
+                ->groupBy('user_id')
+                ->get();
+
+            $byUser = [];
+            foreach ($attendanceRows as $r) {
+                $byUser[(int)$r->user_id] = [
+                    'hadir_days' => (float) ($r->hadir_days ?? 0),
+                    'work_minutes' => (float) ($r->work_minutes ?? 0),
+                    'late_minutes' => (float) ($r->late_minutes ?? 0),
+                    'overtime_count' => (float) ($r->overtime_count ?? 0),
+                ];
+            }
+
+            foreach ($userIds as $uid) {
+                $uid = (int) $uid;
+                $row = $byUser[$uid] ?? ['hadir_days' => 0.0, 'work_minutes' => 0.0, 'late_minutes' => 0.0, 'overtime_count' => 0.0];
+                $raw['kehadiran'][$uid] = (float) $row['hadir_days'];
+                $raw['jam_kerja'][$uid] = (float) $row['work_minutes'];
+                $raw['keterlambatan'][$uid] = (float) $row['late_minutes'];
+                $raw['lembur'][$uid] = (float) $row['overtime_count'];
+            }
+        }
 
         // 360: Ambil rata-rata dari multi_rater_assessment_details (status submitted).
         if (!empty($criteriaIds['kedisiplinan'])) {
@@ -399,16 +414,42 @@ class PeriodPerformanceAssessmentService
             $raw['rating'] = $tmp;
         }
 
-        $totals = [];
-        foreach ($raw as $key => $map) {
+        // Denominators:
+        // - legacy sum-based keys: sum within group
+        // - Kehadiran: total days in the period
+        // - Jam Kerja/Lembur/Keterlambatan: max within group (unit+profession+period)
+        $denominators = [];
+
+        $sumKeys = ['kedisiplinan', 'kerjasama', 'kontribusi', 'pasien', 'komplain', 'rating', 'jam_kerja', 'lembur'];
+        foreach ($sumKeys as $key) {
             $sum = 0.0;
             foreach ($userIds as $uid) {
-                $sum += (float) ($map[$uid] ?? 0.0);
+                $sum += (float) (($raw[$key][$uid] ?? 0.0));
             }
-            $totals[$key] = $sum;
+            $denominators[$key] = $sum;
         }
 
-        return [$raw, $totals];
+        // Total days inclusive (if dates exist)
+        $totalDays = 0.0;
+        if ($start && $end) {
+            try {
+                $s = \Illuminate\Support\Carbon::parse((string) $start)->startOfDay();
+                $e = \Illuminate\Support\Carbon::parse((string) $end)->startOfDay();
+                $totalDays = (float) ($s->diffInDays($e) + 1);
+            } catch (\Throwable $t) {
+                $totalDays = 0.0;
+            }
+        }
+        $denominators['kehadiran'] = $totalDays;
+
+        // Keterlambatan uses MAX (cost normalization formula)
+        $denominators['keterlambatan'] = 0.0;
+        foreach ($userIds as $uid) {
+            $uid = (int) $uid;
+            $denominators['keterlambatan'] = max($denominators['keterlambatan'], (float) ($raw['keterlambatan'][$uid] ?? 0.0));
+        }
+
+        return [$raw, $denominators];
     }
 
     /**

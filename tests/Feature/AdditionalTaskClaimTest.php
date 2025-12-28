@@ -9,11 +9,23 @@ use Illuminate\Http\UploadedFile;
 use App\Models\User;
 use App\Models\AdditionalTask;
 use App\Models\AdditionalTaskClaim;
+use App\Models\AssessmentPeriod;
 use App\Models\Role;
 
 class AdditionalTaskClaimTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function makeActivePeriod(): AssessmentPeriod
+    {
+        return AssessmentPeriod::query()->firstOrCreate([
+            'name' => 'Periode Test',
+            'start_date' => now()->startOfMonth()->toDateString(),
+            'end_date' => now()->endOfMonth()->toDateString(),
+        ], [
+            'status' => 'active',
+        ]);
+    }
 
     private function makeRole(string $slug): Role
     {
@@ -42,9 +54,11 @@ class AdditionalTaskClaimTest extends TestCase
 
     private function makeTask(int $unitId, array $overrides = []): AdditionalTask
     {
+        $period = $this->makeActivePeriod();
+
         return AdditionalTask::create(array_merge([
             'unit_id' => $unitId,
-            'assessment_period_id' => null,
+            'assessment_period_id' => $period->id,
             'title' => 'Tugas A',
             'description' => null,
             'start_date' => now()->toDateString(),
@@ -94,7 +108,7 @@ class AdditionalTaskClaimTest extends TestCase
         $claim->refresh();
         $this->assertEquals('cancelled', $claim->status);
         $this->assertTrue((bool)$claim->is_violation);
-        $this->assertTrue((bool)$claim->penalty_applied);
+        $this->assertFalse((bool)$claim->penalty_applied);
     }
 
     public function test_full_approval_flow(): void

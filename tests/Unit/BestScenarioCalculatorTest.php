@@ -12,8 +12,9 @@ use App\Models\PerformanceCriteria;
 use App\Models\Review;
 use App\Models\ReviewDetail;
 use App\Models\Unit;
+use App\Models\UnitCriteriaWeight;
 use App\Models\User;
-use App\Services\BestScenarioCalculator;
+use App\Services\CriteriaEngine\PerformanceScoreService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -44,18 +45,19 @@ class BestScenarioCalculatorTest extends TestCase
     private function seedCriteria(): void
     {
         $data = [
-            ['name' => 'Absensi', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'is_active' => 1],
-            ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'aggregation_method' => 'avg', 'is_active' => 1],
-            ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'manual', 'aggregation_method' => 'sum', 'is_active' => 1],
-            ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'is_active' => 1],
-            ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'aggregation_method' => 'avg', 'is_active' => 1],
+            // IMPORTANT: system criteria names must match CriteriaRegistry mapping.
+            ['name' => 'Kehadiran (Absensi)', 'source' => 'system', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'aggregation_method' => 'sum', 'is_active' => 1],
+            ['name' => 'Kedisiplinan (360)', 'source' => 'assessment_360', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'is_360' => 1, 'aggregation_method' => 'avg', 'is_active' => 1],
+            ['name' => 'Kontribusi Tambahan', 'source' => 'system', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'aggregation_method' => 'sum', 'is_active' => 1],
+            ['name' => 'Jumlah Pasien Ditangani', 'source' => 'metric_import', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'is_active' => 1],
+            ['name' => 'Rating', 'source' => 'system', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'aggregation_method' => 'avg', 'is_active' => 1],
         ];
         foreach ($data as $row) {
             PerformanceCriteria::create($row);
         }
     }
 
-    public function test_weights_renormalize_when_some_criteria_missing(): void
+    public function test_missing_data_criteria_still_included_when_configured_active(): void
     {
         $this->seedCriteria();
 
@@ -63,7 +65,7 @@ class BestScenarioCalculatorTest extends TestCase
             'name' => 'Unit Test',
             'slug' => 'unit-test',
             'code' => 'UT',
-            'type' => 'test',
+            'type' => 'lainnya',
             'is_active' => true,
         ]);
 
@@ -78,12 +80,29 @@ class BestScenarioCalculatorTest extends TestCase
         $u2 = $this->makeUser('u2@test.local', $unit->id);
         $u3 = $this->makeUser('u3@test.local', $unit->id);
 
+        // Active criteria comes from configuration (unit_criteria_weights), not from totals.
+        $attendanceId = (int) PerformanceCriteria::where('name', 'Kehadiran (Absensi)')->value('id');
+        $contributionId = (int) PerformanceCriteria::where('name', 'Kontribusi Tambahan')->value('id');
+        $pasienId = (int) PerformanceCriteria::where('name', 'Jumlah Pasien Ditangani')->value('id');
+        $ratingId = (int) PerformanceCriteria::where('name', 'Rating')->value('id');
+        $kedisiplinanId = (int) PerformanceCriteria::where('name', 'Kedisiplinan (360)')->value('id');
+
+        foreach ([$attendanceId, $contributionId, $pasienId, $ratingId, $kedisiplinanId] as $cid) {
+            UnitCriteriaWeight::create([
+                'unit_id' => $unit->id,
+                'assessment_period_id' => $period->id,
+                'performance_criteria_id' => $cid,
+                'weight' => 20,
+                'status' => 'active',
+            ]);
+        }
+
         // Absensi: totals 3,2,0
         foreach ([[$u1,3],[$u2,2]] as [$user,$count]) {
             for ($i=0; $i<$count; $i++) {
                 Attendance::create([
                     'user_id' => $user->id,
-                    'attendance_date' => $period->start_date,
+                    'attendance_date' => \Carbon\Carbon::parse($period->start_date)->addDays($i)->toDateString(),
                     'attendance_status' => 'Hadir',
                 ]);
             }
@@ -101,10 +120,17 @@ class BestScenarioCalculatorTest extends TestCase
             ]);
         }
 
+        $importBatch = MetricImportBatch::create([
+            'file_name' => 'test.csv',
+            'assessment_period_id' => $period->id,
+            'imported_by' => $u1->id,
+            'status' => 'processed',
+        ]);
+
         // Pasien metrics: user1 120, user2 139, user3 157
-        $pasienId = PerformanceCriteria::where('name','Jumlah Pasien Ditangani')->value('id');
         foreach ([[$u1,120],[$u2,139],[$u3,157]] as [$user,$val]) {
             CriteriaMetric::create([
+                'import_batch_id' => null,
                 'user_id' => $user->id,
                 'assessment_period_id' => $period->id,
                 'performance_criteria_id' => $pasienId,
@@ -132,19 +158,35 @@ class BestScenarioCalculatorTest extends TestCase
             ]);
         }
 
-        $svc = new BestScenarioCalculator();
-        $out = $svc->calculateForUnit($unit->id, $period, [$u1->id, $u2->id, $u3->id]);
+        /** @var PerformanceScoreService $svc */
+        $svc = app(PerformanceScoreService::class);
+        $out = $svc->calculate($unit->id, $period, [$u1->id, $u2->id, $u3->id]);
 
-        // Kedisiplinan has zero data -> dropped. Active criteria = 4 -> weight 25 each.
-        $this->assertEquals(['absensi','kontribusi','pasien','rating'], $out['criteria_used']);
-        foreach ($out['weights'] as $k => $w) {
-            if (in_array($k, $out['criteria_used'])) {
-                $this->assertEquals(25.0, round($w,2));
-            }
+        $expectedKeys = [
+            'attendance',
+            'contribution',
+            'metric:' . $pasienId,
+            'rating',
+            '360:' . $kedisiplinanId,
+        ];
+
+        // Missing-data criteria (360) must still be included if configured active.
+        $this->assertEqualsCanonicalizing($expectedKeys, $out['criteria_used']);
+
+        foreach ($expectedKeys as $key) {
+            $this->assertEquals(20.0, round((float) ($out['weights'][$key] ?? 0), 2));
         }
 
-        // Unit total should be > 0 and user rows exist
-        $this->assertGreaterThan(0, $out['unit_total']);
+        $this->assertEquals('missing_data', (string) ($out['criteria_meta']['360:' . $kedisiplinanId]['readiness_status'] ?? ''));
+
+        // Unit total should be > 0 due to existing absensi/pasien/rating/contribution
+        $this->assertGreaterThan(0, (float) ($out['unit_total'] ?? 0));
         $this->assertArrayHasKey($u1->id, $out['users']);
+
+        // 360 criteria should contribute 0 for all users when there is no data.
+        $u1Rows = $out['users'][$u1->id]['criteria'] ?? [];
+        $row360 = collect($u1Rows)->firstWhere('key', '360:' . $kedisiplinanId);
+        $this->assertNotNull($row360);
+        $this->assertEquals(0.0, (float) ($row360['raw'] ?? -1));
     }
 }

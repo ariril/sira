@@ -15,6 +15,7 @@ class PerformanceCriteria extends Model
         'type',
         'data_type',
         'input_method',
+        'source',
         'is_360',
         'aggregation_method',
         'normalization_basis',
@@ -28,6 +29,7 @@ class PerformanceCriteria extends Model
         'is_active' => 'boolean',
         'is_360' => 'boolean',
         'type'      => PerformanceCriteriaType::class,
+        'source' => 'string',
         'suggested_weight' => 'decimal:2',
         'custom_target_value' => 'decimal:2',
     ];

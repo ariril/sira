@@ -9,7 +9,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
+use App\Models\AssessmentPeriod;
 use Carbon\Carbon;
+use App\Support\AssessmentPeriodGuard;
 
 class DashboardController extends Controller
 {
@@ -71,12 +73,17 @@ class DashboardController extends Controller
                 'href' => route('admin_rs.assessments.pending') . '?status=pending_l1',
             ];
         }
-        // Active period resolution
-        $activePeriodId = null; $activePeriodName = null;
-        if (Schema::hasTable('assessment_periods')) {
-            $activePeriod = DB::table('assessment_periods')->where('status','active')->orderByDesc('id')->first();
-            if ($activePeriod) { $activePeriodId = $activePeriod->id; $activePeriodName = $activePeriod->name; }
-        }
+        // Active period (date-based) + latest locked
+        $activePeriod = AssessmentPeriodGuard::resolveActive();
+        $lockedPeriod = Schema::hasTable('assessment_periods')
+            ? AssessmentPeriod::query()->where('status', AssessmentPeriod::STATUS_LOCKED)->orderByDesc('start_date')->first()
+            : null;
+
+        // Period used for import readiness notifications: prefer active, fallback to locked.
+        $importPeriod = $activePeriod ?: $lockedPeriod;
+
+        $activePeriodId = $activePeriod?->id;
+        $activePeriodName = $activePeriod?->name;
 
         // Units without allocation in active period (published allocations only)
         if ($activePeriodId && Schema::hasTable('units') && Schema::hasTable('unit_profession_remuneration_allocations')) {
@@ -103,11 +110,49 @@ class DashboardController extends Controller
             ];
         }
 
-        // Suggestion: No active period at all
-        if (!$activePeriodId) {
+        // Dashboard notif Admin RS:
+        // Jika ada periode yang sedang berjalan (date-based) ATAU status=LOCKED, tampilkan 2 notif import.
+        if ($importPeriod) {
+            $notifications[] = [
+                'type' => 'info',
+                'text' => 'Import Absensi sudah bisa diisi.',
+                'href' => route('admin_rs.attendances.import.form'),
+            ];
+            $notifications[] = [
+                'type' => 'info',
+                'text' => 'Import Metric sudah bisa diisi.',
+                'href' => route('admin_rs.metrics.index'),
+            ];
+
+            // (Opsional) warning bila belum ada import pada periode tsb
+            if (Schema::hasTable('attendance_import_batches')) {
+                $hasAttendance = DB::table('attendance_import_batches')
+                    ->where('assessment_period_id', $importPeriod->id)
+                    ->exists();
+                if (!$hasAttendance) {
+                    $notifications[] = [
+                        'type' => 'warning',
+                        'text' => 'Belum ada import absensi pada periode ini.',
+                        'href' => route('admin_rs.attendances.import.form'),
+                    ];
+                }
+            }
+            if (Schema::hasTable('metric_import_batches')) {
+                $hasMetrics = DB::table('metric_import_batches')
+                    ->where('assessment_period_id', $importPeriod->id)
+                    ->exists();
+                if (!$hasMetrics) {
+                    $notifications[] = [
+                        'type' => 'warning',
+                        'text' => 'Belum ada import metric pada periode ini.',
+                        'href' => route('admin_rs.metrics.index'),
+                    ];
+                }
+            }
+        } else {
             $notifications[] = [
                 'type' => 'error',
-                'text' => 'Tidak ada periode aktif. Aktifkan periode agar proses remunerasi dan penilaian berjalan.',
+                'text' => 'Tidak ada periode berjalan atau periode terkunci saat ini. Proses import dan penilaian belum dapat dimulai.',
                 'href' => route('admin_rs.assessment-periods.index'),
             ];
         }

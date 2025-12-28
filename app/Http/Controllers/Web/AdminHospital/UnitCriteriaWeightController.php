@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\AdminHospital;
 
 use App\Http\Controllers\Controller;
+use App\Models\AssessmentPeriod;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
@@ -55,7 +56,10 @@ class UnitCriteriaWeightController extends Controller
 
         $periods = collect();
         if (Schema::hasTable('assessment_periods')) {
-            $periods = DB::table('assessment_periods')->orderByDesc(DB::raw("status='active'"))->orderByDesc('id')->get();
+            $periods = DB::table('assessment_periods')
+                ->orderByDesc(DB::raw("status='" . AssessmentPeriod::STATUS_ACTIVE . "'"))
+                ->orderByDesc('id')
+                ->get();
         }
 
         $rows = collect();

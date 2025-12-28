@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\AssessmentPeriod;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 use Carbon\Carbon;
@@ -81,7 +82,7 @@ class DashboardController extends Controller
         if (Schema::hasTable('assessment_periods')) {
             // Ambil hanya periode berstatus active; jika tidak ada, set null agar banner muncul
             $kinerja['periode_aktif'] = DB::table('assessment_periods')
-                ->where('status', 'active')
+                ->where('status', AssessmentPeriod::STATUS_ACTIVE)
                 ->orderByDesc('id')
                 ->first();
         }

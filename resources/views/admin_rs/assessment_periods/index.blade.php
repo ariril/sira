@@ -22,7 +22,7 @@
 
                 <div class="md:col-span-4">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
-                    <x-ui.select name="status" :options="['draft'=>'Draft','active'=>'Aktif','locked'=>'Dikunci','approval'=>'Persetujuan','closed'=>'Ditutup']" :value="$filters['status'] ?? null" placeholder="(Semua)" />
+                    <x-ui.select name="status" :options="\App\Models\AssessmentPeriod::statusOptions()" :value="$filters['status'] ?? null" placeholder="(Semua)" />
                 </div>
 
                 <div class="md:col-span-2">
@@ -65,62 +65,49 @@
                         {{ optional($it->start_date)->format('d M Y') }} - {{ optional($it->end_date)->format('d M Y') }}
                     </td>
                     <td class="px-6 py-4">
-                        @switch($it->status)
-                            @case('active')
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Aktif</span>
-                                @break
-                            @case('locked')
+                        @if(method_exists($it, 'isCurrentlyActive') && $it->isCurrentlyActive())
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Aktif</span>
+                        @else
+                            @switch($it->status)
+                            @case(\App\Models\AssessmentPeriod::STATUS_LOCKED)
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Dikunci</span>
                                 @break
-                            @case('approval')
+                            @case(\App\Models\AssessmentPeriod::STATUS_APPROVAL)
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">Persetujuan</span>
                                 @break
-                            @case('closed')
+                            @case(\App\Models\AssessmentPeriod::STATUS_CLOSED)
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-200 text-slate-700 border border-slate-300">Ditutup</span>
                                 @break
                             @default
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">Draft</span>
-                        @endswitch
+                            @endswitch
+                        @endif
                     </td>
                     <td class="px-6 py-4 text-right">
                         <div class="inline-flex gap-2">
                             @php($today = \Carbon\Carbon::today())
-                            {{-- Sembunyikan edit & delete jika periode sudah dikunci atau ditutup --}}
-                            @if(!in_array($it->status, ['locked','closed']))
+                            {{-- Delete tidak boleh untuk active/locked/approval/closed --}}
+                            @php($nonDeletable = \App\Models\AssessmentPeriod::NON_DELETABLE_STATUSES)
+
+                            {{-- Edit tetap tersedia sesuai implementasi sebelumnya (kecuali locked/closed) --}}
+                            @if(!in_array($it->status, [\App\Models\AssessmentPeriod::STATUS_LOCKED, \App\Models\AssessmentPeriod::STATUS_CLOSED], true))
                                 <x-ui.icon-button as="a" href="{{ route('admin_rs.assessment-periods.edit', $it) }}" icon="fa-pen-to-square" />
+                            @endif
+
+                            {{-- Tombol delete hanya saat masih draft dan tidak ada data terkait (akan divalidasi lagi di server) --}}
+                            @if(!in_array($it->status, $nonDeletable, true))
                                 <form method="POST" action="{{ route('admin_rs.assessment-periods.destroy', $it) }}" onsubmit="return confirm('Hapus periode ini?')">
                                     @csrf
                                     @method('DELETE')
                                     <x-ui.icon-button icon="fa-trash" variant="danger" />
                                 </form>
                             @endif
-                            {{-- Tombol kunci hanya saat status aktif --}}
-                            @if($it->status === 'active')
-                                <form method="POST" action="{{ route('admin_rs.assessment_periods.lock', $it) }}" onsubmit="return confirm('Kunci periode ini?')">
-                                    @csrf
-                                    <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Kunci</x-ui.button>
-                                </form>
-                            @endif
-                            {{-- Tombol aktifkan kembali muncul saat status locked (human error recovery) --}}
-                            @if($it->status === 'locked')
-                                <form method="POST" action="{{ route('admin_rs.assessment_periods.activate', $it) }}" onsubmit="return confirm('Aktifkan kembali periode ini?')">
-                                    @csrf
-                                    <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Aktifkan</x-ui.button>
-                                </form>
-                                <form method="POST" action="{{ route('admin_rs.assessment_periods.start_approval', $it) }}" onsubmit="return confirm('Mulai tahap persetujuan untuk periode ini? Semua penilaian akan dikirim ke alur approval.')">
+
+                            @if($it->status === \App\Models\AssessmentPeriod::STATUS_LOCKED)
+                                <form method="POST" action="{{ route('admin_rs.assessment_periods.start_approval', $it) }}">
                                     @csrf
                                     <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Mulai Persetujuan</x-ui.button>
                                 </form>
-                            @endif
-                            {{-- Tombol tutup hanya saat status persetujuan dan tidak ada pending --}}
-                            @php($pending = $approvalStats[$it->id]['pending'] ?? 0)
-                            @if($it->status === 'approval')
-                                @if($pending === 0)
-                                    <form method="POST" action="{{ route('admin_rs.assessment_periods.close', $it) }}" onsubmit="return confirm('Tutup periode ini? Pastikan remunerasi telah diposting.')">
-                                        @csrf
-                                        <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Tutup</x-ui.button>
-                                    </form>
-                                @endif
                             @endif
                         </div>
                     </td>
@@ -144,4 +131,35 @@
             <div>{{ $items->withQueryString()->links() }}</div>
         </div>
     </div>
+
+    {{-- Warning confirmation modal for pre-approval validation --}}
+    @php($approvalWarning = session('approval_warning'))
+    @if(!empty($approvalWarning) && !empty($approvalWarning['period_id']) && !empty($approvalWarning['messages']))
+        <x-modal name="confirm-period-approval" :show="true" focusable>
+            <div class="p-6">
+                <h2 class="text-lg font-semibold text-slate-800">Konfirmasi Tahap Persetujuan</h2>
+                <p class="mt-2 text-sm text-amber-700">Ada data yang belum tersedia untuk periode ini:</p>
+
+                <ul class="mt-3 space-y-2 text-sm text-slate-700 list-disc list-inside">
+                    @foreach(($approvalWarning['messages'] ?? []) as $msg)
+                        <li>{{ $msg }}</li>
+                    @endforeach
+                </ul>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button"
+                            class="inline-flex items-center h-11 px-5 rounded-xl text-[15px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50"
+                            x-on:click="$dispatch('close-modal', 'confirm-period-approval')">
+                        Batal
+                    </button>
+
+                    <form method="POST" action="{{ route('admin_rs.assessment_periods.start_approval', (int) $approvalWarning['period_id']) }}">
+                        @csrf
+                        <input type="hidden" name="force" value="1" />
+                        <x-ui.button type="submit" variant="success" class="h-11 px-5">Lanjutkan</x-ui.button>
+                    </form>
+                </div>
+            </div>
+        </x-modal>
+    @endif
 </x-app-layout>

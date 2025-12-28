@@ -26,4 +26,14 @@ class Profession extends Model
     {
         return $this->hasMany(User::class, 'profession_id');
     }
+
+    public function reportingLinesAsAssessee()
+    {
+        return $this->hasMany(ProfessionReportingLine::class, 'assessee_profession_id');
+    }
+
+    public function reportingLinesAsAssessor()
+    {
+        return $this->hasMany(ProfessionReportingLine::class, 'assessor_profession_id');
+    }
 }

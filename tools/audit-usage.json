@@ -1,0 +1,1026 @@
+﻿[
+    {
+        "File":  "app/Http/Controllers/Auth/ActiveRoleController.php",
+        "Class":  "ActiveRoleController",
+        "FQCN":  "App\\Http\\Controllers\\Auth\\ActiveRoleController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/auth.php:66",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Auth/AuthenticatedSessionController.php",
+        "Class":  "AuthenticatedSessionController",
+        "FQCN":  "App\\Http\\Controllers\\Auth\\AuthenticatedSessionController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/auth.php:3",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Auth/ConfirmablePasswordController.php",
+        "Class":  "ConfirmablePasswordController",
+        "FQCN":  "App\\Http\\Controllers\\Auth\\ConfirmablePasswordController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/auth.php:4",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Auth/EmailVerificationNotificationController.php",
+        "Class":  "EmailVerificationNotificationController",
+        "FQCN":  "App\\Http\\Controllers\\Auth\\EmailVerificationNotificationController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/auth.php:5",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Auth/EmailVerificationPromptController.php",
+        "Class":  "EmailVerificationPromptController",
+        "FQCN":  "App\\Http\\Controllers\\Auth\\EmailVerificationPromptController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/auth.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Auth/NewPasswordController.php",
+        "Class":  "NewPasswordController",
+        "FQCN":  "App\\Http\\Controllers\\Auth\\NewPasswordController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/auth.php:7",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Auth/PasswordController.php",
+        "Class":  "PasswordController",
+        "FQCN":  "App\\Http\\Controllers\\Auth\\PasswordController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/auth.php:8",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Auth/PasswordResetLinkController.php",
+        "Class":  "PasswordResetLinkController",
+        "FQCN":  "App\\Http\\Controllers\\Auth\\PasswordResetLinkController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/auth.php:9",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Auth/RegisteredUserController.php",
+        "Class":  "RegisteredUserController",
+        "FQCN":  "App\\Http\\Controllers\\Auth\\RegisteredUserController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/auth.php:10",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Auth/VerifyEmailController.php",
+        "Class":  "VerifyEmailController",
+        "FQCN":  "App\\Http\\Controllers\\Auth\\VerifyEmailController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/auth.php:11",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Controller.php",
+        "Class":  "Controller",
+        "FQCN":  "App\\Http\\Controllers\\Controller",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Auth/ActiveRoleController.php:5",
+        "EmptyOrStub":  true
+    },
+    {
+        "File":  "app/Http/Controllers/HomeController.php",
+        "Class":  "HomeController",
+        "FQCN":  "App\\Http\\Controllers\\HomeController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:5",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/ProfileController.php",
+        "Class":  "ProfileController",
+        "FQCN":  "App\\Http\\Controllers\\ProfileController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AboutPageController.php",
+        "Class":  "AboutPageController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AboutPageController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:11",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/AssessmentApprovalController.php",
+        "Class":  "AssessmentApprovalController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\AssessmentApprovalController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:146",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/AssessmentPeriodController.php",
+        "Class":  "AssessmentPeriodController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\AssessmentPeriodController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:201",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/AttendanceController.php",
+        "Class":  "AttendanceController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\AttendanceController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:143",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/AttendanceImportController.php",
+        "Class":  "AttendanceImportController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\AttendanceImportController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:137",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/CriteriaMetricsController.php",
+        "Class":  "CriteriaMetricsController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\CriteriaMetricsController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:167",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/CriteriaProposalApprovalController.php",
+        "Class":  "CriteriaProposalApprovalController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\CriteriaProposalApprovalController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:196",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/CriteriaRaterRuleController.php",
+        "Class":  "CriteriaRaterRuleController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\CriteriaRaterRuleController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:188",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/DashboardController.php",
+        "Class":  "DashboardController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\DashboardController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:20",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/MultiRaterController.php",
+        "Class":  "MultiRaterController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\MultiRaterController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:182",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/PerformanceCriteriaController.php",
+        "Class":  "PerformanceCriteriaController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\PerformanceCriteriaController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:164",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/RemunerationController.php",
+        "Class":  "RemunerationController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\RemunerationController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:157",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/ReviewInvitationImportController.php",
+        "Class":  "ReviewInvitationImportController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\ReviewInvitationImportController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:174",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/UnitCriteriaWeightController.php",
+        "Class":  "UnitCriteriaWeightController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\UnitCriteriaWeightController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:209",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AdminHospital/UnitRemunerationAllocationController.php",
+        "Class":  "UnitRemunerationAllocationController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AdminHospital\\UnitRemunerationAllocationController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:153",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/AnnouncementController.php",
+        "Class":  "AnnouncementController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\AnnouncementController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:9",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/ContactController.php",
+        "Class":  "ContactController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\ContactController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:12",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/FaqController.php",
+        "Class":  "FaqController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\FaqController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:10",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/MedicalStaff/AdditionalContributionController.php",
+        "Class":  "AdditionalContributionController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\MedicalStaff\\AdditionalContributionController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:368",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/MedicalStaff/AdditionalTaskClaimController.php",
+        "Class":  "AdditionalTaskClaimController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\MedicalStaff\\AdditionalTaskClaimController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:253",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/MedicalStaff/AdditionalTaskController.php",
+        "Class":  "AdditionalTaskController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\MedicalStaff\\AdditionalTaskController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:247",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/MedicalStaff/DashboardController.php",
+        "Class":  "DashboardController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\MedicalStaff\\DashboardController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:21",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/MedicalStaff/MultiRaterSubmissionController.php",
+        "Class":  "MultiRaterSubmissionController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\MedicalStaff\\MultiRaterSubmissionController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:278",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/MedicalStaff/PerformanceAssessmentController.php",
+        "Class":  "PerformanceAssessmentController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\MedicalStaff\\PerformanceAssessmentController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:357",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/MedicalStaff/RemunerationController.php",
+        "Class":  "RemunerationController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\MedicalStaff\\RemunerationController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:157",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/MedicalStaff/RemunerationDataController.php",
+        "Class":  "RemunerationDataController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\MedicalStaff\\RemunerationDataController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:39",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/MedicalStaff/UnitCriteriaWeightViewController.php",
+        "Class":  "UnitCriteriaWeightViewController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\MedicalStaff\\UnitCriteriaWeightViewController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:378",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/MultiRater/StoreController.php",
+        "Class":  "StoreController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\MultiRater\\StoreController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:280",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/PolyclinicHead/AssessmentApprovalController.php",
+        "Class":  "AssessmentApprovalController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\PolyclinicHead\\AssessmentApprovalController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:146",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/PolyclinicHead/DashboardController.php",
+        "Class":  "DashboardController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\PolyclinicHead\\DashboardController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:22",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/PolyclinicHead/MultiRaterSubmissionController.php",
+        "Class":  "MultiRaterSubmissionController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\PolyclinicHead\\MultiRaterSubmissionController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:278",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/PolyclinicHead/RaterWeightApprovalController.php",
+        "Class":  "RaterWeightApprovalController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\PolyclinicHead\\RaterWeightApprovalController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:333",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/PolyclinicHead/RemunerationMonitorController.php",
+        "Class":  "RemunerationMonitorController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\PolyclinicHead\\RemunerationMonitorController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:322",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/PolyclinicHead/UnitCriteriaApprovalController.php",
+        "Class":  "UnitCriteriaApprovalController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\PolyclinicHead\\UnitCriteriaApprovalController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:307",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/PublicReviewController.php",
+        "Class":  "PublicReviewController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\PublicReviewController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:14",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/RemunerationDataController.php",
+        "Class":  "RemunerationDataController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\RemunerationDataController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:13",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/SuperAdmin/AboutPageManageController.php",
+        "Class":  "AboutPageManageController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\SuperAdmin\\AboutPageManageController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:114",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/SuperAdmin/AnnouncementManageController.php",
+        "Class":  "AnnouncementManageController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\SuperAdmin\\AnnouncementManageController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:116",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/SuperAdmin/DashboardController.php",
+        "Class":  "DashboardController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\SuperAdmin\\DashboardController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:17",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/SuperAdmin/FaqManageController.php",
+        "Class":  "FaqManageController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\SuperAdmin\\FaqManageController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:115",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/SuperAdmin/ProfessionController.php",
+        "Class":  "ProfessionController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\SuperAdmin\\ProfessionController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:101",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/SuperAdmin/ReportController.php",
+        "Class":  "ReportController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\SuperAdmin\\ReportController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:119",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/SuperAdmin/SiteSettingController.php",
+        "Class":  "SiteSettingController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\SuperAdmin\\SiteSettingController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:112",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/SuperAdmin/UnitController.php",
+        "Class":  "UnitController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\SuperAdmin\\UnitController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:100",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/SuperAdmin/UserController.php",
+        "Class":  "UserController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\SuperAdmin\\UserController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/auth.php:15",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/SuperAdmin/UserImportController.php",
+        "Class":  "UserImportController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\SuperAdmin\\UserImportController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:104",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/UnitHead/AdditionalContributionReviewController.php",
+        "Class":  "AdditionalContributionReviewController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\UnitHead\\AdditionalContributionReviewController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:255",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/UnitHead/AdditionalTaskClaimController.php",
+        "Class":  "AdditionalTaskClaimController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\UnitHead\\AdditionalTaskClaimController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:253",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/UnitHead/AdditionalTaskClaimReviewController.php",
+        "Class":  "AdditionalTaskClaimReviewController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\UnitHead\\AdditionalTaskClaimReviewController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:268",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/UnitHead/AdditionalTaskController.php",
+        "Class":  "AdditionalTaskController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\UnitHead\\AdditionalTaskController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:247",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/UnitHead/AssessmentApprovalController.php",
+        "Class":  "AssessmentApprovalController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\UnitHead\\AssessmentApprovalController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:146",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/UnitHead/CriteriaProposalController.php",
+        "Class":  "CriteriaProposalController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\UnitHead\\CriteriaProposalController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:243",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/UnitHead/DashboardController.php",
+        "Class":  "DashboardController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\UnitHead\\DashboardController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:18",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/UnitHead/MultiRaterSubmissionController.php",
+        "Class":  "MultiRaterSubmissionController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\UnitHead\\MultiRaterSubmissionController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:278",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/UnitHead/RaterWeightController.php",
+        "Class":  "RaterWeightController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\UnitHead\\RaterWeightController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:285",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/UnitHead/ReviewApprovalController.php",
+        "Class":  "ReviewApprovalController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\UnitHead\\ReviewApprovalController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:19",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Controllers/Web/UnitHead/UnitCriteriaWeightController.php",
+        "Class":  "UnitCriteriaWeightController",
+        "FQCN":  "App\\Http\\Controllers\\Web\\UnitHead\\UnitCriteriaWeightController",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/routes/web.php:209",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Requests/Auth/LoginRequest.php",
+        "Class":  "LoginRequest",
+        "FQCN":  "App\\Http\\Requests\\Auth\\LoginRequest",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Auth/AuthenticatedSessionController.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Requests/CancelAdditionalTaskClaimRequest.php",
+        "Class":  "CancelAdditionalTaskClaimRequest",
+        "FQCN":  "App\\Http\\Requests\\CancelAdditionalTaskClaimRequest",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/MedicalStaff/AdditionalTaskClaimController.php:8",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Requests/ProfileUpdateRequest.php",
+        "Class":  "ProfileUpdateRequest",
+        "FQCN":  "App\\Http\\Requests\\ProfileUpdateRequest",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/ProfileController.php:5",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Requests/ReviewAdditionalContributionRequest.php",
+        "Class":  "ReviewAdditionalContributionRequest",
+        "FQCN":  "App\\Http\\Requests\\ReviewAdditionalContributionRequest",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/UnitHead/AdditionalContributionReviewController.php:10",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Requests/ReviewAdditionalTaskClaimRequest.php",
+        "Class":  "ReviewAdditionalTaskClaimRequest",
+        "FQCN":  "App\\Http\\Requests\\ReviewAdditionalTaskClaimRequest",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/UnitHead/AdditionalTaskClaimReviewController.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Requests/StoreAdditionalContributionRequest.php",
+        "Class":  "StoreAdditionalContributionRequest",
+        "FQCN":  "App\\Http\\Requests\\StoreAdditionalContributionRequest",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/MedicalStaff/AdditionalContributionController.php:11",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Requests/StoreAdditionalTaskRequest.php",
+        "Class":  "StoreAdditionalTaskRequest",
+        "FQCN":  "App\\Http\\Requests\\StoreAdditionalTaskRequest",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/UnitHead/AdditionalTaskController.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Requests/SubmitAdditionalTaskClaimResultRequest.php",
+        "Class":  "SubmitAdditionalTaskClaimResultRequest",
+        "FQCN":  "App\\Http\\Requests\\SubmitAdditionalTaskClaimResultRequest",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/MedicalStaff/AdditionalTaskClaimController.php:9",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Http/Requests/UpdateAdditionalTaskRequest.php",
+        "Class":  "UpdateAdditionalTaskRequest",
+        "FQCN":  "App\\Http\\Requests\\UpdateAdditionalTaskRequest",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/UnitHead/AdditionalTaskController.php:7",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/AboutPage.php",
+        "Class":  "AboutPage",
+        "FQCN":  "App\\Models\\AboutPage",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AboutPageController.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/AdditionalContribution.php",
+        "Class":  "AdditionalContribution",
+        "FQCN":  "App\\Models\\AdditionalContribution",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/HomeController.php:15",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/AdditionalTask.php",
+        "Class":  "AdditionalTask",
+        "FQCN":  "App\\Models\\AdditionalTask",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/MedicalStaff/AdditionalContributionController.php:14",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/AdditionalTaskClaim.php",
+        "Class":  "AdditionalTaskClaim",
+        "FQCN":  "App\\Models\\AdditionalTaskClaim",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/MedicalStaff/AdditionalContributionController.php:15",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/Announcement.php",
+        "Class":  "Announcement",
+        "FQCN":  "App\\Models\\Announcement",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/HomeController.php:13",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/Assessment360Window.php",
+        "Class":  "Assessment360Window",
+        "FQCN":  "App\\Models\\Assessment360Window",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/MultiRaterController.php:10",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/AssessmentApproval.php",
+        "Class":  "AssessmentApproval",
+        "FQCN":  "App\\Models\\AssessmentApproval",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/AssessmentApprovalController.php:7",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/AssessmentPeriod.php",
+        "Class":  "AssessmentPeriod",
+        "FQCN":  "App\\Models\\AssessmentPeriod",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Console/Commands/ImportCriteriaMetricsCsv.php:9",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/Attendance.php",
+        "Class":  "Attendance",
+        "FQCN":  "App\\Models\\Attendance",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/AttendanceController.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/AttendanceImportBatch.php",
+        "Class":  "AttendanceImportBatch",
+        "FQCN":  "App\\Models\\AttendanceImportBatch",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Models/Attendance.php:60",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/AttendanceImportRow.php",
+        "Class":  "AttendanceImportRow",
+        "FQCN":  "App\\Models\\AttendanceImportRow",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Models/AttendanceImportBatch.php:55",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/CriteriaMetric.php",
+        "Class":  "CriteriaMetric",
+        "FQCN":  "App\\Models\\CriteriaMetric",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Console/Commands/ImportCriteriaMetricsCsv.php:7",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/CriteriaProposal.php",
+        "Class":  "CriteriaProposal",
+        "FQCN":  "App\\Models\\CriteriaProposal",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/CriteriaProposalApprovalController.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/CriteriaRaterRule.php",
+        "Class":  "CriteriaRaterRule",
+        "FQCN":  "App\\Models\\CriteriaRaterRule",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/CriteriaRaterRuleController.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/Faq.php",
+        "Class":  "Faq",
+        "FQCN":  "App\\Models\\Faq",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/HomeController.php:14",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/MetricImportBatch.php",
+        "Class":  "MetricImportBatch",
+        "FQCN":  "App\\Models\\MetricImportBatch",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Console/Commands/ImportCriteriaMetricsCsv.php:8",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/MultiRaterAssessment.php",
+        "Class":  "MultiRaterAssessment",
+        "FQCN":  "App\\Models\\MultiRaterAssessment",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Console/Commands/GenerateMultiRaterInvites.php:7",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/MultiRaterAssessmentDetail.php",
+        "Class":  "MultiRaterAssessmentDetail",
+        "FQCN":  "App\\Models\\MultiRaterAssessmentDetail",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/MedicalStaff/MultiRaterSubmissionController.php:11",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/PerformanceAssessment.php",
+        "Class":  "PerformanceAssessment",
+        "FQCN":  "App\\Models\\PerformanceAssessment",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/HomeController.php:16",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/PerformanceAssessmentDetail.php",
+        "Class":  "PerformanceAssessmentDetail",
+        "FQCN":  "App\\Models\\PerformanceAssessmentDetail",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/RemunerationController.php:9",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/PerformanceCriteria.php",
+        "Class":  "PerformanceCriteria",
+        "FQCN":  "App\\Models\\PerformanceCriteria",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Console/Commands/GenerateMultiRaterInvites.php:8",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/Profession.php",
+        "Class":  "Profession",
+        "FQCN":  "App\\Models\\Profession",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/RemunerationController.php:18",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/RaterWeight.php",
+        "Class":  "RaterWeight",
+        "FQCN":  "App\\Models\\RaterWeight",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/PolyclinicHead/RaterWeightApprovalController.php:9",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/Remuneration.php",
+        "Class":  "Remuneration",
+        "FQCN":  "App\\Models\\Remuneration",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/RemunerationController.php:7",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/Review.php",
+        "Class":  "Review",
+        "FQCN":  "App\\Models\\Review",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/PublicReviewController.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/ReviewDetail.php",
+        "Class":  "ReviewDetail",
+        "FQCN":  "App\\Models\\ReviewDetail",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/PublicReviewController.php:7",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/ReviewInvitation.php",
+        "Class":  "ReviewInvitation",
+        "FQCN":  "App\\Models\\ReviewInvitation",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Console/Commands/ImportReviewInvitations.php:5",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/ReviewInvitationStaff.php",
+        "Class":  "ReviewInvitationStaff",
+        "FQCN":  "App\\Models\\ReviewInvitationStaff",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Console/Commands/ImportReviewInvitations.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/Role.php",
+        "Class":  "Role",
+        "FQCN":  "App\\Models\\Role",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Auth/ActiveRoleController.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/SiteSetting.php",
+        "Class":  "SiteSetting",
+        "FQCN":  "App\\Models\\SiteSetting",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/HomeController.php:11",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/Unit.php",
+        "Class":  "Unit",
+        "FQCN":  "App\\Models\\Unit",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Console/Commands/ImportReviewInvitations.php:7",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/UnitCriteriaWeight.php",
+        "Class":  "UnitCriteriaWeight",
+        "FQCN":  "App\\Models\\UnitCriteriaWeight",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/RemunerationController.php:11",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/UnitRemunerationAllocation.php",
+        "Class":  "UnitRemunerationAllocation",
+        "FQCN":  "App\\Models\\UnitRemunerationAllocation",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/RemunerationController.php:15",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/User.php",
+        "Class":  "User",
+        "FQCN":  "App\\Models\\User",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Console/Commands/AggregateCriteriaMetrics.php:7",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Models/Visit.php",
+        "Class":  "Visit",
+        "FQCN":  "App\\Models\\Visit",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Models/Unit.php:67",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/AdditionalTaskStatusService.php",
+        "Class":  "AdditionalTaskStatusService",
+        "FQCN":  "App\\Services\\AdditionalTaskStatusService",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/MedicalStaff/AdditionalContributionController.php:17",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/AssessmentApprovalDetailService.php",
+        "Class":  "AssessmentApprovalDetailService",
+        "FQCN":  "App\\Services\\AssessmentApprovalDetailService",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/AssessmentApprovalController.php:10",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/AssessmentApprovalFlow.php",
+        "Class":  "AssessmentApprovalFlow",
+        "FQCN":  "App\\Services\\AssessmentApprovalFlow",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/AssessmentApprovalController.php:9",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/AssessmentApprovalService.php",
+        "Class":  "AssessmentApprovalService",
+        "FQCN":  "App\\Services\\AssessmentApprovalService",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/AssessmentApprovalController.php:11",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/BestScenarioCalculator.php",
+        "Class":  "BestScenarioCalculator",
+        "FQCN":  "App\\Services\\BestScenarioCalculator",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/RemunerationController.php:19",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/CriteriaAggregator.php",
+        "Class":  "CriteriaAggregator",
+        "FQCN":  "App\\Services\\CriteriaAggregator",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Console/Commands/AggregateCriteriaMetrics.php:6",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/MetricPatientImportService.php",
+        "Class":  "MetricPatientImportService",
+        "FQCN":  "App\\Services\\MetricPatientImportService",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/CriteriaMetricsController.php:9",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/MultiRater/AssessorTypeResolver.php",
+        "Class":  "AssessorTypeResolver",
+        "FQCN":  "App\\Services\\MultiRater\\AssessorTypeResolver",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Console/Commands/GenerateMultiRaterInvites.php:9",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/MultiRater/CriteriaResolver.php",
+        "Class":  "CriteriaResolver",
+        "FQCN":  "App\\Services\\MultiRater\\CriteriaResolver",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/MedicalStaff/MultiRaterSubmissionController.php:15",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/MultiRater/SimpleFormData.php",
+        "Class":  "SimpleFormData",
+        "FQCN":  "App\\Services\\MultiRater\\SimpleFormData",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/MedicalStaff/MultiRaterSubmissionController.php:16",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/MultiRater/SummaryService.php",
+        "Class":  "SummaryService",
+        "FQCN":  "App\\Services\\MultiRater\\SummaryService",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/MedicalStaff/MultiRaterSubmissionController.php:17",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/PerformanceScoreService.php",
+        "Class":  "PerformanceScoreService",
+        "FQCN":  "App\\Services\\PerformanceScoreService",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/MedicalStaff/PerformanceAssessmentController.php:7",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/PeriodPerformanceAssessmentService.php",
+        "Class":  "PeriodPerformanceAssessmentService",
+        "FQCN":  "App\\Services\\PeriodPerformanceAssessmentService",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/AssessmentPeriodController.php:20",
+        "EmptyOrStub":  false
+    },
+    {
+        "File":  "app/Services/ReviewInvitationService.php",
+        "Class":  "ReviewInvitationService",
+        "FQCN":  "App\\Services\\ReviewInvitationService",
+        "Used":  true,
+        "Evidence":  "C:/laravelproject/TA/sira/app/Http/Controllers/Web/AdminHospital/ReviewInvitationImportController.php:7",
+        "EmptyOrStub":  false
+    }
+]

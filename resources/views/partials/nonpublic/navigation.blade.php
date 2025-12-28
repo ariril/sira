@@ -71,6 +71,13 @@
          'href'=>$href('admin_rs.dashboard','/admin-rs/dashboard'),
          'active'=>request()->routeIs('admin_rs.dashboard')],
       ]],
+
+      ['heading'=>'Master Data','items'=>[
+        ['label'=>'Hirarki Penilai Profesi','icon'=>'fa-sitemap',
+         'href'=>$href('admin.master.profession_hierarchy.index','/admin/master/profession-hierarchy'),
+         'active'=>request()->routeIs('admin.master.profession_hierarchy.*')],
+      ]],
+
       ['heading'=>'Absensi Pegawai','items'=>[
         ['label'=>'Upload Excel Absensi','icon'=>'fa-file-arrow-up',
          'href'=>$href('admin_rs.attendances.import.form','/admin-rs/attendances/import'),
@@ -210,6 +217,9 @@
          'active'=>request()->routeIs('pegawai_medis.dashboard')],
       ]],
       ['heading'=>'Kinerja','items'=>[
+        ['label'=>'Kinerja Saya','icon'=>'fa-chart-line',
+         'href'=>$href('pegawai_medis.my_performance.index','/pegawai-medis/my-performance'),
+         'active'=>request()->routeIs('pegawai_medis.my_performance.*')],
         ['label'=>'Penilaian Saya','icon'=>'fa-clipboard-check',
          'href'=>$href('pegawai_medis.assessments.index','/pegawai-medis/assessments'),
          'active'=>request()->routeIs('pegawai_medis.assessments.*')],

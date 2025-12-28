@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
 use Carbon\Carbon;
+use App\Models\AssessmentPeriod;
 
 class DashboardController extends Controller
 {
@@ -30,7 +31,7 @@ class DashboardController extends Controller
         $activePeriod = null;
         if (Schema::hasTable('assessment_periods')) {
             $activePeriod = DB::table('assessment_periods')
-                ->where('status', 'active')
+                ->where('status', AssessmentPeriod::STATUS_ACTIVE)
                 ->orderByDesc('id')
                 ->first();
         }

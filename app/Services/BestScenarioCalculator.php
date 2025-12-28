@@ -17,6 +17,9 @@ use App\Models\ReviewDetail;
 class BestScenarioCalculator
 {
     /**
+     * @deprecated Use App\Services\CriteriaEngine\PerformanceScoreService (Criteria Engine) instead.
+     */
+    /**
      * Static weight (percent) for each criteria in the Best Scenario.
      * Total weight = 100 so the sum of WSM scores across all employees per unit is 100.
      */
@@ -24,7 +27,7 @@ class BestScenarioCalculator
 
     /** Criteria configuration (order preserved for UI). */
     private const CRITERIA = [
-        'absensi'      => 'Absensi',
+        'kehadiran'    => 'Kehadiran (Absensi)',
         'kedisiplinan' => 'Kedisiplinan (360)',
         'kontribusi'   => 'Kontribusi Tambahan',
         'pasien'       => 'Jumlah Pasien Ditangani',
@@ -56,7 +59,7 @@ class BestScenarioCalculator
         }
 
         $raw = [
-            'absensi'      => $this->collectAttendance($period, $userIds),
+            'kehadiran'    => $this->collectAttendance($period, $userIds),
             'kedisiplinan' => $this->collectDiscipline($period, $userIds),
             'kontribusi'   => $this->collectContributionPoints($period, $userIds, $unitId),
             'pasien'       => $this->collectPatientCount($period, $userIds),
@@ -66,7 +69,11 @@ class BestScenarioCalculator
         $totalsByCriteria = [];
         $normalized = [];
         foreach (self::CRITERIA as $key => $label) {
-            [$norm, $total] = $this->normalizeColumn($raw[$key] ?? [], $userIds);
+            if ($key === 'kehadiran') {
+                [$norm, $total] = $this->normalizeKehadiran($period, $raw[$key] ?? [], $userIds);
+            } else {
+                [$norm, $total] = $this->normalizeColumn($raw[$key] ?? [], $userIds);
+            }
             $normalized[$key] = $norm;
             $totalsByCriteria[$key] = $total;
         }
@@ -137,6 +144,31 @@ class BestScenarioCalculator
             $norm[$uid] = $total > 0 ? ($value / $total) * 100.0 : 0.0;
         }
         return [$norm, $total];
+    }
+
+    /** @param array<int,float|int> $rawDays */
+    private function normalizeKehadiran(AssessmentPeriod $period, array $rawDays, array $userIds): array
+    {
+        $totalDays = 0.0;
+        if ($period->start_date && $period->end_date) {
+            try {
+                $s = \Illuminate\Support\Carbon::parse((string) $period->start_date)->startOfDay();
+                $e = \Illuminate\Support\Carbon::parse((string) $period->end_date)->startOfDay();
+                $totalDays = (float) ($s->diffInDays($e) + 1);
+            } catch (\Throwable $t) {
+                $totalDays = 0.0;
+            }
+        }
+
+        $norm = [];
+        foreach ($userIds as $uid) {
+            $value = (float)($rawDays[$uid] ?? 0.0);
+            $ratio = $totalDays > 0 ? ($value / $totalDays) : 0.0;
+            $ratio = max(0.0, min(1.0, $ratio));
+            $norm[$uid] = $ratio * 100.0;
+        }
+
+        return [$norm, $totalDays];
     }
 
     /**

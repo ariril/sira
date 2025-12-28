@@ -1,9 +1,9 @@
-@props(['item','types','normalizationBases' => [],'hasOtherCriteria' => false])
+@props(['item','types','sources' => [],'normalizationBases' => [],'hasOtherCriteria' => false])
 
 @php($fieldTips = [
     'type' => 'Kelompok kriteria sesuai master (mis. Kinerja Utama, Perilaku, Kompetensi). Pilih yang paling relevan.',
     'data_type' => 'numeric=nilai bebas, percentage=persentase 0-100, boolean=ya/tidak, datetime=tanggal/waktu, text=deskripsi bebas.',
-    'input_method' => 'system=dihitung otomatis, manual=diinput petugas, import=unggahan massal, 360=diisi penilai 360°.',
+    'source' => 'Jenis kriteria yang boleh dibuat admin: Import Metric atau Penilaian 360. Kriteria sistem (absensi/jam kerja/lembur/keterlambatan/kontribusi/rating) sudah tersedia dan locked.',
     'aggregation' => 'sum=jumlah total, avg=rata-rata, count=hitung entri, latest=nilai terbaru, custom=rumus khusus.',
 ])
 
@@ -50,11 +50,11 @@
         <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">
                 <span class="inline-flex items-center gap-1">
-                    <span>Input Method</span>
-                    <span class="text-amber-500 font-bold cursor-help" title="{{ $fieldTips['input_method'] }}">!</span>
+                    <span>Jenis Kriteria</span>
+                    <span class="text-amber-500 font-bold cursor-help" title="{{ $fieldTips['source'] }}">!</span>
                 </span>
             </label>
-            <x-ui.select name="input_method" :options="['system'=>'System','manual'=>'Manual','import'=>'Import','360'=>'360']" :value="old('input_method', $item->input_method)" placeholder="Pilih metode" />
+            <x-ui.select name="source" :options="$sources" :value="old('source', $item->source)" placeholder="Pilih jenis" />
         </div>
 
         <div class="flex items-center gap-3">
@@ -64,24 +64,6 @@
                 <div class="text-sm font-medium text-slate-700">Aktif</div>
                 <div class="text-xs text-slate-500">Nonaktifkan jika tidak dipakai sementara.</div>
             </div>
-        </div>
-    </div>
-
-    <div class="flex items-start gap-3" x-show="normalizationBasis !== null" x-cloak>
-        <div class="flex items-center gap-3">
-            <input type="hidden" name="is_360" value="0">
-            <x-ui.input
-                type="checkbox"
-                name="is_360"
-                value="1"
-                :checked="old('is_360', (bool) $item->is_360)"
-                class="h-5 w-5"
-                x-bind:disabled="document.querySelector('[name=\"input_method\"]')?.value !== '360'"
-            />
-        </div>
-        <div>
-            <div class="text-sm font-medium text-slate-700">Kriteria 360</div>
-            <div class="text-xs text-slate-500">Centang agar muncul di modul Penilaian 360.</div>
         </div>
     </div>
 

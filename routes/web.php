@@ -5,12 +5,11 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProfileController;
 
-// Public pages (English slugs)
+// Public pages 
 use App\Http\Controllers\Web\AnnouncementController;
 use App\Http\Controllers\Web\FaqController;
 use App\Http\Controllers\Web\AboutPageController;
 use App\Http\Controllers\Web\ContactController;
-use App\Http\Controllers\Web\RemunerationDataController;
 use App\Http\Controllers\Web\PublicReviewController;
 
 // Dashboards per role
@@ -200,7 +199,6 @@ Route::middleware(['auth','verified','role:admin_rs'])
         // Periode Penilaian (assessment_periods)
         Route::resource('assessment-periods', \App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class)
             ->parameters(['assessment-periods' => 'period']);
-        Route::post('assessment-periods/{period}/activate', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'activate'])->name('assessment_periods.activate');
         Route::post('assessment-periods/{period}/lock',     [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'lock'])->name('assessment_periods.lock');
         Route::post('assessment-periods/{period}/start-approval', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'startApproval'])->name('assessment_periods.start_approval');
         Route::post('assessment-periods/{period}/close',    [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'close'])->name('assessment_periods.close');
@@ -211,9 +209,32 @@ Route::middleware(['auth','verified','role:admin_rs'])
         Route::post('unit-criteria-weights/publish-draft', [\App\Http\Controllers\Web\AdminHospital\UnitCriteriaWeightController::class, 'publishDraft'])
             ->name('unit_criteria_weights.publish_draft');
 
-        // Konten operasional (opsional)
-        Route::resource('announcements', \App\Http\Controllers\Web\AdminHospital\AnnouncementDailyController::class)->only(['index','create','store','edit','update','destroy']);
-        Route::resource('faqs',          \App\Http\Controllers\Web\AdminHospital\FaqDailyController::class)->only(['index','create','store','edit','update','destroy']);
+        // Konten operasional (opsional) — tidak dikelola oleh Admin RS
+    });
+
+/**
+ * =========================
+ * ADMIN MASTER DATA (Admin RS)
+ * =========================
+ * URL mengikuti kebutuhan: /admin/master/...
+ */
+Route::middleware(['auth','verified','role:admin_rs'])
+    ->prefix('admin/master')->name('admin.master.')->group(function () {
+
+        Route::get('profession-hierarchy', [\App\Http\Controllers\Web\AdminHospital\ProfessionHierarchyController::class, 'index'])
+            ->name('profession_hierarchy.index');
+        Route::get('profession-hierarchy/create', [\App\Http\Controllers\Web\AdminHospital\ProfessionHierarchyController::class, 'create'])
+            ->name('profession_hierarchy.create');
+        Route::post('profession-hierarchy', [\App\Http\Controllers\Web\AdminHospital\ProfessionHierarchyController::class, 'store'])
+            ->name('profession_hierarchy.store');
+        Route::get('profession-hierarchy/{professionReportingLine}/edit', [\App\Http\Controllers\Web\AdminHospital\ProfessionHierarchyController::class, 'edit'])
+            ->name('profession_hierarchy.edit');
+        Route::put('profession-hierarchy/{professionReportingLine}', [\App\Http\Controllers\Web\AdminHospital\ProfessionHierarchyController::class, 'update'])
+            ->name('profession_hierarchy.update');
+        Route::post('profession-hierarchy/{professionReportingLine}/toggle', [\App\Http\Controllers\Web\AdminHospital\ProfessionHierarchyController::class, 'toggle'])
+            ->name('profession_hierarchy.toggle');
+        Route::delete('profession-hierarchy/{professionReportingLine}', [\App\Http\Controllers\Web\AdminHospital\ProfessionHierarchyController::class, 'destroy'])
+            ->name('profession_hierarchy.destroy');
     });
 
 /**
@@ -285,12 +306,8 @@ Route::middleware(['auth','verified','role:kepala_unit'])
 
         // Bobot Penilai 360 (rater_weights) – draft & submit
         Route::get('rater-weights', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'index'])->name('rater_weights.index');
-        Route::get('rater-weights/create', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'create'])->name('rater_weights.create');
-        Route::post('rater-weights', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'store'])->name('rater_weights.store');
-        Route::get('rater-weights/{raterWeight}/edit', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'edit'])->name('rater_weights.edit');
-        Route::put('rater-weights/{raterWeight}', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'update'])->name('rater_weights.update');
-        Route::post('rater-weights/{raterWeight}/submit', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'submit'])->name('rater_weights.submit');
-        Route::delete('rater-weights/{raterWeight}', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'destroy'])->name('rater_weights.destroy');
+        Route::put('rater-weights/{raterWeight}', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'updateInline'])->name('rater_weights.update');
+        Route::post('rater-weights/submit-all', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'submitAll'])->name('rater_weights.submit_all');
     });
 
 /**
@@ -347,6 +364,10 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
  */
 Route::middleware(['auth','verified','role:pegawai_medis'])
     ->prefix('pegawai-medis')->name('pegawai_medis.')->group(function () {
+
+        // Kinerja Saya (periode berjalan)
+        Route::get('my-performance', [\App\Http\Controllers\Web\MedicalStaff\MyPerformanceController::class, 'index'])
+            ->name('my_performance.index');
 
         // 360 submissions (place BEFORE resource to avoid route conflicts) – seragam: multi-rater
         Route::get('multi-rater', [\App\Http\Controllers\Web\MedicalStaff\MultiRaterSubmissionController::class, 'index'])->name('multi_rater.index');

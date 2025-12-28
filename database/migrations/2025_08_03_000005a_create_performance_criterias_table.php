@@ -18,6 +18,8 @@ return new class extends Migration
             // Added metadata columns 
             $table->enum('data_type', ['numeric','percentage','boolean','datetime','text'])->nullable();
             $table->enum('input_method', ['system','manual','import','360','public_review'])->nullable();
+            // Source category (locked/system-defined vs admin-defined)
+            $table->enum('source', ['system','metric_import','assessment_360'])->nullable();
             $table->boolean('is_360')->default(false);
             $table->enum('aggregation_method', ['sum','avg','count','latest','custom'])->nullable();
 

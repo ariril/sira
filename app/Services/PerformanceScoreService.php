@@ -16,7 +16,7 @@ class PerformanceScoreService
         $weights = DB::table('unit_criteria_weights')
             ->where('unit_id', $unitId)
             ->where('assessment_period_id', $periodId)
-            ->where('status', 'active')
+                ->where('status', AssessmentPeriod::STATUS_ACTIVE)
             ->pluck('weight', 'performance_criteria_id')
             ->map(fn($v) => (float) $v)
             ->all();

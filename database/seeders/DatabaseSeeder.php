@@ -5,7 +5,9 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use App\Models\AssessmentPeriod;
 use Carbon\Carbon;
 
 class DatabaseSeeder extends Seeder
@@ -405,7 +407,7 @@ class DatabaseSeeder extends Seeder
                     'name' => 'September 2025',
                     'start_date' => '2025-09-01',
                     'end_date' => '2025-09-30',
-                    'status' => 'closed',
+                    'status' => AssessmentPeriod::STATUS_CLOSED,
                     'locked_at' => null,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -414,7 +416,7 @@ class DatabaseSeeder extends Seeder
                     'name' => 'Oktober 2025',
                     'start_date' => '2025-10-01',
                     'end_date' => '2025-10-31',
-                    'status' => 'closed',
+                    'status' => AssessmentPeriod::STATUS_CLOSED,
                     'locked_at' => null,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -423,7 +425,7 @@ class DatabaseSeeder extends Seeder
                     'name' => 'November 2025',
                     'start_date' => '2025-11-01',
                     'end_date' => '2025-11-30',
-                    'status' => 'closed',
+                    'status' => AssessmentPeriod::STATUS_CLOSED,
                     'locked_at' => null,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -436,50 +438,91 @@ class DatabaseSeeder extends Seeder
             // =========================================================
             // 7) PERFORMANCE CRITERIAS
             // =========================================================
+            // Safety: if DB already has legacy "Absensi", rename it in-place to keep FK references valid.
+            DB::table('performance_criterias')
+                ->where('name', 'Absensi')
+                ->update([
+                    'name' => 'Kehadiran (Absensi)',
+                    'type' => 'benefit',
+                    'data_type' => 'numeric',
+                    'input_method' => 'system',
+                    ...(Schema::hasColumn('performance_criterias', 'source') ? ['source' => 'system'] : []),
+                    'is_360' => 0,
+                    'aggregation_method' => 'count',
+                    'normalization_basis' => 'total_unit',
+                    'description' => "Kode: KEHADIRAN. Kehadiran dihitung berdasarkan jumlah hari hadir selama periode.\nNormalisasi = total hari hadir / total hari pada periode (×100).",
+                    'is_active' => 1,
+                    'updated_at' => $now,
+                ]);
+
             $criterias = [
-                ['name' => 'Absensi', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Total hadir dalam periode', 'is_active' => 1],
-                ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'is_360' => 1, 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kedisiplinan', 'is_active' => 1],
-                ['name' => 'Kerjasama (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'is_360' => 1, 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kerjasama tim', 'is_active' => 1],
-                ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Poin tugas / kontribusi tambahan dari modul tugas/kontribusi', 'is_active' => 1],
-                ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Total pasien ditangani', 'is_active' => 1],
-                ['name' => 'Jumlah Komplain Pasien', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'import', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Total komplain pasien (semakin kecil semakin baik)', 'is_active' => 1],
-                ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'is_360' => 0, 'aggregation_method' => 'avg', 'description' => 'Rerata rating pasien', 'is_active' => 1],
+                ['name' => 'Kehadiran (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'count', 'normalization_basis' => 'total_unit', 'description' => "Kode: KEHADIRAN. Kehadiran dihitung berdasarkan jumlah hari hadir selama periode.\nNormalisasi = total hari hadir / total hari pada periode (×100).", 'is_active' => 1],
+                ['name' => 'Jam Kerja (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'description' => "Kode: JAM_KERJA. Jam kerja dihitung dari total menit kerja selama periode.\nNormalisasi berdasarkan total unit (×100).", 'is_active' => 1],
+                ['name' => 'Lembur (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'count', 'normalization_basis' => 'total_unit', 'description' => "Kode: LEMBUR. Lembur dihitung berdasarkan jumlah kejadian lembur selama periode.\nNormalisasi berdasarkan total unit (×100).", 'is_active' => 1],
+                ['name' => 'Keterlambatan (Absensi)', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'description' => "Kode: KETERLAMBATAN. Keterlambatan dihitung dari total menit terlambat selama periode.\nNormalisasi cost = (1 - (nilai / max)) × 100.", 'is_active' => 1],
+                ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'source' => 'assessment_360', 'is_360' => 1, 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kedisiplinan', 'is_active' => 1],
+                ['name' => 'Kerjasama (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'source' => 'assessment_360', 'is_360' => 1, 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kerjasama tim', 'is_active' => 1],
+                ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Poin tugas / kontribusi tambahan dari modul tugas/kontribusi', 'is_active' => 1],
+                ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'source' => 'metric_import', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Total pasien ditangani', 'is_active' => 1],
+                ['name' => 'Jumlah Komplain Pasien', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'import', 'source' => 'metric_import', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Total komplain pasien (semakin kecil semakin baik)', 'is_active' => 1],
+                ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'avg', 'description' => 'Rerata rating pasien', 'is_active' => 1],
             ];
             foreach ($criterias as &$k) {
                 $k['created_at'] = $now;
                 $k['updated_at'] = $now;
             }
-            DB::table('performance_criterias')->upsert($criterias, ['name'], ['type','data_type','input_method','is_360','aggregation_method','description','is_active','updated_at']);
+            foreach ($criterias as $row) {
+                $name = (string) ($row['name'] ?? '');
+                if ($name === '') {
+                    continue;
+                }
 
-            // Seed default rater weights (per period + profession) for 360 recap weighting
-            $defaultWeightRows = function (int $periodId, int $professionId, ?int $decidedBy = null) use ($now) {
-                return [
-                    ['assessment_period_id' => $periodId, 'assessee_profession_id' => $professionId, 'assessor_type' => 'supervisor',  'weight' => 40.00, 'status' => 'active', 'proposed_by' => null, 'decided_by' => $decidedBy, 'decided_at' => $decidedBy ? $now : null, 'created_at' => $now, 'updated_at' => $now],
-                    ['assessment_period_id' => $periodId, 'assessee_profession_id' => $professionId, 'assessor_type' => 'peer',        'weight' => 30.00, 'status' => 'active', 'proposed_by' => null, 'decided_by' => $decidedBy, 'decided_at' => $decidedBy ? $now : null, 'created_at' => $now, 'updated_at' => $now],
-                    ['assessment_period_id' => $periodId, 'assessee_profession_id' => $professionId, 'assessor_type' => 'subordinate', 'weight' => 20.00, 'status' => 'active', 'proposed_by' => null, 'decided_by' => $decidedBy, 'decided_at' => $decidedBy ? $now : null, 'created_at' => $now, 'updated_at' => $now],
-                    ['assessment_period_id' => $periodId, 'assessee_profession_id' => $professionId, 'assessor_type' => 'self',        'weight' => 10.00, 'status' => 'active', 'proposed_by' => null, 'decided_by' => $decidedBy, 'decided_at' => $decidedBy ? $now : null, 'created_at' => $now, 'updated_at' => $now],
-                ];
-            };
+                if (!Schema::hasColumn('performance_criterias', 'source')) {
+                    unset($row['source']);
+                }
 
-            $headPoliId = $userId('kepalapoli@rsud.local') ?? null;
-            $profDoctorUmum = (int) ($professionId('DOK-UM') ?? 0);
-            $profPerawat = (int) ($professionId('PRW') ?? 0);
-            $profDoctorSp = (int) ($professionId('DOK-SP') ?? 0);
-
-            $seedWeights = [];
-            foreach ([$profDoctorUmum, $profPerawat, $profDoctorSp] as $pid) {
-                if ($pid > 0 && $periodSeptId) $seedWeights = array_merge($seedWeights, $defaultWeightRows((int)$periodSeptId, $pid, $headPoliId));
-                if ($pid > 0 && $periodOctId) $seedWeights = array_merge($seedWeights, $defaultWeightRows((int)$periodOctId, $pid, $headPoliId));
+                $existingId = DB::table('performance_criterias')->where('name', $name)->value('id');
+                if ($existingId) {
+                    $update = $row;
+                    unset($update['created_at']);
+                    DB::table('performance_criterias')->where('id', (int) $existingId)->update($update);
+                } else {
+                    DB::table('performance_criterias')->insert($row);
+                }
             }
-            if (!empty($seedWeights)) {
-                DB::table('rater_weights')->upsert(
-                    $seedWeights,
-                    ['assessment_period_id', 'assessee_profession_id', 'assessor_type'],
-                    ['weight', 'status', 'proposed_by', 'decided_by', 'decided_at', 'updated_at']
-                );
-            }
+
+            // NOTE:
+            // rater_weights is now per (period + unit + 360-criteria + profession + assessor_type)
+            // and is auto-generated from unit_criteria_weights + criteria_rater_rules.
+            // We intentionally do NOT seed rater_weights here to avoid conflicting with the new workflow.
 
             $criteriaId = fn(string $name) => DB::table('performance_criterias')->where('name', $name)->value('id');
+
+            // =========================================================
+            // 7b) CRITERIA RATER RULES (untuk kriteria 360)
+            // =========================================================
+            $ruleRows = [];
+            $kedisId = (int) ($criteriaId('Kedisiplinan (360)') ?? 0);
+            $kerjaId = (int) ($criteriaId('Kerjasama (360)') ?? 0);
+
+            // Contoh: Kedisiplinan memakai Supervisor + Peer
+            if ($kedisId > 0) {
+                $ruleRows[] = ['performance_criteria_id' => $kedisId, 'assessor_type' => 'supervisor', 'created_at' => $now, 'updated_at' => $now];
+                $ruleRows[] = ['performance_criteria_id' => $kedisId, 'assessor_type' => 'peer', 'created_at' => $now, 'updated_at' => $now];
+            }
+
+            // Contoh: Kerjasama hanya 1 tipe penilai -> memicu auto 100%
+            if ($kerjaId > 0) {
+                $ruleRows[] = ['performance_criteria_id' => $kerjaId, 'assessor_type' => 'supervisor', 'created_at' => $now, 'updated_at' => $now];
+            }
+
+            if (!empty($ruleRows)) {
+                DB::table('criteria_rater_rules')->upsert(
+                    $ruleRows,
+                    ['performance_criteria_id', 'assessor_type'],
+                    ['updated_at']
+                );
+            }
 
             // =========================================================
             // 8) UNIT CRITERIA WEIGHTS (contoh Poli Umum)
@@ -636,7 +679,7 @@ class DatabaseSeeder extends Seeder
                 ],
                 [
                     'performance_assessment_id' => $pkDoctorOctId,
-                    'performance_criteria_id' => $criteriaId('Absensi'),
+                    'performance_criteria_id' => $criteriaId('Kehadiran (Absensi)'),
                     'score' => 85.00,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -657,7 +700,7 @@ class DatabaseSeeder extends Seeder
                 ],
                 [
                     'performance_assessment_id' => $pkNurseOctId,
-                    'performance_criteria_id' => $criteriaId('Absensi'),
+                    'performance_criteria_id' => $criteriaId('Kehadiran (Absensi)'),
                     'score' => 79.00,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -742,6 +785,7 @@ class DatabaseSeeder extends Seeder
             ]);
         });
 
+        $this->call(ProfessionHierarchySeeder::class);
         $this->call(FiveStaffKpiSeeder::class);
     }
 }

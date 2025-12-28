@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 
 class AssessmentPeriod extends Model
 {
@@ -59,6 +60,62 @@ class AssessmentPeriod extends Model
     public const STATUS_LOCKED  = 'locked';
     public const STATUS_APPROVAL = 'approval';
     public const STATUS_CLOSED  = 'closed';
+
+    public const STATUSES = [
+        self::STATUS_DRAFT,
+        self::STATUS_ACTIVE,
+        self::STATUS_LOCKED,
+        self::STATUS_APPROVAL,
+        self::STATUS_CLOSED,
+    ];
+
+    public const NON_DELETABLE_STATUSES = [
+        self::STATUS_ACTIVE,
+        self::STATUS_LOCKED,
+        self::STATUS_APPROVAL,
+        self::STATUS_CLOSED,
+    ];
+
+    public static function statusOptions(): array
+    {
+        return [
+            self::STATUS_DRAFT => 'Draft',
+            self::STATUS_ACTIVE => 'Aktif',
+            self::STATUS_LOCKED => 'Dikunci',
+            self::STATUS_APPROVAL => 'Persetujuan',
+            self::STATUS_CLOSED => 'Ditutup',
+        ];
+    }
+
+    public static function statusLabel(string $status): string
+    {
+        return self::statusOptions()[$status] ?? $status;
+    }
+
+    /**
+     * Periode dianggap "aktif saat ini" bila hari ini berada pada rentang start_date..end_date
+     * dan status bukan CLOSED/ARCHIVED.
+     */
+    public function isCurrentlyActive(): bool
+    {
+        $today = Carbon::today();
+
+        if (!$this->start_date || !$this->end_date) {
+            return false;
+        }
+
+        $status = (string) ($this->status ?? '');
+        if ($status === self::STATUS_CLOSED || $status === 'archived') {
+            return false;
+        }
+
+        return $today->betweenIncluded(Carbon::parse($this->start_date), Carbon::parse($this->end_date));
+    }
+
+    public function isNonDeletable(): bool
+    {
+        return in_array((string) $this->status, self::NON_DELETABLE_STATUSES, true);
+    }
 
     protected static function booted(): void
     {
@@ -113,29 +170,27 @@ class AssessmentPeriod extends Model
     }
 
     // Helper scopes & accessors
-    public function scopeActive($q)
+    /**
+     * Scope periode "aktif saat ini" (date-based). Dipertahankan namanya agar kompatibel.
+     */
+    public function scopeActive(Builder $q): Builder
     {
-        return $q->where('status', self::STATUS_ACTIVE);
+        $today = Carbon::today()->toDateString();
+        return $q
+            ->where('start_date', '<=', $today)
+            ->where('end_date', '>=', $today)
+            ->whereNotIn('status', [self::STATUS_CLOSED, 'archived']);
     }
 
     public function getIsActiveAttribute(): bool
     {
-        return (string)($this->attributes['status'] ?? '') === self::STATUS_ACTIVE;
+        return $this->isCurrentlyActive();
     }
 
     // Transitions
     public function activate(?int $byUserId = null): void
     {
-        // Demote other active periods
-        DB::table('assessment_periods')->where('id', '!=', $this->id)->where('status', self::STATUS_ACTIVE)
-            ->update(['status' => self::STATUS_DRAFT]);
-        $updates = ['status' => self::STATUS_ACTIVE];
-        if (Schema::hasColumn('assessment_periods','locked_at'))    $updates['locked_at'] = null;
-        if (Schema::hasColumn('assessment_periods','locked_by_id')) $updates['locked_by_id'] = null;
-        if (Schema::hasColumn('assessment_periods','closed_at'))    $updates['closed_at'] = null;
-        if (Schema::hasColumn('assessment_periods','closed_by_id')) $updates['closed_by_id'] = null;
-        DB::table('assessment_periods')->where('id', $this->id)->update($updates);
-        $this->refresh();
+        throw new \LogicException('Aktivasi periode manual sudah dihapus. Status aktif ditentukan otomatis berdasarkan tanggal (start_date..end_date).');
     }
 
     public function lock(?int $byUserId = null, ?string $notes = null): void
@@ -146,6 +201,16 @@ class AssessmentPeriod extends Model
         if ($notes !== null && Schema::hasColumn('assessment_periods','notes')) $updates['notes'] = $notes;
         DB::table('assessment_periods')->where('id', $this->id)->update($updates);
         $this->refresh();
+
+        // Side-effect: ensure assessments exist once period becomes LOCKED.
+        // This keeps manual vs automatic locking consistent.
+        try {
+            if (class_exists(\App\Services\PeriodPerformanceAssessmentService::class)) {
+                app(\App\Services\PeriodPerformanceAssessmentService::class)->initializeForPeriod($this);
+            }
+        } catch (\Throwable $e) {
+            // Intentionally swallow: lifecycle status should still sync even if recalculation fails.
+        }
     }
 
     public function close(?int $byUserId = null, ?string $notes = null): void

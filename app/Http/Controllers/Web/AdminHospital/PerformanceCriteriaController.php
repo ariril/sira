@@ -8,6 +8,8 @@ use App\Models\PerformanceCriteria;
 use App\Models\CriteriaProposal;
 use App\Enums\CriteriaProposalStatus;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
 
@@ -30,6 +32,38 @@ class PerformanceCriteriaController extends Controller
             'average_unit' => 'Rata-rata unit',
             'custom_target'=> 'Target khusus',
         ];
+    }
+
+    protected function sources(): array
+    {
+        return [
+            'metric_import' => 'Import Metric',
+            'assessment_360' => 'Penilaian 360',
+        ];
+    }
+
+    /**
+     * System-defined criteria are locked and must not be created/edited via UI.
+     * These names match seeded system criteria.
+     *
+     * @return array<int, string>
+     */
+    protected function reservedSystemNames(): array
+    {
+        return [
+            'Kehadiran (Absensi)',
+            'Jam Kerja (Absensi)',
+            'Lembur (Absensi)',
+            'Keterlambatan (Absensi)',
+            'Kontribusi Tambahan',
+            'Rating',
+        ];
+    }
+
+    /** @return array<int, string> */
+    protected function reservedSystemKeys(): array
+    {
+        return ['attendance', 'work_hours', 'overtime', 'late_minutes', 'contribution', 'rating'];
     }
 
     // Allowed per-page options (match Super Admin style)
@@ -92,6 +126,7 @@ class PerformanceCriteriaController extends Controller
     {
         return view('admin_rs.performance_criterias.create', [
             'types' => $this->types(),
+            'sources' => $this->sources(),
             'normalizationBases' => $this->normalizationBases(),
             'item'  => new PerformanceCriteria([
                 'is_active' => true,
@@ -105,6 +140,10 @@ class PerformanceCriteriaController extends Controller
     {
         $data = $this->validateData($request);
         $data['is_active'] = (bool)($data['is_active'] ?? false);
+
+        // Enforce allowed sources only
+        $this->applySourceRules($data);
+
         $applyAll = (bool)$request->boolean('apply_basis_to_all');
         $this->ensureNormalizationPolicy($data['normalization_basis'] ?? null, $applyAll);
         $item = PerformanceCriteria::create($data);
@@ -115,8 +154,14 @@ class PerformanceCriteriaController extends Controller
 
     public function edit(PerformanceCriteria $performance_criteria): View
     {
+        if ($this->isLockedSystemCriteria($performance_criteria)) {
+            abort(redirect()->route('admin_rs.performance-criterias.index')->withErrors([
+                'edit' => 'Kriteria sistem (locked) tidak dapat diedit dari UI.',
+            ]));
+        }
         return view('admin_rs.performance_criterias.edit', [
             'types' => $this->types(),
+            'sources' => $this->sources(),
             'normalizationBases' => $this->normalizationBases(),
             'item'  => $performance_criteria,
             'hasOtherCriteria' => PerformanceCriteria::where('id','!=',$performance_criteria->id)->exists(),
@@ -125,8 +170,14 @@ class PerformanceCriteriaController extends Controller
 
     public function update(Request $request, PerformanceCriteria $performance_criteria): RedirectResponse
     {
+        if ($this->isLockedSystemCriteria($performance_criteria)) {
+            return back()->withErrors(['update' => 'Kriteria sistem (locked) tidak dapat diubah dari UI.']);
+        }
         $data = $this->validateData($request, isUpdate: true);
         $data['is_active'] = (bool)($data['is_active'] ?? false);
+
+        $this->applySourceRules($data);
+
         $applyAll = (bool)$request->boolean('apply_basis_to_all');
         $this->ensureNormalizationPolicy($data['normalization_basis'] ?? null, $applyAll, $performance_criteria->id);
         $performance_criteria->update($data);
@@ -137,6 +188,9 @@ class PerformanceCriteriaController extends Controller
 
     public function destroy(PerformanceCriteria $performance_criteria): RedirectResponse
     {
+        if ($this->isLockedSystemCriteria($performance_criteria)) {
+            return back()->withErrors(['delete' => 'Tidak dapat menghapus: kriteria sistem (locked).']);
+        }
         // Prevent delete if related records exist
         if ($performance_criteria->unitCriteriaWeights()->exists() || $performance_criteria->assessmentDetails()->exists()) {
             return back()->withErrors(['delete' => 'Tidak dapat menghapus: sudah terpakai pada unit/penilaian.']);
@@ -147,11 +201,11 @@ class PerformanceCriteriaController extends Controller
 
     protected function validateData(Request $request, bool $isUpdate = false): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'name'        => ['required', 'string', 'max:255'],
+            'source'      => ['required', 'in:metric_import,assessment_360'],
             'type'        => ['required', 'in:' . implode(',', array_keys($this->types()))],
             'data_type'   => ['nullable','in:numeric,percentage,boolean,datetime,text'],
-            'input_method'=> ['nullable','in:system,manual,import,360,public_review'],
             'aggregation_method' => ['nullable','in:sum,avg,count,latest,custom'],
             'normalization_basis' => ['required','in:total_unit,max_unit,average_unit,custom_target'],
             'custom_target_value' => ['nullable','numeric','min:0','required_if:normalization_basis,custom_target'],
@@ -160,6 +214,54 @@ class PerformanceCriteriaController extends Controller
             'suggested_weight' => ['nullable','numeric','min:0','max:100'],
             'apply_basis_to_all' => ['nullable','boolean'],
         ]);
+
+        // Backend guard: prevent creating criteria that collide with reserved system criteria.
+        $name = (string) ($data['name'] ?? '');
+        if (in_array($name, $this->reservedSystemNames(), true)) {
+            abort(redirect()->back()->withErrors([
+                'name' => 'Nama kriteria ini reserved untuk kriteria sistem (locked).',
+            ]));
+        }
+
+        // Also guard by slug/key equivalence.
+        $normalizedKey = str_replace('-', '_', (string) Str::slug($name));
+        if (in_array($normalizedKey, $this->reservedSystemKeys(), true)) {
+            abort(redirect()->back()->withErrors([
+                'name' => 'Nama kriteria ini bentrok dengan reserved system key.',
+            ]));
+        }
+
+        return $data;
+    }
+
+    private function applySourceRules(array &$data): void
+    {
+        $source = (string) ($data['source'] ?? '');
+        if (!in_array($source, ['metric_import', 'assessment_360'], true)) {
+            abort(redirect()->back()->withErrors([
+                'source' => 'Jenis kriteria tidak valid.',
+            ]));
+        }
+
+        if (!Schema::hasColumn('performance_criterias', 'source')) {
+            unset($data['source']);
+        }
+
+        if ($source === 'assessment_360') {
+            $data['is_360'] = true;
+            $data['input_method'] = '360';
+        } else {
+            $data['is_360'] = false;
+            $data['input_method'] = 'import';
+        }
+    }
+
+    private function isLockedSystemCriteria(PerformanceCriteria $criteria): bool
+    {
+        $source = (string) ($criteria->source ?? '');
+        $inputMethod = (string) ($criteria->input_method ?? '');
+        $name = (string) ($criteria->name ?? '');
+        return $source === 'system' || $inputMethod === 'system' || in_array($name, $this->reservedSystemNames(), true);
     }
 
     private function ensureNormalizationPolicy(?string $basis, bool $applyAll, ?int $currentId = null): void
@@ -188,15 +290,6 @@ class PerformanceCriteriaController extends Controller
 
     private function syncRaterWeights(\Illuminate\Http\Request $request, \App\Models\PerformanceCriteria $criteria): void
     {
-        if ($criteria->input_method !== '360') return;
-        $weights = $request->input('rater_weights', []);
-        foreach (['supervisor','peer','subordinate','self'] as $type) {
-            $val = $weights[$type] ?? null;
-            if ($val === null || $val === '') { $criteria->raterWeights()->where('assessor_type',$type)->delete(); continue; }
-            \App\Models\RaterTypeWeight::updateOrCreate(
-                ['performance_criteria_id' => $criteria->id, 'assessor_type' => $type],
-                ['weight' => (float)$val]
-            );
-        }
+        // No-op: rater weights are configured via unit workflow (unit_criteria_weights + criteria_rater_rules).
     }
 }

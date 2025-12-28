@@ -8,10 +8,18 @@ use App\Models\Unit;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ReviewInvitationService
 {
+    private ?int $targetPeriodId = null;
+
+    public function setTargetPeriodId(?int $periodId): void
+    {
+        $this->targetPeriodId = $periodId;
+    }
+
     /**
      * @return array{row:int,status:string,message:string,registration_ref:?string,patient_name:?string,contact:?string,unit:?string,link_undangan:?string}
      */
@@ -90,8 +98,10 @@ class ReviewInvitationService
 
         [$tokenPlain, $tokenHash] = $this->generateToken();
 
-        $invitation = DB::transaction(function () use ($now, $registrationRef, $patientName, $contact, $unit, $tokenHash, $staff) {
-            $inv = ReviewInvitation::create([
+        $periodId = $this->targetPeriodId;
+
+        $invitation = DB::transaction(function () use ($now, $registrationRef, $patientName, $contact, $unit, $tokenHash, $staff, $periodId) {
+            $payload = [
                 'registration_ref' => $registrationRef,
                 'unit_id' => $unit->id,
                 'patient_name' => $patientName,
@@ -100,7 +110,13 @@ class ReviewInvitationService
                 'status' => 'sent',
                 'expires_at' => $now->copy()->addDays(5),
                 'sent_at' => $now,
-            ]);
+            ];
+
+            if ($periodId && Schema::hasColumn('review_invitations', 'assessment_period_id')) {
+                $payload['assessment_period_id'] = $periodId;
+            }
+
+            $inv = ReviewInvitation::create($payload);
 
             $mapRows = $staff->map(fn (User $u) => [
                 'invitation_id' => $inv->id,

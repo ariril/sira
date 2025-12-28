@@ -78,7 +78,7 @@ class FiveStaffKpiSeeder extends Seeder
             professionCode: 'DOK-UM'
         );
 
-        $absensiId    = $criteriaId('Absensi');
+        $absensiId    = $criteriaId('Kehadiran (Absensi)');
         $kedis360Id   = $criteriaId('Kedisiplinan (360)');
         $kontribusiId = $criteriaId('Kontribusi Tambahan');
         $pasienId     = $criteriaId('Jumlah Pasien Ditangani');

@@ -31,6 +31,7 @@
                 @include('admin_rs.performance_criterias._form', [
                     'item' => $item,
                     'types' => $types,
+                    'sources' => $sources,
                     'normalizationBases' => $normalizationBases,
                     'hasOtherCriteria' => $hasOtherCriteria,
                 ])

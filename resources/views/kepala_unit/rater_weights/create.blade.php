@@ -8,6 +8,23 @@
 
     <div class="container-px py-6">
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            @if(session('status'))
+                <div class="mb-4 p-4 rounded-xl border text-sm bg-emerald-50 border-emerald-200 text-emerald-800">
+                    {{ session('status') }}
+                </div>
+            @endif
+
+            @if($errors->any())
+                <div class="mb-4 p-4 rounded-xl border text-sm bg-rose-50 border-rose-200 text-rose-800">
+                    <div class="font-semibold">Periksa kembali input Anda.</div>
+                    <ul class="mt-1 list-disc pl-5">
+                        @foreach($errors->all() as $err)
+                            <li>{{ $err }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <form method="POST" action="{{ route('kepala_unit.rater_weights.store') }}" class="space-y-6">
                 @csrf
 

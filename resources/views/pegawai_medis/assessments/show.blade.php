@@ -22,48 +22,50 @@
             </div>
             <div class="p-4 rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
                 <div class="text-sm text-slate-500" title="WSM (Weighted Sum Method)">Skor Kinerja</div>
-                @if(($kinerja['applicable'] ?? false) && ($kinerja['hasWeights'] ?? false))
+                @if (($kinerja['applicable'] ?? false) && ($kinerja['hasWeights'] ?? false))
                     <div class="flex items-center justify-between gap-3">
-                        <div class="text-lg font-semibold">{{ number_format((float)($kinerja['total'] ?? 0), 2) }}</div>
-                        <button
-                            type="button"
-                            class="px-3 py-2 rounded-lg border text-sm hover:bg-slate-50"
-                            x-data
-                            @click="$dispatch('open-modal', 'kinerja-breakdown')"
-                        >
+                        <div class="text-lg font-semibold">{{ number_format((float) ($kinerja['total'] ?? 0), 2) }}
+                        </div>
+                        <button type="button" class="px-3 py-2 rounded-lg border text-sm hover:bg-slate-50" x-data
+                            @click="$dispatch('open-modal', 'kinerja-breakdown')">
                             DETAIL
                         </button>
                     </div>
                 @else
                     <div class="text-lg font-semibold">-</div>
-                    @if(($kinerja['applicable'] ?? false) && !($kinerja['hasWeights'] ?? false))
-                        <div class="text-xs text-amber-700 mt-1">Bobot kriteria pada periode ini belum berstatus aktif, skor kinerja belum dapat ditampilkan.</div>
+                    @if (($kinerja['applicable'] ?? false) && !($kinerja['hasWeights'] ?? false))
+                        <div class="text-xs text-amber-700 mt-1">Bobot kriteria pada periode ini belum berstatus aktif,
+                            skor kinerja belum dapat ditampilkan.</div>
                     @endif
                 @endif
             </div>
         </div>
 
-        @if(($kinerja['applicable'] ?? false) && ($kinerja['hasWeights'] ?? false))
+        @if (($kinerja['applicable'] ?? false) && ($kinerja['hasWeights'] ?? false))
             <x-modal name="kinerja-breakdown" maxWidth="lg">
                 <div class="p-6 space-y-4">
                     <div class="flex items-start justify-between gap-4">
                         <div>
                             <div class="text-xs uppercase tracking-wide text-slate-500">Detail Perhitungan</div>
                             <div class="text-lg font-semibold text-slate-900">DETAIL Skor Kinerja</div>
-                            <div class="text-sm text-slate-600">Total: {{ number_format((float)($kinerja['total'] ?? 0), 2) }}</div>
+                            <div class="text-sm text-slate-600">Total:
+                                {{ number_format((float) ($kinerja['total'] ?? 0), 2) }}</div>
                         </div>
-                        <button type="button" class="text-slate-400 hover:text-slate-600" @click="$dispatch('close-modal', 'kinerja-breakdown')">
+                        <button type="button" class="text-slate-400 hover:text-slate-600"
+                            @click="$dispatch('close-modal', 'kinerja-breakdown')">
                             <i class="fa-solid fa-xmark text-lg"></i>
                         </button>
                     </div>
 
                     <div class="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-4">
                         <div class="text-sm text-slate-700">
-                            Skor Kinerja hanya dihitung dari <span class="font-semibold">kriteria aktif</span> pada periode penilaian dan digunakan sebagai dasar pembagian remunerasi.
+                            Skor Kinerja hanya dihitung dari <span class="font-semibold">kriteria aktif</span> pada
+                            periode penilaian dan digunakan sebagai dasar pembagian remunerasi.
                         </div>
 
                         <div>
-                            <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Kriteria dihitung (Aktif pada Periode)</div>
+                            <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Kriteria dihitung (Aktif
+                                pada Periode)</div>
                             <div class="overflow-auto rounded-xl border border-slate-200 bg-white">
                                 <table class="min-w-[560px] w-full text-sm">
                                     <thead class="bg-slate-50">
@@ -71,16 +73,21 @@
                                             <th class="px-4 py-2 text-left">Kriteria</th>
                                             <th class="px-4 py-2 text-right">Bobot</th>
                                             <th class="px-4 py-2 text-right">Nilai Normalisasi</th>
-                                            <th class="px-4 py-2 text-right" title="(bobot/Σbobot)×nilai">Kontribusi</th>
+                                            <th class="px-4 py-2 text-right" title="(bobot/Σbobot)×nilai">Kontribusi
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         @forelse(($kinerja['rows'] ?? []) as $r)
                                             <tr class="border-t border-slate-100">
-                                                <td class="px-4 py-2 font-medium text-slate-800">{{ $r['criteria_name'] ?? '-' }}</td>
-                                                <td class="px-4 py-2 text-right">{{ number_format((float)($r['weight'] ?? 0), 2) }}</td>
-                                                <td class="px-4 py-2 text-right">{{ number_format((float)($r['score_wsm'] ?? 0), 2) }}</td>
-                                                <td class="px-4 py-2 text-right">{{ number_format((float)($r['contribution'] ?? 0), 2) }}</td>
+                                                <td class="px-4 py-2 font-medium text-slate-800">
+                                                    {{ $r['criteria_name'] ?? '-' }}</td>
+                                                <td class="px-4 py-2 text-right">
+                                                    {{ number_format((float) ($r['weight'] ?? 0), 2) }}</td>
+                                                <td class="px-4 py-2 text-right">
+                                                    {{ number_format((float) ($r['score_wsm'] ?? 0), 2) }}</td>
+                                                <td class="px-4 py-2 text-right">
+                                                    {{ number_format((float) ($r['contribution'] ?? 0), 2) }}</td>
                                             </tr>
                                         @empty
                                             <tr>
@@ -90,18 +97,23 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <div class="text-xs text-slate-500 mt-2">Total WSM = Σ(bobot×nilai) / Σ(bobot) (hanya kriteria aktif).</div>
+                            <div class="text-xs text-slate-500 mt-2">Total WSM = Σ(bobot×nilai) / Σ(bobot) (hanya
+                                kriteria aktif).</div>
                         </div>
 
                         <div>
-                            <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Kriteria ditampilkan saja (Tidak aktif pada Periode)</div>
+                            <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Kriteria ditampilkan saja
+                                (Tidak aktif pada Periode)</div>
                             <div class="space-y-1">
                                 @forelse(($inactiveCriteriaRows ?? []) as $r)
-                                    <div class="flex items-center justify-between gap-3 rounded-lg bg-white border border-slate-200 px-3 py-2 text-sm">
+                                    <div
+                                        class="flex items-center justify-between gap-3 rounded-lg bg-white border border-slate-200 px-3 py-2 text-sm">
                                         <div class="font-medium text-slate-800">{{ $r['criteria_name'] ?? '-' }}</div>
                                         <div class="flex items-center gap-2">
-                                            <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700" title="Tidak dihitung ke Skor Kinerja">Tidak dihitung</span>
-                                            <span class="text-slate-600" title="Nilai normalisasi tetap ditampilkan">{{ number_format((float)($r['score_wsm'] ?? 0), 2) }}</span>
+                                            <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700"
+                                                title="Tidak dihitung ke Skor Kinerja">Tidak dihitung</span>
+                                            <span class="text-slate-600"
+                                                title="Nilai normalisasi tetap ditampilkan">{{ number_format((float) ($r['score_wsm'] ?? 0), 2) }}</span>
                                         </div>
                                     </div>
                                 @empty
@@ -127,29 +139,32 @@
                 @forelse($visibleDetails as $d)
                     @php
                         $raw = $rawMetrics[$d->performance_criteria_id] ?? null;
-                        $rel = $kinerja['relativeByCriteria'][(int)$d->performance_criteria_id] ?? null;
-                        $isActive = isset($activeCriteriaIdSet[(int)$d->performance_criteria_id]);
+                        $rel = $kinerja['relativeByCriteria'][(int) $d->performance_criteria_id] ?? null;
+                        $isActive = isset($activeCriteriaIdSet[(int) $d->performance_criteria_id]);
                     @endphp
+
                     <tr>
                         <td class="px-4 py-3">{{ $d->performanceCriteria->name ?? '-' }}</td>
                         <td class="px-4 py-3">{{ optional($d->performanceCriteria->type)->value }}</td>
+
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2">
-                                <span>{{ $rel !== null ? number_format((float)$rel, 2) : '-' }}</span>
-                                @if(!$isActive)
-                                    <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700" title="Kriteria ini tetap ditampilkan, tetapi tidak dihitung ke Skor Kinerja">Nonaktif (tidak dihitung)</span>
+                                <span>{{ $rel !== null ? number_format((float) $rel, 2) : '-' }}</span>
+                                @if (!$isActive)
+                                    <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700"
+                                        title="Kriteria ini tetap ditampilkan, tetapi tidak dihitung ke Skor Kinerja">
+                                        Nonaktif (tidak dihitung)
+                                    </span>
                                 @endif
                             </div>
                         </td>
+
                         <td class="px-4 py-3">
-                            @if($raw)
-                                <button
-                                    type="button"
-                                    class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 text-slate-600 hover:border-emerald-500 hover:text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                                    x-data
-                                    @click="$dispatch('open-modal', 'raw-{{ $d->id }}')"
-                                    title="Lihat data mentah"
-                                >
+                            @if ($raw)
+                                <button type="button"
+                                    class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 text-slate-600 hover:border-emerald-500 hover:text-emerald-700"
+                                    x-data @click="$dispatch('open-modal', 'raw-{{ $d->id }}')"
+                                    title="Lihat data mentah">
                                     <i class="fa-solid fa-eye"></i>
                                 </button>
 
@@ -157,68 +172,105 @@
                                     <div class="p-6 space-y-4">
                                         <div class="flex items-start justify-between gap-4">
                                             <div>
-                                                <div class="text-xs uppercase tracking-wide text-slate-500">Kriteria</div>
-                                                <div class="text-lg font-semibold text-slate-900">{{ $d->performanceCriteria->name ?? '-' }}</div>
+                                                <div class="text-xs uppercase tracking-wide text-slate-500">Kriteria
+                                                </div>
+                                                <div class="text-lg font-semibold text-slate-900">
+                                                    {{ $d->performanceCriteria->name ?? '-' }}</div>
                                                 <div class="text-sm text-slate-600">
-                                                    Nilai Kinerja (Relatif Unit): {{ $rel !== null ? number_format((float)$rel, 2) : '-' }}
+                                                    Nilai Kinerja (Relatif Unit):
+                                                    {{ $rel !== null ? number_format((float) $rel, 2) : '-' }}
                                                 </div>
                                                 <div class="text-sm text-slate-600" title="WSM (Weighted Sum Method)">
-                                                    Nilai Normalisasi: {{ number_format((float)($d->score ?? 0), 2) }}
+                                                    Nilai Normalisasi: {{ number_format((float) ($d->score ?? 0), 2) }}
                                                 </div>
-                                                @if(!$isActive)
+
+                                                @if (!$isActive)
                                                     <div class="mt-1 inline-flex">
-                                                        <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">Nonaktif (tidak dihitung ke Skor Kinerja)</span>
+                                                        <span
+                                                            class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">
+                                                            Nonaktif (tidak dihitung ke Skor Kinerja)
+                                                        </span>
                                                     </div>
                                                 @endif
                                             </div>
-                                            <button type="button" class="text-slate-400 hover:text-slate-600" @click="$dispatch('close-modal', 'raw-{{ $d->id }}')">
+
+                                            <button type="button" class="text-slate-400 hover:text-slate-600"
+                                                @click="$dispatch('close-modal', 'raw-{{ $d->id }}')">
                                                 <i class="fa-solid fa-xmark text-lg"></i>
                                             </button>
                                         </div>
 
                                         <div class="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
-                                            <div class="text-sm font-semibold text-slate-800">{{ $raw['title'] ?? 'Data mentah' }}</div>
-                                            @foreach(($raw['lines'] ?? []) as $line)
+                                            <div class="text-sm font-semibold text-slate-800">
+                                                {{ $raw['title'] ?? 'Data mentah' }}</div>
+
+                                            @foreach ($raw['lines'] ?? [] as $line)
                                                 <div class="flex items-start justify-between gap-3">
                                                     <div>
-                                                        <div class="text-sm text-slate-700 font-medium">{{ $line['label'] ?? '-' }}</div>
-                                                        @if(!empty($line['hint']))
-                                                            <div class="text-xs text-slate-500">{{ $line['hint'] }}</div>
+                                                        <div class="text-sm text-slate-700 font-medium">
+                                                            {{ $line['label'] ?? '-' }}</div>
+                                                        @if (!empty($line['hint']))
+                                                            <div class="text-xs text-slate-500">{{ $line['hint'] }}
+                                                            </div>
                                                         @endif
                                                     </div>
-                                                    <div class="text-sm font-semibold text-slate-900 text-right">{{ $line['value'] ?? '-' }}</div>
+                                                    <div class="text-sm font-semibold text-slate-900 text-right">
+                                                        {{ $line['value'] ?? '-' }}</div>
                                                 </div>
                                             @endforeach
-                                            @if(!empty($raw['formula']['raw']) && !empty($raw['formula']['result']) && !empty($raw['formula']['denominator']))
+
+                                            @if (isset($raw['formula']['raw'], $raw['formula']['result'], $raw['formula']['denominator']) &&
+                                                    $raw['formula']['denominator'] !== null)
                                                 <div class="pt-3 mt-2 border-t border-slate-200">
-                                                    <div class="text-xs uppercase tracking-wide text-slate-500 mb-1" title="WSM (Weighted Sum Method)">Rumus Normalisasi</div>
+                                                    <div class="text-xs uppercase tracking-wide text-slate-500 mb-1"
+                                                        title="WSM (Weighted Sum Method)">Rumus Normalisasi</div>
+                                                    @php
+                                                        $formulaType = $raw['formula']['type'] ?? 'benefit';
+                                                    @endphp
+
                                                     <div class="text-sm text-slate-800 font-semibold">
-                                                        {{ number_format($raw['formula']['raw'], 2) }} / {{ number_format($raw['formula']['denominator'], 2) }} × 100 = {{ number_format($raw['formula']['result'], 2) }}
+                                                        @if ($formulaType === 'cost')
+                                                            (1 -
+                                                            ({{ number_format((float) $raw['formula']['raw'], 2) }}
+                                                            /
+                                                            {{ number_format((float) $raw['formula']['denominator'], 2) }}))
+                                                            × 100
+                                                            = {{ number_format((float) $raw['formula']['result'], 2) }}
+                                                        @else
+                                                            {{ number_format((float) $raw['formula']['raw'], 2) }} /
+                                                            {{ number_format((float) $raw['formula']['denominator'], 2) }}
+                                                            × 100
+                                                            = {{ number_format((float) $raw['formula']['result'], 2) }}
+                                                        @endif
                                                     </div>
-                                                    <div class="text-xs text-slate-500">Basis normalisasi: {{ $d->performanceCriteria->normalization_basis ?? '-' }}. Pembagi mengikuti kebijakan basis tersebut (contoh: total unit + profesi pada periode yang sama).</div>
+
+                                                    <div class="text-xs text-slate-500">
+                                                        Basis normalisasi:
+                                                        {{ $d->performanceCriteria->normalization_basis ?? '-' }}.
+                                                    </div>
                                                 </div>
                                             @endif
 
                                             @php
-                                                $maxNorm = $kinerja['maxByCriteria'][(int)$d->performance_criteria_id] ?? null;
-                                                $maxNorm = $maxNorm !== null ? (float)$maxNorm : null;
+                                                $maxNorm =
+                                                    $kinerja['maxByCriteria'][(int) $d->performance_criteria_id] ??
+                                                    null;
+                                                $maxNorm = $maxNorm !== null ? (float) $maxNorm : null;
                                             @endphp
+
                                             <div class="pt-3 mt-2 border-t border-slate-200">
-                                                <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Nilai Kinerja Relatif (0–100)</div>
-                                                @if($rel !== null && $maxNorm && $maxNorm > 0)
+                                                <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Nilai
+                                                    Kinerja Relatif (0–100)</div>
+                                                @if ($rel !== null && $maxNorm !== null && $maxNorm > 0)
                                                     <div class="text-sm text-slate-800 font-semibold">
-                                                        {{ number_format((float)($d->score ?? 0), 2) }} / {{ number_format($maxNorm, 2) }} × 100 = {{ number_format((float)$rel, 2) }}
+                                                        {{ number_format((float) ($d->score ?? 0), 2) }} /
+                                                        {{ number_format($maxNorm, 2) }} × 100
+                                                        = {{ number_format((float) $rel, 2) }}
                                                     </div>
                                                 @else
                                                     <div class="text-sm text-slate-500">-</div>
                                                 @endif
-                                                <div class="text-xs text-slate-500">Dibandingkan terhadap nilai normalisasi tertinggi pada unit + profesi + periode yang sama. Skor relatif hanya untuk memudahkan interpretasi posisi relatif; nilai mentah dan nilai normalisasi tetap ditampilkan.</div>
                                             </div>
-                                        </div>
-
-                                        <div class="flex items-center gap-2 text-xs text-slate-500">
-                                            <i class="fa-solid fa-circle-info"></i>
-                                            <span>Nilai normalisasi berasal dari normalisasi data mentah. Nilai Kinerja (Relatif Unit) membandingkan nilai Anda terhadap skor tertinggi di unit + profesi pada periode yang sama.</span>
                                         </div>
                                     </div>
                                 </x-modal>
@@ -227,11 +279,14 @@
                             @endif
                         </td>
                     </tr>
+
                 @empty
                     <tr>
-                        <td colspan="4" class="px-4 py-6 text-center text-slate-500">Belum ada detail penilaian.</td>
+                        <td colspan="4" class="px-4 py-6 text-center text-slate-500">Belum ada detail penilaian.
+                        </td>
                     </tr>
                 @endforelse
+
             </x-ui.table>
         </x-section>
     </div>

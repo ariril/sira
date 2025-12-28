@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\AssessmentPeriod;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
@@ -48,7 +49,7 @@ class AssessmentApprovalController extends Controller
             ? DB::table('assessment_periods')->orderByDesc('start_date')->pluck('name', 'id')->prepend('(Semua)', '')
             : collect(['' => '(Semua)']);
         $activePeriodId = Schema::hasTable('assessment_periods')
-            ? DB::table('assessment_periods')->where('status', 'active')->value('id')
+            ? DB::table('assessment_periods')->where('status', AssessmentPeriod::STATUS_ACTIVE)->value('id')
             : null;
         // Default requirement: tampilkan semua periode (no filter) sampai user memilih
         $periodId = $periodFilterRequested

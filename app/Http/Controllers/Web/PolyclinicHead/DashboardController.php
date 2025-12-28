@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\PolyclinicHead;
 
 use App\Enums\ReviewStatus;
+use App\Models\AssessmentPeriod;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
@@ -94,7 +95,7 @@ class DashboardController extends Controller
         if (Schema::hasTable('assessment_periods')) {
             // Ambil hanya periode berstatus active; jika tidak ada, set null agar banner muncul
             $kinerja['periode_aktif'] = DB::table('assessment_periods')
-                ->where('status', 'active')
+                ->where('status', AssessmentPeriod::STATUS_ACTIVE)
                 ->orderByDesc('id')
                 ->first();
         }

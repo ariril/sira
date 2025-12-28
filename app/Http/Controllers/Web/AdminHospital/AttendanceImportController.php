@@ -324,7 +324,7 @@ class AttendanceImportController extends Controller
             return back()->withErrors(['file' => 'Import gagal: '.$e->getMessage()])->withInput();
         }
 
-        // Update Penilaian Saya after import (scores depend on absensi).
+        // Update Penilaian Saya after import (scores depend on attendance-derived criteria).
         if ($importPeriodId) {
             $perfSvc->recalculateForPeriodId($importPeriodId);
         }

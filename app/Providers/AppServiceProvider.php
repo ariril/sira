@@ -12,7 +12,35 @@ use App\Models\{Profession, SiteSetting, AboutPage};
 
 class AppServiceProvider extends ServiceProvider
 {
-    public function register(): void {}
+    public function register(): void
+    {
+        $this->app->singleton(\App\Services\CriteriaEngine\CriteriaRegistry::class, function () {
+            return new \App\Services\CriteriaEngine\CriteriaRegistry();
+        });
+
+        $this->app->singleton(\App\Services\CriteriaEngine\CriteriaAggregator::class, function ($app) {
+            return new \App\Services\CriteriaEngine\CriteriaAggregator(
+                $app->make(\App\Services\CriteriaEngine\CriteriaRegistry::class)
+            );
+        });
+
+        $this->app->singleton(\App\Services\CriteriaEngine\CriteriaNormalizer::class, function () {
+            return new \App\Services\CriteriaEngine\CriteriaNormalizer();
+        });
+
+        $this->app->bind(
+            \App\Services\CriteriaEngine\Contracts\WeightProvider::class,
+            \App\Services\CriteriaEngine\WeightProviders\ConfiguredWeightProvider::class
+        );
+
+        $this->app->singleton(\App\Services\CriteriaEngine\PerformanceScoreService::class, function ($app) {
+            return new \App\Services\CriteriaEngine\PerformanceScoreService(
+                $app->make(\App\Services\CriteriaEngine\CriteriaAggregator::class),
+                $app->make(\App\Services\CriteriaEngine\CriteriaNormalizer::class),
+                $app->make(\App\Services\CriteriaEngine\Contracts\WeightProvider::class),
+            );
+        });
+    }
 
     public function boot(): void
     {

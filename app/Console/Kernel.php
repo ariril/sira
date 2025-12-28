@@ -12,10 +12,12 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\ImportCriteriaMetricsCsv::class,
         \App\Console\Commands\GenerateMultiRaterInvites::class,
         \App\Console\Commands\ImportReviewInvitations::class,
+        \App\Console\Commands\SyncAssessmentPeriodsLifecycle::class,
     ];
 
     protected function schedule(Schedule $schedule): void
     {
-        // Define scheduled commands here
+        // Keep AssessmentPeriod lifecycle in sync.
+        $schedule->command('assessment-periods:sync-lifecycle')->everyMinute()->withoutOverlapping();
     }
 }

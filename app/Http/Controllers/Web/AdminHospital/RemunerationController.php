@@ -16,7 +16,6 @@ use App\Models\UnitRemunerationAllocation as Allocation;
 use App\Models\User;
 use App\Models\Unit;
 use App\Models\Profession;
-use App\Services\BestScenarioCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -126,12 +125,12 @@ class RemunerationController extends Controller
     }
 
     /**
-     * Run remuneration calculation for a given period using Best Scenario (WSM).
-     * Each published unit allocation is distributed proporsional to skor WSM
-     * (normalisasi kolom -> bobot 20% per kriteria). Tetap menambahkan bonus
-     * kontribusi tambahan yang disetujui sebagai penyesuaian akhir.
+        * Run remuneration calculation for a given period using configured WSM scores.
+        * Each published unit allocation is distributed proporsional to skor WSM
+        * (sumber: performance_assessments.total_wsm_score). Tetap menambahkan bonus
+        * kontribusi tambahan yang disetujui sebagai penyesuaian akhir.
      */
-    public function runCalculation(Request $request, BestScenarioCalculator $calculator): RedirectResponse
+        public function runCalculation(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'period_id' => ['required','integer','exists:assessment_periods,id'],
@@ -176,14 +175,13 @@ class RemunerationController extends Controller
             ->pluck('total_bonus', 'user_id');
 
         $actorId = (int) Auth::id();
-        DB::transaction(function () use ($allocations, $period, $periodId, $approvedContribs, $calculator, $actorId) {
+        DB::transaction(function () use ($allocations, $period, $periodId, $approvedContribs, $actorId) {
             foreach ($allocations as $alloc) {
                 $this->distributeAllocation(
                     $alloc,
                     $period,
                     $periodId,
                     $approvedContribs,
-                    $calculator,
                     $alloc->profession_id,
                     (float) $alloc->amount,
                     $actorId
@@ -195,7 +193,7 @@ class RemunerationController extends Controller
         });
 
         return redirect()->route('admin_rs.remunerations.calc.index', ['period_id' => $periodId])
-            ->with('status', 'Perhitungan selesai dengan Best Scenario WSM.');
+            ->with('status', 'Perhitungan selesai (berdasarkan skor kinerja WSM terkonfigurasi).');
     }
 
     /**
@@ -301,7 +299,7 @@ class RemunerationController extends Controller
         }
     }
 
-    private function distributeAllocation(Allocation $alloc, $period, int $periodId, $approvedContribs, BestScenarioCalculator $calculator, ?int $professionId = null, ?float $overrideAmount = null, ?int $actorId = null): void
+    private function distributeAllocation(Allocation $alloc, $period, int $periodId, $approvedContribs, ?int $professionId = null, ?float $overrideAmount = null, ?int $actorId = null): void
     {
         $users = User::query()
             ->where('unit_id', $alloc->unit_id)

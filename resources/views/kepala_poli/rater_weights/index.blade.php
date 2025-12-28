@@ -4,13 +4,34 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
+        @if(session('status'))
+            <div class="p-4 rounded-xl border text-sm bg-emerald-50 border-emerald-200 text-emerald-800">
+                {{ session('status') }}
+            </div>
+        @endif
+
+        @if($errors->any())
+            <div class="p-4 rounded-xl border text-sm bg-rose-50 border-rose-200 text-rose-800">
+                <div class="font-semibold">Tidak dapat memproses permintaan.</div>
+                <ul class="mt-1 list-disc pl-5">
+                    @foreach($errors->all() as $err)
+                        <li>{{ $err }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
             <form method="GET" class="grid gap-4 md:grid-cols-12 items-end">
-                <div class="md:col-span-4">
+                <div class="md:col-span-3">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
                     <x-ui.select name="assessment_period_id" :options="$periods->pluck('name','id')" :value="request('assessment_period_id')" placeholder="Semua" />
                 </div>
-                <div class="md:col-span-4">
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
+                    <x-ui.select name="performance_criteria_id" :options="$criteriaOptions" :value="request('performance_criteria_id')" placeholder="Semua" />
+                </div>
+                <div class="md:col-span-3">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Profesi</label>
                     <x-ui.select name="assessee_profession_id" :options="$professions->pluck('name','id')" :value="request('assessee_profession_id')" placeholder="Semua" />
                 </div>
@@ -18,8 +39,8 @@
                     <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
                     <x-ui.select name="status" :options="['pending'=>'Pending','active'=>'Aktif','rejected'=>'Ditolak','archived'=>'Arsip','all'=>'Semua']" :value="$filters['status'] ?? 'pending'" />
                 </div>
-                <div class="md:col-span-2 flex gap-2">
-                    <x-ui.button type="submit" variant="success" class="w-full">Filter</x-ui.button>
+                <div class="md:col-span-1 flex gap-2">
+                    <x-ui.button type="submit" variant="outline" class="w-full">Filter</x-ui.button>
                 </div>
             </form>
         </div>
@@ -35,6 +56,8 @@
                 <x-slot name="head">
                     <tr>
                         <th class="px-6 py-4 text-left">Periode</th>
+                        <th class="px-6 py-4 text-left">Unit</th>
+                        <th class="px-6 py-4 text-left">Kriteria</th>
                         <th class="px-6 py-4 text-left">Profesi</th>
                         <th class="px-6 py-4 text-left">Tipe Penilai</th>
                         <th class="px-6 py-4 text-right">Bobot (%)</th>
@@ -49,8 +72,10 @@
                     @php($st = $row->status?->value ?? (string) $row->status)
                     <tr class="hover:bg-slate-50">
                         <td class="px-6 py-4">{{ $row->period?->name ?? '-' }}</td>
+                        <td class="px-6 py-4">{{ $row->unit?->name ?? '-' }}</td>
+                        <td class="px-6 py-4">{{ $row->criteria?->name ?? '-' }}</td>
                         <td class="px-6 py-4">{{ $row->assesseeProfession?->name ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $assessorTypes[$row->assessor_type] ?? $row->assessor_type }}</td>
+                        <td class="px-6 py-4">{{ $row->assessor_label }}</td>
                         <td class="px-6 py-4 text-right">{{ number_format((float) $row->weight, 2) }}</td>
                         <td class="px-6 py-4">
                             @if($st==='active')
@@ -79,7 +104,7 @@
                                 <div class="inline-flex gap-2">
                                     <form method="POST" action="{{ route('kepala_poliklinik.rater_weights.approve', $row) }}" onsubmit="return confirm('Setujui dan aktifkan bobot ini? Bobot aktif sebelumnya (jika ada) akan diarsipkan.')">
                                         @csrf
-                                        <x-ui.button type="submit" variant="success" class="h-10 px-4">Approve</x-ui.button>
+                                        <x-ui.button type="submit" variant="violet" class="h-10 px-4">Approve</x-ui.button>
                                     </form>
                                     <form method="POST" action="{{ route('kepala_poliklinik.rater_weights.reject', $row) }}" onsubmit="return confirm('Tolak bobot ini?')">
                                         @csrf
@@ -93,7 +118,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="px-6 py-10 text-center text-sm text-slate-500">Belum ada data.</td>
+                        <td colspan="10" class="px-6 py-10 text-center text-sm text-slate-500">Belum ada data.</td>
                     </tr>
                 @endforelse
             </x-ui.table>

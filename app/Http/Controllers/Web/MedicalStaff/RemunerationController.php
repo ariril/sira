@@ -226,7 +226,7 @@ class RemunerationController extends Controller
             : 'Alokasi profesi-unit';
 
         $quantities = [
-            ['label' => 'Absensi (hari)', 'value' => data_get($calc, 'komponen.absensi.jumlah'), 'icon' => 'fa-calendar-check'],
+            ['label' => 'Kehadiran (Absensi) (hari)', 'value' => data_get($calc, 'komponen.absensi.jumlah'), 'icon' => 'fa-calendar-check'],
             ['label' => 'Kedisiplinan 360', 'value' => data_get($calc, 'komponen.kedisiplinan.jumlah'), 'icon' => 'fa-clipboard-check'],
             ['label' => 'Pasien Ditangani', 'value' => $patientsHandled ?? data_get($calc, 'komponen.pasien_ditangani.jumlah'), 'icon' => 'fa-user-injured'],
             ['label' => 'Jumlah Review', 'value' => $reviewCount ?: data_get($calc, 'komponen.review_pelanggan.jumlah'), 'icon' => 'fa-star'],
