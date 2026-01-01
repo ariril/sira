@@ -14,12 +14,18 @@ use Illuminate\Http\RedirectResponse;
 use App\Models\AdditionalTask;
 use App\Models\AdditionalTaskClaim;
 use App\Models\AssessmentPeriod;
-use App\Services\AdditionalTaskStatusService;
+use App\Services\AdditionalTasks\AdditionalTaskClaimNoticeService;
+use App\Services\AdditionalTasks\AdditionalTaskStatusService;
 use Illuminate\Support\Carbon;
 use App\Support\AssessmentPeriodGuard;
 
 class AdditionalContributionController extends Controller
 {
+    public function __construct(
+        private readonly AdditionalTaskClaimNoticeService $additionalTaskClaimNoticeService,
+    ) {
+    }
+
     /**
      * Show available and claimed/completed additional tasks for the user.
      */
@@ -41,17 +47,11 @@ class AdditionalContributionController extends Controller
 
             $availableTasks = AdditionalTask::query()
                 ->with(['period:id,name'])
-                ->withCount([
-                    'claims as active_claims' => function ($query) {
-                        $query->whereIn('status', AdditionalTaskStatusService::ACTIVE_STATUSES);
-                    },
-                ])
-                ->where('unit_id', $unitId)
-                ->whereHas('period', fn($q) => $q->where('status', AssessmentPeriod::STATUS_ACTIVE))
-                ->where('status', 'open')
-                ->where(function ($q) use ($me) {
-                    $q->whereNull('created_by')->orWhere('created_by', '!=', $me->id);
-                })
+                ->withActiveClaimsCount()
+                ->forUnit($unitId)
+                ->forActivePeriod()
+                ->open()
+                ->excludeCreator($me->id)
                 ->orderBy('due_date')
                 ->orderBy('due_time')
                 ->get();
@@ -96,10 +96,7 @@ class AdditionalContributionController extends Controller
                 ->where('user_id', $me->id)
                 ->orderByDesc('claimed_at');
 
-            $latestRejected = (clone $claimBase)
-                ->where('status', 'rejected')
-                ->latest('updated_at')
-                ->first();
+            $latestRejected = $this->additionalTaskClaimNoticeService->latestRejectedClaimModelForUser((int) $me->id);
 
             $currentClaims = (clone $claimBase)
                 ->whereIn('status', ['active', 'submitted', 'validated'])
@@ -115,13 +112,11 @@ class AdditionalContributionController extends Controller
             $today = Carbon::now($tz)->toDateString();
             $missedTasks = AdditionalTask::query()
                 ->with(['period:id,name'])
-                ->where('unit_id', $unitId)
-                ->whereHas('period', fn($q) => $q->where('status', AssessmentPeriod::STATUS_ACTIVE))
-                ->where('status', '!=', 'draft')
+                ->forUnit($unitId)
+                ->forActivePeriod()
+                ->notDraft()
                 ->whereDate('due_date', '<', $today)
-                ->where(function ($q) use ($me) {
-                    $q->whereNull('created_by')->orWhere('created_by', '!=', $me->id);
-                })
+                ->excludeCreator($me->id)
                 ->whereDoesntHave('claims', function ($q) use ($me) {
                     $q->where('user_id', $me->id);
                 })
@@ -156,7 +151,7 @@ class AdditionalContributionController extends Controller
             ->join('assessment_periods as ap','ap.id','=','t.assessment_period_id')
             ->selectRaw('c.id as claim_id, t.title')
             ->where('c.user_id', $me->id)
-            ->whereIn('c.status',['active','submitted','validated','approved'])
+            ->whereIn('c.status', AdditionalTaskStatusService::ACTIVE_STATUSES)
             ->where('ap.status', AssessmentPeriod::STATUS_ACTIVE)
             ->orderByDesc('c.id')
             ->get();

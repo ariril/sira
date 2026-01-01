@@ -10,9 +10,15 @@ use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
 use Carbon\Carbon;
 use App\Models\AssessmentPeriod;
+use App\Services\AdditionalTasks\AdditionalTaskClaimNoticeService;
 
 class DashboardController extends Controller
 {
+    public function __construct(
+        private readonly AdditionalTaskClaimNoticeService $additionalTaskClaimNoticeService,
+    ) {
+    }
+
     public function index()
     {
         $userId = Auth::id();
@@ -118,14 +124,7 @@ class DashboardController extends Controller
 
         // Latest rejected additional task claim (for notice)
         if (Schema::hasTable('additional_task_claims') && Schema::hasTable('additional_tasks')) {
-            $rejectedClaim = DB::table('additional_task_claims as c')
-                ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
-                ->leftJoin('assessment_periods as ap', 'ap.id', '=', 't.assessment_period_id')
-                ->selectRaw('c.id, c.updated_at, c.penalty_note, t.title, ap.name as period_name')
-                ->where('c.user_id', $userId)
-                ->where('c.status', 'rejected')
-                ->orderByDesc('c.updated_at')
-                ->first();
+            $rejectedClaim = $this->additionalTaskClaimNoticeService->latestRejectedClaimForUser((int) $userId);
 
             if ($rejectedClaim) {
                 $updatedTs = $rejectedClaim->updated_at ? Carbon::parse($rejectedClaim->updated_at)->timestamp : null;

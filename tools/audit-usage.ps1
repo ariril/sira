@@ -37,12 +37,30 @@ function Find-FirstHit {
     [Parameter(Mandatory=$true)][string]$ExcludeFile
   )
 
+  function Is-CommentLine {
+    param([string]$Line)
+    if ($null -eq $Line) { return $false }
+    $t = $Line.Trim()
+
+    return (
+      $t.StartsWith('//') -or
+      $t.StartsWith('#') -or
+      $t.StartsWith('/*') -or
+      $t.StartsWith('*/') -or
+      $t.StartsWith('*') -or
+      $t.StartsWith('{{--') -or
+      $t.StartsWith('<!--')
+    )
+  }
+
   foreach ($hf in $haystackFiles) {
     if ($hf.FullName -eq $ExcludeFile) { continue }
 
-    $m = Select-String -LiteralPath $hf.FullName -SimpleMatch -Pattern $Pattern -List -ErrorAction SilentlyContinue
-    if ($m) {
-      return $m
+    $matches = Select-String -LiteralPath $hf.FullName -SimpleMatch -Pattern $Pattern -ErrorAction SilentlyContinue
+    foreach ($m in $matches) {
+      if (-not (Is-CommentLine -Line $m.Line)) {
+        return $m
+      }
     }
   }
 

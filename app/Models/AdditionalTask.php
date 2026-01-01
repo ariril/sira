@@ -5,7 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Carbon;
-use App\Services\AdditionalTaskStatusService;
+use App\Services\AdditionalTasks\AdditionalTaskStatusService;
+use Illuminate\Database\Eloquent\Builder;
+use App\Models\AssessmentPeriod;
 
 class AdditionalTask extends Model
 {
@@ -83,5 +85,53 @@ class AdditionalTask extends Model
     {
         $latest = $this->fresh() ?? $this;
         AdditionalTaskStatusService::sync($latest);
+    }
+
+    /* ============================================================
+     |  SCOPES
+     ============================================================ */
+
+    public function scopeForUnit(Builder $query, ?int $unitId): Builder
+    {
+        if ($unitId === null) {
+            return $query->whereNull('unit_id');
+        }
+
+        return $query->where('unit_id', $unitId);
+    }
+
+    public function scopeForActivePeriod(Builder $query): Builder
+    {
+        return $query->whereHas('period', fn (Builder $q) => $q->where('status', AssessmentPeriod::STATUS_ACTIVE));
+    }
+
+    public function scopeOpen(Builder $query): Builder
+    {
+        return $query->where('status', 'open');
+    }
+
+    public function scopeNotDraft(Builder $query): Builder
+    {
+        return $query->where('status', '!=', 'draft');
+    }
+
+    public function scopeExcludeCreator(Builder $query, ?int $userId): Builder
+    {
+        if (!$userId) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $q) use ($userId) {
+            $q->whereNull('created_by')->orWhere('created_by', '!=', $userId);
+        });
+    }
+
+    public function scopeWithActiveClaimsCount(Builder $query): Builder
+    {
+        return $query->withCount([
+            'claims as active_claims' => function (Builder $q) {
+                $q->whereIn('status', AdditionalTaskStatusService::ACTIVE_STATUSES);
+            },
+        ]);
     }
 }

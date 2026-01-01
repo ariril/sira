@@ -6,20 +6,23 @@ use App\Http\Controllers\Controller;
 use App\Models\CriteriaMetric;
 use App\Models\PerformanceCriteria;
 use App\Models\AssessmentPeriod;
-use App\Services\MetricPatientImportService;
-use App\Services\PeriodPerformanceAssessmentService;
+use App\Services\Reviews\Imports\MetricPatientImportService;
+use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
+use App\Services\Metrics\Imports\CriteriaMetricsTemplateBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
-use PhpOffice\PhpSpreadsheet\Cell\DataType;
-use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use App\Support\AssessmentPeriodGuard;
 
 class CriteriaMetricsController extends Controller
 {
+    public function __construct(
+        private readonly MetricPatientImportService $metricPatientImportService,
+        private readonly CriteriaMetricsTemplateBuilder $criteriaMetricsTemplateBuilder,
+    ) {
+    }
+
     public function index(Request $request): View
     {
         $periodId = (int) $request->query('period_id');
@@ -127,8 +130,7 @@ class CriteriaMetricsController extends Controller
         AssessmentPeriodGuard::requireLocked($targetPeriod, 'Import Metrics');
 
         try {
-            $svc = app(MetricPatientImportService::class);
-            $result = $svc->import(
+            $result = $this->metricPatientImportService->import(
                 file: $request->file('file'),
                 criteria: $criteria,
                 period: $targetPeriod,
@@ -173,36 +175,7 @@ class CriteriaMetricsController extends Controller
         $period = AssessmentPeriod::findOrFail((int) $data['period_id']);
         AssessmentPeriodGuard::requireLocked($period, 'Generate Template Metrics');
 
-        $sheet = new Spreadsheet();
-        $sheet->getProperties()
-            ->setCreator('SIRA')
-            ->setTitle('Template Import Metrics - '.$criteria->name);
-        $ws = $sheet->getActiveSheet();
-        $ws->setTitle('Template Import');
-
-        $headers = ['no_rm', 'patient_name', 'patient_phone', 'clinic', 'employee_numbers'];
-        foreach ($headers as $idx => $head) {
-            $col = Coordinate::stringFromColumnIndex($idx + 1);
-            $ws->setCellValue($col.'1', $head);
-        }
-
-        // Example row
-        $ws->setCellValueExplicit('A2', 'RM00123', DataType::TYPE_STRING);
-        $ws->setCellValue('B2', 'Contoh Pasien');
-        $ws->setCellValueExplicit('C2', '081234567890', DataType::TYPE_STRING);
-        $ws->setCellValue('D2', 'Poli Umum');
-        $ws->setCellValueExplicit('E2', '197909102008032001,197511132008031001', DataType::TYPE_STRING);
-
-        // Keep these columns as text
-        $ws->getStyle('A2:A2')->getNumberFormat()->setFormatCode('@');
-        $ws->getStyle('C2:C2')->getNumberFormat()->setFormatCode('@');
-        $ws->getStyle('E2:E2')->getNumberFormat()->setFormatCode('@');
-
-        $tmp = tempnam(sys_get_temp_dir(), 'metric_tpl_');
-        $writer = new Xlsx($sheet);
-        $writer->save($tmp);
-
-        $filename = 'template-import-metrics-'.$criteria->id.'-'.$period->id.'.xlsx';
-        return response()->download($tmp, $filename)->deleteFileAfterSend(true);
+        $built = $this->criteriaMetricsTemplateBuilder->build($criteria, $period);
+        return response()->download($built['tmpPath'], $built['fileName'])->deleteFileAfterSend(true);
     }
 }

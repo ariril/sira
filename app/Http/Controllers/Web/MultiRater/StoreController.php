@@ -12,7 +12,7 @@ use App\Models\MultiRaterAssessment;
 use App\Models\MultiRaterAssessmentDetail;
 use App\Models\CriteriaRaterRule;
 use App\Models\User;
-use App\Services\PeriodPerformanceAssessmentService;
+use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use App\Services\MultiRater\CriteriaResolver;
 use App\Services\MultiRater\AssessorTypeResolver;
 

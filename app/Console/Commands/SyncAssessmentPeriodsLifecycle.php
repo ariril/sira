@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\AssessmentPeriodLifecycleService;
+use App\Services\AssessmentPeriods\AssessmentPeriodLifecycleService;
 use Illuminate\Console\Command;
 
 class SyncAssessmentPeriodsLifecycle extends Command

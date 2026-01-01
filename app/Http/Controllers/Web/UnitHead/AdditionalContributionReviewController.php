@@ -15,10 +15,11 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 use App\Notifications\ContributionApprovedNotification;
 use App\Notifications\ContributionRejectedNotification;
-use App\Services\PeriodPerformanceAssessmentService;
+use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use App\Models\AdditionalTaskClaim;
 use App\Support\AssessmentPeriodGuard;
 use App\Models\AssessmentPeriod;
+use App\Services\AdditionalTasks\AdditionalTaskStatusService;
 
 class AdditionalContributionReviewController extends Controller
 {
@@ -79,7 +80,7 @@ class AdditionalContributionReviewController extends Controller
         // Jika kontribusi ini terkait klaim tugas tambahan, sinkronkan status klaim agar UI klaim & daftar tugas ikut berubah.
         if (!empty($additionalContribution->claim_id)) {
             $claim = AdditionalTaskClaim::with('task')->find($additionalContribution->claim_id);
-            if ($claim && $claim->task?->unit_id === $me->unit_id && in_array($claim->status, ['submitted', 'validated'])) {
+            if ($claim && $claim->task?->unit_id === $me->unit_id && in_array($claim->status, AdditionalTaskStatusService::REVIEW_WAITING_STATUSES)) {
                 if ($claim->approve($me, 'Disetujui melalui Kontribusi Tambahan')) {
                     $claim->task?->refreshLifecycleStatus();
                 }
@@ -120,7 +121,7 @@ class AdditionalContributionReviewController extends Controller
         // Jika kontribusi ini terkait klaim tugas tambahan, sinkronkan status klaim.
         if (!empty($additionalContribution->claim_id)) {
             $claim = AdditionalTaskClaim::with('task')->find($additionalContribution->claim_id);
-            if ($claim && $claim->task?->unit_id === $me->unit_id && in_array($claim->status, ['submitted', 'validated'])) {
+            if ($claim && $claim->task?->unit_id === $me->unit_id && in_array($claim->status, AdditionalTaskStatusService::REVIEW_WAITING_STATUSES)) {
                 if ($claim->reject($data['comment'] ?? 'Ditolak melalui Kontribusi Tambahan', $me)) {
                     $claim->task?->refreshLifecycleStatus();
                 }

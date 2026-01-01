@@ -48,8 +48,8 @@ final class AssessmentPeriodGuard
 
         // Keep lifecycle in sync (auto draft/active/locked by date + auto close)
         try {
-            if (class_exists(\App\Services\AssessmentPeriodLifecycleService::class)) {
-                app(\App\Services\AssessmentPeriodLifecycleService::class)->sync();
+            if (class_exists(\App\Services\AssessmentPeriods\AssessmentPeriodLifecycleService::class)) {
+                app(\App\Services\AssessmentPeriods\AssessmentPeriodLifecycleService::class)->sync();
             } else {
                 AssessmentPeriod::syncByNow();
             }

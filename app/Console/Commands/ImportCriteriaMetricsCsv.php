@@ -8,6 +8,7 @@ use App\Models\CriteriaMetric;
 use App\Models\MetricImportBatch;
 use App\Models\AssessmentPeriod;
 use App\Models\PerformanceCriteria;
+use App\Services\Metrics\Imports\CsvReader;
 
 class ImportCriteriaMetricsCsv extends Command
 {
@@ -17,18 +18,20 @@ class ImportCriteriaMetricsCsv extends Command
     public function handle()
     {
         $path = $this->argument('path');
-        if (!is_readable($path)) { $this->error('File not readable: '.$path); return 1; }
-        $fh = fopen($path, 'r');
-        if (!$fh) { $this->error('Cannot open file'); return 1; }
-        $header = fgetcsv($fh);
-        if (!$header) { $this->error('Empty CSV'); return 1; }
-        $map = array_flip($header);
+        try {
+            [$header, $rows] = app(CsvReader::class)->read((string) $path);
+        } catch (\Throwable $e) {
+            $this->error($e->getMessage());
+            return 1;
+        }
+
+        $map = array_flip($header ?: []);
         $required = ['employee_number','assessment_period_id','performance_criteria_id','value_numeric'];
         foreach ($required as $k) if (!isset($map[$k])) { $this->error("Missing column $k"); return 1; }
 
         $count = 0; $skipped = 0;
         $batchesByPeriodId = [];
-        while (($row = fgetcsv($fh)) !== false) {
+        foreach ($rows as $row) {
             $emp = (string)($row[$map['employee_number']] ?? '');
             $periodId = (int)($row[$map['assessment_period_id']] ?? 0);
             $critId = (int)($row[$map['performance_criteria_id']] ?? 0);
@@ -69,7 +72,6 @@ class ImportCriteriaMetricsCsv extends Command
             );
             $count++;
         }
-        fclose($fh);
         $this->info("Imported {$count} metrics, skipped {$skipped}");
         return 0;
     }

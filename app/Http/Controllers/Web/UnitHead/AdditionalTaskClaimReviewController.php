@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\UnitHead;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ReviewAdditionalTaskClaimRequest;
 use App\Models\AdditionalTaskClaim;
+use App\Services\AdditionalTasks\AdditionalTaskStatusService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -32,7 +33,7 @@ class AdditionalTaskClaimReviewController extends Controller
             ->join('users as u','u.id','=','c.user_id')
             ->selectRaw("c.id, c.status, c.claimed_at, c.result_file_path, c.result_note, t.due_date, t.points, t.bonus_amount, t.policy_doc_path, t.title as task_title, ap.name as period_name, u.name as user_name")
             ->where('t.unit_id', $me->unit_id)
-            ->whereIn('c.status', ['submitted','validated'])
+            ->whereIn('c.status', AdditionalTaskStatusService::REVIEW_WAITING_STATUSES)
             ->orderByDesc('c.id')
             ->paginate(30);
         return view('kepala_unit.additional_task_claims.review_index',[ 'claims' => $claims ]);

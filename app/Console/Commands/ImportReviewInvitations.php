@@ -10,13 +10,21 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use PhpOffice\PhpSpreadsheet\IOFactory;
+use App\Services\Reviews\Imports\StaffNumbersParser;
+use App\Services\Imports\TabularFileReader;
 
 class ImportReviewInvitations extends Command
 {
     protected $signature = 'reviews:import-invitations {file : Path to .xlsx file} {--expires-days=5 : Invitation expiry in days}';
 
     protected $description = 'Import patient review invitations from Excel (.xlsx) and generate invitation links.';
+
+    public function __construct(
+        private readonly TabularFileReader $tabularFileReader,
+        private readonly StaffNumbersParser $staffNumbersParser,
+    ) {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -29,8 +37,12 @@ class ImportReviewInvitations extends Command
             return 1;
         }
 
-        $sheet = IOFactory::load($file)->getActiveSheet();
-        $highestRow = (int) $sheet->getHighestDataRow();
+        $ext = strtolower((string) pathinfo($file, PATHINFO_EXTENSION));
+        [$header, $rows] = $this->tabularFileReader->read($file, $ext);
+        if (!$header) {
+            $this->error('File kosong atau header tidak ditemukan.');
+            return 1;
+        }
 
         $this->info('Expected columns:');
         $this->line('A=registration_ref, B=patient_name, C=phone, D=unit, E=staff_numbers (semicolon separated employee_number)');
@@ -38,39 +50,40 @@ class ImportReviewInvitations extends Command
         $created = 0;
         $skipped = 0;
 
-        for ($row = 2; $row <= $highestRow; $row++) {
-            $registrationRef = trim((string) $sheet->getCell("A{$row}")->getValue());
-            $patientName = trim((string) $sheet->getCell("B{$row}")->getValue());
-            $phone = trim((string) $sheet->getCell("C{$row}")->getValue());
-            $unitName = trim((string) $sheet->getCell("D{$row}")->getValue());
-            $staffNumbersRaw = (string) $sheet->getCell("E{$row}")->getValue();
+        foreach ($rows as $i => $row) {
+            $rowNo = $i + 2; // preserve original Excel row numbers (data starts at row 2)
+            $registrationRef = trim((string) ($row[0] ?? ''));
+            $patientName = trim((string) ($row[1] ?? ''));
+            $phone = trim((string) ($row[2] ?? ''));
+            $unitName = trim((string) ($row[3] ?? ''));
+            $staffNumbersRaw = (string) ($row[4] ?? '');
 
             if ($patientName === '' && $registrationRef === '' && trim($staffNumbersRaw) === '') {
                 continue;
             }
 
             if ($registrationRef === '') {
-                $this->warn("Row {$row}: skipped (missing registration_ref)");
+                $this->warn("Row {$rowNo}: skipped (missing registration_ref)");
                 $skipped++;
                 continue;
             }
 
             if ($unitName === '') {
-                $this->warn("Row {$row}: skipped (missing unit)");
+                $this->warn("Row {$rowNo}: skipped (missing unit)");
                 $skipped++;
                 continue;
             }
 
             $unit = Unit::query()->whereRaw('LOWER(name) = ?', [Str::lower($unitName)])->first();
             if (!$unit) {
-                $this->warn("Row {$row}: skipped (unit not found: {$unitName})");
+                $this->warn("Row {$rowNo}: skipped (unit not found: {$unitName})");
                 $skipped++;
                 continue;
             }
 
-            $staffNumbers = $this->parseStaffNumbers($staffNumbersRaw);
+            $staffNumbers = $this->staffNumbersParser->parse($staffNumbersRaw);
             if (empty($staffNumbers)) {
-                $this->warn("Row {$row}: skipped (no staff_numbers)");
+                $this->warn("Row {$rowNo}: skipped (no staff_numbers)");
                 $skipped++;
                 continue;
             }
@@ -78,7 +91,7 @@ class ImportReviewInvitations extends Command
             $staff = User::query()->whereIn('employee_number', $staffNumbers)->get(['id', 'employee_number']);
             $missing = collect($staffNumbers)->diff($staff->pluck('employee_number')->map(fn ($v) => (string) $v))->values();
             if ($missing->isNotEmpty()) {
-                $this->warn("Row {$row}: skipped (staff not found: {$missing->implode(', ')})");
+                $this->warn("Row {$rowNo}: skipped (staff not found: {$missing->implode(', ')})");
                 $skipped++;
                 continue;
             }
@@ -92,7 +105,7 @@ class ImportReviewInvitations extends Command
                 ->exists();
 
             if ($duplicate) {
-                $this->warn("Row {$row}: skipped (duplicate active invitation)");
+                $this->warn("Row {$rowNo}: skipped (duplicate active invitation)");
                 $skipped++;
                 continue;
             }
@@ -127,84 +140,12 @@ class ImportReviewInvitations extends Command
                 return [$rawToken, $url];
             });
 
-            $this->line("Row {$row}: created invitation => {$invUrl}");
+            $this->line("Row {$rowNo}: created invitation => {$invUrl}");
             $created++;
         }
 
         $this->info("Done. created={$created}, skipped={$skipped}");
         return 0;
-    }
-
-    private function parseStaffNumbers(string $raw): array
-    {
-        $raw = trim($raw);
-        if ($raw === '') {
-            return [];
-        }
-
-        $parts = preg_split('/\s*;\s*/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $out = [];
-        foreach ($parts as $p) {
-            $p = $this->normalizeEmployeeNumber((string) $p);
-            if ($p !== '') {
-                $out[] = $p;
-            }
-        }
-
-        return array_values(array_unique($out));
-    }
-
-    private function normalizeEmployeeNumber(string $raw): string
-    {
-        $raw = trim($raw);
-        if ($raw === '') {
-            return '';
-        }
-
-        if (ctype_digit($raw)) {
-            return $raw;
-        }
-
-        if (preg_match('/\d(?:\.\d+)?e[+-]?\d+/i', $raw)) {
-            $expanded = $this->expandScientificToPlainInteger($raw);
-            if ($expanded !== null && $expanded !== '') {
-                return $expanded;
-            }
-        }
-
-        return $raw;
-    }
-
-    private function expandScientificToPlainInteger(string $val): ?string
-    {
-        $val = trim($val);
-        if (!preg_match('/^([+-])?(\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/', $val, $m)) {
-            return null;
-        }
-
-        $sign = $m[1] ?? '';
-        $intPart = $m[2] ?? '';
-        $fracPart = $m[3] ?? '';
-        $exp = (int) ($m[4] ?? 0);
-
-        if ($exp < 0) {
-            return null;
-        }
-
-        $digits = $intPart . $fracPart;
-        $fracLen = strlen($fracPart);
-        $zerosToAdd = $exp - $fracLen;
-        if ($zerosToAdd < 0) {
-            return null;
-        }
-
-        $digits .= str_repeat('0', $zerosToAdd);
-        $digits = ltrim($digits, '+');
-        if ($sign === '-') {
-            $digits = '-' . $digits;
-        }
-
-        return $digits;
     }
 
     /**

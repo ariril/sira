@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAdditionalTaskRequest;
 use App\Http\Requests\UpdateAdditionalTaskRequest;
 use App\Models\AdditionalTask;
-use App\Services\AdditionalTaskStatusService;
+use App\Services\AdditionalTasks\AdditionalTaskStatusService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -54,28 +54,43 @@ class AdditionalTaskController extends Controller
         }
 
         if ($unitId && Schema::hasTable('additional_tasks')) {
-            $activeStatusesSql = "'" . implode("','", AdditionalTaskStatusService::ACTIVE_STATUSES) . "'";
-            $builder = DB::table('additional_tasks as t')
-                ->leftJoin('assessment_periods as ap', 'ap.id', '=', 't.assessment_period_id')
-                ->selectRaw(
-                    "t.id, t.title, t.status, t.start_date, t.start_time, t.due_date, t.due_time, t.points, t.bonus_amount, t.max_claims, ap.name as period_name, " .
-                    "(select count(*) from additional_task_claims c where c.additional_task_id = t.id and c.status in ($activeStatusesSql)) as active_claims, " .
-                    "(select count(*) from additional_task_claims c where c.additional_task_id = t.id and c.status in ('submitted','validated')) as review_waiting"
-                )
-                ->where('t.unit_id', $unitId)
-                ->orderByDesc('t.id');
+            $builder = AdditionalTask::query()
+                ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'additional_tasks.assessment_period_id')
+                ->select([
+                    'additional_tasks.id',
+                    'additional_tasks.title',
+                    'additional_tasks.status',
+                    'additional_tasks.start_date',
+                    'additional_tasks.start_time',
+                    'additional_tasks.due_date',
+                    'additional_tasks.due_time',
+                    'additional_tasks.points',
+                    'additional_tasks.bonus_amount',
+                    'additional_tasks.max_claims',
+                ])
+                ->addSelect('ap.name as period_name')
+                ->withCount([
+                    'claims as active_claims' => function ($q) {
+                        $q->whereIn('status', AdditionalTaskStatusService::ACTIVE_STATUSES);
+                    },
+                    'claims as review_waiting' => function ($q) {
+                        $q->whereIn('status', AdditionalTaskStatusService::REVIEW_WAITING_STATUSES);
+                    },
+                ])
+                ->where('additional_tasks.unit_id', $unitId)
+                ->orderByDesc('additional_tasks.id');
 
             if ($q !== '') {
                 $builder->where(function ($w) use ($q) {
-                    $w->where('t.title', 'like', "%$q%")
-                      ->orWhere('ap.name', 'like', "%$q%");
+                    $w->where('additional_tasks.title', 'like', "%$q%")
+                        ->orWhere('ap.name', 'like', "%$q%");
                 });
             }
             if (!empty($status)) {
-                $builder->where('t.status', $status);
+                $builder->where('additional_tasks.status', $status);
             }
             if (!empty($periodId)) {
-                $builder->where('t.assessment_period_id', (int) $periodId);
+                $builder->where('additional_tasks.assessment_period_id', (int) $periodId);
             }
 
             $items = $builder->paginate($perPage)->withQueryString();

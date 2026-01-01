@@ -16,7 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use App\Services\AdditionalTaskStatusService;
+use App\Services\AdditionalTasks\AdditionalTaskStatusService;
 use Illuminate\Support\Carbon;
 use App\Support\AssessmentPeriodGuard;
 
@@ -75,7 +75,7 @@ class AdditionalTaskClaimController extends Controller
             if ($already) { $reason = 'Anda sudah mengklaim tugas ini.'; return; }
 
             $used = AdditionalTaskClaim::where('additional_task_id', $task->id)
-                ->whereIn('status', AdditionalTaskStatusService::ACTIVE_STATUSES)
+                ->quotaCounted()
                 ->count();
             if (!empty($task->max_claims) && $used >= (int)$task->max_claims) { $reason = 'Kuota klaim habis.'; return; }
 
@@ -135,7 +135,7 @@ class AdditionalTaskClaimController extends Controller
         $task = $claim->task;
         if ($task && $task->status === 'open') {
             $activeCount = AdditionalTaskClaim::where('additional_task_id', $task->id)
-                ->whereIn('status', AdditionalTaskStatusService::ACTIVE_STATUSES)
+                ->quotaCounted()
                 ->count();
             if ($activeCount < (int)$task->max_claims) {
                 $targets = User::query()

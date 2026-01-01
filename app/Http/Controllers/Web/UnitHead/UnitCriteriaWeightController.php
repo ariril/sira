@@ -9,17 +9,23 @@ use App\Models\PerformanceCriteria;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
-use App\Services\RaterWeightGenerator;
+use App\Services\RaterWeights\RaterWeightGenerator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class UnitCriteriaWeightController extends Controller
 {
+    public function __construct(
+        private readonly RaterWeightGenerator $raterWeightGenerator,
+    ) {
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -28,6 +34,11 @@ class UnitCriteriaWeightController extends Controller
         $this->authorizeAccess();
         $me = Auth::user();
         $unitId = $me?->unit_id;
+
+        $unitName = null;
+        if ($unitId && Schema::hasTable('units')) {
+            $unitName = DB::table('units')->where('id', $unitId)->value('name');
+        }
 
         // Filters
         $perPageOptions = [10, 20, 30, 50];
@@ -171,6 +182,7 @@ class UnitCriteriaWeightController extends Controller
             'activeTotal' => $activeTotal,
             'hasDraftOrRejected' => $hasDraftOrRejected,
             'previousPeriod' => $previousPeriod,
+            'unitName' => $unitName,
         ]);
     }
 
@@ -194,7 +206,7 @@ class UnitCriteriaWeightController extends Controller
         $data = $request->validate([
             'assessment_period_id'    => ['nullable','integer','exists:assessment_periods,id'],
             'performance_criteria_id' => ['required','integer','exists:performance_criterias,id'],
-            'weight'                  => ['required','numeric','min:0','max:100'],
+            'weight'                  => ['required','integer','min:0','max:100'],
         ]);
         // Gunakan periode aktif jika tidak dikirim / abaikan input manual
         $activePeriodId = DB::table('assessment_periods')->where('status', AssessmentPeriod::STATUS_ACTIVE)->value('id');
@@ -261,7 +273,7 @@ class UnitCriteriaWeightController extends Controller
                 if ($assessorTypes->count() === 1) {
                     $assessorType = (string) $assessorTypes->first();
 
-                    $sync = app(\App\Services\RaterWeightGenerator::class)->syncForUnitPeriod($unitId, (int) $data['assessment_period_id']);
+                    $sync = $this->raterWeightGenerator->syncForUnitPeriod($unitId, (int) $data['assessment_period_id']);
                     $created = (int) ($sync['created'] ?? 0);
                     if ($created > 0) {
                         $extraStatus = "Aturan kriteria 360 '{$criteria->name}' hanya memiliki 1 tipe penilai ('{$assessorType}'). Sistem menyinkronkan draft Bobot Penilai 360 (dibuat {$created} baris baru).";
@@ -291,17 +303,20 @@ class UnitCriteriaWeightController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id): RedirectResponse
+    public function update(Request $request, string $id): RedirectResponse|JsonResponse
     {
         $this->authorizeAccess();
         $me = Auth::user();
         $data = $request->validate([
-            'weight' => ['required','numeric','min:0','max:100'],
+            'weight' => ['required','integer','min:0','max:100'],
         ]);
         $row = DB::table('unit_criteria_weights')->where('id', $id)->first();
         if (!$row) abort(404);
         if ((int)$row->unit_id !== (int)$me->unit_id) abort(403);
         if (!in_array((string)$row->status, ['draft','rejected'], true)) {
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'message' => 'Hanya draft/ditolak yang bisa diedit.'], 422);
+            }
             return back()->withErrors(['status' => 'Hanya draft/ditolak yang bisa diedit.']);
         }
         // Validasi total tidak melebihi 100 saat update
@@ -312,12 +327,19 @@ class UnitCriteriaWeightController extends Controller
             ->where('id', '!=', $id)
             ->sum('weight');
         if (($othersSum + (float)$data['weight']) > 100) {
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'message' => 'Total bobot akan melebihi 100%. Kurangi nilai bobot.'], 422);
+            }
             return back()->with('danger', 'Total bobot akan melebihi 100%. Kurangi nilai bobot.');
         }
         DB::table('unit_criteria_weights')->where('id', $id)->update([
             'weight' => $data['weight'],
             'updated_at' => now(),
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'message' => 'Bobot diperbarui.', 'weight' => (int) $data['weight']]);
+        }
         return back()->with('status', 'Bobot diperbarui.');
     }
 
@@ -407,7 +429,7 @@ class UnitCriteriaWeightController extends Controller
         }
 
         if ($has360) {
-            app(RaterWeightGenerator::class)->syncForUnitPeriod((int) $unitId, (int) $periodId);
+            $this->raterWeightGenerator->syncForUnitPeriod((int) $unitId, (int) $periodId);
 
             return back()
                 ->with('status', 'Seluruh bobot diajukan untuk persetujuan.')

@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\User;
-use App\Services\PeriodPerformanceAssessmentService;
+use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 
 class AggregateCriteriaMetrics extends Command
 {

@@ -57,7 +57,7 @@ Tujuan: memastikan hasil normalisasi + WSM yang tampil/tersimpan sama dengan Exc
 
 **Langkah (DB → Service → UI)**
 1) Seed data mentah (jika perlu data uji yang konsisten):
-   - Jalankan `php artisan db:seed --class=FiveStaffKpiSeeder`
+  - Jalankan `php artisan db:seed --class=EightStaffKpiSeeder`
    - Pastikan seeder hanya mengisi data mentah (absensi/360/kontribusi/metric/rating) dan tidak menghitung skor.
 
 2) Recalculate skor periode (membuat/meng-update `performance_assessments` + `performance_assessment_details`):

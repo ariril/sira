@@ -1,9 +1,37 @@
-<x-app-layout title="Bobot Kriteria Unit">
+<x-app-layout title="Bobot Kriteria {{ $unitName ?? 'Unit' }}">
     <x-slot name="header">
-        <h1 class="text-2xl font-semibold">Bobot Kriteria Unit</h1>
+        <h1 class="text-2xl font-semibold">Bobot Kriteria {{ $unitName ?? 'Unit' }}</h1>
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
+        <x-modal name="help-unit-criteria-weights" :show="false" maxWidth="2xl">
+            <div class="p-6">
+                <div class="flex items-start justify-between gap-3">
+                    <h2 class="text-lg font-semibold text-slate-800">Informasi Penggunaan</h2>
+                    <button type="button" class="text-slate-400 hover:text-slate-600" x-on:click="$dispatch('close-modal', 'help-unit-criteria-weights')">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="mt-3 text-sm text-slate-700 space-y-2">
+                    <div>Modul ini digunakan untuk menyusun Bobot Kriteria Unit pada periode aktif.</div>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Tambah bobot sebagai <strong>Draft</strong>, lalu sesuaikan hingga total bobot siap diajukan.</li>
+                        <li>Tombol <strong>Ajukan Semua</strong> digunakan untuk mengirim seluruh draft/rejected (sesuai kebutuhan sisa bobot) menjadi <strong>Pending</strong>.</li>
+                        <li>Tombol <strong>Salin periode sebelumnya</strong> menyalin bobot periode sebelumnya menjadi draft periode aktif.</li>
+                    </ul>
+                </div>
+
+                <div class="mt-5 flex items-center justify-between gap-3">
+                    <label class="inline-flex items-center gap-2 text-sm text-slate-700 select-none">
+                        <input id="ucwHelpDontShow" type="checkbox" class="rounded border-slate-300 text-slate-700 focus:ring-slate-300" />
+                        Jangan tampilkan lagi
+                    </label>
+                    <x-ui.button type="button" variant="orange" class="h-10 px-6" x-on:click="window.__closeUcwHelpModal()">OK</x-ui.button>
+                </div>
+            </div>
+        </x-modal>
+
         {{-- FILTERS & ADD --}}
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <form method="GET">
@@ -82,7 +110,7 @@
                 @elseif($draftMeetsRequirement)
                     <div class="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between">
                         <span>Sisa {{ number_format($required, 2) }}% siap diajukan untuk melengkapi total 100%.</span>
-                        <form method="POST" action="{{ route('kepala_unit.unit_criteria_weights.submit_all') }}">
+                        <form method="POST" action="{{ route('kepala_unit.unit_criteria_weights.submit_all') }}" id="ucwSubmitAllForm">
                             @csrf
                             <input type="hidden" name="period_id" value="{{ $periodId ?? $targetPeriodId }}" />
                             <x-ui.button type="submit" variant="orange" class="h-10 px-6">Ajukan Semua</x-ui.button>
@@ -107,10 +135,10 @@
                 </div>
                 <div class="md:col-span-3">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Bobot</label>
-                    <x-ui.input type="number" step="0.01" min="0" max="100" name="weight" placeholder="0-100" id="ucwWeight" required />
+                    <x-ui.input type="number" step="1" min="0" max="100" name="weight" placeholder="0-100" id="ucwWeight" required />
                 </div>
                 <div class="md:col-span-2">
-                    <x-ui.button type="submit" variant="orange" class="h-10 w-full" id="ucwAddBtn">Tambah</x-ui.button>
+                    <x-ui.button type="submit" variant="outline" class="h-10 w-full" id="ucwAddBtn">Tambah</x-ui.button>
                 </div>
                 @if(!$activePeriod)
                     <div class="md:col-span-12 text-sm text-rose-700">Tidak ada periode aktif. Hubungi Admin RS untuk mengaktifkan periode.</div>
@@ -130,7 +158,11 @@
                         </th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
-                        <th class="px-6 py-4 text-right whitespace-nowrap">Bobot</th>
+                        <th class="px-6 py-4 text-right whitespace-nowrap">
+                            Bobot
+                            <i class="fa-solid fa-percent ml-1 text-slate-400" aria-hidden="true"></i>
+                            <span class="inline-block ml-1 text-amber-600 cursor-help" title="Bobot maksimal 100%.">!</span>
+                        </th>
                         <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                     </tr>
                 </x-slot>
@@ -154,13 +186,22 @@
                         <td class="px-6 py-2 text-right">
                             @php($editable = in_array($st,['draft','rejected']))
                             @if($editable)
-                                <form method="POST" action="{{ route('kepala_unit.unit-criteria-weights.update', $it->id) }}" class="inline-flex items-center gap-2">
-                                    @csrf
-                                    @method('PUT')
-                                    @php($weightDisplay = number_format((float) $it->weight, 0))
-                                    <x-ui.input type="number" step="0.01" min="0" max="100" name="weight" :value="$weightDisplay" :preserve-old="false" class="h-9 w-24 max-w-[96px] text-right" />
-                                    <x-ui.button type="submit" variant="orange" class="h-9 px-3 text-xs">Simpan</x-ui.button>
-                                </form>
+                                @php($weightDisplay = number_format((float) $it->weight, 0))
+                                <div class="inline-flex items-center gap-2">
+                                    <x-ui.input
+                                        type="number"
+                                        step="1"
+                                        min="0"
+                                        max="100"
+                                        name="weight"
+                                        :value="$weightDisplay"
+                                        :preserve-old="false"
+                                        class="h-9 w-24 max-w-[96px] text-right ucw-weight"
+                                        data-update-url="{{ route('kepala_unit.unit-criteria-weights.update', $it->id) }}"
+                                        data-initial-value="{{ (int) $weightDisplay }}"
+                                    />
+                                    <span class="text-xs text-slate-400 ucw-save-status" aria-live="polite"></span>
+                                </div>
                             @else
                                 <div class="inline-flex items-center gap-2">
                                     @php($weightDisplay = number_format((float) $it->weight, 0))
@@ -176,7 +217,7 @@
                                     <form method="POST" action="{{ route('kepala_unit.unit-criteria-weights.destroy', $it->id) }}" onsubmit="return confirm('Hapus bobot ini?')">
                                         @csrf
                                         @method('DELETE')
-                                        <x-ui.button type="submit" variant="outline" class="h-9 px-3 text-xs">Hapus</x-ui.button>
+                                        <x-ui.icon-button icon="fa-trash" variant="danger" type="submit" title="Hapus" />
                                     </form> 
                                 </div>
                             @else
@@ -200,7 +241,11 @@
                         <th class="px-6 py-4 text-left whitespace-nowrap">Tipe</th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
-                        <th class="px-6 py-4 text-right whitespace-nowrap">Bobot</th>
+                        <th class="px-6 py-4 text-right whitespace-nowrap">
+                            Bobot
+                            <i class="fa-solid fa-percent ml-1 text-slate-400" aria-hidden="true"></i>
+                            <span class="inline-block ml-1 text-amber-600 cursor-help" title="Bobot maksimal 100%.">!</span>
+                        </th>
                         <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                     </tr>
                 </x-slot>
@@ -224,10 +269,38 @@
             </x-ui.table>
         </div>
     </div>
+
+    <script>
+        (function () {
+            const storageKey = 'help.hide.kepala_unit.unit_criteria_weights';
+
+            window.__closeUcwHelpModal = function () {
+                const cb = document.getElementById('ucwHelpDontShow');
+                if (cb && cb.checked) {
+                    localStorage.setItem(storageKey, '1');
+                } else {
+                    localStorage.removeItem(storageKey);
+                }
+                window.dispatchEvent(new CustomEvent('close-modal', { detail: 'help-unit-criteria-weights' }));
+            };
+
+            document.addEventListener('DOMContentLoaded', function () {
+                try {
+                    if (localStorage.getItem(storageKey) !== '1') {
+                        window.dispatchEvent(new CustomEvent('open-modal', { detail: 'help-unit-criteria-weights' }));
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            });
+        })();
+    </script>
 </x-app-layout>
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        const csrf = '{{ csrf_token() }}';
+
         const crit = document.getElementById('ucwCrit');
         const weight = document.getElementById('ucwWeight');
         const btn = document.getElementById('ucwAddBtn');
@@ -247,6 +320,115 @@
 
         toggle();
         requestAnimationFrame(toggle);
+
+        // Autosave weight edits (draft/rejected) to reduce button clutter.
+        const inputs = Array.from(document.querySelectorAll('input.ucw-weight'));
+        const clampInt = (v) => {
+            const n = parseInt(String(v ?? '').trim(), 10);
+            if (Number.isNaN(n)) return null;
+            return Math.min(100, Math.max(0, n));
+        };
+
+        inputs.forEach((input) => {
+            const statusEl = input.closest('.inline-flex')?.querySelector('.ucw-save-status');
+            const url = input.dataset.updateUrl;
+            if (!url) return;
+
+            let timer = null;
+            let lastSaved = clampInt(input.dataset.initialValue ?? input.value);
+
+            const setStatus = (text, kind) => {
+                if (!statusEl) return;
+                statusEl.textContent = text || '';
+                statusEl.classList.remove('text-slate-400', 'text-emerald-600', 'text-rose-600');
+                if (kind === 'ok') statusEl.classList.add('text-emerald-600');
+                else if (kind === 'err') statusEl.classList.add('text-rose-600');
+                else statusEl.classList.add('text-slate-400');
+            };
+
+            const saveNow = async () => {
+                const val = clampInt(input.value);
+                if (val === null) {
+                    setStatus('Isi 0–100', 'err');
+                    return false;
+                }
+
+                // Normalize displayed value to integer.
+                if (String(input.value) !== String(val)) {
+                    input.value = String(val);
+                }
+
+                if (val === lastSaved) {
+                    setStatus('', '');
+                    return true;
+                }
+
+                setStatus('Menyimpan…', '');
+
+                const fd = new FormData();
+                fd.append('_method', 'PUT');
+                fd.append('weight', String(val));
+
+                try {
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                        body: fd,
+                    });
+
+                    const data = await res.json().catch(() => null);
+                    if (!res.ok || !data?.ok) {
+                        const msg = data?.message || 'Gagal menyimpan';
+                        setStatus(msg, 'err');
+                        return false;
+                    }
+
+                    lastSaved = val;
+                    setStatus('Tersimpan', 'ok');
+                    setTimeout(() => setStatus('', ''), 1200);
+                    return true;
+                } catch (e) {
+                    setStatus('Gagal menyimpan', 'err');
+                    return false;
+                }
+            };
+
+            const schedule = () => {
+                if (timer) clearTimeout(timer);
+                timer = setTimeout(saveNow, 350);
+            };
+
+            // Expose saver for submit flush.
+            input.__ucwSaveNow = saveNow;
+            input.__ucwClearTimer = () => { if (timer) clearTimeout(timer); timer = null; };
+
+            input.addEventListener('input', schedule);
+            input.addEventListener('change', saveNow);
+            input.addEventListener('blur', saveNow);
+        });
+
+        // Flush pending autosaves before submitting Ajukan Semua.
+        const submitAllForm = document.getElementById('ucwSubmitAllForm');
+        if (submitAllForm) {
+            submitAllForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const savers = Array.from(document.querySelectorAll('input.ucw-weight'))
+                    .map((el) => {
+                        el.__ucwClearTimer?.();
+                        return el.__ucwSaveNow?.();
+                    })
+                    .filter(Boolean);
+
+                if (savers.length) {
+                    const results = await Promise.allSettled(savers);
+                    const ok = results.every((r) => r.status === 'fulfilled' && r.value === true);
+                    if (!ok) return;
+                }
+
+                submitAllForm.submit();
+            });
+        }
     });
 </script>
 @endpush

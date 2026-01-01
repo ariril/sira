@@ -4,16 +4,12 @@ namespace App\Http\Controllers\Web\MedicalStaff;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdditionalTask;
-use App\Models\AdditionalTaskClaim;
-use App\Services\AdditionalTaskStatusService;
+use App\Services\AdditionalTasks\AdditionalTaskStatusService;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 use App\Support\AssessmentPeriodGuard;
-use App\Models\AssessmentPeriod;
 
 class AdditionalTaskController extends Controller
 {
@@ -40,17 +36,11 @@ class AdditionalTaskController extends Controller
 
             $tasks = AdditionalTask::query()
                 ->with(['period:id,name'])
-                ->withCount([
-                    'claims as active_claims' => function ($query) {
-                        $query->whereIn('status', AdditionalTaskStatusService::ACTIVE_STATUSES);
-                    },
-                ])
-                ->where('unit_id', $me->unit_id)
-                ->whereHas('period', fn($q) => $q->where('status', AssessmentPeriod::STATUS_ACTIVE))
-                ->where('status', 'open')
-                ->where(function ($q) use ($me) {
-                    $q->whereNull('created_by')->orWhere('created_by', '!=', $me->id);
-                })
+                ->withActiveClaimsCount()
+                ->forUnit($me->unit_id)
+                ->forActivePeriod()
+                ->open()
+                ->excludeCreator($me->id)
                 ->orderByDesc('id')
                 ->get()
                 ->filter(function (AdditionalTask $task) use ($now, $tz) {

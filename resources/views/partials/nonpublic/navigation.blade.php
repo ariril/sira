@@ -238,9 +238,7 @@
         ['label'=>'Remunerasi Saya','icon'=>'fa-money-bill-trend-up',
          'href'=>$href('pegawai_medis.remunerations.index','/pegawai-medis/remunerations'),
          'active'=>request()->routeIs('pegawai_medis.remunerations.*')],
-        // ['label'=>'Data Remunerasi','icon'=>'fa-database',
-        //  'href'=>$href('pegawai_medis.remuneration_data.index','/pegawai-medis/remuneration-data'),
-        //  'active'=>request()->routeIs('pegawai_medis.remuneration_data.*')],
+        
       ]],
     ];
 

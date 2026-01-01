@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use App\Services\PeriodPerformanceAssessmentService;
+use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use App\Support\AssessmentPeriodGuard;
 
 class AssessmentPeriodController extends Controller
@@ -28,8 +28,8 @@ class AssessmentPeriodController extends Controller
     {
         // Sinkronkan lifecycle periode (auto active/locked + auto close)
         try {
-            if (class_exists(\App\Services\AssessmentPeriodLifecycleService::class)) {
-                app(\App\Services\AssessmentPeriodLifecycleService::class)->sync();
+            if (class_exists(\App\Services\AssessmentPeriods\AssessmentPeriodLifecycleService::class)) {
+                app(\App\Services\AssessmentPeriods\AssessmentPeriodLifecycleService::class)->sync();
             } else {
                 AssessmentPeriod::syncByNow();
             }

@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\PeriodPerformanceAssessmentService;
+use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;

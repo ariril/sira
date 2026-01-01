@@ -34,8 +34,6 @@ Route::get('/faqs',                 [FaqController::class, 'index'])->name('faqs
 Route::get('/about-pages/{type}',   [AboutPageController::class, 'show'])->name('about_pages.show');
 Route::get('/contact',              [ContactController::class, 'index'])->name('contact');
 
-// Dipindahkan ke area pegawai_medis (tidak publik lagi)
-// Route::get('/remuneration-data',    [RemunerationDataController::class, 'index'])->name('remuneration.data');
 
 // Invitation-based public reviews (one-time token)
 Route::get('/reviews/invite/{token}', [PublicReviewController::class, 'show'])
@@ -307,6 +305,8 @@ Route::middleware(['auth','verified','role:kepala_unit'])
         // Bobot Penilai 360 (rater_weights) – draft & submit
         Route::get('rater-weights', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'index'])->name('rater_weights.index');
         Route::put('rater-weights/{raterWeight}', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'updateInline'])->name('rater_weights.update');
+        Route::post('rater-weights/cek', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'bulkCheck'])->name('rater_weights.cek');
+        Route::post('rater-weights/copy-previous', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'copyFromPrevious'])->name('rater_weights.copy_previous');
         Route::post('rater-weights/submit-all', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'submitAll'])->name('rater_weights.submit_all');
     });
 
@@ -393,9 +393,6 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
         // Lihat remunerasi pribadi
         Route::get('remunerations',       [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'index'])->name('remunerations.index');
         Route::get('remunerations/{id}',  [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'show'])->name('remunerations.show');
-
-        // Data remunerasi (versi internal untuk pegawai medis) – pindahan dari halaman publik
-        Route::get('remuneration-data', [\App\Http\Controllers\Web\MedicalStaff\RemunerationDataController::class, 'index'])->name('remuneration_data.index');
 
         // Lihat kriteria & bobot aktif untuk unit sendiri pada periode aktif
         Route::get('unit-criteria-weights', [\App\Http\Controllers\Web\MedicalStaff\UnitCriteriaWeightViewController::class, 'index'])->name('unit_criteria_weights.index');

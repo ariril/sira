@@ -15,18 +15,25 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\View\View;
-use PhpOffice\PhpSpreadsheet\IOFactory;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\Cell\DataType;
-use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
+use App\Services\Imports\TabularFileReader;
+use App\Services\Imports\EmployeeNumberNormalizer;
+use App\Services\Attendances\Imports\AttendanceImportRowMapper;
+use App\Services\Attendances\Imports\AttendanceImportTemplateBuilder;
 use App\Models\AssessmentPeriod;
-use App\Services\PeriodPerformanceAssessmentService;
+use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use App\Support\AssessmentPeriodGuard;
 
 class AttendanceImportController extends Controller
 {
+    public function __construct(
+        private readonly TabularFileReader $tabularFileReader,
+        private readonly EmployeeNumberNormalizer $employeeNumberNormalizer,
+        private readonly AttendanceImportRowMapper $attendanceImportRowMapper,
+        private readonly AttendanceImportTemplateBuilder $attendanceImportTemplateBuilder,
+    ) {
+    }
+
     // Upload form
     public function create(Request $request): View
     {
@@ -127,79 +134,21 @@ class AttendanceImportController extends Controller
     // Download simple Excel template (ID header)
     public function template(Request $request)
     {
-        $headers = [
-            'PIN', 'NIP', 'Nama', 'Jabatan', 'Ruangan', 'Periode Mulai', 'Periode Selesai', 'Tanggal', 'Nama Shift',
-            'Jam Masuk', 'Scan Masuk', 'Datang Terlambat', 'Jam Keluar', 'Scan Keluar', 'Pulang Awal',
-            'Durasi Kerja', 'Istirahat Durasi', 'Istirahat Lebih', 'Lembur Akhir', 'Libur Umum', 'Libur Rutin',
-            'Shift Lembur', 'Keterangan',
-        ];
-
         try {
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-
-            // Header
-            foreach ($headers as $col => $label) {
-                $cell = Coordinate::stringFromColumnIndex($col + 1) . '1';
-                $sheet->setCellValue($cell, $label);
-            }
-
-            // Sample row: keep NIP as text
-            $sample = [
-                '001',
-                '197909102008032001',
-                'Contoh Nama',
-                'Dokter',
-                'Poli Umum',
-                '01-12-2025',
-                '31-12-2025',
-                'Monday 01-12-2025',
-                'Pagi',
-                '08:00',
-                '08:05',
-                '00:05',
-                '16:00',
-                '16:03',
-                '00:00',
-                '08:00',
-                '01:00',
-                '00:00',
-                '',
-                '0',
-                '0',
-                '0',
-                'Hadir',
-            ];
-
-            foreach ($sample as $col => $value) {
-                $row = 2;
-                $colIndex = $col + 1;
-                $cell = Coordinate::stringFromColumnIndex($colIndex) . (string)$row;
-                if ($headers[$col] === 'NIP') {
-                    $sheet->setCellValueExplicit($cell, (string)$value, DataType::TYPE_STRING);
-                    $sheet->getStyle($cell)->getNumberFormat()->setFormatCode('@');
-                } else {
-                    $sheet->setCellValue($cell, $value);
-                }
-            }
-
-            $fileName = 'template_import_absensi.xlsx';
-            $tmpPath = storage_path('app/tmp/' . uniqid('att_tpl_', true) . '.xlsx');
-            if (!is_dir(dirname($tmpPath))) {
-                @mkdir(dirname($tmpPath), 0777, true);
-            }
-
-            $writer = new Xlsx($spreadsheet);
-            $writer->save($tmpPath);
-
-            return response()->download($tmpPath, $fileName)->deleteFileAfterSend(true);
+            $built = $this->attendanceImportTemplateBuilder->build();
+            return response()->download($built['tmpPath'], $built['fileName'])->deleteFileAfterSend(true);
         } catch (\Throwable $e) {
             // Fallback CSV if something goes wrong
-            $fileName = 'template_import_absensi.csv';
-            $lines = [];
-            $lines[] = implode(',', $headers);
-            $lines[] = '001,197909102008032001,Contoh Nama,Dokter,Poli Umum,01-12-2025,31-12-2025,Monday 01-12-2025,Pagi,08:00,08:05,00:05,16:00,16:03,00:00,08:00,01:00,00:00,,0,0,0,Hadir';
-            $csv = implode("\n", $lines) . "\n";
+            $headers = [
+                'PIN', 'NIP', 'Nama', 'Jabatan', 'Ruangan', 'Periode Mulai', 'Periode Selesai', 'Tanggal', 'Nama Shift',
+                'Jam Masuk', 'Scan Masuk', 'Datang Terlambat', 'Jam Keluar', 'Scan Keluar', 'Pulang Awal',
+                'Durasi Kerja', 'Istirahat Durasi', 'Istirahat Lebih', 'Lembur Akhir', 'Libur Umum', 'Libur Rutin',
+                'Shift Lembur', 'Keterangan',
+            ];
+
+            $fallback = $this->attendanceImportTemplateBuilder->buildCsvFallback($headers);
+            $fileName = $fallback['fileName'];
+            $csv = $fallback['csv'];
 
             return response($csv, 200, [
                 'Content-Type' => 'text/csv; charset=UTF-8',
@@ -441,100 +390,12 @@ class AttendanceImportController extends Controller
     }
     private function mapHeader(array $header): ?array
     {
-        // Normalize header: lowercase and collapse internal spaces
-        $normalized = array_map(function ($h) {
-            $h = strtolower((string)$h);
-            $h = preg_replace('/\s+/',' ', trim($h));
-            return $h;
-        }, $header);
-
-        // Helper to find first match among aliases
-        $find = function(array $aliases) use ($normalized) {
-            foreach ($aliases as $a) {
-                $idx = array_search($a, $normalized, true);
-                if ($idx !== false) return $idx;
-            }
-            return false;
-        };
-
-        // NOTE: Support both simple EN header and full ID header.
-        // For ID format, prefer NIP for user lookup; PIN is accepted as fallback for older exports.
-        $map = [
-            // Identity
-            'pin'             => $find(['pin']),
-            'employee_number' => $find(['employee_number', 'nip', 'nip/pin', 'pin']),
-            'employee_name'   => $find(['nama', 'name', 'pegawai']),
-
-            // Period & date
-            'period_start'    => $find(['periode mulai']),
-            'period_end'      => $find(['periode selesai']),
-            'attendance_date' => $find(['attendance_date', 'tanggal']),
-
-            // Times: prefer Scan Masuk/Keluar for actual attendance
-            'scheduled_in'    => $find(['jam masuk']),
-            'check_in'        => $find(['check_in', 'scan masuk', 'scan masuk (hh:mm)']),
-            'late'            => $find(['datang terlambat', 'terlambat']),
-
-            'scheduled_out'   => $find(['jam keluar']),
-            'check_out'       => $find(['check_out', 'scan keluar', 'scan keluar (hh:mm)']),
-            'early_leave'     => $find(['pulang awal']),
-
-            // Other fields
-            'status'          => $find(['status']),
-            'shift_name'      => $find(['nama shift', 'shift', 'nama shift (text)']),
-            'work_duration'   => $find(['durasi kerja']),
-            'break_duration'  => $find(['istirahat durasi']),
-            'extra_break'     => $find(['istirahat lebih']),
-            'overtime_end'    => $find(['lembur akhir']),
-            'holiday_umum'    => $find(['libur umum', 'libur - umum']),
-            'holiday_rutin'   => $find(['libur rutin', 'libur - rutin']),
-            'overtime_shift'  => $find(['shift lembur']),
-            'note'            => $find(['keterangan']),
-
-            // Fields present in some exports but not used for import
-            'position'        => $find(['jabatan']),
-            'room'            => $find(['ruangan']),
-            'overtime_note'   => $find(['lembur', 'keterangan lembur']),
-        ];
-
-        if ($map['employee_number'] === false || $map['attendance_date'] === false) return null;
-        return $map;
+        return $this->attendanceImportRowMapper->mapHeader($header);
     }
 
     private function rowToAssoc(?array $map, array $row): ?array
     {
-        if (!$map) return null;
-        $get = fn($key) => isset($map[$key]) && $map[$key] !== false ? ($row[$map[$key]] ?? null) : null;
-
-        $rawEmployeeNumber = $get('employee_number');
-        $normalizedEmployeeNumber = $this->normalizeEmployeeNumber($rawEmployeeNumber);
-
-        return [
-            'pin'             => $this->cellToString($get('pin')),
-            'employee_number_raw' => $this->cellToString($rawEmployeeNumber),
-            'employee_number' => $normalizedEmployeeNumber,
-            'employee_name'   => $this->cellToString($get('employee_name')),
-
-            'attendance_date' => $this->cellToString($get('attendance_date')),
-
-            'check_in'        => $this->cellToString($get('check_in')),
-            'check_out'       => $this->cellToString($get('check_out')),
-            'status'          => $this->cellToString($get('status')),
-            'late'            => $this->cellToString($get('late')),
-            'note'            => $this->cellToString($get('note')),
-            'holiday_umum'    => $this->cellToString($get('holiday_umum')),
-            'holiday_rutin'   => $this->cellToString($get('holiday_rutin')),
-            // extras
-            'shift_name'      => $this->cellToString($get('shift_name')),
-            'scheduled_in'    => $this->cellToString($get('scheduled_in')),
-            'scheduled_out'   => $this->cellToString($get('scheduled_out')),
-            'early_leave'     => $this->cellToString($get('early_leave')),
-            'work_duration'   => $this->cellToString($get('work_duration')),
-            'break_duration'  => $this->cellToString($get('break_duration')),
-            'extra_break'     => $this->cellToString($get('extra_break')),
-            'overtime_end'    => $this->cellToString($get('overtime_end')),
-            'overtime_shift'  => $this->cellToString($get('overtime_shift')),
-        ];
+        return $this->attendanceImportRowMapper->rowToAssoc($map, $row);
     }
 
     private function importRow(int $batchId, array $data): array
@@ -658,46 +519,22 @@ class AttendanceImportController extends Controller
 
     private function cellToString(mixed $val): string
     {
-        if ($val === null) return '';
-        if (is_bool($val)) return $val ? '1' : '0';
-        return trim((string)$val);
+        return $this->attendanceImportRowMapper->cellToString($val);
     }
 
     private function looksLikeScientificNotation(string $val): bool
     {
-        $val = trim($val);
-        if ($val === '') return false;
-        return (bool)preg_match('/\d(?:\.\d+)?e[+-]?\d+/i', $val);
+        return $this->employeeNumberNormalizer->looksLikeScientificNotation($val);
     }
 
     private function looksLikeLongNumericIdentifier(string $val): bool
     {
-        $val = trim($val);
-        if ($val === '') return false;
-        // Heuristic: long digits often come from Excel Number formatting.
-        return ctype_digit($val) && strlen($val) >= 15;
+        return $this->attendanceImportRowMapper->looksLikeLongNumericIdentifier($val);
     }
 
     private function normalizeEmployeeNumber(mixed $val): string
     {
-        $raw = $this->cellToString($val);
-        if ($raw === '') return '';
-
-        // Keep as-is when it's already a digit string (preserves leading zero)
-        if (ctype_digit($raw)) {
-            return $raw;
-        }
-
-        // Convert scientific notation to plain integer string (best effort)
-        if ($this->looksLikeScientificNotation($raw)) {
-            $expanded = $this->expandScientificToPlainInteger($raw);
-            if ($expanded !== null && $expanded !== '') {
-                return $expanded;
-            }
-        }
-
-        // Remove common noise (spaces) but do not strip leading zeros by casting.
-        return trim($raw);
+        return $this->employeeNumberNormalizer->normalize($this->cellToString($val));
     }
 
     /**
@@ -706,40 +543,7 @@ class AttendanceImportController extends Controller
      */
     private function expandScientificToPlainInteger(string $val): ?string
     {
-        $val = trim($val);
-        if (!preg_match('/^([+-])?(\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/', $val, $m)) {
-            return null;
-        }
-
-        $sign = $m[1] ?? '';
-        $intPart = $m[2] ?? '';
-        $fracPart = $m[3] ?? '';
-        $exp = (int)($m[4] ?? 0);
-
-        // For identifiers we only support non-negative exponent.
-        if ($exp < 0) {
-            // Still try to produce a non-exponent form, but it won't be an integer identifier.
-            return null;
-        }
-
-        $digits = $intPart . $fracPart;
-        $fracLen = strlen($fracPart);
-        $zerosToAdd = $exp - $fracLen;
-
-        if ($zerosToAdd >= 0) {
-            $digits .= str_repeat('0', $zerosToAdd);
-        } else {
-            // Decimal point would be inside digits; not an integer.
-            return null;
-        }
-
-        // Strip leading '+' only; keep '-' if present (shouldn't happen for NIP).
-        $digits = ltrim($digits, '+');
-        if ($sign === '-') {
-            $digits = '-' . $digits;
-        }
-
-        return $digits;
+        return $this->employeeNumberNormalizer->expandScientificToPlainInteger($val);
     }
 
     private function ensureTime(?string $time): ?string
@@ -829,29 +633,7 @@ class AttendanceImportController extends Controller
      */
     private function readTabularFile(string $path, string $ext): array
     {
-        $ext = strtolower($ext);
-        if (in_array($ext, ['csv','txt'])) {
-            $handle = fopen($path, 'r');
-            if ($handle === false) throw new \RuntimeException('Gagal membuka file.');
-            $header = fgetcsv($handle);
-            $rows = [];
-            while (($row = fgetcsv($handle)) !== false) { $rows[] = $row; }
-            fclose($handle);
-            return [$header, $rows];
-        }
-
-        // xls/xlsx via PhpSpreadsheet
-        try {
-            $reader = IOFactory::createReaderForFile($path);
-            $reader->setReadDataOnly(true);
-            $spreadsheet = $reader->load($path);
-            $sheet = $spreadsheet->getSheet(0);
-            $rows = $sheet->toArray(null, true, true, false);
-            $header = array_shift($rows);
-            return [$header, $rows];
-        } catch (\Throwable $e) {
-            throw new \RuntimeException('Gagal membaca file Excel: '.$e->getMessage());
-        }
+        return $this->tabularFileReader->read($path, $ext);
     }
 
     private function recordPreviewRow(int $batchId, int $rowNo, ?int $userId, ?array $assoc, bool $success, ?string $errCode, ?string $errMsg, ?array $parsed = null): void

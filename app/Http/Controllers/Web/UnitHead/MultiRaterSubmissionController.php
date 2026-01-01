@@ -12,7 +12,7 @@ use App\Models\PerformanceCriteria;
 use App\Models\Assessment360Window;
 use App\Models\AssessmentPeriod;
 use App\Models\User;
-use App\Services\PeriodPerformanceAssessmentService;
+use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use App\Services\MultiRater\CriteriaResolver;
 use App\Services\MultiRater\SimpleFormData;
 use App\Services\MultiRater\SummaryService;

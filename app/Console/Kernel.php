@@ -19,6 +19,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\GenerateMultiRaterInvites::class,
         \App\Console\Commands\ImportReviewInvitations::class,
         \App\Console\Commands\SyncAssessmentPeriodsLifecycle::class,
+        \App\Console\Commands\DebugRaterWeightsNovember::class,
     ];
 
     protected function schedule(Schedule $schedule): void

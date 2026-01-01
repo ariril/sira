@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Illuminate\Database\Eloquent\Builder;
+use App\Services\AdditionalTasks\AdditionalTaskStatusService;
 
 class AdditionalTaskClaim extends Model
 {
@@ -83,6 +85,12 @@ class AdditionalTaskClaim extends Model
     public function scopeActive($query)
     {
         return $query->where('status', 'active');
+    }
+
+    // Klaim yang dihitung untuk kuota (active/submitted/validated/approved)
+    public function scopeQuotaCounted(Builder $query): Builder
+    {
+        return $query->whereIn('status', AdditionalTaskStatusService::ACTIVE_STATUSES);
     }
 
     // Klaim yang melewati tenggat cancel

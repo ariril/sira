@@ -6,7 +6,7 @@ use App\Enums\ReviewStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Review;
 use App\Models\AssessmentPeriod;
-use App\Services\PeriodPerformanceAssessmentService;
+use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

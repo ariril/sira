@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\UnitHead;
 use App\Enums\ReviewStatus;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\AdditionalTasks\AdditionalTaskStatusService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\AssessmentPeriod;
@@ -172,17 +173,17 @@ class DashboardController extends Controller
         }
 
         if ($unitId && Schema::hasTable('additional_task_claims') && Schema::hasTable('additional_tasks')) {
-            $submittedCount = DB::table('additional_task_claims as c')
-                ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
-                ->where('t.unit_id', $unitId)
-                ->where('c.status', 'submitted')
-                ->count();
-            $validatedCount = DB::table('additional_task_claims as c')
-                ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
-                ->where('t.unit_id', $unitId)
-                ->where('c.status', 'validated')
-                ->count();
-            $pendingTaskClaims = $submittedCount + $validatedCount;
+                $countsByStatus = DB::table('additional_task_claims as c')
+                    ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
+                    ->where('t.unit_id', $unitId)
+                    ->whereIn('c.status', AdditionalTaskStatusService::REVIEW_WAITING_STATUSES)
+                    ->groupBy('c.status')
+                    ->select('c.status', DB::raw('count(*) as aggregate'))
+                    ->pluck('aggregate', 'status');
+
+                $submittedCount = (int) ($countsByStatus['submitted'] ?? 0);
+                $validatedCount = (int) ($countsByStatus['validated'] ?? 0);
+                $pendingTaskClaims = $submittedCount + $validatedCount;
 
             if ($pendingTaskClaims > 0) {
                 $notifications[] = [

@@ -205,8 +205,8 @@ class AssessmentPeriod extends Model
         // Side-effect: ensure assessments exist once period becomes LOCKED.
         // This keeps manual vs automatic locking consistent.
         try {
-            if (class_exists(\App\Services\PeriodPerformanceAssessmentService::class)) {
-                app(\App\Services\PeriodPerformanceAssessmentService::class)->initializeForPeriod($this);
+            if (class_exists(\App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService::class)) {
+                app(\App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService::class)->initializeForPeriod($this);
             }
         } catch (\Throwable $e) {
             // Intentionally swallow: lifecycle status should still sync even if recalculation fails.

@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Web\AdminHospital;
 
 use App\Http\Controllers\Controller;
-use App\Imports\ReviewInvitationImport;
 use App\Models\AssessmentPeriod;
-use App\Services\ReviewInvitationService;
+use App\Services\Reviews\Imports\ReviewInvitationImport;
+use App\Services\Reviews\ReviewInvitationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;

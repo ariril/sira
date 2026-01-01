@@ -14,6 +14,11 @@ use Illuminate\View\View;
 
 class PerformanceAssessmentController extends Controller
 {
+    public function __construct(
+        private readonly PerformanceScoreService $performanceScoreService,
+    ) {
+    }
+
     /**
      * List assessments owned by the logged-in medical staff.
      */
@@ -54,11 +59,8 @@ class PerformanceAssessmentController extends Controller
                 ->get(['id', 'status'])
                 ->keyBy('id');
 
-            /** @var PerformanceScoreService $svc */
-            $svc = app(PerformanceScoreService::class);
-
             foreach ($periodsById as $pid => $period) {
-                $calc = $svc->calculate($unitId, $period, $groupUserIds, $professionId);
+                $calc = $this->performanceScoreService->calculate($unitId, $period, $groupUserIds, $professionId);
                 $userRow = $uid > 0 ? ($calc['users'][$uid] ?? null) : null;
                 $score = $userRow['total_wsm'] ?? null;
 
@@ -134,9 +136,7 @@ class PerformanceAssessmentController extends Controller
 
         $groupUserIds = $this->resolveGroupUserIds($unitId, $professionId);
 
-        /** @var PerformanceScoreService $svc */
-        $svc = app(PerformanceScoreService::class);
-        $calc = $svc->calculate($unitId, $period, $groupUserIds, $professionId);
+        $calc = $this->performanceScoreService->calculate($unitId, $period, $groupUserIds, $professionId);
 
         $userRow = $calc['users'][$uid] ?? null;
         $sumWeight = $userRow ? (float) ($userRow['sum_weight'] ?? 0.0) : 0.0;

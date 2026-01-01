@@ -74,6 +74,32 @@ User::query()->role('pegawai_medis')->get();
 ### Seeder
 Primary user and sample accounts attach multiple roles with `$user->roles()->attach([...])`.
 
+## Bobot Penilai 360 (Rater Weights)
+
+Mekanisme bobot penilaian 360 terdiri dari 2 lapis:
+
+1) Bobot kriteria unit ("Bobot per Unit")
+- Menentukan kontribusi tiap kriteria (mis. Kedisiplinan, Kerjasama, dst) ke skor akhir.
+- Disimpan di `unit_criteria_weights`.
+
+2) Bobot penilai 360 ("Bobot Penilai 360")
+- Menentukan komposisi penilai untuk setiap kriteria 360 per profesi assessee.
+- Contoh: Kedisiplinan (360) untuk Dokter Umum = Atasan berapa %, Diri sendiri berapa %, dst.
+- Aturan jenis penilai (self/supervisor/peer/subordinate) ditentukan oleh `criteria_rater_rules`.
+- Baris bobot per unit+periode dibuat otomatis oleh `App\Services\RaterWeightGenerator::syncForUnitPeriod()` ke tabel `unit_rater_weights`.
+
+Aturan penting:
+- Jika sebuah kombinasi (periode, unit, kriteria, profesi assessee) hanya menghasilkan 1 baris penilai, sistem otomatis mengunci bobot 100%.
+- Jika >1 baris penilai, bobot awalnya `NULL` dan harus diisi sampai total 100% sebelum bisa diajukan.
+
+### Seeder Bobot November
+Jika pada periode November ada kelompok bobot 360 yang belum diisi sama sekali (semua `NULL`), seeder ini akan mengisi bobot default secara merata (non-destructive: tidak menimpa nilai yang sudah diisi).
+
+- Jalankan (sudah terintegrasi di `DatabaseSeeder`):
+	- `php artisan db:seed -v`
+- Atau paksa periode tertentu (by id) lalu jalankan seeding:
+	- Windows PowerShell: `$env:RATER_WEIGHT_PERIOD_ID=123; php artisan db:seed -v`
+
 ### Updating Legacy Code
 Search patterns to eliminate:
 - `users.role`
@@ -98,7 +124,7 @@ auth()->user()->hasAnyRole(['admin_rs','super_admin']);
 
 ## KPI Excel as Source-of-Truth (Seeder)
 
-Seeder demo KPI (`Database\\Seeders\\FiveStaffKpiSeeder`) dapat mengambil konfigurasi bobot + data KPI dari Excel, supaya hasil perhitungan mengikuti template Excel.
+Seeder demo KPI (`Database\\Seeders\\EightStaffKpiSeeder`) dapat mengambil konfigurasi bobot + data KPI dari Excel, supaya hasil perhitungan mengikuti template Excel.
 
 - Default path: `storage/app/kpi-template.xlsx`
 - Override path: set env `KPI_TEMPLATE_PATH`
