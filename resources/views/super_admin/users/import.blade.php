@@ -29,7 +29,13 @@
 
     <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <h2 class="text-base font-semibold text-slate-800 mb-4">Upload Excel / CSV</h2>
-        <p class="text-sm text-slate-600 mb-4">Format header: <code>name,email,roles,profession_id,employee_number,unit_id,password</code>. Kolom opsional dapat dikosongkan. <code>roles</code> berisi slug dipisah koma (contoh: <code>super_admin,admin_rs</code>). Jika kolom <code>password</code> kosong akan dibuatkan otomatis acak 12 karakter.</p>
+        <p class="text-sm text-slate-600 mb-4">
+            Format header: <code>name,email,roles,profession_slug,employee_number,unit_slug,password,start_date,gender,nationality,address,phone,last_education,position</code>.
+            <span class="block mt-1">Kolom opsional dapat dikosongkan. <code>roles</code> berisi slug dipisah koma (contoh: <code>super_admin,admin_rs</code>).</span>
+            <span class="block mt-1"><code>unit_slug</code> menggunakan <b>slug</b> unit (bukan ID). Jika kosong akan diset <code>null</code>.</span>
+            <span class="block mt-1"><code>profession_slug</code> boleh diisi <b>kode profesi</b> (kolom <code>professions.code</code>) atau <b>slug dari nama profesi</b> (contoh: "Dokter Spesialis Anak" → <code>dokter-spesialis-anak</code>). Jika kosong akan diset <code>null</code>.</span>
+            <span class="block mt-1"><code>start_date</code> format <code>YYYY-MM-DD</code>. Jika <code>password</code> kosong akan dibuatkan otomatis acak 12 karakter (untuk user baru).</span>
+        </p>
         <form action="{{ route('super_admin.users.import.process') }}" method="POST" enctype="multipart/form-data" class="space-y-6" id="user-import-form">
             @csrf
             <div>
@@ -60,15 +66,15 @@
 
     <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <h2 class="text-base font-semibold text-slate-800 mb-3">Contoh CSV</h2>
-        <pre class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[13px] overflow-auto">name,email,roles,profession_id,employee_number,unit_id,password
-Admin Baru,admin_baru@example.com,super_admin,,ADM001,,password
-Perawat A,perawat.a@example.com,pegawai_medis,3,PRW123,12,password
-Kepala Unit B,kepala.unitb@example.com,kepala_unit,5,KUB555,7,password</pre>
+        <pre class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[13px] overflow-auto">name,email,roles,profession_slug,employee_number,unit_slug,password,start_date,gender,nationality,address,phone,last_education,position
+    Admin Baru,admin_baru@example.com,super_admin,,ADM001,,password,2025-01-02,Laki-laki,Indonesia,Jl. Contoh 1,08123456789,S1,Super Admin
+    Perawat A,perawat.a@example.com,pegawai_medis,NRS,PRW123,igd,,2025-03-10,Perempuan,Indonesia,Jl. Contoh 2,08120000000,D3,Perawat
+    Kepala Unit B,kepala.unitb@example.com,kepala_unit,DOK,KUB555,poliklinik-bedah,password,2025-04-01,Laki-laki,Indonesia,Jl. Contoh 3,08129999999,S2,Kepala Unit</pre>
         <ul class="mt-3 text-sm text-slate-600 list-disc list-inside">
             <li>Baris pertama wajib header. Kolom opsional boleh dikosongkan.</li>
             <li>Jika kolom <code>roles</code> kosong user tidak akan memiliki peran kecuali ada logic default di backend.</li>
-            <li>Jika kolom <code>password</code> kosong maka password acak akan dibuat.</li>
-            <li><code>profession_id</code> dan <code>unit_id</code> mengacu pada ID yang valid di tabel terkait.</li>
+            <li>Jika kolom <code>password</code> kosong maka password acak akan dibuat untuk user baru; untuk user existing password tidak diubah.</li>
+            <li><code>profession_slug</code> dan <code>unit_slug</code> harus cocok dengan data master (jika diisi namun tidak ditemukan, baris akan gagal).</li>
         </ul>
     </div>
 </div>

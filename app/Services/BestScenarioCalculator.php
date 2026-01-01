@@ -14,11 +14,13 @@ use App\Models\MultiRaterAssessmentDetail;
 use App\Models\PerformanceCriteria;
 use App\Models\ReviewDetail;
 
+/**
+ * @deprecated Tidak digunakan lagi.
+ * Gunakan App\Services\PerformanceScore\PerformanceScoreService sebagai single source of truth perhitungan WSM
+ * (normalization_basis + COST/benefit sesuai rumus Excel).
+ */
 class BestScenarioCalculator
 {
-    /**
-     * @deprecated Use App\Services\CriteriaEngine\PerformanceScoreService (Criteria Engine) instead.
-     */
     /**
      * Static weight (percent) for each criteria in the Best Scenario.
      * Total weight = 100 so the sum of WSM scores across all employees per unit is 100.

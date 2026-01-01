@@ -1,7 +1,7 @@
-<x-app-layout title="Manual Metrics">
+<x-app-layout title="Data Metrics">
     <x-slot name="header">
         <div class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold text-slate-800">Manual Metrics</h1>
+            <h1 class="text-2xl font-semibold text-slate-800">Data Metrics</h1>
         </div>
     </x-slot>
 
@@ -18,14 +18,16 @@
                 <div class="font-medium">Unduh Template Excel per Kriteria</div>
                 <form method="POST" action="{{ route('admin_rs.metrics.template') }}" class="space-y-4">
                     @csrf
+                    <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 px-4 py-3 text-sm">
+                        Import menggunakan periode: <span class="font-semibold">{{ $latestLockedPeriod->name ?? '-' }}</span>.
+                    </div>
+
+                    <input type="hidden" name="period_id" value="{{ (int) ($latestLockedPeriod->id ?? 0) }}" />
+
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
-                            <x-ui.select name="performance_criteria_id" :options="$criteriaOptions" placeholder="Pilih kriteria" required />
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-600 mb-1">Periode (LOCKED)</label>
-                            <x-ui.select name="period_id" :options="$importPeriods" placeholder="Pilih periode LOCKED" required />
+                            <x-ui.select name="performance_criteria_id" :options="$patientImportCriteriaOptions" placeholder="Pilih kriteria" required />
                         </div>
                     </div>
                     <p class="text-xs text-slate-500">Template berisi kolom: no_rm, patient_name, patient_phone, clinic, employee_numbers (dipisah koma).</p>
@@ -39,14 +41,16 @@
                 <div class="font-medium">Upload Excel/CSV</div>
                 <form method="POST" action="{{ route('admin_rs.metrics.upload_csv') }}" enctype="multipart/form-data" class="space-y-4">
                     @csrf
+                    <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 px-4 py-3 text-sm">
+                        Import menggunakan periode: <span class="font-semibold">{{ $latestLockedPeriod->name ?? '-' }}</span>.
+                    </div>
+
+                    <input type="hidden" name="period_id" value="{{ (int) ($latestLockedPeriod->id ?? 0) }}" />
+
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
-                            <x-ui.select name="performance_criteria_id" :options="$criteriaOptions" placeholder="Pilih kriteria" required />
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-600 mb-1">Periode (LOCKED)</label>
-                            <x-ui.select name="period_id" :options="$importPeriods" placeholder="Pilih periode LOCKED" required />
+                            <x-ui.select name="performance_criteria_id" :options="$patientImportCriteriaOptions" placeholder="Pilih kriteria" required />
                         </div>
                         <div class="flex items-end">
                             <div class="flex items-start gap-3">
@@ -137,7 +141,7 @@
                     </div>
                 </form>
                 <div class="text-xs text-slate-500 mt-1">
-                    Gunakan template agar header sesuai format import pasien. Import hanya untuk periode LOCKED.
+                    Gunakan template agar header sesuai format import. Import hanya untuk periode LOCKED.
                 </div>
             </div>
         @endif
@@ -230,6 +234,17 @@
             @endforelse
         </x-ui.table>
 
-        <div class="pt-2 flex justify-end">{{ $items->withQueryString()->links() }}</div>
+        <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="text-sm text-slate-600">
+                Menampilkan
+                <span class="font-medium text-slate-800">{{ $items->firstItem() ?? 0 }}</span>
+                -
+                <span class="font-medium text-slate-800">{{ $items->lastItem() ?? 0 }}</span>
+                dari
+                <span class="font-medium text-slate-800">{{ $items->total() }}</span>
+                data
+            </div>
+            <div>{{ $items->withQueryString()->links() }}</div>
+        </div>
     </div>
 </x-app-layout>

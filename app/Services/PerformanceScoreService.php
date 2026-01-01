@@ -16,7 +16,7 @@ class PerformanceScoreService
         $weights = DB::table('unit_criteria_weights')
             ->where('unit_id', $unitId)
             ->where('assessment_period_id', $periodId)
-                ->where('status', AssessmentPeriod::STATUS_ACTIVE)
+            ->where('status', 'active')
             ->pluck('weight', 'performance_criteria_id')
             ->map(fn($v) => (float) $v)
             ->all();
@@ -43,23 +43,14 @@ class PerformanceScoreService
      */
     private function resolveUnitWeightsForPeriod(int $unitId, int $periodId, string $periodStatus): array
     {
-        $isActive = $periodStatus === 'active';
-        $statuses = $isActive ? ['active'] : ['active', 'archived'];
-
         $rows = DB::table('unit_criteria_weights')
             ->where('unit_id', $unitId)
             ->where('assessment_period_id', $periodId)
-            ->whereIn('status', $statuses)
+            ->where('status', 'active')
             ->get(['performance_criteria_id', 'weight', 'status']);
 
         if ($rows->isEmpty()) {
             return ['weights' => [], 'sumWeight' => 0.0];
-        }
-
-        if (!$isActive && $rows->contains(fn($r) => (string) $r->status === 'active')) {
-            $rows = $rows->filter(fn($r) => (string) $r->status === 'active');
-        } elseif (!$isActive) {
-            $rows = $rows->filter(fn($r) => (string) $r->status === 'archived');
         }
 
         $weights = [];

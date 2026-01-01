@@ -52,6 +52,16 @@ class CriteriaRegistry
         return self::SYSTEM_CRITERIA_NAME_TO_KEY[$name] ?? null;
     }
 
+    public function systemNameByKey(string $key): ?string
+    {
+        foreach (self::SYSTEM_CRITERIA_NAME_TO_KEY as $name => $k) {
+            if ($k === $key) {
+                return $name;
+            }
+        }
+        return null;
+    }
+
     public function keyForCriteria(PerformanceCriteria $criteria): ?string
     {
         $name = (string) $criteria->name;

@@ -11,14 +11,14 @@ use App\Models\PerformanceAssessmentDetail;
 use App\Models\PerformanceCriteria;
 use App\Models\User;
 use App\Services\CriteriaEngine\CriteriaRegistry;
-use App\Services\CriteriaEngine\PerformanceScoreService as CriteriaEnginePerformanceScoreService;
+use App\Services\PerformanceScore\PerformanceScoreService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class PeriodPerformanceAssessmentService
 {
     public function __construct(
-        private readonly CriteriaEnginePerformanceScoreService $engine,
+        private readonly PerformanceScoreService $scoreSvc,
         private readonly CriteriaRegistry $registry,
     ) {
     }
@@ -40,7 +40,13 @@ class PeriodPerformanceAssessmentService
         $this->recalculateForPeriod($period);
     }
 
-    public function recalculateForGroup(int $periodId, ?int $unitId, ?int $professionId): void
+    /**
+     * Recalculate for a specific unit + profession (optionally limited to specific user_ids).
+     * Uses CriteriaEngine-backed scoring via PerformanceScoreService (NOT BestScenarioCalculator).
+     *
+     * @param array<int>|null $userIds
+     */
+    public function recalculateForGroup(int $periodId, ?int $unitId, ?int $professionId, ?array $userIds = null): void
     {
         $period = AssessmentPeriod::query()->find($periodId);
         if (!$period) {
@@ -51,6 +57,7 @@ class PeriodPerformanceAssessmentService
             ->role(User::ROLE_PEGAWAI_MEDIS)
             ->when($unitId, fn($q) => $q->where('unit_id', $unitId))
             ->when($professionId, fn($q) => $q->where('profession_id', $professionId))
+            ->when(is_array($userIds) && !empty($userIds), fn($q) => $q->whereIn('id', array_values(array_unique(array_map('intval', $userIds)))))
             ->get(['id', 'unit_id', 'profession_id']);
 
         if ($users->isEmpty()) {
@@ -125,52 +132,17 @@ class PeriodPerformanceAssessmentService
                 );
             }
 
-            // Active criteria MUST come from configuration (unit_criteria_weights)
-            $weightByCriteriaId = $this->resolveWeightByCriteriaId($period, $unitId);
-            $activeCriteriaIds = array_values(array_map('intval', array_keys($weightByCriteriaId)));
-
             // Map assessment ids for fast upsert
             $assessmentMap = PerformanceAssessment::query()
                 ->where('assessment_period_id', $period->id)
                 ->whereIn('user_id', $userIds)
                 ->pluck('id', 'user_id');
 
-            if (empty($activeCriteriaIds)) {
-                // No configured criteria -> store total_wsm_score as null (not available)
-                foreach ($userIds as $uid) {
-                    $assessmentId = (int) ($assessmentMap[$uid] ?? 0);
-                    if ($assessmentId <= 0) continue;
-
-                    PerformanceAssessment::query()
-                        ->where('id', $assessmentId)
-                        ->update([
-                            'assessment_date' => $period->end_date ?? now()->toDateString(),
-                            'total_wsm_score' => null,
-                            'supervisor_comment' => 'Belum ada konfigurasi bobot kriteria untuk unit ini.',
-                        ]);
-                }
-                return;
-            }
-
-            // Build key => criteria_id map for active criteria
-            $cols = ['id', 'name', 'input_method', 'is_360', 'type'];
-            if (Schema::hasColumn('performance_criterias', 'source')) {
-                $cols[] = 'source';
-            }
-
-            $criteriaRows = PerformanceCriteria::query()
-                ->whereIn('id', $activeCriteriaIds)
-                ->get($cols);
-
-            $criteriaIdByKey = [];
-            foreach ($criteriaRows as $c) {
-                $key = $this->registry->keyForCriteria($c);
-                if ($key) {
-                    $criteriaIdByKey[$key] = (int) $c->id;
-                }
-            }
-
-            $calc = $this->engine->calculate((int) $unitId, $period, $userIds, $professionId);
+            // Calculate using the CriteriaEngine-backed score service (normalization_basis + COST).
+            // This service is also responsible for applying weight status rules (active vs draft/archived)
+            // and for exposing all configured criteria so they can still be displayed.
+            $calc = $this->scoreSvc->calculate((int) $unitId, $period, $userIds, $professionId);
+            $criteriaIds = array_values(array_map('intval', (array) ($calc['criteria_ids'] ?? [])));
 
             foreach ($userIds as $uid) {
                 $assessmentId = (int) ($assessmentMap[$uid] ?? 0);
@@ -179,31 +151,37 @@ class PeriodPerformanceAssessmentService
                 }
 
                 $userRow = $calc['users'][(int) $uid] ?? null;
-                $totalWsm = $userRow ? (float) ($userRow['total_wsm'] ?? 0.0) : 0.0;
+                $totalWsm = $userRow ? ($userRow['total_wsm'] ?? null) : null;
 
                 PerformanceAssessment::query()
                     ->where('id', $assessmentId)
                     ->update([
                         'assessment_date' => $period->end_date ?? now()->toDateString(),
-                        'total_wsm_score' => round($totalWsm, 2),
-                        'supervisor_comment' => 'Dihitung otomatis dari data tabel.',
+                        'total_wsm_score' => $totalWsm === null ? null : round((float) $totalWsm, 2),
+                        'supervisor_comment' => ($totalWsm === null)
+                            ? 'Belum ada bobot kriteria AKTIF untuk unit ini pada periode ini.'
+                            : 'Dihitung otomatis dari data tabel.',
                     ]);
 
-                // Remove old details for criteria that are no longer active
-                PerformanceAssessmentDetail::query()
-                    ->where('performance_assessment_id', $assessmentId)
-                    ->whereNotIn('performance_criteria_id', $activeCriteriaIds)
-                    ->delete();
+                // Remove old details for criteria that are no longer configured for this unit+period
+                if (!empty($criteriaIds)) {
+                    PerformanceAssessmentDetail::query()
+                        ->where('performance_assessment_id', $assessmentId)
+                        ->whereNotIn('performance_criteria_id', $criteriaIds)
+                        ->delete();
+                }
 
                 $criteriaRows = $userRow['criteria'] ?? [];
                 foreach ($criteriaRows as $row) {
-                    $key = (string) ($row['key'] ?? '');
-                    $criteriaId = (int) ($criteriaIdByKey[$key] ?? 0);
+                    $criteriaId = (int) ($row['criteria_id'] ?? 0);
                     if ($criteriaId <= 0) {
                         continue;
                     }
 
-                    $score = round((float) ($row['normalized'] ?? 0.0), 2);
+                    // Per definisi: detail.score menyimpan nilai_relatif (0–100).
+                    $score = round((float) ($row['nilai_relativ_unit'] ?? 0.0), 2);
+                    $rawValue = (float) ($row['raw'] ?? 0.0);
+                    $nilaiNormalisasi = (float) ($row['nilai_normalisasi'] ?? 0.0);
                     PerformanceAssessmentDetail::updateOrCreate(
                         [
                             'performance_assessment_id' => $assessmentId,
@@ -212,6 +190,10 @@ class PeriodPerformanceAssessmentService
                         [
                             'criteria_metric_id' => null,
                             'score' => $score,
+                            'meta' => [
+                                'raw_value' => $rawValue,
+                                'nilai_normalisasi' => $nilaiNormalisasi,
+                            ],
                         ]
                     );
                 }
@@ -223,8 +205,7 @@ class PeriodPerformanceAssessmentService
      * Resolve weight mapping (performance_criteria_id => weight) for a unit and period.
      *
      * Rules:
-     * - Active period: only status=active is considered.
-     * - Non-active period: prefer status=active, fallback to status=archived (for historical periods).
+        * - Only status=active is considered.
      *
      * @return array<int,float>
      */
@@ -235,24 +216,14 @@ class PeriodPerformanceAssessmentService
         }
 
         $periodId = (int) $period->id;
-        $isActive = (string) ($period->status ?? '') === AssessmentPeriod::STATUS_ACTIVE;
-        $statuses = $isActive ? ['active'] : ['active', 'archived'];
-
         $rows = DB::table('unit_criteria_weights')
             ->where('unit_id', (int) $unitId)
             ->where('assessment_period_id', $periodId)
-            ->whereIn('status', $statuses)
+            ->where('status', 'active')
             ->get(['performance_criteria_id', 'weight', 'status']);
 
         if ($rows->isEmpty()) {
             return [];
-        }
-
-        // For non-active periods, prefer active rows if any exist.
-        if (!$isActive && $rows->contains(fn($r) => (string) $r->status === 'active')) {
-            $rows = $rows->filter(fn($r) => (string) $r->status === 'active');
-        } elseif (!$isActive) {
-            $rows = $rows->filter(fn($r) => (string) $r->status === 'archived');
         }
 
         $out = [];

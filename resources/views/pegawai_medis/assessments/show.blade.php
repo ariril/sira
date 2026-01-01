@@ -50,6 +50,13 @@
                             <div class="text-lg font-semibold text-slate-900">DETAIL Skor Kinerja</div>
                             <div class="text-sm text-slate-600">Total:
                                 {{ number_format((float) ($kinerja['total'] ?? 0), 2) }}</div>
+                            @if (!empty($kinerja['groupTotalWsm']) && isset($kinerja['sharePct']) && $kinerja['sharePct'] !== null)
+                                <div class="text-xs text-slate-500">
+                                    Porsi (share) = {{ number_format((float) ($kinerja['sharePct'] ?? 0) * 100, 2) }}%
+                                    dari total grup {{ number_format((float) ($kinerja['groupTotalWsm'] ?? 0), 2) }}
+                                    (total porsi grup = 100%).
+                                </div>
+                            @endif
                         </div>
                         <button type="button" class="text-slate-400 hover:text-slate-600"
                             @click="$dispatch('close-modal', 'kinerja-breakdown')">
@@ -72,8 +79,8 @@
                                         <tr>
                                             <th class="px-4 py-2 text-left">Kriteria</th>
                                             <th class="px-4 py-2 text-right">Bobot</th>
-                                            <th class="px-4 py-2 text-right">Nilai Normalisasi</th>
-                                            <th class="px-4 py-2 text-right" title="(bobot/Σbobot)×nilai">Kontribusi
+                                            <th class="px-4 py-2 text-right" title="Nilai relatif (0–100) yang dipakai untuk total WSM">Nilai Relatif</th>
+                                            <th class="px-4 py-2 text-right" title="Kontribusi = (bobot/ΣBobotAktif)×Nilai Relatif">Kontribusi
                                             </th>
                                         </tr>
                                     </thead>
@@ -97,13 +104,17 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <div class="text-xs text-slate-500 mt-2">Total WSM = Σ(bobot×nilai) / Σ(bobot) (hanya
-                                kriteria aktif).</div>
+                            <div class="text-xs text-slate-500 mt-2">
+                                ΣBobotAktif = {{ number_format((float) ($kinerja['sumWeight'] ?? 0), 2) }}.
+                            </div>
+                            <div class="text-xs text-slate-500">
+                                Total WSM = Σ(bobot×nilai relatif) / Σ(bobot) (hanya kriteria aktif).
+                            </div>
                         </div>
 
                         <div>
                             <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Kriteria ditampilkan saja
-                                (Tidak aktif pada Periode)</div>
+                                (Tidak dihitung)</div>
                             <div class="space-y-1">
                                 @forelse(($inactiveCriteriaRows ?? []) as $r)
                                     <div
@@ -112,8 +123,12 @@
                                         <div class="flex items-center gap-2">
                                             <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700"
                                                 title="Tidak dihitung ke Skor Kinerja">Tidak dihitung</span>
-                                            <span class="text-slate-600"
-                                                title="Nilai normalisasi tetap ditampilkan">{{ number_format((float) ($r['score_wsm'] ?? 0), 2) }}</span>
+                                            <span class="text-slate-600" title="Nilai relatif unit (0–100)">
+                                                {{ number_format((float) ($r['score_wsm'] ?? 0), 2) }}
+                                            </span>
+                                            <span class="text-slate-400" title="Nilai normalisasi">
+                                                ({{ number_format((float) ($r['score_normalisasi'] ?? 0), 2) }})
+                                            </span>
                                         </div>
                                     </div>
                                 @empty
@@ -140,6 +155,7 @@
                     @php
                         $raw = $rawMetrics[$d->performance_criteria_id] ?? null;
                         $rel = $kinerja['relativeByCriteria'][(int) $d->performance_criteria_id] ?? null;
+                        $norm = $kinerja['normalizedByCriteria'][(int) $d->performance_criteria_id] ?? null;
                         $isActive = isset($activeCriteriaIdSet[(int) $d->performance_criteria_id]);
                     @endphp
 
@@ -153,7 +169,7 @@
                                 @if (!$isActive)
                                     <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700"
                                         title="Kriteria ini tetap ditampilkan, tetapi tidak dihitung ke Skor Kinerja">
-                                        Nonaktif (tidak dihitung)
+                                        Tidak dihitung
                                     </span>
                                 @endif
                             </div>
@@ -181,7 +197,7 @@
                                                     {{ $rel !== null ? number_format((float) $rel, 2) : '-' }}
                                                 </div>
                                                 <div class="text-sm text-slate-600" title="WSM (Weighted Sum Method)">
-                                                    Nilai Normalisasi: {{ number_format((float) ($d->score ?? 0), 2) }}
+                                                    Nilai Normalisasi: {{ $norm !== null ? number_format((float) $norm, 2) : '-' }}
                                                 </div>
 
                                                 @if (!$isActive)
@@ -219,34 +235,19 @@
                                                 </div>
                                             @endforeach
 
-                                            @if (isset($raw['formula']['raw'], $raw['formula']['result'], $raw['formula']['denominator']) &&
-                                                    $raw['formula']['denominator'] !== null)
+                                            @if (!empty($raw['formula']) && isset($raw['formula']['raw'], $raw['formula']['result'], $raw['formula']['denominator']))
                                                 <div class="pt-3 mt-2 border-t border-slate-200">
                                                     <div class="text-xs uppercase tracking-wide text-slate-500 mb-1"
                                                         title="WSM (Weighted Sum Method)">Rumus Normalisasi</div>
-                                                    @php
-                                                        $formulaType = $raw['formula']['type'] ?? 'benefit';
-                                                    @endphp
-
                                                     <div class="text-sm text-slate-800 font-semibold">
-                                                        @if ($formulaType === 'cost')
-                                                            (1 -
-                                                            ({{ number_format((float) $raw['formula']['raw'], 2) }}
-                                                            /
-                                                            {{ number_format((float) $raw['formula']['denominator'], 2) }}))
-                                                            × 100
-                                                            = {{ number_format((float) $raw['formula']['result'], 2) }}
-                                                        @else
-                                                            {{ number_format((float) $raw['formula']['raw'], 2) }} /
-                                                            {{ number_format((float) $raw['formula']['denominator'], 2) }}
-                                                            × 100
-                                                            = {{ number_format((float) $raw['formula']['result'], 2) }}
-                                                        @endif
+                                                        {{ number_format((float) $raw['formula']['raw'], 2) }} /
+                                                        {{ number_format((float) $raw['formula']['denominator'], 2) }}
+                                                        × 100
+                                                        = {{ number_format((float) $raw['formula']['result'], 2) }}
                                                     </div>
 
                                                     <div class="text-xs text-slate-500">
-                                                        Basis normalisasi:
-                                                        {{ $d->performanceCriteria->normalization_basis ?? '-' }}.
+                                                        Basis normalisasi (WSM): total_unit.
                                                     </div>
                                                 </div>
                                             @endif
@@ -256,17 +257,50 @@
                                                     $kinerja['maxByCriteria'][(int) $d->performance_criteria_id] ??
                                                     null;
                                                 $maxNorm = $maxNorm !== null ? (float) $maxNorm : null;
+
+                                                $minNorm =
+                                                    $kinerja['minByCriteria'][(int) $d->performance_criteria_id] ??
+                                                    null;
+                                                $minNorm = $minNorm !== null ? (float) $minNorm : null;
+
+                                                $criteriaType = optional($d->performanceCriteria->type)->value ?? 'benefit';
                                             @endphp
 
                                             <div class="pt-3 mt-2 border-t border-slate-200">
+                                                <div class="grid sm:grid-cols-2 gap-2 mb-2">
+                                                    <div class="text-xs text-slate-500">
+                                                        Max nilai normalisasi grup:
+                                                        <span class="font-semibold text-slate-700">{{ $maxNorm !== null ? number_format($maxNorm, 2) : '-' }}</span>
+                                                    </div>
+                                                    <div class="text-xs text-slate-500">
+                                                        Min nilai normalisasi grup:
+                                                        <span class="font-semibold text-slate-700">{{ $minNorm !== null ? number_format($minNorm, 2) : '-' }}</span>
+                                                    </div>
+                                                </div>
                                                 <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Nilai
                                                     Kinerja Relatif (0–100)</div>
-                                                @if ($rel !== null && $maxNorm !== null && $maxNorm > 0)
-                                                    <div class="text-sm text-slate-800 font-semibold">
-                                                        {{ number_format((float) ($d->score ?? 0), 2) }} /
-                                                        {{ number_format($maxNorm, 2) }} × 100
-                                                        = {{ number_format((float) $rel, 2) }}
-                                                    </div>
+                                                @if ($rel !== null)
+                                                    @if (($criteriaType ?? 'benefit') === 'cost')
+                                                        @if ($norm !== null && $minNorm !== null && $minNorm >= 0)
+                                                            <div class="text-sm text-slate-800 font-semibold">
+                                                                {{ number_format($minNorm, 2) }} /
+                                                                {{ number_format((float) $norm, 2) }} × 100
+                                                                = {{ number_format((float) $rel, 2) }}
+                                                            </div>
+                                                        @else
+                                                            <div class="text-sm text-slate-500">-</div>
+                                                        @endif
+                                                    @else
+                                                        @if ($norm !== null && $maxNorm !== null && $maxNorm > 0)
+                                                            <div class="text-sm text-slate-800 font-semibold">
+                                                                {{ number_format((float) $norm, 2) }} /
+                                                                {{ number_format($maxNorm, 2) }} × 100
+                                                                = {{ number_format((float) $rel, 2) }}
+                                                            </div>
+                                                        @else
+                                                            <div class="text-sm text-slate-500">-</div>
+                                                        @endif
+                                                    @endif
                                                 @else
                                                     <div class="text-sm text-slate-500">-</div>
                                                 @endif

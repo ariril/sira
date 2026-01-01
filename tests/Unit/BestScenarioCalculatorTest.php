@@ -8,6 +8,7 @@ use App\Models\AdditionalContribution;
 use App\Models\AssessmentPeriod;
 use App\Models\Attendance;
 use App\Models\CriteriaMetric;
+use App\Models\MetricImportBatch;
 use App\Models\PerformanceCriteria;
 use App\Models\Review;
 use App\Models\ReviewDetail;
@@ -130,7 +131,7 @@ class BestScenarioCalculatorTest extends TestCase
         // Pasien metrics: user1 120, user2 139, user3 157
         foreach ([[$u1,120],[$u2,139],[$u3,157]] as [$user,$val]) {
             CriteriaMetric::create([
-                'import_batch_id' => null,
+                'import_batch_id' => $importBatch->id,
                 'user_id' => $user->id,
                 'assessment_period_id' => $period->id,
                 'performance_criteria_id' => $pasienId,

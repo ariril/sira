@@ -96,6 +96,20 @@ auth()->user()->hasAnyRole(['admin_rs','super_admin']);
 
 ---
 
+## KPI Excel as Source-of-Truth (Seeder)
+
+Seeder demo KPI (`Database\\Seeders\\FiveStaffKpiSeeder`) dapat mengambil konfigurasi bobot + data KPI dari Excel, supaya hasil perhitungan mengikuti template Excel.
+
+- Default path: `storage/app/kpi-template.xlsx`
+- Override path: set env `KPI_TEMPLATE_PATH`
+- Enforce Excel (tanpa fallback hardcode): set env `KPI_REQUIRE_EXCEL=true`
+
+Format Excel fleksibel (header dicocokkan via alias), tetapi minimal perlu:
+
+- Sheet bobot unit: `period_name`, `unit_slug`, `criteria_name`, `weight` (+ opsional `status`)
+- Sheet data KPI: `period_name`, salah satu dari `staff_key|email|employee_number`, lalu `attendance`, `discipline`, `contrib`, `patients`, `rating`
+- Sheet kebijakan normalisasi: `criteria_name`, `normalization_basis` (+ opsional `custom_target_value`)
+
 ## Additional Task & Contribution Workflow (BPMN Mapping)
 
 This section documents the custom workflow implemented for "Tugas Tambahan" and their evidence contributions, mapped from the BPMN provided.

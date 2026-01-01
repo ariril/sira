@@ -48,7 +48,7 @@ class ProfessionHierarchyController extends Controller
 
         $grouped = $rows->groupBy('assessee_profession_id');
 
-        return view('admin.master.profession_hierarchy.index', [
+        return view('admin_rs.profession_hierarchy.index', [
             'professions' => $professions,
             'rows' => $rows,
             'grouped' => $grouped,
@@ -63,7 +63,7 @@ class ProfessionHierarchyController extends Controller
 
         $professions = Profession::query()->orderBy('name')->get(['id', 'name']);
 
-        return view('admin.master.profession_hierarchy.form', [
+        return view('admin_rs.profession_hierarchy.form', [
             'mode' => 'create',
             'item' => new ProfessionReportingLine(['is_required' => true, 'is_active' => true, 'relation_type' => 'supervisor']),
             'professions' => $professions,
@@ -97,7 +97,7 @@ class ProfessionHierarchyController extends Controller
 
         $professions = Profession::query()->orderBy('name')->get(['id', 'name']);
 
-        return view('admin.master.profession_hierarchy.form', [
+        return view('admin_rs.profession_hierarchy.form', [
             'mode' => 'edit',
             'item' => $professionReportingLine,
             'professions' => $professions,

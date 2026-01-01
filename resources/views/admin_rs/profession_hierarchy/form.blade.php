@@ -3,6 +3,16 @@
     $action = $isEdit
         ? route('admin.master.profession_hierarchy.update', $item)
         : route('admin.master.profession_hierarchy.store');
+
+    $assesseeProfessions = $professions;
+    if (!$isEdit) {
+        $assesseeProfessions = $professions->reject(function ($p) {
+            $name = mb_strtolower((string) ($p->name ?? ''));
+            return str_contains($name, 'kepala unit')
+                || str_contains($name, 'kepala poli')
+                || str_contains($name, 'kepala poliklinik');
+        });
+    }
 @endphp
 
 <x-app-layout title="Hirarki Penilai Profesi">
@@ -11,7 +21,7 @@
             <h1 class="text-2xl font-semibold text-slate-800">
                 {{ $isEdit ? 'Edit Hirarki Penilai Profesi' : 'Tambah Hirarki Penilai Profesi' }}
             </h1>
-            <x-ui.button as="a" href="{{ route('admin.master.profession_hierarchy.index') }}" variant="secondary" class="h-12 px-6 text-base">
+            <x-ui.button as="a" href="{{ route('admin.master.profession_hierarchy.index') }}" variant="outline" class="h-12 px-6 text-base">
                 <i class="fa-solid fa-arrow-left mr-2"></i> Kembali
             </x-ui.button>
         </div>
@@ -42,7 +52,7 @@
                     <label class="block text-sm font-medium text-slate-600 mb-1">Assessee Profesi</label>
                     <x-ui.select
                         name="assessee_profession_id"
-                        :options="$professions->pluck('name','id')->all()"
+                        :options="$assesseeProfessions->pluck('name','id')->all()"
                         :value="old('assessee_profession_id', $item->assessee_profession_id)"
                         placeholder="Pilih profesi" />
                 </div>

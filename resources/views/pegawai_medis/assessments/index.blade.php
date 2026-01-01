@@ -29,14 +29,9 @@
                         <td class="px-6 py-4">{{ $a->validation_status?->value ?? '-' }}</td>
                         <td class="px-6 py-4">
                             @php
-                                $periodIsActive = (bool) ($a->assessmentPeriod?->is_active ?? false);
                                 $kinerjaScore = $kinerjaTotalsByAssessmentId[$a->id] ?? null;
                             @endphp
-                            @if($periodIsActive)
-                                {{ $kinerjaScore !== null ? number_format((float) $kinerjaScore, 2) : '-' }}
-                            @else
-                                {{ $a->total_wsm_score !== null ? number_format($a->total_wsm_score, 2) : '-' }}
-                            @endif
+                            {{ $kinerjaScore !== null ? number_format((float) $kinerjaScore, 2) : ($a->total_wsm_score !== null ? number_format($a->total_wsm_score, 2) : '-') }}
                         </td>
                         <td class="px-6 py-4 text-right">
                             <div class="inline-flex items-center gap-2 justify-end">

@@ -40,7 +40,7 @@ class MetricImportCollector implements CriteriaCollector
             return [];
         }
 
-        return DB::table('criteria_metrics')
+        return DB::table('imported_criteria_values')
             ->selectRaw('user_id, COALESCE(SUM(value_numeric),0) as total_value')
             ->where('assessment_period_id', (int) $period->id)
             ->where('performance_criteria_id', (int) $this->criteria->id)
@@ -53,7 +53,7 @@ class MetricImportCollector implements CriteriaCollector
 
     public function readiness(AssessmentPeriod $period, int $unitId): array
     {
-        $count = DB::table('criteria_metrics as cm')
+        $count = DB::table('imported_criteria_values as cm')
             ->join('users as u', 'u.id', '=', 'cm.user_id')
             ->where('cm.assessment_period_id', (int) $period->id)
             ->where('cm.performance_criteria_id', (int) $this->criteria->id)

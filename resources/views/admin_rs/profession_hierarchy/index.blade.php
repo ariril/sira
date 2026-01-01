@@ -37,19 +37,19 @@
                         :value="$filters['is_active'] ?? null"
                         placeholder="(Semua)" />
                 </div>
+            </div>
 
-                <div class="md:col-span-2 flex items-end justify-end gap-3">
-                    <a href="{{ route('admin.master.profession_hierarchy.index') }}"
-                       class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
-                        <i class="fa-solid fa-rotate-left"></i>
-                        Reset
-                    </a>
-                    <button type="submit"
-                            class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm">
-                        <i class="fa-solid fa-filter"></i>
-                        Terapkan
-                    </button>
-                </div>
+            <div class="mt-6 flex justify-end gap-3">
+                <a href="{{ route('admin.master.profession_hierarchy.index') }}"
+                   class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    Reset
+                </a>
+                <button type="submit"
+                        class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm">
+                    <i class="fa-solid fa-filter"></i>
+                    Terapkan
+                </button>
             </div>
         </form>
 
@@ -86,7 +86,6 @@
                                     <th class="px-6 py-4 text-left whitespace-nowrap">Relasi</th>
                                     <th class="px-6 py-4 text-left whitespace-nowrap">Level</th>
                                     <th class="px-6 py-4 text-left whitespace-nowrap">Assessor Profesi</th>
-                                    <th class="px-6 py-4 text-left whitespace-nowrap">Required?</th>
                                     <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
                                     <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                                 </tr>
@@ -99,13 +98,6 @@
                                     <td class="px-6 py-4">{{ $it->relation_type === 'supervisor' ? ($it->level ?? '-') : '-' }}</td>
                                     <td class="px-6 py-4">{{ $it->assessorProfession?->name }}</td>
                                     <td class="px-6 py-4">
-                                        @if($it->is_required)
-                                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Ya</span>
-                                        @else
-                                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">Tidak</span>
-                                        @endif
-                                    </td>
-                                    <td class="px-6 py-4">
                                         @if($it->is_active)
                                             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Aktif</span>
                                         @else
@@ -113,25 +105,14 @@
                                         @endif
                                     </td>
                                     <td class="px-6 py-4 text-right whitespace-nowrap">
-                                        <a href="{{ route('admin.master.profession_hierarchy.edit', $it) }}" class="inline-flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium bg-white border border-slate-200 hover:bg-slate-50">
-                                            <i class="fa-solid fa-pen"></i> Edit
-                                        </a>
-
-                                        <form method="POST" action="{{ route('admin.master.profession_hierarchy.toggle', $it) }}" class="inline">
-                                            @csrf
-                                            <button class="inline-flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium bg-white border border-slate-200 hover:bg-slate-50">
-                                                <i class="fa-solid {{ $it->is_active ? 'fa-toggle-on text-emerald-600' : 'fa-toggle-off text-slate-500' }}"></i>
-                                                {{ $it->is_active ? 'Nonaktifkan' : 'Aktifkan' }}
-                                            </button>
-                                        </form>
-
-                                        <form method="POST" action="{{ route('admin.master.profession_hierarchy.destroy', $it) }}" class="inline" onsubmit="return confirm('Hapus aturan ini?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button class="inline-flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium bg-white border border-rose-200 text-rose-700 hover:bg-rose-50">
-                                                <i class="fa-solid fa-trash"></i> Hapus
-                                            </button>
-                                        </form>
+                                        <div class="inline-flex gap-2">
+                                            <x-ui.icon-button as="a" href="{{ route('admin.master.profession_hierarchy.edit', $it) }}" icon="fa-pen-to-square" />
+                                            <form method="POST" action="{{ route('admin.master.profession_hierarchy.destroy', $it) }}" onsubmit="return confirm('Hapus aturan ini?')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <x-ui.icon-button icon="fa-trash" variant="danger" />
+                                            </form>
+                                        </div>
                                     </td>
                                 </tr>
                             @endforeach

@@ -16,17 +16,31 @@ class ReviewInvitationImportController extends Controller
 {
     public function form(Request $request): View
     {
-        $period = $this->resolvePeriodOrAbort();
+        ['period' => $period, 'periodWarning' => $periodWarning, 'periodOptions' => $periodOptions, 'selectedPeriodId' => $selectedPeriodId] = $this->resolvePeriodContext($request);
         return view('admin_rs.review_invitations.import', [
             'results' => session('review_invitation_import_results', []),
             'summary' => session('review_invitation_import_summary', null),
             'period' => $period,
+            'periodWarning' => $periodWarning,
+            'periodOptions' => $periodOptions,
+            'selectedPeriodId' => $selectedPeriodId,
         ]);
     }
 
     public function process(Request $request, ReviewInvitationService $service): View
     {
-        $period = $this->resolvePeriodOrAbort();
+        ['period' => $period, 'periodWarning' => $periodWarning, 'periodOptions' => $periodOptions, 'selectedPeriodId' => $selectedPeriodId] = $this->resolvePeriodContext($request, true);
+
+        if (!$period) {
+            return view('admin_rs.review_invitations.import', [
+                'results' => session('review_invitation_import_results', []),
+                'summary' => session('review_invitation_import_summary', null),
+                'period' => null,
+                'periodWarning' => $periodWarning ?: 'Undangan review belum dapat dibuat saat ini.',
+                'periodOptions' => $periodOptions,
+                'selectedPeriodId' => $selectedPeriodId,
+            ]);
+        }
 
         $request->validate([
             'file' => ['required', 'file', 'mimes:xlsx,xls,csv,txt'],
@@ -61,23 +75,32 @@ class ReviewInvitationImportController extends Controller
             'results' => $results,
             'summary' => $summary,
             'period' => $period,
+            'periodWarning' => $periodWarning,
+            'periodOptions' => $periodOptions,
+            'selectedPeriodId' => $selectedPeriodId,
         ]);
     }
 
-    private function resolvePeriodOrAbort(): ?AssessmentPeriod
+    /**
+     * When there is both an active (date-based) period and a latest LOCKED period, allow user to choose.
+     * Default selection prefers LOCKED (so monthly imports can still target the locked month).
+     *
+     * @return array{period:?AssessmentPeriod,periodWarning:?string,periodOptions:array<int,string>,selectedPeriodId:?int}
+     */
+    private function resolvePeriodContext(Request $request, bool $isPost = false): array
     {
         if (!Schema::hasTable('assessment_periods')) {
-            abort(403, 'Periode penilaian belum tersedia.');
+            return [
+                'period' => null,
+                'periodWarning' => 'Periode penilaian belum tersedia.',
+                'periodOptions' => [],
+                'selectedPeriodId' => null,
+            ];
         }
 
-        // Prefer current date-based period, fallback to latest LOCKED.
         $active = AssessmentPeriodGuard::resolveActive();
-        if ($active) {
-            // Block if already approval/closed (defensive)
-            if (in_array((string) $active->status, [AssessmentPeriod::STATUS_APPROVAL, AssessmentPeriod::STATUS_CLOSED], true)) {
-                abort(403, 'Undangan review tidak dapat dibuat ketika periode sudah masuk tahap approval/closed.');
-            }
-            return $active;
+        if ($active && in_array((string) $active->status, [AssessmentPeriod::STATUS_APPROVAL, AssessmentPeriod::STATUS_CLOSED], true)) {
+            $active = null;
         }
 
         $locked = AssessmentPeriod::query()
@@ -85,11 +108,43 @@ class ReviewInvitationImportController extends Controller
             ->orderByDesc('start_date')
             ->first();
 
+        $periodOptions = [];
+        if ($active) {
+            $periodOptions[(int) $active->id] = (string) ($active->name ?? '-') . ' (Aktif)';
+        }
         if ($locked) {
-            return $locked;
+            $periodOptions[(int) $locked->id] = (string) ($locked->name ?? '-') . ' (Dikunci)';
         }
 
-        abort(403, 'Undangan review hanya dapat dibuat ketika ada periode yang sedang berjalan atau berstatus LOCKED.');
+        $requestedId = $isPost ? $request->input('period_id') : $request->query('period_id');
+        $requestedId = $requestedId !== null ? (int) $requestedId : null;
+
+        $defaultId = $locked?->id ? (int) $locked->id : ($active?->id ? (int) $active->id : null);
+        $selectedPeriodId = ($requestedId && isset($periodOptions[$requestedId])) ? $requestedId : $defaultId;
+
+        $selectedPeriod = null;
+        if ($selectedPeriodId && $active && (int) $active->id === $selectedPeriodId) {
+            $selectedPeriod = $active;
+        }
+        if ($selectedPeriodId && !$selectedPeriod && $locked && (int) $locked->id === $selectedPeriodId) {
+            $selectedPeriod = $locked;
+        }
+
+        if (!$selectedPeriod) {
+            return [
+                'period' => null,
+                'periodWarning' => 'Undangan review hanya dapat dibuat ketika ada periode yang sedang berjalan atau berstatus LOCKED.',
+                'periodOptions' => $periodOptions,
+                'selectedPeriodId' => $selectedPeriodId,
+            ];
+        }
+
+        return [
+            'period' => $selectedPeriod,
+            'periodWarning' => null,
+            'periodOptions' => $periodOptions,
+            'selectedPeriodId' => $selectedPeriodId,
+        ];
     }
 
     public function exportCsv(Request $request)

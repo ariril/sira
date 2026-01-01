@@ -20,19 +20,22 @@ class DatabaseSeeder extends Seeder
             // =========================================================
             // 1) UNITS
             // =========================================================
-            $managementId = DB::table('units')->insertGetId([
-                'name' => 'Manajemen Rumah Sakit',
-                'slug' => 'manajemen-rumah-sakit',
-                'code' => 'MNG',
-                'type' => 'manajemen',
-                'parent_id' => null,
-                'location' => 'Kantor Direksi',
-                'phone' => null,
-                'email' => null,
-                'is_active' => 1,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+            DB::table('units')->updateOrInsert(
+                ['slug' => 'manajemen-rumah-sakit'],
+                [
+                    'name' => 'Manajemen Rumah Sakit',
+                    'code' => 'MNG',
+                    'type' => 'manajemen',
+                    'parent_id' => null,
+                    'location' => 'Kantor Direksi',
+                    'phone' => null,
+                    'email' => null,
+                    'is_active' => 1,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ]
+            );
+            $managementId = (int) (DB::table('units')->where('slug', 'manajemen-rumah-sakit')->value('id') ?? 0);
 
             $units = [
                 // Poliklinik (sesuai daftar pada lampiran)
@@ -50,7 +53,11 @@ class DatabaseSeeder extends Seeder
                 $u['created_at'] = $now;
                 $u['updated_at'] = $now;
             }
-            DB::table('units')->insert($units);
+            DB::table('units')->upsert(
+                $units,
+                ['slug'],
+                ['name','code','type','parent_id','location','phone','email','is_active','updated_at']
+            );
 
             $unitId = fn(string $slug) => DB::table('units')->where('slug', $slug)->value('id');
 
@@ -59,33 +66,38 @@ class DatabaseSeeder extends Seeder
             // =========================================================
             $professions = [
                 ['name' => 'Dokter Umum', 'code' => 'DOK-UM', 'description' => 'Dokter layanan primer'],
-                ['name' => 'Perawat', 'code' => 'PRW', 'description' => 'Tenaga keperawatan'],
-                ['name' => 'Dokter Bedah', 'code' => 'DOK-SP', 'description' => 'Dokter Spesialis'],
+                ['name' => 'Dokter Spesialis', 'code' => 'DOK-SP', 'description' => 'Dokter spesialis'],
+                ['name' => 'Perawat', 'code' => 'PRW', 'description' => 'Perawat'],
             ];
             foreach ($professions as &$p) {
+                $p['is_active'] = 1;
                 $p['created_at'] = $now;
                 $p['updated_at'] = $now;
             }
-            DB::table('professions')->insert($professions);
+            DB::table('professions')->upsert(
+                $professions,
+                ['code'],
+                ['name', 'description', 'is_active', 'updated_at']
+            );
 
             $professionId = fn(string $code) => DB::table('professions')->where('code', $code)->value('id');
 
             // =========================================================
             // 3) USERS
             // =========================================================
-            DB::table('users')->insert([
+            $users = [
                 [
-                    'employee_number' => '000000000000000001',
+                    'employee_number' => '00.0001',
                     'name' => 'Super Admin',
                     'start_date' => '2020-01-01',
                     'gender' => 'Laki-laki',
                     'nationality' => 'Indonesia',
-                    'address' => 'Jl. Dr. Sutomo No. 2, Atambua',
-                    'phone' => '0389-2513137',
+                    'address' => 'Atambua',
+                    'phone' => '0800-0000-0001',
                     'email' => 'superadmin@rsud.local',
                     'last_education' => 'S1',
-                    'position' => 'Administrator',
-                    'unit_id' => $unitId('manajemen-rumah-sakit'),
+                    'position' => 'Super Admin',
+                    'unit_id' => $managementId ?: null,
                     'profession_id' => null,
                     'password' => Hash::make('password'),
                     'last_role' => 'super_admin',
@@ -95,17 +107,17 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '00000000000000003',
+                    'employee_number' => '00.0002',
                     'name' => 'Admin RS',
-                    'start_date' => '2019-07-01',
+                    'start_date' => '2020-01-01',
                     'gender' => 'Laki-laki',
                     'nationality' => 'Indonesia',
                     'address' => 'Atambua',
-                    'phone' => '0813-3333-3333',
+                    'phone' => '0800-0000-0002',
                     'email' => 'admin.rs@rsud.local',
-                    'last_education' => 'D3',
+                    'last_education' => 'S1',
                     'position' => 'Admin RS',
-                    'unit_id' => $managementId,
+                    'unit_id' => $managementId ?: null,
                     'profession_id' => null,
                     'password' => Hash::make('password'),
                     'last_role' => 'admin_rs',
@@ -115,18 +127,18 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '000000000000000002',
-                    'name' => 'dr. Kepala Poliklinik',
-                    'start_date' => '2016-06-01',
+                    'employee_number' => '00.0004',
+                    'name' => 'Kepala Poliklinik',
+                    'start_date' => '2020-01-01',
                     'gender' => 'Laki-laki',
                     'nationality' => 'Indonesia',
                     'address' => 'Atambua',
-                    'phone' => '0812-0000-0002',
+                    'phone' => '0800-0000-0004',
                     'email' => 'kepala.poliklinik@rsud.local',
-                    'last_education' => 'Sp.',
+                    'last_education' => 'S1',
                     'position' => 'Kepala Poliklinik',
-                    'unit_id' => $managementId,
-                    'profession_id' => $professionId('DOK-UM'),
+                    'unit_id' => $managementId ?: null,
+                    'profession_id' => null,
                     'password' => Hash::make('password'),
                     'last_role' => 'kepala_poliklinik',
                     'email_verified_at' => $now,
@@ -134,18 +146,15 @@ class DatabaseSeeder extends Seeder
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
-
-
-                // 3a) USERS (data user Penerima remun)
                 [
-                    'employee_number' => '02.0003',
+                    'employee_number' => '10.0001',
                     'name' => 'dr. Felix Christian Tjiptadi',
                     'start_date' => '2022-01-15',
                     'gender' => 'Laki-laki',
                     'nationality' => 'Indonesia',
                     'address' => 'Atambua',
                     'phone' => '0816-7777-7777',
-                    'email' => 'kepala.unit.medis@rsud.local',
+                    'email' => 'kepala.umum@rsud.local',
                     'last_education' => 'Sp.',
                     'position' => 'Kepala Unit / Dokter',
                     'unit_id' => $unitId('poliklinik-umum'),
@@ -158,14 +167,54 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '197203302006042019',
+                    'employee_number' => '10.0002',
+                    'name' => 'dr. Theodorus L. Mau bere',
+                    'start_date' => '2021-02-10',
+                    'gender' => 'Laki-laki',
+                    'nationality' => 'Indonesia',
+                    'address' => 'Atambua',
+                    'phone' => '0814-4444-4444',
+                    'email' => 'dokter.umum1@rsud.local',
+                    'last_education' => 'S.Ked',
+                    'position' => 'Dokter Umum',
+                    'unit_id' => $unitId('poliklinik-umum'),
+                    'profession_id' => $professionId('DOK-UM'),
+                    'password' => Hash::make('password'),
+                    'last_role' => 'pegawai_medis',
+                    'email_verified_at' => $now,
+                    'remember_token' => Str::random(10),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                [
+                    'employee_number' => '10.0003',
+                    'name' => 'dr. Charles Saputra',
+                    'start_date' => '2023-01-10',
+                    'gender' => 'Laki-laki',
+                    'nationality' => 'Indonesia',
+                    'address' => 'Atambua',
+                    'phone' => '0812-0000-0017',
+                    'email' => 'dokter.umum2@rsud.local',
+                    'last_education' => 'S.Ked',
+                    'position' => 'Dokter Umum',
+                    'unit_id' => $unitId('poliklinik-umum'),
+                    'profession_id' => $professionId('DOK-UM'),
+                    'password' => Hash::make('password'),
+                    'last_role' => 'pegawai_medis',
+                    'email_verified_at' => $now,
+                    'remember_token' => Str::random(10),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                [
+                    'employee_number' => '10.0004',
                     'name' => 'Fransisca Tjitra N. Seran, SE',
                     'start_date' => '2018-11-05',
                     'gender' => 'Perempuan',
                     'nationality' => 'Indonesia',
                     'address' => 'Atambua',
                     'phone' => '0815-5555-5555',
-                    'email' => 'perawat@rsud.local',
+                    'email' => 'perawat1@rsud.local',
                     'last_education' => 'D3 Keperawatan',
                     'position' => 'Perawat Poli Umum',
                     'unit_id' => $unitId('poliklinik-umum'),
@@ -178,18 +227,18 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '197511132008031001',
-                    'name' => 'dr. Theodorus L. Mau bere',
-                    'start_date' => '2021-02-10',
-                    'gender' => 'Laki-laki',
+                    'employee_number' => '10.0005',
+                    'name' => 'Maria Magdalena Seran',
+                    'start_date' => '2010-01-01',
+                    'gender' => 'Perempuan',
                     'nationality' => 'Indonesia',
                     'address' => 'Atambua',
-                    'phone' => '0814-4444-4444',
-                    'email' => 'dokter.umum@rsud.local',
-                    'last_education' => 'S.Ked',
-                    'position' => 'Dokter Umum',
+                    'phone' => '0812-0000-0200',
+                    'email' => 'perawat2@rsud.local',
+                    'last_education' => 'D3 Keperawatan',
+                    'position' => 'Perawat Poli Umum',
                     'unit_id' => $unitId('poliklinik-umum'),
-                    'profession_id' => $professionId('DOK-UM'),
+                    'profession_id' => $professionId('PRW'),
                     'password' => Hash::make('password'),
                     'last_role' => 'pegawai_medis',
                     'email_verified_at' => $now,
@@ -218,14 +267,14 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '161',
+                    'employee_number' => '10.0006',
                     'name' => 'dr. Januario E. Bria M.Kes, Sp.B',
                     'start_date' => '2021-05-01',
                     'gender' => 'Laki-laki',
                     'nationality' => 'Indonesia',
                     'address' => 'Atambua',
                     'phone' => '0812-0000-0161',
-                    'email' => 'januario.bria@rsud.local',
+                    'email' => 'dokter.spes1@rsud.local',
                     'last_education' => 'Sp.B',
                     'position' => 'Dokter Spesialis',
                     'unit_id' => $unitId('poliklinik-gigi'),
@@ -237,7 +286,47 @@ class DatabaseSeeder extends Seeder
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
-            ]);
+                [
+                    'employee_number' => '10.0007',
+                    'name' => 'drg. Susanti S. Leo',
+                    'start_date' => '2022-02-02',
+                    'gender' => 'Perempuan',
+                    'nationality' => 'Indonesia',
+                    'address' => 'Atambua',
+                    'phone' => '0812-0000-0888',
+                    'email' => 'dokter.spes2@rsud.local',
+                    'last_education' => 'drg.',
+                    'position' => 'Dokter Spesialis Gigi',
+                    'unit_id' => $unitId('poliklinik-gigi'),
+                    'profession_id' => $professionId('DOK-SP'),
+                    'password' => Hash::make('password'),
+                    'last_role' => 'pegawai_medis',
+                    'email_verified_at' => $now,
+                    'remember_token' => Str::random(10),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+            ];
+
+            DB::table('users')->upsert(
+                $users,
+                ['email'],
+                [
+                    'employee_number',
+                    'name',
+                    'start_date',
+                    'gender',
+                    'nationality',
+                    'address',
+                    'phone',
+                    'last_education',
+                    'position',
+                    'unit_id',
+                    'profession_id',
+                    'last_role',
+                    'updated_at',
+                ]
+            );
 
             // 3b) ROLES & ASSIGNMENTS (many-to-many)
             $roles = [
@@ -251,32 +340,59 @@ class DatabaseSeeder extends Seeder
                 $r['created_at'] = $now;
                 $r['updated_at'] = $now;
             }
-            DB::table('roles')->insert($roles);
+            DB::table('roles')->upsert(
+                $roles,
+                ['slug'],
+                ['name', 'updated_at']
+            );
 
             $userId = fn(string $email) => DB::table('users')->where('email', $email)->value('id');
 
-            // helper ids
-            $doctorId = $userId('dokter.umum@rsud.local');
-            $nurseId = $userId('perawat@rsud.local');
+            // helper ids (8 akun demo mudah)
+            $unitHeadUmumId = $userId('kepala.umum@rsud.local');
+            $doctorUmum1Id = $userId('dokter.umum1@rsud.local');
+            $doctorUmum2Id = $userId('dokter.umum2@rsud.local');
+            $nurse1Id = $userId('perawat1@rsud.local');
+            $nurse2Id = $userId('perawat2@rsud.local');
+            $unitHeadGigiId = $userId('kepala.gigi@rsud.local');
+            $doctorSpes1Id = $userId('dokter.spes1@rsud.local');
+            $doctorSpes2Id = $userId('dokter.spes2@rsud.local');
+
+            // helper ids (admin)
             $superAdminId = $userId('superadmin@rsud.local');
             $adminRsId = $userId('admin.rs@rsud.local');
 
+            // Guardrail: fail fast if any required seeded users are missing.
+            $requiredUserIds = [
+                'superadmin@rsud.local' => $superAdminId,
+                'admin.rs@rsud.local' => $adminRsId,
+                'kepala.poliklinik@rsud.local' => $userId('kepala.poliklinik@rsud.local'),
+                'kepala.umum@rsud.local' => $unitHeadUmumId,
+                'dokter.umum1@rsud.local' => $doctorUmum1Id,
+                'dokter.umum2@rsud.local' => $doctorUmum2Id,
+                'perawat1@rsud.local' => $nurse1Id,
+                'perawat2@rsud.local' => $nurse2Id,
+                'kepala.gigi@rsud.local' => $unitHeadGigiId,
+                'dokter.spes1@rsud.local' => $doctorSpes1Id,
+                'dokter.spes2@rsud.local' => $doctorSpes2Id,
+            ];
+            $missingUsers = array_keys(array_filter($requiredUserIds, fn($id) => !$id));
+            if (!empty($missingUsers)) {
+                throw new \RuntimeException('DatabaseSeeder: user tidak ditemukan: ' . implode(', ', $missingUsers));
+            }
+
             // yang baru:
             $polyclinicHeadId = $userId('kepala.poliklinik@rsud.local');
-            $unitHeadGigiId = $userId('kepala.gigi@rsud.local');
-            $medisUnitHeadId = $userId('kepala.unit.medis@rsud.local');
-            $janBeriaId = $userId('januario.bria@rsud.local');
 
-            // Aliases for readability (permintaan user)
-            $felixId = $medisUnitHeadId;
-            $fransiscaId = $nurseId;
-            $theodorusId = $doctorId;
-            $melriaId = $unitHeadGigiId;
+            // Aliases for readability (dipakai di bawah)
+            $doctorId = $doctorUmum1Id;
+            $nurseId = $nurse1Id;
+            $medisUnitHeadId = $unitHeadUmumId;
 
             $poliklinikUmumId = $unitId('poliklinik-umum');
             $poliklinikGigiId = $unitId('poliklinik-gigi');
 
-            // Assign roles to users via pivot (single role each, except user id 7 dual head+medis)
+            // Assign roles to users via pivot (single role each, kecuali beberapa user dual head+medis)
             $roleId = fn(string $slug) => DB::table('roles')->where('slug', $slug)->value('id');
             $attach = function ($uid, array $slugs) use ($roleId) {
                 foreach ($slugs as $slug) {
@@ -288,29 +404,38 @@ class DatabaseSeeder extends Seeder
             };
 
             // Bersihkan pivot lama (jika seeder dijalankan ulang tanpa migrate:fresh)
-            DB::table('role_user')->whereIn('user_id', [
+            $uids = array_filter([
                 $superAdminId,
                 $polyclinicHeadId,
                 $unitHeadGigiId,
                 $adminRsId,
-                $doctorId,
-                $nurseId,
-                $medisUnitHeadId,
-                $janBeriaId,
-            ])->delete();
+                $unitHeadUmumId,
+                $doctorUmum1Id,
+                $doctorUmum2Id,
+                $nurse1Id,
+                $nurse2Id,
+                $doctorSpes1Id,
+                $doctorSpes2Id,
+            ]);
+            if (!empty($uids)) {
+                DB::table('role_user')->whereIn('user_id', $uids)->delete();
+            }
 
             // Single-role assignments
             $attach($superAdminId, ['super_admin']);
             $attach($polyclinicHeadId, ['kepala_poliklinik']);
-            $attach($unitHeadGigiId, ['kepala_unit']);
             $attach($adminRsId, ['admin_rs']);
-            $attach($doctorId, ['pegawai_medis']);
-            $attach($nurseId, ['pegawai_medis']);
-            if ($janBeriaId) {
-                $attach($janBeriaId, ['pegawai_medis']);
-            }
+            $attach($doctorUmum1Id, ['pegawai_medis']);
+            $attach($doctorUmum2Id, ['pegawai_medis']);
+            $attach($nurse1Id, ['pegawai_medis']);
+            $attach($nurse2Id, ['pegawai_medis']);
+            $attach($doctorSpes1Id, ['pegawai_medis']);
+            $attach($doctorSpes2Id, ['pegawai_medis']);
 
-            // Only user id 7 (kepala.unit.medis) has dual roles
+            // Dual roles: kepala_unit + pegawai_medis
+            if ($unitHeadGigiId) {
+                $attach($unitHeadGigiId, ['kepala_unit', 'pegawai_medis']);
+            }
             if ($medisUnitHeadId) {
                 $attach($medisUnitHeadId, ['kepala_unit', 'pegawai_medis']);
             }
@@ -396,13 +521,17 @@ class DatabaseSeeder extends Seeder
                 $a['created_at'] = $now;
                 $a['updated_at'] = $now;
             }
-            DB::table('about_pages')->insert($about);
+            DB::table('about_pages')->upsert(
+                $about,
+                ['type'],
+                ['title','content','image_path','attachments','published_at','is_active','updated_at']
+            );
 
             // =========================================================
             // 6) ASSESSMENT PERIODS
             // =========================================================
             // Periode bulanan (sesuai kebutuhan remunerasi per-bulan)
-            DB::table('assessment_periods')->insert([
+            $periods = [
                 [
                     'name' => 'September 2025',
                     'start_date' => '2025-09-01',
@@ -430,10 +559,27 @@ class DatabaseSeeder extends Seeder
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
-            ]);
+            ];
+            DB::table('assessment_periods')->upsert(
+                $periods,
+                ['name'],
+                ['start_date','end_date','status','locked_at','updated_at']
+            );
             $periodSeptId = DB::table('assessment_periods')->where('name', 'September 2025')->value('id');
             $periodOctId = DB::table('assessment_periods')->where('name', 'Oktober 2025')->value('id');
             $periodNovId = DB::table('assessment_periods')->where('name', 'November 2025')->value('id');
+
+            // =========================================================
+            // Requirement: purge ALL October performance assessments
+            // =========================================================
+            // Hapus dari performance_assessments (detail/approvals cascade) + remunerations.
+            if (!empty($periodOctId)) {
+                DB::table('performance_assessments')->where('assessment_period_id', $periodOctId)->delete();
+
+                if (Schema::hasTable('remunerations')) {
+                    DB::table('remunerations')->where('assessment_period_id', $periodOctId)->delete();
+                }
+            }
 
             // =========================================================
             // 7) PERFORMANCE CRITERIAS
@@ -449,47 +595,66 @@ class DatabaseSeeder extends Seeder
                     ...(Schema::hasColumn('performance_criterias', 'source') ? ['source' => 'system'] : []),
                     'is_360' => 0,
                     'aggregation_method' => 'count',
-                    'normalization_basis' => 'total_unit',
-                    'description' => "Kode: KEHADIRAN. Kehadiran dihitung berdasarkan jumlah hari hadir selama periode.\nNormalisasi = total hari hadir / total hari pada periode (×100).",
+                    // Excel: hari_hadir / total_hari_periode × 100
+                    // Implementasi DB: gunakan custom_target; jika custom_target_value null,
+                    // engine baru akan pakai total hari periode sebagai target dinamis.
+                    'normalization_basis' => 'custom_target',
+                    'custom_target_value' => null,
+                    'suggested_weight' => 20,
+                    'description' => "Kode: KEHADIRAN\nNama: Kehadiran (Absensi)\nRumus Excel: hari_hadir / total_hari_periode × 100\nBasis: periode_days (dinamis dari AssessmentPeriod).",
                     'is_active' => 1,
                     'updated_at' => $now,
                 ]);
 
             $criterias = [
-                ['name' => 'Kehadiran (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'count', 'normalization_basis' => 'total_unit', 'description' => "Kode: KEHADIRAN. Kehadiran dihitung berdasarkan jumlah hari hadir selama periode.\nNormalisasi = total hari hadir / total hari pada periode (×100).", 'is_active' => 1],
-                ['name' => 'Jam Kerja (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'description' => "Kode: JAM_KERJA. Jam kerja dihitung dari total menit kerja selama periode.\nNormalisasi berdasarkan total unit (×100).", 'is_active' => 1],
-                ['name' => 'Lembur (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'count', 'normalization_basis' => 'total_unit', 'description' => "Kode: LEMBUR. Lembur dihitung berdasarkan jumlah kejadian lembur selama periode.\nNormalisasi berdasarkan total unit (×100).", 'is_active' => 1],
-                ['name' => 'Keterlambatan (Absensi)', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'description' => "Kode: KETERLAMBATAN. Keterlambatan dihitung dari total menit terlambat selama periode.\nNormalisasi cost = (1 - (nilai / max)) × 100.", 'is_active' => 1],
-                ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'source' => 'assessment_360', 'is_360' => 1, 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kedisiplinan', 'is_active' => 1],
-                ['name' => 'Kerjasama (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'source' => 'assessment_360', 'is_360' => 1, 'aggregation_method' => 'avg', 'description' => 'Rerata skor 360 kerjasama tim', 'is_active' => 1],
-                ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Poin tugas / kontribusi tambahan dari modul tugas/kontribusi', 'is_active' => 1],
-                ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'source' => 'metric_import', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Total pasien ditangani', 'is_active' => 1],
-                ['name' => 'Jumlah Komplain Pasien', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'import', 'source' => 'metric_import', 'is_360' => 0, 'aggregation_method' => 'sum', 'description' => 'Total komplain pasien (semakin kecil semakin baik)', 'is_active' => 1],
-                ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'avg', 'description' => 'Rerata rating pasien', 'is_active' => 1],
+                // Excel mapping (source-of-truth)
+                ['name' => 'Kehadiran (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'count', 'normalization_basis' => 'custom_target', 'custom_target_value' => null, 'suggested_weight' => 20, 'description' => "Kode: KEHADIRAN\nRumus Excel: hari_hadir / total_hari_periode × 100\nBasis: periode_days", 'is_active' => 1],
+                ['name' => 'Jam Kerja (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 10, 'description' => "Kode: JAM_KERJA\nRumus Excel: menit_kerja / total_menit_grup × 100\nBasis: total_unit", 'is_active' => 1],
+                ['name' => 'Lembur (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'count', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 5, 'description' => "Kode: LEMBUR\nRumus Excel: jumlah_lembur / total_lembur_grup × 100\nBasis: total_unit", 'is_active' => 1],
+                ['name' => 'Keterlambatan (Absensi)', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'max_unit', 'custom_target_value' => null, 'suggested_weight' => 10, 'description' => "Kode: KETERLAMBATAN\nRumus Excel: (1 - menit_terlambat / max) × 100\nBasis: max_unit", 'is_active' => 1],
+                ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'source' => 'assessment_360', 'is_360' => 1, 'aggregation_method' => 'avg', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 15, 'description' => "Kode: KEDISIPLINAN_360\nRumus Excel: skor / total_skor_grup × 100\nBasis: total_unit", 'is_active' => 1],
+                ['name' => 'Kerjasama (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'source' => 'assessment_360', 'is_360' => 1, 'aggregation_method' => 'avg', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 10, 'description' => "Kode: KERJASAMA_360\nRumus Excel: skor / total_skor_grup × 100\nBasis: total_unit", 'is_active' => 1],
+                ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 10, 'description' => "Kode: KONTRIBUSI\nRumus Excel: poin / total_poin_grup × 100\nBasis: total_unit", 'is_active' => 1],
+                ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'source' => 'metric_import', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 5, 'description' => "Kode: PASIEN\nRumus Excel: pasien / total_pasien_grup × 100\nBasis: total_unit", 'is_active' => 1],
+                ['name' => 'Jumlah Komplain Pasien', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'import', 'source' => 'metric_import', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'max_unit', 'custom_target_value' => null, 'suggested_weight' => 3, 'description' => "Kode: KOMPLAIN\nRumus Excel: (1 - komplain / max) × 100\nBasis: max_unit", 'is_active' => 1],
+                ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'avg', 'normalization_basis' => 'custom_target', 'custom_target_value' => 5, 'suggested_weight' => 12, 'description' => "Kode: RATING\nRumus Excel: rating / 5 × 100\nBasis: max_rating (custom_target=5)", 'is_active' => 1],
             ];
             foreach ($criterias as &$k) {
                 $k['created_at'] = $now;
                 $k['updated_at'] = $now;
             }
-            foreach ($criterias as $row) {
-                $name = (string) ($row['name'] ?? '');
-                if ($name === '') {
-                    continue;
-                }
 
-                if (!Schema::hasColumn('performance_criterias', 'source')) {
-                    unset($row['source']);
+            // Upsert by name to avoid duplicates and keep FK stable.
+            $upsertRows = $criterias;
+            if (!Schema::hasColumn('performance_criterias', 'source')) {
+                foreach ($upsertRows as &$r) {
+                    unset($r['source']);
                 }
-
-                $existingId = DB::table('performance_criterias')->where('name', $name)->value('id');
-                if ($existingId) {
-                    $update = $row;
-                    unset($update['created_at']);
-                    DB::table('performance_criterias')->where('id', (int) $existingId)->update($update);
-                } else {
-                    DB::table('performance_criterias')->insert($row);
-                }
+                unset($r);
             }
+
+            $updateCols = [
+                'type',
+                'description',
+                'is_active',
+                'data_type',
+                'input_method',
+                'is_360',
+                'aggregation_method',
+                'normalization_basis',
+                'custom_target_value',
+                'suggested_weight',
+                'updated_at',
+            ];
+            if (Schema::hasColumn('performance_criterias', 'source')) {
+                $updateCols[] = 'source';
+            }
+
+            DB::table('performance_criterias')->upsert(
+                $upsertRows,
+                ['name'],
+                $updateCols
+            );
 
             // NOTE:
             // rater_weights is now per (period + unit + 360-criteria + profession + assessor_type)
@@ -501,28 +666,7 @@ class DatabaseSeeder extends Seeder
             // =========================================================
             // 7b) CRITERIA RATER RULES (untuk kriteria 360)
             // =========================================================
-            $ruleRows = [];
-            $kedisId = (int) ($criteriaId('Kedisiplinan (360)') ?? 0);
-            $kerjaId = (int) ($criteriaId('Kerjasama (360)') ?? 0);
-
-            // Contoh: Kedisiplinan memakai Supervisor + Peer
-            if ($kedisId > 0) {
-                $ruleRows[] = ['performance_criteria_id' => $kedisId, 'assessor_type' => 'supervisor', 'created_at' => $now, 'updated_at' => $now];
-                $ruleRows[] = ['performance_criteria_id' => $kedisId, 'assessor_type' => 'peer', 'created_at' => $now, 'updated_at' => $now];
-            }
-
-            // Contoh: Kerjasama hanya 1 tipe penilai -> memicu auto 100%
-            if ($kerjaId > 0) {
-                $ruleRows[] = ['performance_criteria_id' => $kerjaId, 'assessor_type' => 'supervisor', 'created_at' => $now, 'updated_at' => $now];
-            }
-
-            if (!empty($ruleRows)) {
-                DB::table('criteria_rater_rules')->upsert(
-                    $ruleRows,
-                    ['performance_criteria_id', 'assessor_type'],
-                    ['updated_at']
-                );
-            }
+            // NOTE: Seeded via CriteriaRaterRuleSeeder (keeps the rules matrix consistent).
 
             // =========================================================
             // 8) UNIT CRITERIA WEIGHTS (contoh Poli Umum)
@@ -554,21 +698,23 @@ class DatabaseSeeder extends Seeder
             // =========================================================
             // 9) ANNOUNCEMENTS
             // =========================================================
-            DB::table('announcements')->insert([
-                'title' => 'Selamat datang di Sistem Informasi RSUD GM Atambua',
-                'slug' => 'selamat-datang',
-                'summary' => 'Portal internal untuk kinerja, remunerasi, dan layanan klinik.',
-                'content' => '<p>Silakan gunakan menu di atas untuk mengakses modul-modul yang tersedia.</p>',
-                'category' => 'lainnya',
-                'label' => 'info',
-                'is_featured' => 1,
-                'published_at' => $now,
-                'expired_at' => null,
-                'attachments' => json_encode([]),
-                'author_id' => $superAdminId,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+            DB::table('announcements')->updateOrInsert(
+                ['slug' => 'selamat-datang'],
+                [
+                    'title' => 'Selamat datang di Sistem Informasi RSUD GM Atambua',
+                    'summary' => 'Portal internal untuk kinerja, remunerasi, dan layanan klinik.',
+                    'content' => '<p>Silakan gunakan menu di atas untuk mengakses modul-modul yang tersedia.</p>',
+                    'category' => 'lainnya',
+                    'label' => 'info',
+                    'is_featured' => 1,
+                    'published_at' => $now,
+                    'expired_at' => null,
+                    'attachments' => json_encode([]),
+                    'author_id' => $superAdminId,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ]
+            );
 
             // =========================================================
             // 10) FAQS (dengan user_id)
@@ -614,146 +760,68 @@ class DatabaseSeeder extends Seeder
             // =========================================================
             // 12) ADDITIONAL CONTRIBUTIONS
             // =========================================================
-            DB::table('additional_contributions')->insert([
-                [
-                    'user_id' => $nurseId,
-                    'title' => 'Penyusunan SOP Triase Poli Umum',
-                    'description' => 'Draft SOP triase pasien poli umum untuk percepatan alur.',
-                    'submission_date' => $now->toDateString(),
-                    'evidence_file' => null,
-                    'validation_status' => 'Menunggu Persetujuan',
-                    'supervisor_comment' => null,
-                    'assessment_period_id' => $periodOctId,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
-                    'user_id' => $doctorId,
-                    'title' => 'Edukasi DM Hipertensi Komunitas',
-                    'description' => 'Materi penyuluhan singkat untuk pasien rawat jalan.',
-                    'submission_date' => $now->toDateString(),
-                    'evidence_file' => null,
-                    'validation_status' => 'Disetujui',
-                    'supervisor_comment' => 'Bagus, lanjutkan implementasi.',
-                    'assessment_period_id' => $periodOctId,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-            ]);
+            // NOTE: demo data untuk Oktober sengaja tidak di-seed.
 
             // =========================================================
             // 13) PERFORMANCE ASSESSMENTS
             // =========================================================
-            // Penilaian kinerja bulanan (Oktober 2025)
-            $pkDoctorOctId = DB::table('performance_assessments')->insertGetId([
-                'user_id' => $doctorId,
-                'assessment_period_id' => $periodOctId,
-                'assessment_date' => $now->toDateString(),
-                'total_wsm_score' => 86.50,
-                'validation_status' => 'Menunggu Validasi',
-                'supervisor_comment' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-            $pkNurseOctId = DB::table('performance_assessments')->insertGetId([
-                'user_id' => $nurseId,
-                'assessment_period_id' => $periodOctId,
-                'assessment_date' => $now->toDateString(),
-                'total_wsm_score' => 78.25,
-                'validation_status' => 'Menunggu Validasi',
-                'supervisor_comment' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+            // NOTE: demo data untuk Oktober sengaja tidak di-seed.
 
             // =========================================================
             // 14) PERFORMANCE ASSESSMENT DETAILS
             // =========================================================
-            DB::table('performance_assessment_details')->insert([
-                [
-                    'performance_assessment_id' => $pkDoctorOctId,
-                    'performance_criteria_id' => $criteriaId('Kedisiplinan (360)'),
-                    'score' => 90.00,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
-                    'performance_assessment_id' => $pkDoctorOctId,
-                    'performance_criteria_id' => $criteriaId('Kehadiran (Absensi)'),
-                    'score' => 85.00,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
-                    'performance_assessment_id' => $pkDoctorOctId,
-                    'performance_criteria_id' => $criteriaId('Jumlah Pasien Ditangani'),
-                    'score' => 80.00,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
-                    'performance_assessment_id' => $pkNurseOctId,
-                    'performance_criteria_id' => $criteriaId('Kedisiplinan (360)'),
-                    'score' => 82.00,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
-                    'performance_assessment_id' => $pkNurseOctId,
-                    'performance_criteria_id' => $criteriaId('Kehadiran (Absensi)'),
-                    'score' => 79.00,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
-                    'performance_assessment_id' => $pkNurseOctId,
-                    'performance_criteria_id' => $criteriaId('Jumlah Pasien Ditangani'),
-                    'score' => 74.00,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-            ]);
+            // NOTE: demo data untuk Oktober sengaja tidak di-seed.
 
 
             // =========================================================
             // 17) REVIEWS (tanpa relasi visit)
             // =========================================================
-            $reviewId = DB::table('reviews')->insertGetId([
-                'registration_ref' => 'REG-' . date('Ymd') . '-0001',
-                'unit_id' => $poliklinikUmumId,
-                'overall_rating' => 5,
-                'comment' => 'Pelayanan cepat dan ramah.',
-                'patient_name' => 'Bapak A',
-                'contact' => '08xxxxxxxxxx',
-                'client_ip' => '127.0.0.1',
-                'user_agent' => 'Seeder',
-                'status' => 'approved',
-                'decision_note' => 'Data contoh disetujui otomatis.',
-                'decided_by' => $medisUnitHeadId,
-                'decided_at' => $now,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-            $reviewId2 = DB::table('reviews')->insertGetId([
-                'registration_ref' => 'REG-' . date('Ymd') . '-0002',
-                'unit_id' => $poliklinikUmumId,
-                'overall_rating' => 4,
-                'comment' => 'Dokter informatif, proses cepat.',
-                'patient_name' => 'Ibu B',
-                'contact' => '08xxxxxxxxxx',
-                'client_ip' => '127.0.0.1',
-                'user_agent' => 'Seeder',
-                'status' => 'approved',
-                'decision_note' => 'Data contoh disetujui otomatis.',
-                'decided_by' => $medisUnitHeadId,
-                'decided_at' => $now,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+            $reg1 = 'REG-' . date('Ymd') . '-0001';
+            DB::table('reviews')->updateOrInsert(
+                ['registration_ref' => $reg1],
+                [
+                    'unit_id' => $poliklinikUmumId,
+                    'overall_rating' => 5,
+                    'comment' => 'Pelayanan cepat dan ramah.',
+                    'patient_name' => 'Bapak A',
+                    'contact' => '08xxxxxxxxxx',
+                    'client_ip' => '127.0.0.1',
+                    'user_agent' => 'Seeder',
+                    'status' => 'approved',
+                    'decision_note' => 'Data contoh disetujui otomatis.',
+                    'decided_by' => $medisUnitHeadId,
+                    'decided_at' => $now,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ]
+            );
+            $reviewId = (int) (DB::table('reviews')->where('registration_ref', $reg1)->value('id') ?? 0);
+
+            $reg2 = 'REG-' . date('Ymd') . '-0002';
+            DB::table('reviews')->updateOrInsert(
+                ['registration_ref' => $reg2],
+                [
+                    'unit_id' => $poliklinikUmumId,
+                    'overall_rating' => 4,
+                    'comment' => 'Dokter informatif, proses cepat.',
+                    'patient_name' => 'Ibu B',
+                    'contact' => '08xxxxxxxxxx',
+                    'client_ip' => '127.0.0.1',
+                    'user_agent' => 'Seeder',
+                    'status' => 'approved',
+                    'decision_note' => 'Data contoh disetujui otomatis.',
+                    'decided_by' => $medisUnitHeadId,
+                    'decided_at' => $now,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ]
+            );
+            $reviewId2 = (int) (DB::table('reviews')->where('registration_ref', $reg2)->value('id') ?? 0);
 
             // =========================================================
             // 18) REVIEW DETAILS (per nakes)
             // =========================================================
+            DB::table('review_details')->whereIn('review_id', array_values(array_filter([$reviewId, $reviewId2])))->delete();
             DB::table('review_details')->insert([
                 [
                     'review_id' => $reviewId,
@@ -786,6 +854,8 @@ class DatabaseSeeder extends Seeder
         });
 
         $this->call(ProfessionHierarchySeeder::class);
+        $this->call(CriteriaRaterRuleSeeder::class);
         $this->call(FiveStaffKpiSeeder::class);
+        $this->call(DemoRemunerationSeeder::class);
     }
 }

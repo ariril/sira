@@ -4,6 +4,8 @@ namespace App\Services\CriteriaEngine;
 
 use App\Models\AssessmentPeriod;
 use App\Services\CriteriaEngine\Contracts\WeightProvider;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PerformanceScoreService
 {
@@ -11,6 +13,7 @@ class PerformanceScoreService
         private readonly CriteriaAggregator $aggregator,
         private readonly CriteriaNormalizer $normalizer,
         private readonly WeightProvider $weightProvider,
+        private readonly CriteriaRegistry $registry,
     ) {
     }
 
@@ -40,20 +43,31 @@ class PerformanceScoreService
         $agg = $this->aggregator->aggregate($period, $unitId, $userIds, $professionId);
         $criteriaUsed = $agg['criteria_used'] ?? [];
 
-        // Normalize per criteria
+        // Normalize per criteria (WSM normalization follows DB normalization_basis/custom_target_value)
         $normalizedByKey = [];
         $criteriaMeta = [];
         foreach (($agg['criteria'] ?? []) as $key => $info) {
             $type = (string) ($info['type'] ?? 'benefit');
             $raw = (array) ($info['raw'] ?? []);
 
-            if ($type === 'cost') {
-                $norm = $this->normalizer->normalizeCost($raw, $userIds);
-                $normalizedByKey[$key] = $norm['normalized'];
-            } else {
-                $norm = $this->normalizer->normalizeBenefit($raw, $userIds);
-                $normalizedByKey[$key] = $norm['normalized'];
+            $policy = $this->resolveNormalizationPolicyForKey((string) $key);
+            $basis = (string) ($policy['basis'] ?? 'total_unit');
+            $target = $policy['custom_target'] !== null ? (float) $policy['custom_target'] : null;
+
+            // Helpful default: if custom_target is selected but missing for attendance,
+            // use the period total days as a dynamic target.
+            if ($basis === 'custom_target' && $target === null && (string) $key === 'attendance') {
+                $target = $this->periodTotalDays($period);
             }
+
+            $norm = $this->normalizer->normalizeWithBasis(
+                $type === 'cost' ? 'cost' : 'benefit',
+                $basis,
+                $raw,
+                $userIds,
+                $target
+            );
+            $normalizedByKey[$key] = $norm['normalized'];
 
             $readiness = (array) ($info['readiness'] ?? []);
             $criteriaMeta[$key] = [
@@ -117,5 +131,82 @@ class PerformanceScoreService
             'criteria_used' => $criteriaUsed,
             'criteria_meta' => $criteriaMeta,
         ];
+    }
+
+    /**
+     * @return array{basis: string, custom_target: ?float}
+     */
+    private function resolveNormalizationPolicyForKey(string $key): array
+    {
+        $default = ['basis' => 'total_unit', 'custom_target' => null];
+
+        if (!Schema::hasTable('performance_criterias')) {
+            return $default;
+        }
+
+        // Metric / 360 keys have direct ID.
+        if (str_starts_with($key, 'metric:')) {
+            $id = (int) substr($key, strlen('metric:'));
+            return $this->resolveNormalizationPolicyForCriteriaId($id) ?? $default;
+        }
+        if (str_starts_with($key, '360:')) {
+            $id = (int) substr($key, strlen('360:'));
+            return $this->resolveNormalizationPolicyForCriteriaId($id) ?? $default;
+        }
+
+        // System keys -> resolve by reserved criteria name.
+        $name = $this->registry->systemNameByKey($key);
+        if (!$name) {
+            return $default;
+        }
+
+        $row = DB::table('performance_criterias')
+            ->where('name', $name)
+            ->first(['normalization_basis', 'custom_target_value']);
+
+        if (!$row) {
+            return $default;
+        }
+
+        return [
+            'basis' => (string) ($row->normalization_basis ?? 'total_unit'),
+            'custom_target' => $row->custom_target_value !== null ? (float) $row->custom_target_value : null,
+        ];
+    }
+
+    /** @return array{basis: string, custom_target: ?float}|null */
+    private function resolveNormalizationPolicyForCriteriaId(int $criteriaId): ?array
+    {
+        if ($criteriaId <= 0) {
+            return null;
+        }
+
+        $row = DB::table('performance_criterias')
+            ->where('id', $criteriaId)
+            ->first(['normalization_basis', 'custom_target_value']);
+
+        if (!$row) {
+            return null;
+        }
+
+        return [
+            'basis' => (string) ($row->normalization_basis ?? 'total_unit'),
+            'custom_target' => $row->custom_target_value !== null ? (float) $row->custom_target_value : null,
+        ];
+    }
+
+    private function periodTotalDays(AssessmentPeriod $period): float
+    {
+        if (!$period->start_date || !$period->end_date) {
+            return 0.0;
+        }
+
+        try {
+            $s = \Illuminate\Support\Carbon::parse((string) $period->start_date)->startOfDay();
+            $e = \Illuminate\Support\Carbon::parse((string) $period->end_date)->startOfDay();
+            return (float) ($s->diffInDays($e) + 1);
+        } catch (\Throwable) {
+            return 0.0;
+        }
     }
 }

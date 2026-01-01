@@ -24,7 +24,7 @@
         @if($latestLockedPeriod ?? null)
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                 <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 px-4 py-3 text-sm">
-                    Import hanya untuk periode <span class="font-semibold">LOCKED</span>. Pastikan file yang diunggah hanya berisi 1 bulan dan bulan tersebut sudah dikunci.
+                    Import menggunakan periode: <span class="font-semibold">{{ $latestLockedPeriod->name ?? '-' }}</span>.
                 </div>
 
                 <form method="POST" action="{{ route('admin_rs.attendances.import.store') }}" enctype="multipart/form-data" class="space-y-6">

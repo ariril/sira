@@ -24,6 +24,7 @@ return new class extends Migration
                 ->constrained('imported_criteria_values')->nullOnDelete();
 
             $table->decimal('score', 10, 2); // nilai
+            $table->json('meta')->nullable();
 
             $table->timestamps();
 

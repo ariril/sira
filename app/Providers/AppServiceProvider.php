@@ -38,6 +38,7 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(\App\Services\CriteriaEngine\CriteriaAggregator::class),
                 $app->make(\App\Services\CriteriaEngine\CriteriaNormalizer::class),
                 $app->make(\App\Services\CriteriaEngine\Contracts\WeightProvider::class),
+                $app->make(\App\Services\CriteriaEngine\CriteriaRegistry::class),
             );
         });
     }

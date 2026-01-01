@@ -16,6 +16,7 @@ use App\Models\UnitRemunerationAllocation as Allocation;
 use App\Models\User;
 use App\Models\Unit;
 use App\Models\Profession;
+use App\Support\ProportionalAllocator;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -330,10 +331,20 @@ class RemunerationController extends Controller
             $wsmTotals = array_fill_keys($users->all(), 1.0);
         }
 
+        $weightsByUserId = [];
         foreach ($users as $userId) {
-            $userScore = $wsmTotals[$userId] ?? 0.0;
+            $uid = (int) $userId;
+            $weightsByUserId[$uid] = (float) ($wsmTotals[$uid] ?? 0.0);
+        }
+
+        // Allocate in cents with Largest Remainder so total distributed equals allocation amount.
+        $allocatedAmounts = ProportionalAllocator::allocate((float) $amount, $weightsByUserId);
+
+        foreach ($users as $userId) {
+            $userId = (int) $userId;
+            $userScore = (float) ($wsmTotals[$userId] ?? 0.0);
             $sharePct = $unitTotal > 0 ? $userScore / $unitTotal : (1 / max($users->count(), 1));
-            $final = round($amount * $sharePct, 2);
+            $final = (float) ($allocatedAmounts[$userId] ?? 0.0);
 
             $rem = Remuneration::firstOrNew([
                 'user_id' => $userId,
@@ -363,6 +374,10 @@ class RemunerationController extends Controller
                     'unit_total_wsm' => $unitTotal,
                     'user_wsm_score' => $userScore,
                     'share_percent' => round($sharePct * 100, 6),
+                    'rounding' => [
+                        'method' => 'largest_remainder_cents',
+                        'precision' => 2,
+                    ],
                 ],
                 'wsm' => [
                     'user_total' => $userScore,

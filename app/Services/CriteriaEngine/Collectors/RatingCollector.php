@@ -26,9 +26,14 @@ class RatingCollector implements CriteriaCollector
         $start = $period->start_date;
         $end = $period->end_date;
 
+        // Excel rule for TOTAL_UNIT normalization (rating):
+        // - raw rating per staff is conceptually AVG(rating)
+        // - but normalization uses AVG(rating) * jumlah_rater (i.e., SUM(rating)) as the aggregated value.
+        // Since the engine consumes a single numeric "raw" value, we collect SUM(rating) per staff.
         $query = DB::table('review_details')
             ->join('reviews', 'reviews.id', '=', 'review_details.review_id')
-            ->selectRaw('review_details.medical_staff_id as user_id, AVG(review_details.rating) as avg_rating')
+            ->selectRaw('review_details.medical_staff_id as user_id, SUM(review_details.rating) as rating_sum')
+            ->whereNotNull('review_details.rating')
             ->where('reviews.status', ReviewStatus::APPROVED)
             ->where('reviews.unit_id', $unitId)
             ->whereIn('review_details.medical_staff_id', $userIds)
@@ -42,7 +47,7 @@ class RatingCollector implements CriteriaCollector
         }
 
         return $query
-            ->pluck('avg_rating', 'user_id')
+            ->pluck('rating_sum', 'user_id')
             ->map(fn($v) => (float) $v)
             ->all();
     }

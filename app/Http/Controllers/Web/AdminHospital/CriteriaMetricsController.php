@@ -10,6 +10,7 @@ use App\Services\MetricPatientImportService;
 use App\Services\PeriodPerformanceAssessmentService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -57,20 +58,32 @@ class CriteriaMetricsController extends Controller
             ->where('status', AssessmentPeriod::STATUS_LOCKED)
             ->orderByDesc('start_date')
             ->pluck('name', 'id');
-        // Manual Metrics hanya untuk kriteria input_method=import yang bukan bersumber dari modul Absensi.
-        $criterias = PerformanceCriteria::query()
+
+        // Manual Metrics hanya untuk kriteria input_method=import (metric_import).
+        $criteriaQuery = PerformanceCriteria::query()
             ->where('is_active', true)
-            ->where('input_method', 'import')
-            ->where('name', 'Jumlah Pasien Ditangani')
+            ->where('input_method', 'import');
+
+        if (Schema::hasColumn('performance_criterias', 'source')) {
+            $criteriaQuery->where('source', 'metric_import');
+        }
+
+        $criterias = $criteriaQuery
             ->orderBy('name')
-            ->get(['id','name','data_type']);
-        $criteriaOptions = $criterias->pluck('name','id');
+            ->get(['id', 'name', 'data_type']);
+
+        $criteriaOptions = $criterias->pluck('name', 'id');
+
+        // Template/Import metrics options (metric_import source).
+        $patientImportCriteriaOptions = $criterias->pluck('name', 'id');
+
         return view('admin_rs.metrics.index', compact(
             'items',
             'periods',
             'importPeriods',
             'criterias',
             'criteriaOptions',
+            'patientImportCriteriaOptions',
             'periodId',
             'criteriaId',
             'q',
@@ -106,8 +119,8 @@ class CriteriaMetricsController extends Controller
             return back()->withErrors(['performance_criteria_id' => 'Import hanya boleh untuk kriteria dengan input_method=import.']);
         }
 
-        if (($criteria->name ?? null) !== 'Jumlah Pasien Ditangani') {
-            return back()->withErrors(['performance_criteria_id' => 'Format file import ini hanya untuk kriteria "Jumlah Pasien Ditangani".']);
+        if (Schema::hasColumn('performance_criterias', 'source') && ($criteria->source ?? null) !== 'metric_import') {
+            return back()->withErrors(['performance_criteria_id' => 'Import ini hanya untuk kriteria dengan source=metric_import.']);
         }
 
         $targetPeriod = AssessmentPeriod::query()->findOrFail((int) $validated['period_id']);
@@ -153,19 +166,19 @@ class CriteriaMetricsController extends Controller
         if (($criteria->input_method ?? null) !== 'import') {
             return back()->withErrors(['performance_criteria_id' => 'Template hanya tersedia untuk kriteria input_method=import.']);
         }
+
+        if (Schema::hasColumn('performance_criterias', 'source') && ($criteria->source ?? null) !== 'metric_import') {
+            return back()->withErrors(['performance_criteria_id' => 'Template ini hanya tersedia untuk kriteria dengan source=metric_import.']);
+        }
         $period = AssessmentPeriod::findOrFail((int) $data['period_id']);
         AssessmentPeriodGuard::requireLocked($period, 'Generate Template Metrics');
-
-        if (($criteria->name ?? null) !== 'Jumlah Pasien Ditangani') {
-            return back()->withErrors(['performance_criteria_id' => 'Template ini hanya tersedia untuk kriteria "Jumlah Pasien Ditangani".']);
-        }
 
         $sheet = new Spreadsheet();
         $sheet->getProperties()
             ->setCreator('SIRA')
-            ->setTitle('Template Import Pasien - '.$criteria->name);
+            ->setTitle('Template Import Metrics - '.$criteria->name);
         $ws = $sheet->getActiveSheet();
-        $ws->setTitle('Template');
+        $ws->setTitle('Template Import');
 
         $headers = ['no_rm', 'patient_name', 'patient_phone', 'clinic', 'employee_numbers'];
         foreach ($headers as $idx => $head) {
@@ -189,7 +202,7 @@ class CriteriaMetricsController extends Controller
         $writer = new Xlsx($sheet);
         $writer->save($tmp);
 
-        $filename = 'template-import-pasien-'.$criteria->id.'-'.$period->id.'.xlsx';
+        $filename = 'template-import-metrics-'.$criteria->id.'-'.$period->id.'.xlsx';
         return response()->download($tmp, $filename)->deleteFileAfterSend(true);
     }
 }

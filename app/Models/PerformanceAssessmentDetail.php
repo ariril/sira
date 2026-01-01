@@ -14,10 +14,12 @@ class PerformanceAssessmentDetail extends Model
         'performance_criteria_id',
         'criteria_metric_id',
         'score',
+        'meta',
     ];
 
     protected $casts = [
         'score' => 'decimal:2',
+        'meta' => 'array',
     ];
 
     /*

@@ -7,6 +7,7 @@ use App\Models\CriteriaRaterRule;
 use App\Models\PerformanceCriteria;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -22,9 +23,17 @@ class CriteriaRaterRuleController extends Controller
     public function index(Request $request): View
     {
         $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:150'],
             'performance_criteria_id' => ['nullable', 'integer'],
             'assessor_type' => ['nullable', Rule::in(array_keys(self::ASSESSOR_TYPES))],
         ]);
+
+        $q = trim((string) ($filters['q'] ?? ''));
+        if ($q === '') {
+            unset($filters['q']);
+        } else {
+            $filters['q'] = $q;
+        }
 
         $criteriaOptions = PerformanceCriteria::query()
             ->where('is_360', true)
@@ -33,6 +42,15 @@ class CriteriaRaterRuleController extends Controller
 
         $items = CriteriaRaterRule::query()
             ->with('performanceCriteria:id,name')
+            ->when(!empty($filters['q'] ?? null), function ($query) use ($q) {
+                $query->whereHas('performanceCriteria', function ($criteriaQuery) use ($q) {
+                    $criteriaQuery->where('name', 'like', "%{$q}%");
+
+                    if (Schema::hasColumn('performance_criterias', 'description')) {
+                        $criteriaQuery->orWhere('description', 'like', "%{$q}%");
+                    }
+                });
+            })
             ->when(!empty($filters['performance_criteria_id'] ?? null), fn($q) => $q->where('performance_criteria_id', (int) $filters['performance_criteria_id']))
             ->when(!empty($filters['assessor_type'] ?? null), fn($q) => $q->where('assessor_type', (string) $filters['assessor_type']))
             ->orderByDesc('id')

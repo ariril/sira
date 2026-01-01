@@ -4,7 +4,8 @@ namespace App\Http\Controllers\Web\MedicalStaff;
 
 use App\Http\Controllers\Controller;
 use App\Models\PerformanceAssessment;
-use App\Services\PerformanceScoreService;
+use App\Models\User;
+use App\Services\PerformanceScore\PerformanceScoreService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -35,37 +36,39 @@ class PerformanceAssessmentController extends Controller
         $kinerjaTotalsByAssessmentId = [];
         $activePeriodHasWeights = null;
 
-        if ($activePeriodId > 0 && $unitId > 0) {
-            $activeAssessments = $assessments->getCollection()
-                ->filter(fn($a) => (int) $a->assessment_period_id === $activePeriodId)
-                ->values();
+        if ($unitId > 0) {
+            $user = Auth::user();
+            $professionId = $user?->profession_id;
+            $groupUserIds = $this->resolveGroupUserIds($unitId, $professionId);
+            $uid = (int) (Auth::id() ?? 0);
 
-            if ($activeAssessments->isNotEmpty()) {
-                $activeAssessmentIds = $activeAssessments->pluck('id')->map(fn($v) => (int) $v)->all();
-                $details = DB::table('performance_assessment_details')
-                    ->select(['performance_assessment_id', 'performance_criteria_id', 'score'])
-                    ->whereIn('performance_assessment_id', $activeAssessmentIds)
-                    ->get()
-                    ->groupBy('performance_assessment_id');
+            $periodIds = $assessments->getCollection()
+                ->pluck('assessment_period_id')
+                ->map(fn($v) => (int) $v)
+                ->unique()
+                ->values()
+                ->all();
 
-                foreach ($activeAssessments as $a) {
-                    $a->setRelation(
-                        'details',
-                        ($details[(int) $a->id] ?? collect())->map(function ($row) {
-                            $obj = new \stdClass();
-                            $obj->performance_criteria_id = (int) $row->performance_criteria_id;
-                            $obj->score = $row->score !== null ? (float) $row->score : 0.0;
-                            return $obj;
-                        })
-                    );
+            $periodsById = AssessmentPeriod::query()
+                ->whereIn('id', $periodIds)
+                ->get(['id', 'status'])
+                ->keyBy('id');
+
+            /** @var PerformanceScoreService $svc */
+            $svc = app(PerformanceScoreService::class);
+
+            foreach ($periodsById as $pid => $period) {
+                $calc = $svc->calculate($unitId, $period, $groupUserIds, $professionId);
+                $userRow = $uid > 0 ? ($calc['users'][$uid] ?? null) : null;
+                $score = $userRow['total_wsm'] ?? null;
+
+                foreach ($assessments->getCollection()->where('assessment_period_id', (int) $pid) as $a) {
+                    $kinerjaTotalsByAssessmentId[(int) $a->id] = $score;
                 }
 
-                $svc = app(PerformanceScoreService::class);
-                $computed = $svc->computeWeightedTotalsForAssessments($activeAssessments, $unitId, $activePeriodId);
-                $activePeriodHasWeights = (bool) $computed['hasWeights'];
-                $kinerjaTotalsByAssessmentId = $computed['totals'];
-            } else {
-                $activePeriodHasWeights = null;
+                if ((int) $pid === $activePeriodId) {
+                    $activePeriodHasWeights = $userRow ? (((float) ($userRow['sum_weight'] ?? 0.0)) > 0.0) : false;
+                }
             }
         }
 
@@ -80,34 +83,13 @@ class PerformanceAssessmentController extends Controller
         $this->authorizeSelf($assessment);
         $assessment->load(['assessmentPeriod', 'details.performanceCriteria', 'user.unit', 'user.profession']);
 
-        $rawMetrics = $this->buildRawMetrics($assessment);
+        $kinerja = $this->computeKinerjaViaService($assessment);
+        $rawMetrics = $this->buildRawMetrics($assessment, $kinerja);
+        $activeCriteriaIdSet = $kinerja['activeCriteriaIdSet'] ?? [];
 
-        $kinerja = app(PerformanceScoreService::class)->computeBreakdownForAssessment($assessment);
-
-        $activeCriteriaIdSet = array_flip(array_map('intval', array_keys($kinerja['weights'] ?? [])));
-
-        $activeCriteria = $assessment->details
-            ->filter(fn($d) => isset($activeCriteriaIdSet[(int) $d->performance_criteria_id]))
-            ->map(fn($d) => (string) ($d->performanceCriteria?->name ?? ('Kriteria #' . (int) $d->performance_criteria_id)))
-            ->values()
-            ->all();
-        $inactiveCriteria = $assessment->details
-            ->filter(fn($d) => !isset($activeCriteriaIdSet[(int) $d->performance_criteria_id]))
-            ->map(fn($d) => (string) ($d->performanceCriteria?->name ?? ('Kriteria #' . (int) $d->performance_criteria_id)))
-            ->values()
-            ->all();
-
-        $inactiveCriteriaRows = $assessment->details
-            ->filter(fn($d) => !isset($activeCriteriaIdSet[(int) $d->performance_criteria_id]))
-            ->map(function ($d) {
-                return [
-                    'criteria_id' => (int) $d->performance_criteria_id,
-                    'criteria_name' => (string) ($d->performanceCriteria?->name ?? ('Kriteria #' . (int) $d->performance_criteria_id)),
-                    'score_wsm' => $d->score !== null ? (float) $d->score : 0.0,
-                ];
-            })
-            ->values()
-            ->all();
+        $activeCriteria = $kinerja['activeCriteria'] ?? [];
+        $inactiveCriteria = $kinerja['inactiveCriteria'] ?? [];
+        $inactiveCriteriaRows = $kinerja['inactiveCriteriaRows'] ?? [];
 
         $visibleDetails = $assessment->details;
 
@@ -123,281 +105,213 @@ class PerformanceAssessmentController extends Controller
         ));
     }
 
-    /**
-     * Ensure the record belongs to the logged-in user.
-     * If $editable is true, also block when status is VALIDATED.
-     */
-    private function authorizeSelf(PerformanceAssessment $assessment): void
-    {
-        abort_unless($assessment->user_id === Auth::id(), 403);
-    }
-
-    /**
-     * Kumpulkan data mentah per kriteria (pra-normalisasi) agar ditampilkan ke pengguna.
-     * Menggunakan rumus domain saat ini:
-        * - Kehadiran: total hari Hadir / total hari pada periode.
-        * - Jam Kerja: total menit kerja, dibandingkan terhadap nilai tertinggi pada unit+profesi+periode.
-        * - Lembur: jumlah kejadian lembur, dibandingkan terhadap nilai tertinggi pada unit+profesi+periode.
-        * - Keterlambatan: total menit terlambat (cost), dibandingkan terhadap nilai tertinggi pada unit+profesi+periode.
-     * - Kedisiplinan (360): rata-rata skor 360 (submitted) dalam periode.
-     * - Kontribusi Tambahan: total poin (score) kontribusi Disetujui pada periode.
-     * - Jumlah Pasien Ditangani: total value_numeric metric pada periode.
-     * - Rating: (rerata rating) * (jumlah rater) dari review approved pada periode.
-     */
-    private function buildRawMetrics(PerformanceAssessment $assessment): array
+    private function computeKinerjaViaService(PerformanceAssessment $assessment): array
     {
         $period = $assessment->assessmentPeriod;
-        if (!$period) {
-            return [];
+        $user = $assessment->user;
+
+        $unitId = (int) ($user?->unit_id ?? 0);
+        $professionId = $user?->profession_id;
+        $uid = (int) ($assessment->user_id ?? 0);
+
+        $applicable = (bool) ($period && $unitId > 0 && $uid > 0);
+        if (!$applicable) {
+            return [
+                'applicable' => false,
+                'hasWeights' => false,
+                'total' => null,
+                'sumWeight' => 0.0,
+                'rows' => [],
+                'weights' => [],
+                'relativeByCriteria' => [],
+                'normalizedByCriteria' => [],
+                'activeCriteriaIdSet' => [],
+                'activeCriteria' => [],
+                'inactiveCriteria' => [],
+                'inactiveCriteriaRows' => [],
+            ];
         }
 
-        $userId = $assessment->user_id;
-        $attendanceQuery = \App\Models\Attendance::query()
-            ->where('user_id', $userId)
-            ->whereBetween('attendance_date', [$period->start_date, $period->end_date])
-            ->where('attendance_status', \App\Enums\AttendanceStatus::HADIR);
+        $groupUserIds = $this->resolveGroupUserIds($unitId, $professionId);
 
-        $attendanceDays = $attendanceQuery->count();
-        $workMinutes = (int) $attendanceQuery->sum('work_duration_minutes');
-        $lateMinutes = (int) $attendanceQuery->sum('late_minutes');
-        $overtimeCount = (int) (clone $attendanceQuery)
-            ->where(function ($q) {
-                $q->where('overtime_shift', 1)
-                    ->orWhereNotNull('overtime_end')
-                    ->orWhereNotNull('overtime_note');
-            })
-            ->count();
+        /** @var PerformanceScoreService $svc */
+        $svc = app(PerformanceScoreService::class);
+        $calc = $svc->calculate($unitId, $period, $groupUserIds, $professionId);
 
-        $totalDaysInPeriod = 0;
-        if ($period->start_date && $period->end_date) {
-            try {
-                $s = \Illuminate\Support\Carbon::parse((string) $period->start_date)->startOfDay();
-                $e = \Illuminate\Support\Carbon::parse((string) $period->end_date)->startOfDay();
-                $totalDaysInPeriod = $s->diffInDays($e) + 1;
-            } catch (\Throwable $t) {
-                $totalDaysInPeriod = 0;
+        $userRow = $calc['users'][$uid] ?? null;
+        $sumWeight = $userRow ? (float) ($userRow['sum_weight'] ?? 0.0) : 0.0;
+        $hasWeights = $sumWeight > 0.0;
+        $total = $userRow['total_wsm'] ?? null;
+
+        $weights = (array) ($calc['weights'] ?? []);
+        $maxByCriteria = (array) ($calc['max_by_criteria'] ?? []);
+        $minByCriteria = (array) ($calc['min_by_criteria'] ?? []);
+        $sumRawByCriteria = (array) ($calc['sum_raw_by_criteria'] ?? []);
+
+        $relativeByCriteria = [];
+        $normalizedByCriteria = [];
+        $rawByCriteria = [];
+        $rows = [];
+        $activeCriteria = [];
+        $inactiveCriteria = [];
+        $inactiveCriteriaRows = [];
+        $activeCriteriaIdSet = [];
+
+        // Porsi remunerasi (share) = user_total_wsm / total_wsm_group
+        $groupTotalWsm = 0.0;
+        foreach ($groupUserIds as $gid) {
+            $groupTotalWsm += (float) (($calc['users'][(int) $gid]['total_wsm'] ?? 0.0) ?: 0.0);
+        }
+        $sharePct = ($groupTotalWsm > 0.0 && $total !== null) ? (((float) $total) / $groupTotalWsm) : null;
+
+        $criteriaRows = (array) ($userRow['criteria'] ?? []);
+        foreach ($criteriaRows as $r) {
+            $criteriaId = (int) ($r['criteria_id'] ?? 0);
+            if ($criteriaId <= 0) {
+                continue;
+            }
+
+            $included = (bool) ($r['included_in_wsm'] ?? false);
+            $criteriaName = (string) ($r['criteria_name'] ?? ('Kriteria #' . $criteriaId));
+            $weight = (float) ($r['weight'] ?? ($weights[$criteriaId] ?? 0.0));
+            $norm = (float) ($r['nilai_normalisasi'] ?? 0.0);
+            $rel = (float) ($r['nilai_relativ_unit'] ?? 0.0);
+            $raw = array_key_exists('raw', $r) ? (float) ($r['raw'] ?? 0.0) : null;
+
+            $normalizedByCriteria[$criteriaId] = $norm;
+            $relativeByCriteria[$criteriaId] = $rel;
+            if ($raw !== null) {
+                $rawByCriteria[$criteriaId] = $raw;
+            }
+
+            if ($included) {
+                $activeCriteriaIdSet[$criteriaId] = true;
+                $activeCriteria[] = $criteriaName;
+                // Total WSM uses relative score (0–100).
+                $contribution = $sumWeight > 0 ? (($weight / $sumWeight) * $rel) : 0.0;
+                $rows[] = [
+                    'criteria_id' => $criteriaId,
+                    'criteria_name' => $criteriaName,
+                    'weight' => $weight,
+                    'score_wsm' => $rel,
+                    'score_normalisasi' => $norm,
+                    'contribution' => $contribution,
+                ];
+            } else {
+                $inactiveCriteria[] = $criteriaName;
+                $inactiveCriteriaRows[] = [
+                    'criteria_id' => $criteriaId,
+                    'criteria_name' => $criteriaName,
+                    'score_wsm' => $rel,
+                    'score_normalisasi' => $norm,
+                ];
             }
         }
 
-        $disciplineQuery = \App\Models\MultiRaterAssessmentDetail::query()
-            ->join('multi_rater_assessments as mra', 'mra.id', '=', 'multi_rater_assessment_details.multi_rater_assessment_id')
-            ->where('mra.assessment_period_id', $period->id)
-            ->where('mra.assessee_id', $userId)
-            ->where('mra.status', 'submitted');
+        return [
+            'applicable' => true,
+            'hasWeights' => $hasWeights,
+            'total' => $total,
+            'sumWeight' => $sumWeight,
+            'rows' => $rows,
+            'weights' => $weights,
+            'relativeByCriteria' => $relativeByCriteria,
+            'normalizedByCriteria' => $normalizedByCriteria,
+            'rawByCriteria' => $rawByCriteria,
+            'sumRawByCriteria' => $sumRawByCriteria,
+            'maxByCriteria' => $maxByCriteria,
+            'minByCriteria' => $minByCriteria,
+            'activeCriteriaIdSet' => $activeCriteriaIdSet,
+            'activeCriteria' => $activeCriteria,
+            'inactiveCriteria' => $inactiveCriteria,
+            'inactiveCriteriaRows' => $inactiveCriteriaRows,
+            'groupTotalWsm' => $groupTotalWsm,
+            'sharePct' => $sharePct,
+        ];
+    }
 
-        $discipline = $disciplineQuery
-            ->selectRaw('AVG(multi_rater_assessment_details.score) as avg_score')
-            ->value('avg_score');
-        $disciplineCount = (int) $disciplineQuery->count();
-
-        $contribQuery = \App\Models\AdditionalContribution::query()
-            ->where('user_id', $userId)
-            ->where('assessment_period_id', $period->id)
-            ->where('validation_status', \App\Enums\ContributionValidationStatus::APPROVED);
-
-        $contrib = (float) $contribQuery->sum('score');
-        $contribCount = (int) $contribQuery->count();
-
-        $patientQuery = \App\Models\CriteriaMetric::query()
-            ->where('user_id', $userId)
-            ->where('assessment_period_id', $period->id)
-            ->whereHas('criteria', fn($q) => $q->where('name', 'like', '%Pasien%'));
-
-        $patients = (float) $patientQuery->sum('value_numeric');
-        $patientCount = (int) $patientQuery->count();
-
-        $ratingAgg = \App\Models\ReviewDetail::query()
-            ->selectRaw('AVG(review_details.rating) as avg_rating, COUNT(review_details.rating) as total_raters')
-            ->join('reviews', 'reviews.id', '=', 'review_details.review_id')
-            ->where('review_details.medical_staff_id', $userId)
-            ->where('reviews.status', \App\Enums\ReviewStatus::APPROVED)
-            ->whereNotNull('review_details.rating')
-            ->when($period->start_date, fn($q)=>$q->whereDate('reviews.decided_at','>=',$period->start_date))
-            ->when($period->end_date, fn($q)=>$q->whereDate('reviews.decided_at','<=',$period->end_date))
-            ->first();
-
-        $avgRating = $ratingAgg?->avg_rating ? (float)$ratingAgg->avg_rating : 0.0;
-        $raterCount = $ratingAgg?->total_raters ? (int)$ratingAgg->total_raters : 0;
-        $weightedRating = $avgRating * max($raterCount, 0);
-
-        $userUnitId = $assessment->user?->unit_id;
-        $userProfessionId = $assessment->user?->profession_id;
-
-        // Peer totals per unit+profession (same period)
-        $peerAttendanceRows = \App\Models\Attendance::query()
-            ->join('users as u', 'u.id', '=', 'attendances.user_id')
-            ->where('u.unit_id', $userUnitId)
-            ->where('u.profession_id', $userProfessionId)
-            ->whereBetween('attendance_date', [$period->start_date, $period->end_date])
-            ->where('attendance_status', \App\Enums\AttendanceStatus::HADIR)
-            ->groupBy('attendances.user_id')
-            ->selectRaw(
-                'attendances.user_id,
-                 COUNT(*) as days,
-                 COALESCE(SUM(work_duration_minutes),0) as minutes,
-                 COALESCE(SUM(late_minutes),0) as late,
-                 COALESCE(SUM(CASE WHEN (overtime_shift = 1 OR overtime_end IS NOT NULL OR overtime_note IS NOT NULL) THEN 1 ELSE 0 END),0) as lembur'
-            )
-            ->get();
-
-            $peerSumAttendanceDays = (int) $peerAttendanceRows->sum('days');
-            $peerSumWorkMinutes = (int) $peerAttendanceRows->sum('minutes');
-        $peerMaxLateMinutes = (int) ($peerAttendanceRows->max('late') ?? 0);
-            $peerSumOvertimeCount = (int) $peerAttendanceRows->sum('lembur');
-
-        $peerDiscipline = DB::table('multi_rater_assessments as mra')
-            ->join('users as u', 'u.id', '=', 'mra.assessee_id')
-            ->join('multi_rater_assessment_details as d', 'd.multi_rater_assessment_id', '=', 'mra.id')
-            ->where('mra.assessment_period_id', $period->id)
-            ->where('mra.status', 'submitted')
-            ->where('u.unit_id', $userUnitId)
-            ->where('u.profession_id', $userProfessionId)
-            ->groupBy('mra.assessee_id')
-            ->selectRaw('AVG(d.score) as avg_per_staff')
-            ->get()
-            ->sum('avg_per_staff');
-
-        $peerContrib = DB::table('additional_contributions as ac')
-            ->join('users as u', 'u.id', '=', 'ac.user_id')
-            ->where('ac.assessment_period_id', $period->id)
-            ->where('ac.validation_status', \App\Enums\ContributionValidationStatus::APPROVED)
-            ->where('u.unit_id', $userUnitId)
-            ->where('u.profession_id', $userProfessionId)
-            ->sum('ac.score');
-
-        $peerPatients = DB::table('imported_criteria_values as cm')
-            ->join('users as u', 'u.id', '=', 'cm.user_id')
-            ->join('performance_criterias as pc', 'pc.id', '=', 'cm.performance_criteria_id')
-            ->where('cm.assessment_period_id', $period->id)
-            ->where('u.unit_id', $userUnitId)
-            ->where('u.profession_id', $userProfessionId)
-            ->where('pc.name', 'like', '%Pasien%')
-            ->sum('cm.value_numeric');
-
-        $peerRatings = DB::table('review_details as rd')
-            ->join('reviews as r', 'r.id', '=', 'rd.review_id')
-            ->join('users as u', 'u.id', '=', 'rd.medical_staff_id')
-            ->where('r.status', \App\Enums\ReviewStatus::APPROVED)
-            ->where('u.unit_id', $userUnitId)
-            ->where('u.profession_id', $userProfessionId)
-            ->whereNotNull('rd.rating')
-            ->when($period->start_date, fn($q)=>$q->whereDate('r.decided_at','>=',$period->start_date))
-            ->when($period->end_date, fn($q)=>$q->whereDate('r.decided_at','<=',$period->end_date))
-            ->groupBy('rd.medical_staff_id')
-            ->selectRaw('AVG(rd.rating) as avg_rating, COUNT(rd.rating) as raters')
-            ->get()
-            ->sum(fn($row) => (float)$row->avg_rating * (int)$row->raters);
+    /**
+     * Data mentah untuk modal per-kriteria.
+     *
+     * Angka harus sinkron dengan engine (PerformanceScoreService):
+     * - TOTAL_UNIT pembanding = jumlah raw seluruh pegawai pada unit+profesi+periode (untuk kriteria tsb)
+     * - Nilai Normalisasi = (raw_individu / total_pembanding) × 100
+     *
+     * @return array<int, array{title:string,lines:array<int,array{label:string,value:string,hint?:string}>,formula:?array{raw:float,denominator:float,result:float}}>
+     */
+    private function buildRawMetrics(PerformanceAssessment $assessment, array $kinerja): array
+    {
+        $rawByCriteria = (array) ($kinerja['rawByCriteria'] ?? []);
+        $sumRawByCriteria = (array) ($kinerja['sumRawByCriteria'] ?? []);
+        $normalizedByCriteria = (array) ($kinerja['normalizedByCriteria'] ?? []);
 
         $metrics = [];
         foreach ($assessment->details as $detail) {
             $criteria = $detail->performanceCriteria;
-            $name = strtolower($criteria->name ?? '');
-            $key = match (true) {
-                str_contains($name, 'kehadiran') => 'kehadiran',
-                str_contains($name, 'jam kerja') || str_contains($name, 'jam_kerja') => 'jam_kerja',
-                str_contains($name, 'lembur') => 'lembur',
-                str_contains($name, 'keterlambatan') || str_contains($name, 'terlambat') => 'keterlambatan',
-                str_contains($name, 'disiplin') || str_contains($name, 'kedisiplinan') => 'kedisiplinan',
-                str_contains($name, 'kontribusi') => 'kontribusi',
-                str_contains($name, 'pasien') => 'pasien',
-                str_contains($name, 'rating') => 'rating',
-                default => null,
-            };
-
-            if (!$key) {
+            $criteriaId = (int) ($criteria?->id ?? $detail->performance_criteria_id ?? 0);
+            if ($criteriaId <= 0) {
                 continue;
             }
 
-            $formulaType = 'benefit';
+            $rawValue = array_key_exists($criteriaId, $rawByCriteria) ? (float) $rawByCriteria[$criteriaId] : null;
+            $peerTotal = array_key_exists($criteriaId, $sumRawByCriteria) ? (float) $sumRawByCriteria[$criteriaId] : null;
+            $normalized = array_key_exists($criteriaId, $normalizedByCriteria) ? (float) $normalizedByCriteria[$criteriaId] : null;
 
-            [$rawLines, $rawValue, $peerTotal] = match ($key) {
-                'kehadiran' => [
-                    [
-                        ['label' => 'Total kehadiran', 'value' => $attendanceDays . ' hari', 'hint' => 'Berdasarkan absensi berstatus Hadir'],
-                        ['label' => 'Total hari pada periode', 'value' => $totalDaysInPeriod > 0 ? ($totalDaysInPeriod . ' hari') : '-', 'hint' => 'Rentang tanggal periode (inklusif)'],
-                    ],
-                    (float) $attendanceDays,
-                    (float) $totalDaysInPeriod,
+            $lines = [
+                [
+                    'label' => 'Raw individu',
+                    'value' => $rawValue !== null ? number_format($rawValue, 2) : '-',
                 ],
-                'jam_kerja' => [
-                    [
-                        ['label' => 'Total jam kerja selama periode', 'value' => number_format($workMinutes / 60, 1) . ' jam', 'hint' => 'Akumulasi durasi kerja (menit) untuk absensi Hadir'],
-                            ['label' => 'Pembanding (total) unit+profesi', 'value' => $peerSumWorkMinutes > 0 ? number_format($peerSumWorkMinutes / 60, 1) . ' jam' : '-', 'hint' => 'Total jam kerja pada unit + profesi + periode yang sama'],
-                    ],
-                    (float) $workMinutes,
-                        (float) $peerSumWorkMinutes,
+                [
+                    'label' => 'Total pembanding (total_unit)',
+                    'value' => $peerTotal !== null ? number_format($peerTotal, 2) : '-',
+                    'hint' => 'Total raw seluruh pegawai dalam unit+profesi+periode yang sama untuk kriteria ini.',
                 ],
-                'lembur' => [
-                    [
-                        ['label' => 'Jumlah kejadian lembur', 'value' => $overtimeCount . ' kali', 'hint' => 'Dihitung per hari dengan indikasi lembur (shift lembur / overtime_end / overtime_note)'],
-                            ['label' => 'Pembanding (total) unit+profesi', 'value' => $peerSumOvertimeCount > 0 ? ($peerSumOvertimeCount . ' kali') : '-', 'hint' => 'Total kejadian lembur pada unit + profesi + periode yang sama'],
-                    ],
-                    (float) $overtimeCount,
-                        (float) $peerSumOvertimeCount,
-                ],
-                'keterlambatan' => [
-                    [
-                        ['label' => 'Total keterlambatan', 'value' => $lateMinutes . ' menit', 'hint' => 'Akumulasi late_minutes pada absensi Hadir'],
-                        ['label' => 'Pembanding (maks) unit+profesi', 'value' => $peerMaxLateMinutes > 0 ? ($peerMaxLateMinutes . ' menit') : '-', 'hint' => 'Nilai tertinggi pada unit + profesi + periode yang sama'],
-                    ],
-                    (float) $lateMinutes,
-                    (float) $peerMaxLateMinutes,
-                ],
-                'kedisiplinan' => [
-                    [
-                        ['label' => 'Rata-rata skor 360', 'value' => $discipline !== null ? number_format((float)$discipline, 2) : '-', 'hint' => 'Hanya penilaian 360 berstatus submitted'],
-                        ['label' => 'Jumlah penilai 360', 'value' => $disciplineCount . ' entri'],
-                    ],
-                    $discipline !== null ? (float)$discipline : 0,
-                    $peerDiscipline,
-                ],
-                'kontribusi' => [
-                    [
-                        ['label' => 'Total poin disetujui', 'value' => number_format($contrib, 2), 'hint' => 'Penjumlahan score kontribusi Approved'],
-                        ['label' => 'Jumlah item kontribusi', 'value' => $contribCount . ' item'],
-                    ],
-                    $contrib,
-                    (float)$peerContrib,
-                ],
-                'pasien' => [
-                    [
-                        ['label' => 'Total pasien', 'value' => number_format($patients, 0) . ' pasien'],
-                        ['label' => 'Jumlah entri data', 'value' => $patientCount . ' entri'],
-                    ],
-                    $patients,
-                    (float)$peerPatients,
-                ],
-                'rating' => [
-                    [
-                        ['label' => 'Rerata rating', 'value' => number_format($avgRating, 2)],
-                        ['label' => 'Jumlah rater', 'value' => $raterCount],
-                        ['label' => 'Nilai mentah (rerata × rater)', 'value' => number_format($weightedRating, 2)],
-                    ],
-                    $weightedRating,
-                    (float)$peerRatings,
-                ],
-                default => [[], 0, null],
-            };
+            ];
 
-            if ($key === 'keterlambatan') {
-                $formulaType = 'cost';
+            $formula = null;
+            if ($rawValue !== null && $peerTotal !== null && $normalized !== null) {
+                $formula = [
+                    'raw' => (float) $rawValue,
+                    'denominator' => (float) $peerTotal,
+                    'result' => (float) $normalized,
+                ];
             }
 
-            $score = $detail->score !== null ? (float)$detail->score : null;
-            $denominator = $peerTotal && $peerTotal > 0 ? $peerTotal : (($rawValue && $score) ? ($rawValue / ($score / 100)) : null);
-
-            $metrics[$criteria->id] = [
-                'title' => $criteria->name ?? 'Data mentah',
-                'lines' => $rawLines,
-                'formula' => [
-                    'type' => $formulaType,
-                    'raw' => $rawValue,
-                    'denominator' => $denominator,
-                    'result' => $score,
-                ],
+            $metrics[$criteriaId] = [
+                'title' => 'Raw & Pembanding (TOTAL_UNIT)',
+                'lines' => $lines,
+                'formula' => $formula,
             ];
         }
 
         return $metrics;
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function resolveGroupUserIds(int $unitId, ?int $professionId): array
+    {
+        if ($unitId <= 0) {
+            return [];
+        }
+
+        return User::query()
+            ->role(User::ROLE_PEGAWAI_MEDIS)
+            ->where('unit_id', $unitId)
+            ->when($professionId === null, fn($q) => $q->whereNull('profession_id'))
+            ->when($professionId !== null, fn($q) => $q->where('profession_id', (int) $professionId))
+            ->pluck('id')
+            ->map(fn($v) => (int) $v)
+            ->all();
+    }
+
+    /**
+     * Ensure the record belongs to the logged-in user.
+     */
+    private function authorizeSelf(PerformanceAssessment $assessment): void
+    {
+        abort_unless($assessment->user_id === Auth::id(), 403);
     }
 }

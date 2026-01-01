@@ -114,6 +114,12 @@
          'href'=>$href('admin_rs.metrics.index','/admin-rs/metrics'),
          'active'=>request()->routeIs('admin_rs.metrics.*')],
       ]],
+
+      ['heading'=>'Ulasan Pasien','items'=>[
+        ['label'=>'Import Link Undangan','icon'=>'fa-link',
+         'href'=>$href('admin_rs.review_invitations.import.form','/admin-rs/review-invitations/import'),
+         'active'=>request()->is('admin-rs/review-invitations/*')],
+      ]],
       ['heading'=>'Remunerasi','items'=>[
         ['label'=>'Alokasi per Unit','icon'=>'fa-diagram-project',
          'href'=>$href('admin_rs.unit-remuneration-allocations.index','/admin-rs/unit-remuneration-allocations'),
@@ -124,11 +130,6 @@
         ['label'=>'Daftar Remunerasi','icon'=>'fa-money-bill-trend-up',
          'href'=>$href('admin_rs.remunerations.index','/admin-rs/remunerations'),
          'active'=>request()->routeIs('admin_rs.remunerations.index') || request()->routeIs('admin_rs.remunerations.show')],
-      ]],
-      ['heading'=>'Ulasan Pasien','items'=>[
-        ['label'=>'Import Invitation Link','icon'=>'fa-link',
-         'href'=>$href('admin_rs.review_invitations.import.form','/admin-rs/review-invitations/import'),
-         'active'=>request()->is('admin-rs/review-invitations/*')],
       ]],
     ];
 

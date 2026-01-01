@@ -85,18 +85,32 @@ class DashboardController extends Controller
         $activePeriodId = $activePeriod?->id;
         $activePeriodName = $activePeriod?->name;
 
-        // Units without allocation in active period (published allocations only)
-        if ($activePeriodId && Schema::hasTable('units') && Schema::hasTable('unit_profession_remuneration_allocations')) {
+        // Units without allocation: if there's a LOCKED period that isn't the active one, treat it as urgent.
+        $allocationPeriod = null;
+        $allocationType = 'warning';
+        if ($lockedPeriod && (!$activePeriodId || (int) $lockedPeriod->id !== (int) $activePeriodId)) {
+            $allocationPeriod = $lockedPeriod;
+            $allocationType = 'error';
+        } elseif ($activePeriod) {
+            $allocationPeriod = $activePeriod;
+        }
+
+        if ($allocationPeriod && Schema::hasTable('units') && Schema::hasTable('unit_profession_remuneration_allocations')) {
             $unitCount = (int) DB::table('units')->count();
             $allocatedUnitIds = DB::table('unit_profession_remuneration_allocations')
-                ->where('assessment_period_id',$activePeriodId)
+                ->where('assessment_period_id', (int) $allocationPeriod->id)
                 ->pluck('unit_id')->unique();
             $missingAllocCount = $unitCount - $allocatedUnitIds->count();
+
             if ($missingAllocCount > 0) {
+                $suffix = $allocationType === 'error'
+                    ? 'pada periode ' . ($allocationPeriod->name ?? '-') . '. Periode sudah dikunci, segera lengkapi sebelum proses approval.'
+                    : 'pada periode aktif (' . ($activePeriodName ?? '-') . ').';
+
                 $notifications[] = [
-                    'type' => 'warning',
-                    'text' => $missingAllocCount . ' unit belum diberi alokasi pada periode aktif (' . $activePeriodName . ').',
-                    'href' => route('admin_rs.unit-remuneration-allocations.index') . '?period_id=' . $activePeriodId,
+                    'type' => $allocationType,
+                    'text' => $missingAllocCount . ' unit belum diberi alokasi ' . $suffix,
+                    'href' => route('admin_rs.unit-remuneration-allocations.index') . '?period_id=' . (int) $allocationPeriod->id,
                 ];
             }
         }
@@ -123,32 +137,6 @@ class DashboardController extends Controller
                 'text' => 'Import Metric sudah bisa diisi.',
                 'href' => route('admin_rs.metrics.index'),
             ];
-
-            // (Opsional) warning bila belum ada import pada periode tsb
-            if (Schema::hasTable('attendance_import_batches')) {
-                $hasAttendance = DB::table('attendance_import_batches')
-                    ->where('assessment_period_id', $importPeriod->id)
-                    ->exists();
-                if (!$hasAttendance) {
-                    $notifications[] = [
-                        'type' => 'warning',
-                        'text' => 'Belum ada import absensi pada periode ini.',
-                        'href' => route('admin_rs.attendances.import.form'),
-                    ];
-                }
-            }
-            if (Schema::hasTable('metric_import_batches')) {
-                $hasMetrics = DB::table('metric_import_batches')
-                    ->where('assessment_period_id', $importPeriod->id)
-                    ->exists();
-                if (!$hasMetrics) {
-                    $notifications[] = [
-                        'type' => 'warning',
-                        'text' => 'Belum ada import metric pada periode ini.',
-                        'href' => route('admin_rs.metrics.index'),
-                    ];
-                }
-            }
         } else {
             $notifications[] = [
                 'type' => 'error',

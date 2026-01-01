@@ -28,6 +28,8 @@ class AttendanceCollector implements CriteriaCollector
             ->whereIn('user_id', $userIds)
             ->whereBetween('attendance_date', [$period->start_date, $period->end_date])
             ->where('attendance_status', AttendanceStatus::HADIR)
+            ->whereNotNull('check_in')
+            ->whereNotNull('check_out')
             ->groupBy('user_id')
             ->pluck('total_hadir', 'user_id')
             ->map(fn($v) => (float) $v)
@@ -44,6 +46,8 @@ class AttendanceCollector implements CriteriaCollector
             ->join('users as u', 'u.id', '=', 'a.user_id')
             ->where('u.unit_id', $unitId)
             ->whereBetween('a.attendance_date', [$period->start_date, $period->end_date])
+            ->whereNotNull('a.check_in')
+            ->whereNotNull('a.check_out')
             ->count();
 
         return $count > 0

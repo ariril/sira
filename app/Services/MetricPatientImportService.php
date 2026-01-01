@@ -32,9 +32,8 @@ class MetricPatientImportService
             throw new \RuntimeException('Import hanya boleh untuk kriteria dengan input_method=import.');
         }
 
-        // This importer is designed specifically for "Jumlah Pasien Ditangani".
-        if (($criteria->name ?? null) !== 'Jumlah Pasien Ditangani') {
-            throw new \RuntimeException('Format file ini hanya untuk kriteria "Jumlah Pasien Ditangani".');
+        if (($criteria->source ?? null) !== null && ($criteria->source ?? null) !== 'metric_import') {
+            throw new \RuntimeException('Import ini hanya untuk kriteria dengan source=metric_import.');
         }
 
         $batch = MetricImportBatch::create([

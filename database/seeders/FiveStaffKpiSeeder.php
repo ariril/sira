@@ -5,22 +5,101 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use App\Services\PeriodPerformanceAssessmentService;
+use App\Models\AssessmentPeriod;
+use App\Models\PerformanceAssessment;
+use App\Models\PerformanceAssessmentDetail;
 
 class FiveStaffKpiSeeder extends Seeder
 {
+    /**
+     * Optional Excel-driven seed config.
+     * @var array{
+     *   weights?: array<int, array<string, array<string, array{weight:float,status:string}>>>,
+    *   raw?: array<int, array<string, array{
+    *     attendance_days:float,
+    *     late_minutes:float,
+    *     work_minutes:float,
+    *     overtime_days:float,
+    *     discipline_360:float,
+    *     teamwork_360:float,
+    *     contrib:float,
+    *     patients:float,
+    *     complaints:float,
+    *     rating_avg:float,
+    *     rating_count?:float,
+    *     rating_sum?:float
+    *   }>>,
+     *   criteria?: array<string, array{normalization_basis:string,custom_target_value:?float}>
+     * }|null
+     */
+    private ?array $excelConfig = null;
+
     public function run(): void
     {
         $now = Carbon::now();
 
-        $periodOct = DB::table('assessment_periods')->where('name', 'Oktober 2025')->first();
         $periodNov = DB::table('assessment_periods')->where('name', 'November 2025')->first();
-        if (!$periodOct || !$periodNov) {
+        if (!$periodNov) {
             return;
         }
 
         $unitPoliUmumId = (int) (DB::table('units')->where('slug', 'poliklinik-umum')->value('id') ?? 0);
+        $unitPoliGigiId = (int) (DB::table('units')->where('slug', 'poliklinik-gigi')->value('id') ?? 0);
+
+        // Ensure required 360 criteria exist (seeder-level guardrail; do not rely on previous seeders).
+        $ensureCriteria = function (string $name, string $type, array $attrs = []) use ($now) {
+            $existing = DB::table('performance_criterias')->where('name', $name)->first();
+            if ($existing) {
+                DB::table('performance_criterias')->where('id', (int) $existing->id)->update(array_merge([
+                    'type' => $type,
+                    'is_active' => 1,
+                    'updated_at' => $now,
+                ], $attrs));
+                return (int) $existing->id;
+            }
+
+            return (int) DB::table('performance_criterias')->insertGetId(array_merge([
+                'name' => $name,
+                'type' => $type,
+                'description' => null,
+                'is_active' => 1,
+                'data_type' => 'numeric',
+                'input_method' => '360',
+                'source' => 'assessment_360',
+                'is_360' => 1,
+                'aggregation_method' => 'avg',
+                'normalization_basis' => 'total_unit',
+                'custom_target_value' => null,
+                'suggested_weight' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ], $attrs));
+        };
+
+        $ensureCriteria('Kedisiplinan (360)', 'benefit');
+        $ensureCriteria('Kerjasama (360)', 'benefit');
+
+        // Ensure required metric-import criteria exist with correct benefit/cost semantics.
+        // These are used by metric_import_batches + imported_criteria_values.
+        $ensureCriteria('Jumlah Pasien Ditangani', 'benefit', [
+            'input_method' => 'import',
+            'source' => 'metric_import',
+            'is_360' => 0,
+            'aggregation_method' => 'sum',
+            'normalization_basis' => 'total_unit',
+        ]);
+        $ensureCriteria('Jumlah Komplain Pasien', 'cost', [
+            'input_method' => 'import',
+            'source' => 'metric_import',
+            'is_360' => 0,
+            'aggregation_method' => 'sum',
+            'normalization_basis' => 'max_unit',
+        ]);
 
         // Helpers
         $criteriaId = fn(string $name) => DB::table('performance_criterias')->where('name', $name)->value('id');
@@ -28,184 +107,341 @@ class FiveStaffKpiSeeder extends Seeder
         $professionId = fn(string $code) => DB::table('professions')->where('code', $code)->value('id');
         $unitId = fn(string $slug) => DB::table('units')->where('slug', $slug)->value('id');
 
-        // Ensure we have >= 3 staff in the SAME unit+profession (poliklinik-umum + DOK-UM)
-        $ensurePegawaiMedis = function (string $email, string $name, string $employeeNumber, string $unitSlug, string $professionCode) use ($now, $userId, $unitId, $professionId) {
-            $existingId = $userId($email);
-            if ($existingId) {
-                return (int) $existingId;
-            }
-
-            $uId = (int) ($unitId($unitSlug) ?? 0);
-            $pId = (int) ($professionId($professionCode) ?? 0);
-
-            $newId = DB::table('users')->insertGetId([
-                'employee_number' => $employeeNumber,
-                'name' => $name,
-                'start_date' => '2022-01-01',
-                'gender' => 'Laki-laki',
-                'nationality' => 'Indonesia',
-                'address' => 'Atambua',
-                'phone' => '0812-0000-9999',
-                'email' => $email,
-                'last_education' => 'S.Ked',
-                'position' => 'Dokter Umum',
-                'unit_id' => $uId ?: null,
-                'profession_id' => $pId ?: null,
-                'password' => Hash::make('password'),
-                'last_role' => 'pegawai_medis',
-                'email_verified_at' => $now,
-                'remember_token' => Str::random(10),
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            $roleId = (int) (DB::table('roles')->where('slug', 'pegawai_medis')->value('id') ?? 0);
-            if ($roleId > 0) {
-                DB::table('role_user')->updateOrInsert([
-                    'user_id' => (int) $newId,
-                    'role_id' => $roleId,
-                ], []);
-            }
-
-            return (int) $newId;
-        };
-
-        $dokterUmum3Id = $ensurePegawaiMedis(
-            email: 'dokter.umum3@rsud.local',
-            name: 'dr. Raka Pratama',
-            employeeNumber: '197001012025123001',
-            unitSlug: 'poliklinik-umum',
-            professionCode: 'DOK-UM'
-        );
-
-        $absensiId    = $criteriaId('Kehadiran (Absensi)');
-        $kedis360Id   = $criteriaId('Kedisiplinan (360)');
-        $kontribusiId = $criteriaId('Kontribusi Tambahan');
-        $pasienId     = $criteriaId('Jumlah Pasien Ditangani');
-        $ratingId     = $criteriaId('Rating');
-
-        // Target users (5 pegawai)
+        // Target users (real): November 2025 — Poliklinik Umum & Poliklinik Gigi.
+        // Catatan: seeder ini mengasumsikan DatabaseSeeder sudah dijalankan.
         $staff = [
-            'felix' => [
-                'id' => $userId('kepala.unit.medis@rsud.local'),
-                'unit_slug' => 'poliklinik-umum',
-                'profession' => 'DOK-UM',
-            ],
-            'fransisca' => [
-                'id' => $userId('perawat@rsud.local'),
-                'unit_slug' => 'poliklinik-umum',
-                'profession' => 'PRW',
-            ],
-            'theodorus' => [
-                'id' => $userId('dokter.umum@rsud.local'),
-                'unit_slug' => 'poliklinik-umum',
-                'profession' => 'DOK-UM',
-            ],
-            'raka' => [
-                'id' => $dokterUmum3Id,
-                'unit_slug' => 'poliklinik-umum',
-                'profession' => 'DOK-UM',
-            ],
-            'melria' => [
-                'id' => $userId('kepala.gigi@rsud.local'),
-                'unit_slug' => 'poliklinik-gigi',
-                'profession' => 'DOK-UM',
-            ],
-            'janBeria' => [
-                'id' => $userId('januario.bria@rsud.local'),
-                'unit_slug' => 'poliklinik-gigi',
-                'profession' => 'DOK-SP',
-            ],
+            // Poli Umum
+            'kepala_umum' => ['id' => (int) ($userId('kepala.umum@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-umum', 'profession' => 'DOK-UM'],
+            'dokter_umum1' => ['id' => (int) ($userId('dokter.umum1@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-umum', 'profession' => 'DOK-UM'],
+            'dokter_umum2' => ['id' => (int) ($userId('dokter.umum2@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-umum', 'profession' => 'DOK-UM'],
+            'perawat1' => ['id' => (int) ($userId('perawat1@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-umum', 'profession' => 'PRW'],
+            'perawat2' => ['id' => (int) ($userId('perawat2@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-umum', 'profession' => 'PRW'],
+
+            // Poli Gigi
+            'kepala_gigi' => ['id' => (int) ($userId('kepala.gigi@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-gigi', 'profession' => 'DOK-UM'],
+            'dokter_spes1' => ['id' => (int) ($userId('dokter.spes1@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-gigi', 'profession' => 'DOK-SP'],
+            'dokter_spes2' => ['id' => (int) ($userId('dokter.spes2@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-gigi', 'profession' => 'DOK-SP'],
         ];
+
+        $missingUsers = [];
+        foreach ($staff as $k => $info) {
+            if ((int) ($info['id'] ?? 0) <= 0) {
+                $missingUsers[] = (string) $k;
+            }
+        }
+        if (!empty($missingUsers)) {
+            throw new \RuntimeException('Seeder KPI: user tidak ditemukan untuk key: ' . implode(', ', $missingUsers) . '. Jalankan DatabaseSeeder dulu.');
+        }
+
+        $absensiId      = $criteriaId('Kehadiran (Absensi)');
+        $workHoursId    = $criteriaId('Jam Kerja (Absensi)');
+        $overtimeId     = $criteriaId('Lembur (Absensi)');
+        $lateMinutesId  = $criteriaId('Keterlambatan (Absensi)');
+        $kedis360Id     = $criteriaId('Kedisiplinan (360)');
+        $kerjasama360Id = $criteriaId('Kerjasama (360)');
+        $kontribusiId   = $criteriaId('Kontribusi Tambahan');
+        $pasienId       = $criteriaId('Jumlah Pasien Ditangani');
+        $komplainId     = $criteriaId('Jumlah Komplain Pasien');
+        $ratingId       = $criteriaId('Rating');
+
+        $requiredCriteria = [
+            'Kehadiran (Absensi)' => (int) $absensiId,
+            'Jam Kerja (Absensi)' => (int) $workHoursId,
+            'Lembur (Absensi)' => (int) $overtimeId,
+            'Keterlambatan (Absensi)' => (int) $lateMinutesId,
+            'Kedisiplinan (360)' => (int) $kedis360Id,
+            'Kerjasama (360)' => (int) $kerjasama360Id,
+            'Kontribusi Tambahan' => (int) $kontribusiId,
+            'Jumlah Pasien Ditangani' => (int) $pasienId,
+            'Jumlah Komplain Pasien' => (int) $komplainId,
+            'Rating' => (int) $ratingId,
+        ];
+        $missing = array_keys(array_filter($requiredCriteria, fn($id) => (int) $id <= 0));
+        if (!empty($missing)) {
+            throw new \RuntimeException('Seeder KPI membutuhkan performance_criterias berikut: ' . implode(', ', $missing));
+        }
 
         $targets = array_column($staff, 'id');
 
-        // Clean old related data for these users/periods
-        $periodIds = [$periodOct->id, $periodNov->id];
-        $oldAssessmentIds = DB::table('performance_assessments')
+        // Optional: Excel template as source-of-truth for seed data.
+        $this->excelConfig = $this->tryLoadExcelTemplate($staff);
+
+        // If the template specifies normalization policy per criteria, apply it (no schema changes).
+        if (!empty($this->excelConfig['criteria'])) {
+            foreach (($this->excelConfig['criteria'] ?? []) as $criteriaName => $policy) {
+                DB::table('performance_criterias')
+                    ->where('name', (string) $criteriaName)
+                    ->update([
+                        'normalization_basis' => (string) ($policy['normalization_basis'] ?? 'total_unit'),
+                        'custom_target_value' => array_key_exists('custom_target_value', $policy) ? $policy['custom_target_value'] : null,
+                        'updated_at' => $now,
+                    ]);
+            }
+        }
+
+        // Clean old RAW data for these users/periods (seeder ini TIDAK menghitung skor).
+        $periodIds = [$periodNov->id];
+
+        // Clean previous derived assessments for a clean demo (recalculation will recreate/update).
+        $assessmentIds = DB::table('performance_assessments')
             ->whereIn('user_id', $targets)
             ->whereIn('assessment_period_id', $periodIds)
             ->pluck('id');
-
-        DB::table('assessment_approvals')->whereIn('performance_assessment_id', $oldAssessmentIds)->delete();
-        DB::table('performance_assessment_details')->whereIn('performance_assessment_id', $oldAssessmentIds)->delete();
-        DB::table('performance_assessments')->whereIn('id', $oldAssessmentIds)->delete();
-        DB::table('remunerations')->whereIn('user_id', $targets)->whereIn('assessment_period_id', $periodIds)->delete();
+        if ($assessmentIds->isNotEmpty()) {
+            DB::table('performance_assessment_details')->whereIn('performance_assessment_id', $assessmentIds)->delete();
+            DB::table('performance_assessments')->whereIn('id', $assessmentIds)->delete();
+        }
 
         DB::table('imported_criteria_values')->whereIn('user_id', $targets)->whereIn('assessment_period_id', $periodIds)->delete();
+
+        // Contribution cleanup (task-based + ad-hoc)
+        DB::table('additional_task_claims')->whereIn('user_id', $targets)->delete();
+        DB::table('additional_tasks')
+            ->whereIn('assessment_period_id', $periodIds)
+            ->whereIn('unit_id', array_values(array_filter([$unitPoliUmumId, $unitPoliGigiId])))
+            ->delete();
         DB::table('additional_contributions')->whereIn('user_id', $targets)->whereIn('assessment_period_id', $periodIds)->delete();
+
         $reviewIds = DB::table('review_details')->whereIn('medical_staff_id', $targets)->pluck('review_id');
         DB::table('review_details')->whereIn('medical_staff_id', $targets)->delete();
         DB::table('reviews')->whereIn('id', $reviewIds)->delete();
+
+        // Review invitation cleanup (linked by seeded registration_ref prefix)
+        DB::table('review_invitations')->where(function ($q) use ($periodIds) {
+            foreach ($periodIds as $pid) {
+                $q->orWhere('registration_ref', 'like', 'DRV-' . (int) $pid . '-%');
+            }
+        })->delete();
+
         $mraIds = DB::table('multi_rater_assessments')->whereIn('assessee_id', $targets)->whereIn('assessment_period_id', $periodIds)->pluck('id');
         DB::table('multi_rater_assessment_details')->whereIn('multi_rater_assessment_id', $mraIds)->delete();
         DB::table('multi_rater_assessments')->whereIn('id', $mraIds)->delete();
-        DB::table('attendances')->whereIn('user_id', $targets)->whereIn('attendance_date', function ($q) use ($periodIds) {
-            $q->select(DB::raw('attendance_date'));
-        })->delete();
 
-        // Dataset per periode: raw sumber (absensi = jumlah hadir, discipline = skor 360, contrib = poin, patients = jumlah, rating = avg 1-5)
-        $octRaw = [
-            'felix' => ['attendance' => 26, 'discipline' => 92, 'contrib' => 12, 'patients' => 230, 'rating' => 4.7],
-            'fransisca' => ['attendance' => 25, 'discipline' => 83, 'contrib' => 9,  'patients' => 140, 'rating' => 4.5],
-            'theodorus' => ['attendance' => 26, 'discipline' => 86, 'contrib' => 10, 'patients' => 175, 'rating' => 4.6],
-            // Third DOK-UM in the same unit (poliklinik-umum) to demonstrate relative-score scaling (100 / ~87 / ~76)
-            'raka' => ['attendance' => 24, 'discipline' => 88, 'contrib' => 11, 'patients' => 200, 'rating' => 4.8],
-            'melria' => ['attendance' => 25, 'discipline' => 82, 'contrib' => 8,  'patients' => 120, 'rating' => 4.4],
-            'janBeria' => ['attendance' => 25, 'discipline' => 80, 'contrib' => 7,  'patients' => 110, 'rating' => 4.3],
-        ];
-        $novRaw = [
-            'felix' => ['attendance' => 25, 'discipline' => 87, 'contrib' => 10, 'patients' => 205, 'rating' => 4.6],
-            'fransisca' => ['attendance' => 24, 'discipline' => 80, 'contrib' => 8,  'patients' => 135, 'rating' => 4.4],
-            'theodorus' => ['attendance' => 24, 'discipline' => 82, 'contrib' => 9,  'patients' => 150, 'rating' => 4.5],
-            'raka' => ['attendance' => 23, 'discipline' => 84, 'contrib' => 9,  'patients' => 165, 'rating' => 4.6],
-            'melria' => ['attendance' => 23, 'discipline' => 78, 'contrib' => 6,  'patients' => 95,  'rating' => 4.2],
-            'janBeria' => ['attendance' => 23, 'discipline' => 77, 'contrib' => 6,  'patients' => 90,  'rating' => 4.1],
-        ];
+        // Attendance cleanup for November.
+        DB::table('attendances')
+            ->whereIn('user_id', $targets)
+            ->whereBetween('attendance_date', [(string) $periodNov->start_date, (string) $periodNov->end_date])
+            ->delete();
 
-        $allocations = [
-            // periode, unit, profession, amount
-            [$periodOct->id, 'poliklinik-umum', 'DOK-UM', 7800000],
-            [$periodOct->id, 'poliklinik-umum', 'PRW',    4500000],
-            [$periodOct->id, 'poliklinik-gigi', 'DOK-UM', 3200000],
-            [$periodOct->id, 'poliklinik-gigi', 'DOK-SP', 4300000],
-            [$periodNov->id, 'poliklinik-umum', 'DOK-UM', 7500000],
-            [$periodNov->id, 'poliklinik-umum', 'PRW',    4200000],
-            [$periodNov->id, 'poliklinik-gigi', 'DOK-UM', 3000000],
-            [$periodNov->id, 'poliklinik-gigi', 'DOK-SP', 4000000],
-        ];
+        // Supersede any existing active seeder attendance batches for these periods.
+        DB::table('attendance_import_batches')
+            ->whereIn('assessment_period_id', $periodIds)
+            ->where('is_superseded', 0)
+            ->update(['is_superseded' => 1, 'updated_at' => $now]);
 
-        $this->seedPeriod(
-            period: $periodOct,
-            data: $octRaw,
-            staff: $staff,
-            criteriaIds: compact('absensiId','kedis360Id','kontribusiId','pasienId','ratingId'),
-            validationStatus: 'Tervalidasi',
-            approvalStatus: 'approved',
-            assessmentDate: Carbon::create(2025, 10, 31),
-            publishDate: Carbon::create(2025, 11, 5),
-            paymentDate: Carbon::create(2025, 11, 10),
-            allocations: $allocations,
-            professionIdResolver: $professionId,
-            unitIdResolver: $unitId,
-            exampleInactiveUnitId: $unitPoliUmumId
-        );
+        // Dataset per periode (RAW): gunakan angka realistis & bervariasi.
+        // RAW November 2025 — Poli Umum
+        // RAW November 2025 — Poli Gigi
+        // Notes Excel: rating memakai SUM(rating) (bukan AVG) untuk normalisasi relatif unit.
+        $novRaw = $this->excelConfig['raw'][(int) $periodNov->id] ?? [
+            // Poli Umum (DOK-UM)
+            'kepala_umum' => ['attendance_days' => 25, 'late_minutes' => 40, 'work_minutes' => 9000, 'overtime_days' => 3, 'discipline_360' => 87, 'teamwork_360' => 84, 'contrib' => 10, 'patients' => 205, 'complaints' => 4, 'rating_avg' => 4.6, 'rating_count' => 10, 'rating_sum' => 46],
+            'dokter_umum1' => ['attendance_days' => 24, 'late_minutes' => 65, 'work_minutes' => 8700, 'overtime_days' => 2, 'discipline_360' => 82, 'teamwork_360' => 80, 'contrib' => 9, 'patients' => 150, 'complaints' => 6, 'rating_avg' => 4.5, 'rating_count' => 10, 'rating_sum' => 45],
+            'dokter_umum2' => ['attendance_days' => 23, 'late_minutes' => 30, 'work_minutes' => 8800, 'overtime_days' => 4, 'discipline_360' => 84, 'teamwork_360' => 83, 'contrib' => 9, 'patients' => 165, 'complaints' => 3, 'rating_avg' => 4.6, 'rating_count' => 10, 'rating_sum' => 46],
+
+            // Poli Umum (PRW)
+            'perawat1' => ['attendance_days' => 24, 'late_minutes' => 40,  'work_minutes' => 11880, 'overtime_days' => 3, 'discipline_360' => 88, 'teamwork_360' => 90, 'contrib' => 8,  'patients' => 0,   'complaints' => 0, 'rating_avg' => 4.5, 'rating_count' => 2, 'rating_sum' => 9],
+            'perawat2' => ['attendance_days' => 22, 'late_minutes' => 75,  'work_minutes' => 11040, 'overtime_days' => 2, 'discipline_360' => 85, 'teamwork_360' => 86, 'contrib' => 7,  'patients' => 0,   'complaints' => 0, 'rating_avg' => 4.0, 'rating_count' => 1, 'rating_sum' => 4],
+
+            // Poli Gigi (DOK-UM / kepala unit)
+            'kepala_gigi' => ['attendance_days' => 24, 'late_minutes' => 30,  'work_minutes' => 12000, 'overtime_days' => 2, 'discipline_360' => 89, 'teamwork_360' => 88, 'contrib' => 8,  'patients' => 140, 'complaints' => 1, 'rating_avg' => 4.5, 'rating_count' => 2, 'rating_sum' => 9],
+
+            // Poli Gigi (DOK-SP)
+            'dokter_spes1' => ['attendance_days' => 23, 'late_minutes' => 90,  'work_minutes' => 11520, 'overtime_days' => 1, 'discipline_360' => 84, 'teamwork_360' => 83, 'contrib' => 6,  'patients' => 160, 'complaints' => 3, 'rating_avg' => 4.0, 'rating_count' => 1, 'rating_sum' => 4],
+            'dokter_spes2' => ['attendance_days' => 25, 'late_minutes' => 10,  'work_minutes' => 12480, 'overtime_days' => 3, 'discipline_360' => 91, 'teamwork_360' => 90, 'contrib' => 10, 'patients' => 175, 'complaints' => 0, 'rating_avg' => 4.8, 'rating_count' => 2, 'rating_sum' => 10],
+        ];
 
         $this->seedPeriod(
             period: $periodNov,
             data: $novRaw,
             staff: $staff,
-            criteriaIds: compact('absensiId','kedis360Id','kontribusiId','pasienId','ratingId'),
-            validationStatus: 'Menunggu Validasi',
-            approvalStatus: 'pending',
+            criteriaIds: compact('absensiId','workHoursId','overtimeId','lateMinutesId','kedis360Id','kerjasama360Id','kontribusiId','pasienId','komplainId','ratingId'),
             assessmentDate: Carbon::create(2025, 11, 30),
-            publishDate: null,
-            paymentDate: null,
-            allocations: $allocations,
             professionIdResolver: $professionId,
             unitIdResolver: $unitId,
             exampleInactiveUnitId: null
         );
+
+        // Ensure "Pegawai Medis → Penilaian Saya" has at least 1 row for November 2025
+        // by recalculating from seeded RAW tables.
+        // Some dev DBs don't have the newer `meta` column yet; avoid hard-failing the seeder.
+        if ($unitPoliUmumId > 0 || $unitPoliGigiId > 0) {
+            if (Schema::hasColumn('performance_assessment_details', 'meta')) {
+                /** @var PeriodPerformanceAssessmentService $perfSvc */
+                $perfSvc = app(PeriodPerformanceAssessmentService::class);
+                $profDoku = (int) ($professionId('DOK-UM') ?? 0);
+                $profDoksp = (int) ($professionId('DOK-SP') ?? 0);
+                $profPrw = (int) ($professionId('PRW') ?? 0);
+
+                if ($unitPoliUmumId > 0 && $profDoku > 0) {
+                    $perfSvc->recalculateForGroup((int) $periodNov->id, (int) $unitPoliUmumId, (int) $profDoku);
+                }
+                if ($unitPoliUmumId > 0 && $profPrw > 0) {
+                    $perfSvc->recalculateForGroup((int) $periodNov->id, (int) $unitPoliUmumId, (int) $profPrw);
+                }
+                if ($unitPoliGigiId > 0 && $profDoksp > 0) {
+                    $perfSvc->recalculateForGroup((int) $periodNov->id, (int) $unitPoliGigiId, (int) $profDoksp);
+                }
+                if ($unitPoliGigiId > 0 && $profDoku > 0) {
+                    $perfSvc->recalculateForGroup((int) $periodNov->id, (int) $unitPoliGigiId, (int) $profDoku);
+                }
+
+                // Smoke checks (fail fast with clear debug output)
+                if ($unitPoliUmumId > 0) {
+                    $this->smokeCheckNovember2025(
+                        periodId: (int) $periodNov->id,
+                        unitId: (int) $unitPoliUmumId,
+                        sampleUserId: (int) $staff['dokter_umum1']['id'],
+                        sampleUserLabel: 'dokter_umum1',
+                    );
+                }
+
+                if ($unitPoliGigiId > 0) {
+                    $this->smokeCheckNovember2025(
+                        periodId: (int) $periodNov->id,
+                        unitId: (int) $unitPoliGigiId,
+                        sampleUserId: (int) $staff['dokter_spes2']['id'],
+                        sampleUserLabel: 'dokter_spes2',
+                    );
+                }
+            } elseif ($this->command) {
+                $this->command->warn('Skipping recalc + smoke checks: kolom performance_assessment_details.meta tidak ada di schema DB ini.');
+            }
+        }
+    }
+
+    private function smokeCheckNovember2025(int $periodId, int $unitId, int $sampleUserId, string $sampleUserLabel): void
+    {
+        if ($periodId <= 0 || $unitId <= 0 || $sampleUserId <= 0) {
+            throw new \RuntimeException('SmokeCheck: invalid ids. periodId=' . $periodId . ', unitId=' . $unitId . ', sampleUserId=' . $sampleUserId);
+        }
+
+        $period = AssessmentPeriod::query()->find($periodId);
+        if (!$period) {
+            throw new \RuntimeException('SmokeCheck: AssessmentPeriod not found. periodId=' . $periodId);
+        }
+
+        // 1) Ensure sample user has 1 row in performance_assessments for November 2025
+        $assessment = PerformanceAssessment::query()
+            ->where('assessment_period_id', $periodId)
+            ->where('user_id', $sampleUserId)
+            ->first(['id', 'total_wsm_score']);
+
+        if (!$assessment) {
+            $debug = [
+                'period' => ['id' => $periodId, 'name' => (string) $period->name],
+                'sample_user_label' => $sampleUserLabel,
+                'sample_user_id' => $sampleUserId,
+                'unit_id' => $unitId,
+                'assessments_in_period_for_unit' => DB::table('performance_assessments as pa')
+                    ->join('users as u', 'u.id', '=', 'pa.user_id')
+                    ->where('pa.assessment_period_id', $periodId)
+                    ->where('u.unit_id', $unitId)
+                    ->count(),
+            ];
+            throw new \RuntimeException("SmokeCheck FAILED (1): Missing performance_assessments row for sample user (Nov 2025).\n" . json_encode($debug, JSON_PRETTY_PRINT));
+        }
+
+        // Active criteria = unit_criteria_weights.status=active, criteria is_active=1, and weight>0
+        $activeCriteriaIds = DB::table('unit_criteria_weights as ucw')
+            ->join('performance_criterias as pc', 'pc.id', '=', 'ucw.performance_criteria_id')
+            ->where('ucw.assessment_period_id', $periodId)
+            ->where('ucw.unit_id', $unitId)
+            ->where('ucw.status', 'active')
+            ->where('ucw.weight', '>', 0)
+            ->where('pc.is_active', 1)
+            ->pluck('pc.id')
+            ->map(fn($v) => (int) $v)
+            ->values()
+            ->all();
+
+        $activeCount = count($activeCriteriaIds);
+
+        // 2) Ensure details exist for at least all active criteria
+        $detailsActiveCount = PerformanceAssessmentDetail::query()
+            ->where('performance_assessment_id', (int) $assessment->id)
+            ->when($activeCount > 0, fn($q) => $q->whereIn('performance_criteria_id', $activeCriteriaIds))
+            ->count();
+
+        if ($activeCount > 0 && $detailsActiveCount < $activeCount) {
+            $missing = array_values(array_diff(
+                $activeCriteriaIds,
+                PerformanceAssessmentDetail::query()
+                    ->where('performance_assessment_id', (int) $assessment->id)
+                    ->whereIn('performance_criteria_id', $activeCriteriaIds)
+                    ->pluck('performance_criteria_id')
+                    ->map(fn($v) => (int) $v)
+                    ->all()
+            ));
+
+            $debug = [
+                'period' => ['id' => $periodId, 'name' => (string) $period->name],
+                'sample_user_label' => $sampleUserLabel,
+                'sample_user_id' => $sampleUserId,
+                'assessment_id' => (int) $assessment->id,
+                'expected_active_criteria_count' => $activeCount,
+                'found_active_details_count' => $detailsActiveCount,
+                'missing_active_criteria_ids' => $missing,
+                'criteria_summary' => $this->buildCriteriaDebugSummary($periodId, $unitId, (int) $assessment->id),
+            ];
+            throw new \RuntimeException("SmokeCheck FAILED (2): Not enough performance_assessment_details for ACTIVE criteria.\n" . json_encode($debug, JSON_PRETTY_PRINT));
+        }
+
+        // 3) Ensure not all scores are 100 (at least one criterion score < 100)
+        $hasBelow100 = PerformanceAssessmentDetail::query()
+            ->where('performance_assessment_id', (int) $assessment->id)
+            ->where('score', '<', 100)
+            ->exists();
+
+        if (!$hasBelow100 && $this->command) {
+            // $this->command->warn(
+            //     'SmokeCheck NOTE: semua skor kriteria untuk sample user = 100 (label=' . $sampleUserLabel . '). Ini bisa valid jika sample adalah performer terbaik.'
+            // );
+        }
+    }
+
+    /**
+     * Debug dump: per-criteria details distribution within the unit for the period.
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildCriteriaDebugSummary(int $periodId, int $unitId, int $felixAssessmentId): array
+    {
+        $rows = DB::table('performance_assessment_details as pad')
+            ->join('performance_assessments as pa', 'pa.id', '=', 'pad.performance_assessment_id')
+            ->join('users as u', 'u.id', '=', 'pa.user_id')
+            ->join('performance_criterias as pc', 'pc.id', '=', 'pad.performance_criteria_id')
+            ->where('pa.assessment_period_id', $periodId)
+            ->where('u.unit_id', $unitId)
+            ->groupBy('pad.performance_criteria_id', 'pc.name')
+            ->orderBy('pc.name')
+            ->selectRaw('pad.performance_criteria_id as criteria_id')
+            ->selectRaw('pc.name as criteria_name')
+            ->selectRaw('COUNT(*) as details_rows')
+            ->selectRaw('MIN(pad.score) as min_score')
+            ->selectRaw('MAX(pad.score) as max_score')
+            ->selectRaw('AVG(pad.score) as avg_score')
+            ->get();
+
+        $felixScores = DB::table('performance_assessment_details as pad')
+            ->join('performance_criterias as pc', 'pc.id', '=', 'pad.performance_criteria_id')
+            ->where('pad.performance_assessment_id', $felixAssessmentId)
+            ->pluck('pad.score', 'pc.name');
+
+        $out = [];
+        foreach ($rows as $r) {
+            $name = (string) $r->criteria_name;
+            $out[] = [
+                'criteria_id' => (int) $r->criteria_id,
+                'criteria_name' => $name,
+                'details_rows' => (int) $r->details_rows,
+                'min_score' => round((float) $r->min_score, 2),
+                'max_score' => round((float) $r->max_score, 2),
+                'avg_score' => round((float) $r->avg_score, 2),
+                'felix_score' => $felixScores[$name] ?? null,
+            ];
+        }
+
+        return $out;
     }
 
     private function seedPeriod(
@@ -213,23 +449,23 @@ class FiveStaffKpiSeeder extends Seeder
         array $data,
         array $staff,
         array $criteriaIds,
-        string $validationStatus,
-        string $approvalStatus,
         Carbon $assessmentDate,
-        ?Carbon $publishDate,
-        ?Carbon $paymentDate,
-        array $allocations,
         callable $professionIdResolver,
         callable $unitIdResolver,
         ?int $exampleInactiveUnitId
     ): void {
         $now = Carbon::now();
 
-        $absensiId    = $criteriaIds['absensiId'];
-        $kedis360Id   = $criteriaIds['kedis360Id'];
-        $kontribusiId = $criteriaIds['kontribusiId'];
-        $pasienId     = $criteriaIds['pasienId'];
-        $ratingId     = $criteriaIds['ratingId'];
+        $absensiId      = $criteriaIds['absensiId'];
+        $workHoursId    = $criteriaIds['workHoursId'];
+        $overtimeId     = $criteriaIds['overtimeId'];
+        $lateMinutesId  = $criteriaIds['lateMinutesId'];
+        $kedis360Id     = $criteriaIds['kedis360Id'];
+        $kerjasama360Id = $criteriaIds['kerjasama360Id'];
+        $kontribusiId   = $criteriaIds['kontribusiId'];
+        $pasienId       = $criteriaIds['pasienId'];
+        $komplainId     = $criteriaIds['komplainId'];
+        $ratingId       = $criteriaIds['ratingId'];
 
         // Pastikan bobot aktif per unit & periode tersedia agar tampil di ringkasan WSM
         $unitIds = collect($staff)->pluck('unit_slug')->unique()->map(fn($slug) => $unitIdResolver($slug))->all();
@@ -238,42 +474,148 @@ class FiveStaffKpiSeeder extends Seeder
             ->whereIn('unit_id', $unitIds)
             ->delete();
 
+        // Default weights (Excel mapping) when no Excel template provided (sum=100).
         $defaultWeights = [
             $absensiId => 20,
-            $kedis360Id => 20,
-            $kontribusiId => 20,
-            $pasienId => 20,
-            $ratingId => 20,
+            $workHoursId => 10,
+            $overtimeId => 5,
+            $lateMinutesId => 10,
+            $kedis360Id => 15,
+            $kerjasama360Id => 10,
+            $kontribusiId => 10,
+            $pasienId => 5,
+            $komplainId => 3,
+            $ratingId => 12,
         ];
+
+        $weightsFromExcel = $this->excelConfig['weights'][(int) $period->id] ?? null;
 
         $weightRows = [];
         $activeWeightsByUnit = [];
         $sumWeightByUnit = [];
         foreach ($unitIds as $uId) {
-            foreach ($defaultWeights as $critId => $weight) {
-                $status = 'active';
-                // Example: make one criterion NON-AKTIF (draft) for a unit in this period.
-                if ($exampleInactiveUnitId && (int) $uId === (int) $exampleInactiveUnitId && (int) $critId === (int) $ratingId) {
-                    $status = 'draft';
-                }
-                $weightRows[] = [
-                    'unit_id' => $uId,
-                    'performance_criteria_id' => $critId,
-                    'weight' => $weight,
-                    'assessment_period_id' => $period->id,
-                    'status' => $status,
-                    'policy_doc_path' => null,
-                    'policy_note' => 'Seeder bobot default',
-                    'unit_head_id' => null,
-                    'unit_head_note' => null,
-                    'polyclinic_head_id' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
+            $unitSlug = (string) (DB::table('units')->where('id', (int) $uId)->value('slug') ?? '');
 
-                if ($status === 'active') {
-                    $activeWeightsByUnit[(int) $uId][(int) $critId] = (float) $weight;
-                    $sumWeightByUnit[(int) $uId] = ($sumWeightByUnit[(int) $uId] ?? 0.0) + (float) $weight;
+            // Choose weight set:
+            // - Excel-defined per (period, unit_slug)
+            // - Else fallback demo weights (equal)
+            $weightSet = null;
+            if (is_array($weightsFromExcel) && $unitSlug !== '' && isset($weightsFromExcel[$unitSlug])) {
+                $weightSet = $weightsFromExcel[$unitSlug];
+            }
+
+            $unitWeightRows = [];
+
+            if (is_array($weightSet)) {
+                // weightSet is keyed by criteria name.
+                foreach ($weightSet as $criteriaName => $cfg) {
+                    $critId = (int) (DB::table('performance_criterias')->where('name', (string) $criteriaName)->value('id') ?? 0);
+                    if ($critId <= 0) {
+                        continue;
+                    }
+                    $unitWeightRows[] = [
+                        'unit_id' => $uId,
+                        'performance_criteria_id' => $critId,
+                        'weight' => (float) ($cfg['weight'] ?? 0.0),
+                        'assessment_period_id' => $period->id,
+                        'status' => (string) ($cfg['status'] ?? 'active'),
+                        'policy_doc_path' => null,
+                        'policy_note' => 'Seeder bobot dari Excel template',
+                        'unit_head_id' => null,
+                        'unit_head_note' => null,
+                        'polyclinic_head_id' => null,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+            } else {
+                foreach ($defaultWeights as $critId => $weight) {
+                    $status = 'active';
+                    // Example: make one criterion NON-AKTIF (draft) for a unit in this period.
+                    if ($exampleInactiveUnitId && (int) $uId === (int) $exampleInactiveUnitId && (int) $critId === (int) $ratingId) {
+                        $status = 'draft';
+                    }
+                    $unitWeightRows[] = [
+                        'unit_id' => $uId,
+                        'performance_criteria_id' => $critId,
+                        'weight' => (float) $weight,
+                        'assessment_period_id' => $period->id,
+                        'status' => $status,
+                        'policy_doc_path' => null,
+                        'policy_note' => 'Seeder bobot default',
+                        'unit_head_id' => null,
+                        'unit_head_note' => null,
+                        'polyclinic_head_id' => null,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+            }
+
+            // Guardrail: cap SUM(active weights) to max 100.
+            // If the Excel template accidentally sums > 100 (e.g., 110), reduce the largest active weights first.
+            $sumActive = 0.0;
+            $activeIndexes = [];
+            foreach ($unitWeightRows as $idx => $r) {
+                if (($r['status'] ?? '') === 'active') {
+                    $w = (float) ($r['weight'] ?? 0.0);
+                    $sumActive += $w;
+                    $activeIndexes[] = $idx;
+                }
+            }
+
+            if ($sumActive > 100.0 && !empty($activeIndexes)) {
+                $excess = $sumActive - 100.0;
+                usort($activeIndexes, function ($a, $b) use ($unitWeightRows) {
+                    $wa = (float) ($unitWeightRows[$a]['weight'] ?? 0.0);
+                    $wb = (float) ($unitWeightRows[$b]['weight'] ?? 0.0);
+                    return $wb <=> $wa;
+                });
+
+                foreach ($activeIndexes as $idx) {
+                    if ($excess <= 0.0) {
+                        break;
+                    }
+                    $w = (float) ($unitWeightRows[$idx]['weight'] ?? 0.0);
+                    if ($w <= 0.0) {
+                        continue;
+                    }
+
+                    // Prefer not to push demo active weights below 10.
+                    // This makes typical Excel weights like 15+15 become 10+10 when excess is 10.
+                    $reducible = max(0.0, $w - 10.0);
+                    if ($reducible <= 0.0) {
+                        continue;
+                    }
+                    $reduce = min($excess, $reducible);
+                    $unitWeightRows[$idx]['weight'] = round($w - $reduce, 6);
+                    $excess -= $reduce;
+                }
+
+                // If still excess remains (should not happen for our demo), reduce further as a fallback.
+                if ($excess > 0.0) {
+                    foreach ($activeIndexes as $idx) {
+                        if ($excess <= 0.0) {
+                            break;
+                        }
+                        $w = (float) ($unitWeightRows[$idx]['weight'] ?? 0.0);
+                        if ($w <= 0.0) {
+                            continue;
+                        }
+                        $reduce = min($excess, $w);
+                        $unitWeightRows[$idx]['weight'] = round($w - $reduce, 6);
+                        $excess -= $reduce;
+                    }
+                }
+            }
+
+            foreach ($unitWeightRows as $r) {
+                $weightRows[] = $r;
+                if (($r['status'] ?? '') === 'active') {
+                    $critId = (int) ($r['performance_criteria_id'] ?? 0);
+                    $w = (float) ($r['weight'] ?? 0.0);
+                    $activeWeightsByUnit[(int) $uId][(int) $critId] = $w;
+                    $sumWeightByUnit[(int) $uId] = ($sumWeightByUnit[(int) $uId] ?? 0.0) + $w;
                 }
             }
         }
@@ -281,15 +623,36 @@ class FiveStaffKpiSeeder extends Seeder
             DB::table('unit_criteria_weights')->insert($weightRows);
         }
 
-        // Insert source data & collect raw values per user + totals per unit-profession
-        $rawByUser = [];
-        $totalsByUnitProf = [];
+        // Create one attendance import batch per period (so attendance rows are linked to attendance_import_* tables).
+        $prevBatchId = DB::table('attendance_import_batches')
+            ->where('assessment_period_id', $period->id)
+            ->where('is_superseded', 0)
+            ->value('id');
+        if ($prevBatchId) {
+            DB::table('attendance_import_batches')->where('id', (int) $prevBatchId)->update([
+                'is_superseded' => 1,
+                'updated_at' => $now,
+            ]);
+        }
+        $attendanceBatchId = (int) DB::table('attendance_import_batches')->insertGetId([
+            'file_name' => 'seeder-attendance-' . $period->id . '.xlsx',
+            'assessment_period_id' => $period->id,
+            'imported_by' => null,
+            'imported_at' => $now,
+            'total_rows' => 0,
+            'success_rows' => 0,
+            'failed_rows' => 0,
+            'is_superseded' => 0,
+            'previous_batch_id' => $prevBatchId ? (int) $prevBatchId : null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $attendanceImportRowNo = 2;
+        $attendanceImportRows = [];
+        $attendanceRows = [];
 
-        // default jumlah rater per penilaian publik (karena kita isi 3 review)
-        $defaultRaterCount = 3;
-
-        $patientsBatchId = DB::table('metric_import_batches')->insertGetId([
-            'file_name' => 'seeder-patients-' . $period->id . '.xlsx',
+        $metricsBatchId = DB::table('metric_import_batches')->insertGetId([
+            'file_name' => 'seeder-metrics-' . $period->id . '.xlsx',
             'assessment_period_id' => $period->id,
             'imported_by' => null,
             'status' => 'processed',
@@ -297,31 +660,228 @@ class FiveStaffKpiSeeder extends Seeder
             'updated_at' => $now,
         ]);
 
-        foreach ($data as $key => $row) {
-            $userId = $staff[$key]['id'];
-            $unitId = $unitIdResolver($staff[$key]['unit_slug']);
-            $profId = $professionIdResolver($staff[$key]['profession']);
+        // =========================================================
+        // Kontribusi Tambahan (module-style): 2 tasks per unit+period
+        // - Task POINTS: uses t.points
+        // - Task UANG  : uses t.bonus_amount, but claims still provide awarded_points
+        // Claims with status approved/completed contribute via SUM(awarded_points) fallback to t.points.
+        // =========================================================
+        $taskPointsIdByUnit = [];
+        $taskMoneyIdByUnit = [];
+        foreach (collect($staff)->pluck('unit_slug')->unique()->values()->all() as $unitSlug) {
+            $uId = (int) $unitIdResolver((string) $unitSlug);
+            if ($uId <= 0) {
+                continue;
+            }
 
-            // Attendance Hadir rows
-            $dates = $this->takeDates((string)$period->start_date, (string)$period->end_date, (int)$row['attendance']);
-            $attRows = [];
-            foreach ($dates as $d) {
-                $attRows[] = [
+            // Use any existing staff in the unit as creator to avoid inserting new users.
+            $creatorId = 0;
+            foreach ($staff as $s) {
+                if (($s['unit_slug'] ?? null) === $unitSlug && (int) ($s['id'] ?? 0) > 0) {
+                    $creatorId = (int) $s['id'];
+                    break;
+                }
+            }
+
+            $taskPointsIdByUnit[(string) $unitSlug] = (int) DB::table('additional_tasks')->insertGetId([
+                'unit_id' => $uId,
+                'assessment_period_id' => $period->id,
+                'title' => 'Kontribusi Tambahan (Points) - ' . $period->name . ' (' . $unitSlug . ')',
+                'description' => 'Seeder additional task berbasis poin',
+                'policy_doc_path' => null,
+                'start_date' => (string) $period->start_date,
+                'due_date' => (string) $period->end_date,
+                'start_time' => '00:00:00',
+                'due_time' => '23:59:00',
+                'bonus_amount' => null,
+                'points' => 10,
+                'max_claims' => 99,
+                'cancel_window_hours' => 24,
+                'default_penalty_type' => 'none',
+                'default_penalty_value' => 0,
+                'penalty_base' => 'task_bonus',
+                'status' => 'closed',
+                'created_by' => $creatorId > 0 ? $creatorId : null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            $taskMoneyIdByUnit[(string) $unitSlug] = (int) DB::table('additional_tasks')->insertGetId([
+                'unit_id' => $uId,
+                'assessment_period_id' => $period->id,
+                'title' => 'Kontribusi Tambahan (Uang) - ' . $period->name . ' (' . $unitSlug . ')',
+                'description' => 'Seeder additional task berbasis uang; claim menyediakan awarded_points untuk skor',
+                'policy_doc_path' => null,
+                'start_date' => (string) $period->start_date,
+                'due_date' => (string) $period->end_date,
+                'start_time' => '00:00:00',
+                'due_time' => '23:59:00',
+                'bonus_amount' => 500000,
+                'points' => null,
+                'max_claims' => 99,
+                'cancel_window_hours' => 24,
+                'default_penalty_type' => 'none',
+                'default_penalty_value' => 0,
+                'penalty_base' => 'task_bonus',
+                'status' => 'closed',
+                'created_by' => $creatorId > 0 ? $creatorId : null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        foreach ($data as $key => $row) {
+            $userId = (int) ($staff[$key]['id'] ?? 0);
+            if ($userId <= 0) {
+                continue;
+            }
+            $unitId = (int) $unitIdResolver($staff[$key]['unit_slug']);
+
+            // 0) Kontribusi Tambahan: claim awarded_points sesuai RAW dataset (kontrib).
+            $contribPoints = (float) ($row['contrib'] ?? 0);
+            $unitSlug = (string) ($staff[$key]['unit_slug'] ?? '');
+            $taskId = (int) ($taskPointsIdByUnit[$unitSlug] ?? 0);
+            if ($taskId > 0 && $contribPoints > 0) {
+                DB::table('additional_task_claims')->insert([
+                    'additional_task_id' => (int) $taskId,
                     'user_id' => $userId,
-                    'attendance_date' => $d,
-                    'attendance_status' => 'hadir',
-                    'source' => 'import',
+                    'status' => 'approved',
+                    'claimed_at' => $assessmentDate,
+                    'completed_at' => null,
+                    'cancelled_at' => null,
+                    'cancelled_by' => null,
+                    'cancel_deadline_at' => null,
+                    'cancel_reason' => null,
+                    'penalty_type' => 'none',
+                    'penalty_value' => 0,
+                    'penalty_base' => 'task_bonus',
+                    'penalty_applied' => 0,
+                    'penalty_applied_at' => null,
+                    'penalty_amount' => null,
+                    'penalty_note' => null,
+                    'result_file_path' => null,
+                    'result_note' => 'Seeder claim (kontrib=' . $contribPoints . ')',
+                    'awarded_points' => (float) $contribPoints,
+                    'awarded_bonus_amount' => null,
+                    'reviewed_by_id' => null,
+                    'reviewed_at' => $assessmentDate,
+                    'review_comment' => 'Seeder auto approve',
+                    'is_violation' => 0,
                     'created_at' => $now,
                     'updated_at' => $now,
-                ];
+                ]);
             }
-            DB::table('attendances')->insert($attRows);
 
-            // Multi-rater discipline (single header, one detail for discipline criteria)
+            // 1) ABSENSI: hadir + keterlambatan + jam kerja + lembur (semua mentah di tabel attendances)
+            $hadirDays = (int) ($row['attendance_days'] ?? 0);
+            $totalLate = (int) ($row['late_minutes'] ?? 0);
+            $totalWork = (int) ($row['work_minutes'] ?? 0);
+            $overtimeDays = (int) ($row['overtime_days'] ?? 0);
+            $dates = $this->takeDates((string) $period->start_date, (string) $period->end_date, $hadirDays);
+            $planRows = $this->buildAttendancePlan($userId, $dates, $totalLate, $totalWork, $overtimeDays, $now);
+            if (!empty($planRows)) {
+                // 1) Insert preview/import rows first (pipeline source-of-truth)
+                $empNo = (string) (DB::table('users')->where('id', $userId)->value('employee_number') ?? '');
+                foreach ($planRows as $pr) {
+                    $attendanceImportRows[] = [
+                        'batch_id' => $attendanceBatchId,
+                        'row_no' => $attendanceImportRowNo++,
+                        'user_id' => $userId,
+                        'employee_number' => $empNo,
+                        'raw_data' => json_encode([
+                            'NIP' => $empNo,
+                            'Tanggal' => (string) ($pr['attendance_date'] ?? null),
+                            'Jam Masuk' => (string) ($pr['scheduled_in'] ?? null),
+                            'Jam Keluar' => (string) ($pr['scheduled_out'] ?? null),
+                            'Scan Masuk' => (string) ($pr['check_in'] ?? null),
+                            'Scan Keluar' => (string) ($pr['check_out'] ?? null),
+                            'Datang Terlambat' => (int) ($pr['late_minutes'] ?? 0),
+                            'Durasi Kerja' => (int) ($pr['work_duration_minutes'] ?? 0),
+                            'Shift Lembur' => (int) ($pr['overtime_shift'] ?? 0),
+                            'Status' => (string) ($pr['attendance_status'] ?? 'Hadir'),
+                        ], JSON_UNESCAPED_UNICODE),
+                        'parsed_data' => json_encode([
+                            'attendance_date' => (string) ($pr['attendance_date'] ?? null),
+                            'scheduled_in' => (string) ($pr['scheduled_in'] ?? null),
+                            'scheduled_out' => (string) ($pr['scheduled_out'] ?? null),
+                            'check_in' => (string) ($pr['check_in'] ?? null),
+                            'check_out' => (string) ($pr['check_out'] ?? null),
+                            'late_minutes' => (int) ($pr['late_minutes'] ?? 0),
+                            'work_duration_minutes' => (int) ($pr['work_duration_minutes'] ?? 0),
+                            'overtime_shift' => (int) ($pr['overtime_shift'] ?? 0),
+                            'overtime_end' => (string) ($pr['overtime_end'] ?? null),
+                            'attendance_status' => (string) ($pr['attendance_status'] ?? 'Hadir'),
+                        ], JSON_UNESCAPED_UNICODE),
+                        'success' => true,
+                        'error_code' => null,
+                        'error_message' => null,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+
+                    // 2) Generate final attendances derived from the parsed import row fields
+                    $attendanceRows[] = [
+                        'user_id' => $userId,
+                        'attendance_date' => (string) ($pr['attendance_date'] ?? null),
+                        'check_in' => (string) ($pr['check_in'] ?? null),
+                        'check_out' => (string) ($pr['check_out'] ?? null),
+                        'shift_name' => $pr['shift_name'] ?? null,
+                        'scheduled_in' => (string) ($pr['scheduled_in'] ?? null),
+                        'scheduled_out' => (string) ($pr['scheduled_out'] ?? null),
+                        'late_minutes' => (int) ($pr['late_minutes'] ?? 0),
+                        'early_leave_minutes' => null,
+                        'work_duration_minutes' => (int) ($pr['work_duration_minutes'] ?? 0),
+                        'break_duration_minutes' => null,
+                        'extra_break_minutes' => null,
+                        'overtime_end' => $pr['overtime_end'] ?? null,
+                        'holiday_public' => 0,
+                        'holiday_regular' => 0,
+                        'overtime_shift' => (int) ($pr['overtime_shift'] ?? 0),
+                        'attendance_status' => (string) ($pr['attendance_status'] ?? 'Hadir'),
+                        'note' => 'Seeder derived from attendance_import_rows',
+                        'overtime_note' => null,
+                        'source' => 'import',
+                        'import_batch_id' => $attendanceBatchId,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+            }
+
+            // 2) 360: kedisiplinan + kerjasama (mentah di multi_rater_assessments + details)
+            $assessorId = 0;
+            foreach ($staff as $otherKey => $other) {
+                if ($otherKey === $key) {
+                    continue;
+                }
+                if (($other['unit_slug'] ?? null) !== ($staff[$key]['unit_slug'] ?? null)) {
+                    continue;
+                }
+                $candidate = (int) ($other['id'] ?? 0);
+                if ($candidate > 0 && $candidate !== $userId) {
+                    $assessorId = $candidate;
+                    break;
+                }
+            }
+            if ($assessorId <= 0) {
+                foreach ($staff as $otherKey => $other) {
+                    if ($otherKey === $key) {
+                        continue;
+                    }
+                    $candidate = (int) ($other['id'] ?? 0);
+                    if ($candidate > 0 && $candidate !== $userId) {
+                        $assessorId = $candidate;
+                        break;
+                    }
+                }
+            }
+            if ($assessorId <= 0) {
+                $assessorId = $userId;
+            }
             $mraId = DB::table('multi_rater_assessments')->insertGetId([
                 'assessee_id' => $userId,
-                'assessor_id' => $userId,
-                'assessor_type' => 'self',
+                'assessor_id' => $assessorId,
+                'assessor_type' => 'supervisor',
                 'assessment_period_id' => $period->id,
                 'status' => 'submitted',
                 'submitted_at' => $assessmentDate,
@@ -329,53 +889,89 @@ class FiveStaffKpiSeeder extends Seeder
                 'updated_at' => $now,
             ]);
             DB::table('multi_rater_assessment_details')->insert([
-                'multi_rater_assessment_id' => $mraId,
-                'performance_criteria_id' => $kedis360Id,
-                'score' => $row['discipline'],
-                'comment' => 'Seeder discipline score',
-                'created_at' => $now,
-                'updated_at' => $now,
+                [
+                    'multi_rater_assessment_id' => $mraId,
+                    'performance_criteria_id' => $kedis360Id,
+                    'score' => (float) ($row['discipline_360'] ?? 0),
+                    'comment' => 'Seeder 360: kedisiplinan',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                [
+                    'multi_rater_assessment_id' => $mraId,
+                    'performance_criteria_id' => $kerjasama360Id,
+                    'score' => (float) ($row['teamwork_360'] ?? 0),
+                    'comment' => 'Seeder 360: kerjasama',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
             ]);
 
-            // Additional contributions approved with score (points)
-            DB::table('additional_contributions')->insert([
-                'user_id' => $userId,
-                'title' => 'Kontribusi periode ' . $period->name,
-                'description' => 'Seeder contribution',
-                'submission_date' => $assessmentDate->toDateString(),
-                'validation_status' => 'Disetujui',
-                'score' => $row['contrib'],
-                'assessment_period_id' => $period->id,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+            // 3) Kontribusi tambahan seeded above via additional_tasks + additional_task_claims.
 
-            // Patients metric
+            // 4) Metric import (mentah): pasien + komplain
             DB::table('imported_criteria_values')->insert([
-                'import_batch_id' => $patientsBatchId,
+                'import_batch_id' => $metricsBatchId,
                 'user_id' => $userId,
                 'assessment_period_id' => $period->id,
                 'performance_criteria_id' => $pasienId,
-                'value_numeric' => $row['patients'],
+                'value_numeric' => (float) ($row['patients'] ?? 0),
+                'value_datetime' => null,
+                'value_text' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            DB::table('imported_criteria_values')->insert([
+                'import_batch_id' => $metricsBatchId,
+                'user_id' => $userId,
+                'assessment_period_id' => $period->id,
+                'performance_criteria_id' => $komplainId,
+                'value_numeric' => (float) ($row['complaints'] ?? 0),
                 'value_datetime' => null,
                 'value_text' => null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
 
-            // Rating via reviews (three ratings to maintain average)
-            $ratings = [$row['rating'], $row['rating'], $row['rating']];
-            $role = 'lainnya';
-            $profCode = $staff[$key]['profession'] ?? '';
-            if (str_contains($profCode, 'PRW')) {
-                $role = 'perawat';
-            } elseif (str_contains($profCode, 'DOK')) {
-                $role = 'dokter';
-            }
-            $revIds = [];
+            // 5) Review rating (mentah): generate rating integer agar AVG sesuai template
+            $targetAvg = (float) ($row['rating_avg'] ?? 0);
+            $ratingCount = (int) ($row['rating_count'] ?? 10);
+            $ratingSum = array_key_exists('rating_sum', $row) ? (int) ($row['rating_sum'] ?? 0) : null;
+            $ratings = $this->buildRatingDistribution($targetAvg, $ratingCount, $ratingSum);
+
+            $role = 'dokter';
             foreach ($ratings as $idx => $rt) {
+                $registrationRef = 'DRV-' . $period->id . '-' . $userId . '-' . ($idx + 1);
+
+                // 5a) Review invitation tables (review_invitation_*), to mirror the real patient review flow.
+                $tokenHash = hash('sha256', Str::random(64) . '|' . $registrationRef);
+                $invId = (int) DB::table('review_invitations')->insertGetId([
+                    'registration_ref' => $registrationRef,
+                    'unit_id' => $unitId ?: null,
+                    'patient_name' => 'Pasien ' . ($idx + 1),
+                    'contact' => '08xxxxxxxxxx',
+                    'assessment_period_id' => $period->id,
+                    'token_hash' => $tokenHash,
+                    'status' => 'used',
+                    'expires_at' => $assessmentDate->copy()->addDays(7),
+                    'sent_at' => $assessmentDate->copy()->subDays(1),
+                    'opened_at' => $assessmentDate->copy()->subHours(3),
+                    'used_at' => $assessmentDate,
+                    'client_ip' => '127.0.0.1',
+                    'user_agent' => 'Seeder',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                DB::table('review_invitation_staff')->insert([
+                    'invitation_id' => $invId,
+                    'user_id' => $userId,
+                    'role' => $role,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
                 $revId = DB::table('reviews')->insertGetId([
-                    'registration_ref' => 'DRV-' . $period->id . '-' . $userId . '-' . ($idx + 1),
+                    'registration_ref' => $registrationRef,
                     'unit_id' => $unitId,
                     'overall_rating' => $rt,
                     'comment' => 'Seeder rating',
@@ -390,7 +986,6 @@ class FiveStaffKpiSeeder extends Seeder
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
-                $revIds[] = $revId;
                 DB::table('review_details')->insert([
                     'review_id' => $revId,
                     'medical_staff_id' => $userId,
@@ -401,261 +996,337 @@ class FiveStaffKpiSeeder extends Seeder
                     'updated_at' => $now,
                 ]);
             }
-
-            // Raw collector
-            $rawByUser[$userId] = [
-                'unit_id' => $unitId,
-                'profession_id' => $profId,
-                'absensi_days' => (int) $row['attendance'],
-                'work_hours' => (int) $row['attendance'], // jam kerja sederhana = hari (karena tidak ada durasi), tetap gunakan hari untuk konsistensi
-                'kedisiplinan' => (float) $row['discipline'],
-                'kontribusi' => (float) $row['contrib'],
-                'pasien' => (float) $row['patients'],
-                'rating_avg' => (float) $row['rating'],
-                'rating_count' => $defaultRaterCount,
-            ];
-
-            $totalsByUnitProf[$unitId][$profId]['absensi_days'] = ($totalsByUnitProf[$unitId][$profId]['absensi_days'] ?? 0) + (int) $row['attendance'];
-            $totalsByUnitProf[$unitId][$profId]['work_hours'] = ($totalsByUnitProf[$unitId][$profId]['work_hours'] ?? 0) + (int) $row['attendance'];
-            $totalsByUnitProf[$unitId][$profId]['kedisiplinan'] = ($totalsByUnitProf[$unitId][$profId]['kedisiplinan'] ?? 0) + (float) $row['discipline'];
-            $totalsByUnitProf[$unitId][$profId]['kontribusi'] = ($totalsByUnitProf[$unitId][$profId]['kontribusi'] ?? 0) + (float) $row['contrib'];
-            $totalsByUnitProf[$unitId][$profId]['pasien'] = ($totalsByUnitProf[$unitId][$profId]['pasien'] ?? 0) + (float) $row['patients'];
-            $totalsByUnitProf[$unitId][$profId]['rating_weighted'] = ($totalsByUnitProf[$unitId][$profId]['rating_weighted'] ?? 0) + ((float)$row['rating'] * $defaultRaterCount);
         }
 
-        $perUserScores = [];
+        // Flush attendance import preview rows and update batch counters.
+        if (!empty($attendanceImportRows)) {
+            DB::table('attendance_import_rows')->insert($attendanceImportRows);
+            $total = count($attendanceImportRows);
+            DB::table('attendance_import_batches')->where('id', $attendanceBatchId)->update([
+                'total_rows' => $total,
+                'success_rows' => $total,
+                'failed_rows' => 0,
+                'updated_at' => $now,
+            ]);
+        }
 
-        // Bangun WSM manual per user dengan pembagi unit + profesi
-        foreach ($rawByUser as $uid => $raw) {
-            $unitId = $raw['unit_id'];
-            $profId = $raw['profession_id'];
+        // Insert final attendance rows after import rows are in place.
+        if (!empty($attendanceRows)) {
+            DB::table('attendances')->insert($attendanceRows);
+        }
+    }
 
-            $den = $totalsByUnitProf[$unitId][$profId] ?? [];
-
-            $absRaw = $raw['absensi_days'];
-            $absDen = max((float)($den['absensi_days'] ?? 0), 0.0001);
-            $absScore = ($absRaw / $absDen) * 100;
-
-            $discRaw = $raw['kedisiplinan'];
-            $discDen = max((float)($den['kedisiplinan'] ?? 0), 0.0001);
-            $discScore = ($discRaw / $discDen) * 100;
-
-            $contribRaw = $raw['kontribusi'];
-            $contribDen = max((float)($den['kontribusi'] ?? 0), 0.0001);
-            $contribScore = ($contribRaw / $contribDen) * 100;
-
-            $patientRaw = $raw['pasien'];
-            $patientDen = max((float)($den['pasien'] ?? 0), 0.0001);
-            $patientScore = ($patientRaw / $patientDen) * 100;
-
-            $ratingRaw = $raw['rating_avg'] * $raw['rating_count'];
-            $ratingDen = max((float)($den['rating_weighted'] ?? 0), 0.0001);
-            $ratingScore = ($ratingRaw / $ratingDen) * 100;
-
-            $scores = [
-                'absensi' => $absScore,
-                'kedisiplinan' => $discScore,
-                'kontribusi' => $contribScore,
-                'pasien' => $patientScore,
-                'rating' => $ratingScore,
-            ];
-            $perUserScores[$uid] = $scores;
-
-            // Total WSM must only count criteria with ACTIVE weights for the period.
-            $weightsActive = (array) ($activeWeightsByUnit[(int) $unitId] ?? []);
-            $sumWeightActive = (float) ($sumWeightByUnit[(int) $unitId] ?? 0.0);
-            $weightedSum = 0.0;
-            if ($sumWeightActive > 0 && !empty($weightsActive)) {
-                $weightedSum += ((float) ($weightsActive[(int) $absensiId] ?? 0.0)) * (float) $absScore;
-                $weightedSum += ((float) ($weightsActive[(int) $kedis360Id] ?? 0.0)) * (float) $discScore;
-                $weightedSum += ((float) ($weightsActive[(int) $kontribusiId] ?? 0.0)) * (float) $contribScore;
-                $weightedSum += ((float) ($weightsActive[(int) $pasienId] ?? 0.0)) * (float) $patientScore;
-                $weightedSum += ((float) ($weightsActive[(int) $ratingId] ?? 0.0)) * (float) $ratingScore;
+    /**
+     * Attempt to load Excel template config.
+     *
+     * Expected sheets/headers (flexible; header names are normalized):
+     * - Weights sheet: period_name, unit_slug, criteria_name, weight, (optional) status
+    * - Raw sheet: period_name, staff_key|email|employee_number,
+    *              attendance_days, late_minutes, work_minutes, overtime_days,
+    *              discipline_360, teamwork_360,
+    *              contrib, patients, complaints,
+    *              rating_avg, (optional) rating_count, rating_sum
+     * - Criteria sheet: criteria_name, normalization_basis, (optional) custom_target_value
+     */
+    private function tryLoadExcelTemplate(array $staff): ?array
+    {
+        $path = (string) (env('KPI_TEMPLATE_PATH') ?: storage_path('app/kpi-template.xlsx'));
+        $require = filter_var((string) env('KPI_REQUIRE_EXCEL', 'false'), FILTER_VALIDATE_BOOL);
+        if (!is_file($path) || !is_readable($path)) {
+            if ($require) {
+                throw new \RuntimeException('KPI Excel template wajib ada. Set KPI_TEMPLATE_PATH atau taruh file di storage/app/kpi-template.xlsx');
             }
-            $totalWsm = $sumWeightActive > 0 ? ($weightedSum / $sumWeightActive) : 0.0;
-
-            $assessmentId = DB::table('performance_assessments')->insertGetId([
-                'user_id' => $uid,
-                'assessment_period_id' => $period->id,
-                'assessment_date' => $assessmentDate,
-                'total_wsm_score' => round($totalWsm, 2),
-                'validation_status' => $validationStatus,
-                'supervisor_comment' => 'Dihitung otomatis dari data tabel.',
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            $detailRows = [
-                [
-                    'performance_assessment_id' => $assessmentId,
-                    'performance_criteria_id' => $absensiId,
-                    'score' => round($absScore, 2),
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
-                    'performance_assessment_id' => $assessmentId,
-                    'performance_criteria_id' => $kedis360Id,
-                    'score' => round($discScore, 2),
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
-                    'performance_assessment_id' => $assessmentId,
-                    'performance_criteria_id' => $kontribusiId,
-                    'score' => round($contribScore, 2),
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
-                    'performance_assessment_id' => $assessmentId,
-                    'performance_criteria_id' => $pasienId,
-                    'score' => round($patientScore, 2),
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
-                    'performance_assessment_id' => $assessmentId,
-                    'performance_criteria_id' => $ratingId,
-                    'score' => round($ratingScore, 2),
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-            ];
-            DB::table('performance_assessment_details')->insert($detailRows);
-
-            DB::table('assessment_approvals')->insert([
-                'performance_assessment_id' => $assessmentId,
-                'level' => 1,
-                'approver_id' => $uid, // placeholder approver; adjust as needed
-                'status' => $approvalStatus,
-                'note' => $approvalStatus === 'approved' ? 'Disetujui otomatis seeder' : 'Menunggu persetujuan',
-                'acted_at' => $approvalStatus === 'approved' ? $assessmentDate : null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+            return null;
         }
 
-        // Distribute remuneration per unit+profession allocation proportionally to WSM
-        $allocRows = array_filter($allocations, fn($row) => $row[0] === $period->id);
-        foreach ($allocRows as [$pId, $unitSlug, $profCode, $amount]) {
-            $unitId = $unitIdResolver($unitSlug);
-            $profId = $professionIdResolver($profCode);
-            $users = collect($staff)
-                ->filter(fn($s) => $unitIdResolver($s['unit_slug']) === $unitId && $professionIdResolver($s['profession']) === $profId)
-                ->pluck('id')
-                ->all();
-            if (empty($users)) {
+        $spreadsheet = IOFactory::load($path);
+
+        $emailToKey = [];
+        $empToKey = [];
+        foreach ($staff as $k => $info) {
+            $email = (string) (DB::table('users')->where('id', (int) ($info['id'] ?? 0))->value('email') ?? '');
+            $emp = (string) (DB::table('users')->where('id', (int) ($info['id'] ?? 0))->value('employee_number') ?? '');
+            if ($email !== '') $emailToKey[strtolower($email)] = (string) $k;
+            if ($emp !== '') $empToKey[$emp] = (string) $k;
+        }
+
+        $weights = [];
+        $raw = [];
+        $criteria = [];
+
+        foreach ($spreadsheet->getAllSheets() as $sheet) {
+            $rows = $sheet->toArray(null, true, true, false);
+            if (!$rows || count($rows) < 2) {
                 continue;
             }
 
-            $wsmTotals = DB::table('performance_assessments')
-                ->where('assessment_period_id', $period->id)
-                ->whereIn('user_id', $users)
-                ->pluck('total_wsm_score', 'user_id')
-                ->map(fn($v) => (float)$v)
-                ->all();
-            $sumWsm = array_sum($wsmTotals);
-            if ($sumWsm <= 0) {
-                $sumWsm = count($users);
-                $wsmTotals = array_fill_keys($users, 1.0);
-            }
+            $header = array_shift($rows);
+            $map = $this->mapHeader($header);
 
-            foreach ($wsmTotals as $uid => $wsm) {
-                $share = $amount * ($wsm / $sumWsm);
-
-                $scores = $perUserScores[$uid] ?? [];
-
-                $raw = $rawByUser[$uid] ?? [];
-                $unitIdForUser = (int) ($raw['unit_id'] ?? 0);
-                $weightsActive = (array) ($activeWeightsByUnit[$unitIdForUser] ?? []);
-                $usedScores = [];
-                if (!empty($weightsActive)) {
-                    if (isset($weightsActive[(int) $absensiId])) $usedScores['absensi'] = (float) ($scores['absensi'] ?? 0);
-                    if (isset($weightsActive[(int) $kedis360Id])) $usedScores['kedisiplinan'] = (float) ($scores['kedisiplinan'] ?? 0);
-                    if (isset($weightsActive[(int) $kontribusiId])) $usedScores['kontribusi'] = (float) ($scores['kontribusi'] ?? 0);
-                    if (isset($weightsActive[(int) $pasienId])) $usedScores['pasien'] = (float) ($scores['pasien'] ?? 0);
-                    if (isset($weightsActive[(int) $ratingId])) $usedScores['rating'] = (float) ($scores['rating'] ?? 0);
+            // Criteria policy sheet
+            if (($map['criteria_name'] ?? false) !== false && ($map['normalization_basis'] ?? false) !== false) {
+                foreach ($rows as $r) {
+                    $name = $this->cellToString($r[$map['criteria_name']] ?? null);
+                    if ($name === '') continue;
+                    $basis = $this->cellToString($r[$map['normalization_basis']] ?? null);
+                    if ($basis === '') continue;
+                    $targetRaw = $r[$map['custom_target_value']] ?? null;
+                    $target = $targetRaw !== null && $targetRaw !== '' ? (float) $targetRaw : null;
+                    $criteria[$name] = [
+                        'normalization_basis' => $basis,
+                        'custom_target_value' => $target,
+                    ];
                 }
-
-                $scoreSum = array_sum($usedScores) ?: 1;
-
-                $comp = [
-                    'absensi' => ($usedScores['absensi'] ?? 0) / $scoreSum * $share,
-                    'kedisiplinan' => ($usedScores['kedisiplinan'] ?? 0) / $scoreSum * $share,
-                    'kontribusi' => ($usedScores['kontribusi'] ?? 0) / $scoreSum * $share,
-                    'pasien' => ($usedScores['pasien'] ?? 0) / $scoreSum * $share,
-                    'rating' => ($usedScores['rating'] ?? 0) / $scoreSum * $share,
-                ];
-                $raterCount = $raw['rating_count'] ?? 0;
-                $contribCount = ($raw['kontribusi'] ?? 0) > 0 ? 1 : 0;
-
-                DB::table('remunerations')->insert([
-                    'user_id' => $uid,
-                    'assessment_period_id' => $period->id,
-                    'amount' => round($share, 2),
-                    'payment_date' => $paymentDate,
-                    'payment_status' => $paymentDate ? 'Dibayar' : 'Belum Dibayar',
-                    'calculation_details' => json_encode([
-                        'method' => 'unit_profession_wsm_proportional',
-                        'allocation' => $amount,
-                        'unit_id' => $unitId,
-                        'profession_id' => $profId,
-                        'user_wsm' => round($wsm, 2),
-                        'total_wsm_unit_profession' => round($sumWsm, 2),
-                        'komponen' => [
-                            'dasar' => 0,
-                            'pasien_ditangani' => [
-                                'jumlah' => $raw['pasien'] ?? null,
-                                'nilai' => round($comp['pasien'], 2),
-                            ],
-                            'review_pelanggan' => [
-                                'jumlah' => $raterCount,
-                                'nilai' => round($comp['rating'], 2),
-                            ],
-                            'kontribusi_tambahan' => [
-                                'jumlah' => $contribCount,
-                                'nilai' => round($comp['kontribusi'], 2),
-                            ],
-                            'absensi' => [
-                                'jumlah' => $raw['absensi_days'] ?? null,
-                                'nilai' => round($comp['absensi'], 2),
-                            ],
-                            'kedisiplinan' => [
-                                'jumlah' => $raw['kedisiplinan'] ?? null,
-                                'nilai' => round($comp['kedisiplinan'], 2),
-                            ],
-                        ],
-                    ], JSON_UNESCAPED_UNICODE),
-                    'published_at' => $publishDate,
-                    'calculated_at' => $publishDate,
-                    'revised_by' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
+                continue;
             }
 
-            DB::table('unit_profession_remuneration_allocations')->updateOrInsert(
-                [
-                    'assessment_period_id' => $period->id,
-                    'unit_id' => $unitId,
-                    'profession_id' => $profId,
-                ],
-                [
-                    'amount' => $amount,
-                    'note' => 'Seeder alokasi ' . $period->name,
-                    'published_at' => $publishDate,
-                    'revised_by' => null,
-                    'updated_at' => $now,
-                    'created_at' => $now,
-                ]
-            );
+            // Unit weights sheet
+            if (($map['weight'] ?? false) !== false && ($map['unit_slug'] ?? false) !== false && ($map['period_name'] ?? false) !== false && ($map['criteria_name'] ?? false) !== false) {
+                foreach ($rows as $r) {
+                    $periodName = $this->cellToString($r[$map['period_name']] ?? null);
+                    $unitSlug = $this->cellToString($r[$map['unit_slug']] ?? null);
+                    $criteriaName = $this->cellToString($r[$map['criteria_name']] ?? null);
+                    $weightVal = $r[$map['weight']] ?? null;
+                    $status = $this->cellToString($r[$map['status']] ?? null);
+                    $status = $status !== '' ? strtolower($status) : 'active';
+                    if ($periodName === '' || $unitSlug === '' || $criteriaName === '') continue;
+                    $periodId = (int) (DB::table('assessment_periods')->where('name', $periodName)->value('id') ?? 0);
+                    if ($periodId <= 0) continue;
+                    $weights[$periodId][$unitSlug][$criteriaName] = [
+                        'weight' => (float) ($weightVal ?? 0.0),
+                        'status' => in_array($status, ['active','draft','archived','pending','rejected'], true) ? $status : 'active',
+                    ];
+                }
+                continue;
+            }
+
+            // Raw KPI sheet
+            if (($map['period_name'] ?? false) !== false && (($map['staff_key'] ?? false) !== false || ($map['email'] ?? false) !== false || ($map['employee_number'] ?? false) !== false)
+                && ($map['attendance_days'] ?? false) !== false
+                && ($map['late_minutes'] ?? false) !== false
+                && ($map['work_minutes'] ?? false) !== false
+                && ($map['overtime_days'] ?? false) !== false
+                && ($map['discipline_360'] ?? false) !== false
+                && ($map['teamwork_360'] ?? false) !== false
+                && ($map['contrib'] ?? false) !== false
+                && ($map['patients'] ?? false) !== false
+                && ($map['complaints'] ?? false) !== false
+                && ($map['rating_avg'] ?? false) !== false) {
+                foreach ($rows as $r) {
+                    $periodName = $this->cellToString($r[$map['period_name']] ?? null);
+                    if ($periodName === '') continue;
+                    $periodId = (int) (DB::table('assessment_periods')->where('name', $periodName)->value('id') ?? 0);
+                    if ($periodId <= 0) continue;
+
+                    $key = '';
+                    if (($map['staff_key'] ?? false) !== false) {
+                        $key = $this->cellToString($r[$map['staff_key']] ?? null);
+                    }
+                    if ($key === '' && ($map['email'] ?? false) !== false) {
+                        $email = strtolower($this->cellToString($r[$map['email']] ?? null));
+                        $key = $emailToKey[$email] ?? '';
+                    }
+                    if ($key === '' && ($map['employee_number'] ?? false) !== false) {
+                        $emp = $this->cellToString($r[$map['employee_number']] ?? null);
+                        $key = $empToKey[$emp] ?? '';
+                    }
+                    if ($key === '') continue;
+
+                    $raw[$periodId][$key] = [
+                        'attendance_days' => (float) ($r[$map['attendance_days']] ?? 0),
+                        'late_minutes' => (float) ($r[$map['late_minutes']] ?? 0),
+                        'work_minutes' => (float) ($r[$map['work_minutes']] ?? 0),
+                        'overtime_days' => (float) ($r[$map['overtime_days']] ?? 0),
+                        'discipline_360' => (float) ($r[$map['discipline_360']] ?? 0),
+                        'teamwork_360' => (float) ($r[$map['teamwork_360']] ?? 0),
+                        'contrib' => (float) ($r[$map['contrib']] ?? 0),
+                        'patients' => (float) ($r[$map['patients']] ?? 0),
+                        'complaints' => (float) ($r[$map['complaints']] ?? 0),
+                        'rating_avg' => (float) ($r[$map['rating_avg']] ?? 0),
+                    ];
+
+                    if (($map['rating_count'] ?? false) !== false) {
+                        $raw[$periodId][$key]['rating_count'] = (float) ($r[$map['rating_count']] ?? 0);
+                    }
+                    if (($map['rating_sum'] ?? false) !== false) {
+                        $raw[$periodId][$key]['rating_sum'] = (float) ($r[$map['rating_sum']] ?? 0);
+                    }
+                }
+                continue;
+            }
         }
+
+        $out = [];
+        if (!empty($weights)) $out['weights'] = $weights;
+        if (!empty($raw)) $out['raw'] = $raw;
+        if (!empty($criteria)) $out['criteria'] = $criteria;
+
+        if (empty($out) && $require) {
+            throw new \RuntimeException('KPI Excel template ditemukan tetapi format sheet/header tidak dikenali.');
+        }
+
+        return $out ?: null;
+    }
+
+    private function mapHeader(array $header): array
+    {
+        $norm = array_map(function ($h) {
+            $h = strtolower(trim((string) $h));
+            $h = preg_replace('/\s+/', ' ', $h);
+            $h = str_replace(['-', ' '], ['_', '_'], $h);
+            return $h;
+        }, $header);
+
+        $find = function (array $aliases) use ($norm) {
+            foreach ($aliases as $a) {
+                $i = array_search($a, $norm, true);
+                if ($i !== false) return $i;
+            }
+            return false;
+        };
+
+        return [
+            'period_name' => $find(['period_name','period','assessment_period','assessment_period_name']),
+            'unit_slug' => $find(['unit_slug','unit','clinic','poliklinik']),
+            'criteria_name' => $find(['criteria_name','kriteria','criteria','performance_criteria','performance_criteria_name','nama_kriteria']),
+            'weight' => $find(['weight','bobot']),
+            'status' => $find(['status']),
+
+            'normalization_basis' => $find(['normalization_basis','basis','normalisasi_basis']),
+            'custom_target_value' => $find(['custom_target_value','custom_target','target','target_value']),
+
+            'staff_key' => $find(['staff_key','key','kode','staff']),
+            'email' => $find(['email']),
+            'employee_number' => $find(['employee_number','nip','npp','nik']),
+            'attendance_days' => $find(['attendance_days','attendance','absensi','hadir','kehadiran']),
+            'late_minutes' => $find(['late_minutes','late','keterlambatan','menit_terlambat']),
+            'work_minutes' => $find(['work_minutes','work_duration_minutes','work','jam_kerja','menit_kerja']),
+            'overtime_days' => $find(['overtime_days','overtime','lembur','jumlah_lembur']),
+            'discipline_360' => $find(['discipline_360','discipline','kedisiplinan','kedisiplinan_360','skor_kedisiplinan']),
+            'teamwork_360' => $find(['teamwork_360','teamwork','kerjasama','skor_kerjasama']),
+            'contrib' => $find(['contrib','kontribusi','kontribusi_tambahan']),
+            'patients' => $find(['patients','pasien','jumlah_pasien']),
+            'complaints' => $find(['complaints','komplain','jumlah_komplain','keluhan']),
+            'rating_avg' => $find(['rating_avg','rating','nilai_rating','rata_rating']),
+            'rating_count' => $find(['rating_count','jumlah_rating','jumlah_review']),
+            'rating_sum' => $find(['rating_sum','total_rating','sum_rating']),
+        ];
+    }
+
+    private function cellToString(mixed $val): string
+    {
+        if ($val === null) return '';
+        if (is_bool($val)) return $val ? '1' : '0';
+        return trim((string) $val);
     }
 
     private function periodModel(object $period): \App\Models\AssessmentPeriod
     {
         return \App\Models\AssessmentPeriod::findOrFail($period->id);
+    }
+
+    /**
+     * Build deterministic daily attendance rows that match TOTALs in template.
+     *
+     * @param array<int,string> $dates
+     * @return array<int,array<string,mixed>>
+     */
+    /**
+     * Build deterministic attendance plan rows used by attendance_import_rows, then derived into attendances.
+     *
+     * @param array<int,string> $dates
+     * @return array<int,array<string,mixed>>
+     */
+    private function buildAttendancePlan(int $userId, array $dates, int $totalLateMinutes, int $totalWorkMinutes, int $overtimeDays, Carbon $now): array
+    {
+        $count = count($dates);
+        if ($count <= 0) {
+            return [];
+        }
+
+        $baseWork = intdiv(max($totalWorkMinutes, 0), $count);
+        $workRemainder = max($totalWorkMinutes, 0) - ($baseWork * $count);
+
+        $lateMinutes = array_fill(0, $count, 0);
+        if ($totalLateMinutes > 0) {
+            $lateDays = min($count, max(1, (int) ceil($totalLateMinutes / 30)));
+            $baseLate = intdiv($totalLateMinutes, $lateDays);
+            $lateRem = $totalLateMinutes - ($baseLate * $lateDays);
+            for ($i = 0; $i < $lateDays; $i++) {
+                $lateMinutes[$i] = $baseLate + ($i < $lateRem ? 1 : 0);
+            }
+        }
+
+        $overtimeDays = max(0, min($overtimeDays, $count));
+        $overtimeIdxStart = $count - $overtimeDays;
+
+        $rows = [];
+        for ($i = 0; $i < $count; $i++) {
+            $work = $baseWork + ($i < $workRemainder ? 1 : 0);
+            $isOvertime = $overtimeDays > 0 && $i >= $overtimeIdxStart;
+
+            $date = (string) $dates[$i];
+            $scheduledIn = $date . ' 08:00:00';
+            $checkIn = Carbon::parse($scheduledIn)->addMinutes((int) $lateMinutes[$i]);
+            $checkOut = (clone $checkIn)->addMinutes((int) $work);
+
+            $rows[] = [
+                'user_id' => $userId,
+                'attendance_date' => $date,
+                'shift_name' => 'Pagi',
+                'scheduled_in' => '08:00:00',
+                'scheduled_out' => '16:00:00',
+                'check_in' => $checkIn->toDateTimeString(),
+                'check_out' => $checkOut->toDateTimeString(),
+                'late_minutes' => $lateMinutes[$i],
+                'work_duration_minutes' => $work,
+                'overtime_shift' => $isOvertime ? 1 : 0,
+                'overtime_end' => $isOvertime ? '18:00:00' : null,
+                'attendance_status' => 'Hadir',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Build deterministic integer ratings list with a desired avg.
+     * If rating_sum is provided, it will be used as the exact target sum.
+     *
+     * @return array<int,int>
+     */
+    private function buildRatingDistribution(float $targetAvg, int $count, ?int $ratingSum = null): array
+    {
+        $count = max(1, $count);
+
+        if ($ratingSum === null) {
+            // Prefer 1-decimal averages when count=10.
+            $ratingSum = $count === 10
+                ? (int) round($targetAvg * 10)
+                : (int) round($targetAvg * $count);
+        }
+
+        $minSum = 1 * $count;
+        $maxSum = 5 * $count;
+        $ratingSum = max($minSum, min($maxSum, $ratingSum));
+
+        $ratings = array_fill(0, $count, 1);
+        $remaining = $ratingSum - $count;
+        $i = 0;
+        while ($remaining > 0) {
+            $add = min(4, $remaining);
+            $ratings[$i] += $add;
+            $remaining -= $add;
+            $i++;
+            if ($i >= $count) {
+                $i = 0;
+            }
+        }
+
+        rsort($ratings);
+        return $ratings;
     }
 
     /**
