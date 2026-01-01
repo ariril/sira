@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -35,17 +34,6 @@ return new class extends Migration
                 'assessor_level',
             ], 'uniq_rater_weight');
         });
-
-        // Best-effort conditional constraints (skip if driver doesn't support CHECK)
-        $driver = Schema::getConnection()->getDriverName();
-        if (in_array($driver, ['mysql', 'pgsql', 'sqlite'], true)) {
-            try {
-                // unit_rater_weights: assessor_level only for supervisor
-                DB::statement("ALTER TABLE unit_rater_weights ADD CONSTRAINT chk_rw_level_supervisor CHECK ((assessor_type = 'supervisor' AND (assessor_level IS NULL OR assessor_level >= 1)) OR (assessor_type <> 'supervisor' AND assessor_level IS NULL))");
-            } catch (\Throwable $e) {
-                // ignore
-            }
-        }
     }
 
     public function down(): void

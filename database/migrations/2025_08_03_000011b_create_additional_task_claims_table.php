@@ -3,7 +3,6 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 
 return new class extends Migration {
     public function up(): void
@@ -95,26 +94,10 @@ return new class extends Migration {
 
             $table->index(['additional_task_id', 'user_id'], 'idx_task_user');
         });
-
-        // Tambahkan FK kontribusi -> klaim (migration kontribusi dijalankan lebih dulu)
-        if (Schema::hasTable('additional_contributions')) {
-            Schema::table('additional_contributions', function (Blueprint $table) {
-                $table->foreign('claim_id')
-                    ->references('id')
-                    ->on('additional_task_claims')
-                    ->nullOnDelete();
-            });
-        }
     }
 
     public function down(): void
     {
-        if (Schema::hasTable('additional_contributions')) {
-            Schema::table('additional_contributions', function (Blueprint $table) {
-                $table->dropForeign(['claim_id']);
-            });
-        }
-
         Schema::dropIfExists('additional_task_claims');
     }
 };

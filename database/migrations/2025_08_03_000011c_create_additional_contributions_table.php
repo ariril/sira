@@ -16,8 +16,11 @@ return new class extends Migration
                 ->onDelete('cascade');
 
             // Opsional: kontribusi bisa ditautkan ke klaim tugas
-            // NOTE: FK ditambahkan di migration additional_task_claims (karena urutan file ini lebih dulu).
-            $table->unsignedBigInteger('claim_id')->nullable();
+            $table->foreignId('claim_id')
+                ->nullable()
+                ->constrained('additional_task_claims')
+                ->nullOnDelete()
+                ->index('idx_addcontrib_claim');
 
             $table->string('title');
             $table->text('description')->nullable();
@@ -57,8 +60,6 @@ return new class extends Migration
                 ->nullOnDelete();
 
             $table->timestamps();
-
-            $table->index(['claim_id'], 'idx_addcontrib_claim');
         });
     }
 

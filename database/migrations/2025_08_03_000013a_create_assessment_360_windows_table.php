@@ -24,8 +24,6 @@ return new class extends Migration
         if (DB::getDriverName() === 'mysql') {
             Schema::table('assessment_360_windows', function (Blueprint $table) {
                 $table->unsignedBigInteger('active_period_key')->nullable()->storedAs("IF(is_active, assessment_period_id, NULL)");
-            });
-            Schema::table('assessment_360_windows', function (Blueprint $table) {
                 $table->unique('active_period_key', 'uniq_active_period_window');
                 $table->index('assessment_period_id');
             });
