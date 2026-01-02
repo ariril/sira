@@ -1,12 +1,13 @@
 <x-app-layout title="Detail Penilaian">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div class="flex items-center justify-between mb-4">
-            <h1 class="text-2xl font-semibold">Detail Penilaian</h1>
-            <div class="flex items-center gap-2">
-                <a href="{{ route('pegawai_medis.assessments.index') }}" class="px-3 py-2 rounded-lg border">Kembali</a>
-            </div>
+    <x-slot name="header">
+        <div class="flex items-center justify-between gap-4">
+            <h1 class="text-2xl font-semibold text-slate-800">Detail Penilaian</h1>
+            <x-ui.button as="a" href="{{ route('pegawai_medis.assessments.index') }}" variant="outline" class="h-10 px-4">
+                Kembali
+            </x-ui.button>
         </div>
-
+    </x-slot>
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div class="grid sm:grid-cols-2 gap-4 mb-4">
             <div class="p-4 rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
                 <div class="text-sm text-slate-500">Periode</div>
@@ -31,6 +32,16 @@
                             DETAIL
                         </button>
                     </div>
+                    @php
+                        $source = (string) (($kinerja['calculationSource'] ?? null) ?: 'live');
+                        $sourceLabel = $source === 'snapshot' ? 'Snapshot' : 'Live';
+                        $sourceHint = $source === 'snapshot'
+                            ? 'Periode sudah frozen; nilai diambil dari snapshot dan tidak berubah.'
+                            : 'Periode masih berjalan; nilai mengikuti konfigurasi kriteria terbaru.';
+                    @endphp
+                    <div class="mt-1 text-xs text-slate-500" title="{{ $sourceHint }}">
+                        Sumber: <span class="px-2 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-slate-700">{{ $sourceLabel }}</span>
+                    </div>
                 @else
                     <div class="text-lg font-semibold">-</div>
                     @if (($kinerja['applicable'] ?? false) && !($kinerja['hasWeights'] ?? false))
@@ -50,6 +61,26 @@
                             <div class="text-lg font-semibold text-slate-900">DETAIL Skor Kinerja</div>
                             <div class="text-sm text-slate-600">Total:
                                 {{ number_format((float) ($kinerja['total'] ?? 0), 2) }}</div>
+                            <div class="mt-1 flex flex-wrap items-center gap-2">
+                                @php
+                                    $src = (string) (($kinerja['calculationSource'] ?? null) ?: 'live');
+                                @endphp
+                                @if ($src === 'snapshot')
+                                    <span class="px-2 py-0.5 rounded text-xs bg-slate-200 text-slate-800"
+                                        title="Periode sudah frozen; skor berasal dari snapshot agar tidak berubah.">Snapshot</span>
+                                @else
+                                    <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700"
+                                        title="Periode belum frozen; skor mengikuti konfigurasi kriteria terbaru.">Live</span>
+                                @endif
+
+                                @if (!empty($kinerja['scope']))
+                                    <span class="text-xs text-slate-500">
+                                        Scope pembanding: Periode {{ $kinerja['scope']['period'] ?? '-' }},
+                                        Unit {{ $kinerja['scope']['unit'] ?? '-' }},
+                                        Profesi {{ $kinerja['scope']['profession'] ?? '-' }}.
+                                    </span>
+                                @endif
+                            </div>
                             @if (!empty($kinerja['groupTotalWsm']) && isset($kinerja['sharePct']) && $kinerja['sharePct'] !== null)
                                 <div class="text-xs text-slate-500">
                                     Porsi (share) = {{ number_format((float) ($kinerja['sharePct'] ?? 0) * 100, 2) }}%
@@ -70,9 +101,24 @@
                             periode penilaian dan digunakan sebagai dasar pembagian remunerasi.
                         </div>
 
+                        <div class="text-sm text-slate-700">
+                            <div class="font-semibold">Catatan Normalisasi vs Relatif</div>
+                            <div class="text-xs text-slate-600">
+                                N (Nilai Normalisasi) untuk basis <span class="font-semibold">total_unit</span> dan tipe <span class="font-semibold">benefit</span>
+                                secara konsep akan berjumlah 100 jika dijumlahkan across users dalam satu scope.
+                                R (Nilai Relatif) adalah skala terhadap max(N) sehingga max(R)=100 dan <span class="font-semibold">tidak</span> harus sum=100.
+                            </div>
+                        </div>
+
                         <div>
                             <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Kriteria dihitung (Aktif
                                 pada Periode)</div>
+                            <div class="text-xs text-slate-500 mb-2">
+                                Jumlah kriteria aktif dihitung: <span class="font-semibold text-slate-700">{{ (int) ($kinerja['activeCriteriaCount'] ?? 0) }}</span>.
+                                @if (!empty($kinerja['weightSource']))
+                                    Sumber bobot: <span class="font-semibold text-slate-700">{{ $kinerja['weightSource'] }}</span>.
+                                @endif
+                            </div>
                             <div class="overflow-auto rounded-xl border border-slate-200 bg-white">
                                 <table class="min-w-[560px] w-full text-sm">
                                     <thead class="bg-slate-50">
@@ -235,71 +281,45 @@
                                                 </div>
                                             @endforeach
 
-                                            @if (!empty($raw['formula']) && isset($raw['formula']['raw'], $raw['formula']['result'], $raw['formula']['denominator']))
-                                                <div class="pt-3 mt-2 border-t border-slate-200">
-                                                    <div class="text-xs uppercase tracking-wide text-slate-500 mb-1"
-                                                        title="WSM (Weighted Sum Method)">Rumus Normalisasi</div>
-                                                    <div class="text-sm text-slate-800 font-semibold">
-                                                        {{ number_format((float) $raw['formula']['raw'], 2) }} /
-                                                        {{ number_format((float) $raw['formula']['denominator'], 2) }}
-                                                        × 100
-                                                        = {{ number_format((float) $raw['formula']['result'], 2) }}
+                                            @if (!empty($raw['formula']))
+                                                <div class="pt-3 mt-2 border-t border-slate-200 space-y-2">
+                                                    <div class="text-xs uppercase tracking-wide text-slate-500" title="WSM (Weighted Sum Method)">
+                                                        Rumus (teks)
                                                     </div>
-
-                                                    <div class="text-xs text-slate-500">
-                                                        Basis normalisasi (WSM): total_unit.
-                                                    </div>
+                                                    @if (!empty($raw['formula']['normalization_text']))
+                                                        <div class="text-sm text-slate-800 font-semibold">
+                                                            {{ $raw['formula']['normalization_text'] }}
+                                                        </div>
+                                                    @endif
+                                                    @if (!empty($raw['formula']['relative_text']))
+                                                        <div class="text-sm text-slate-700">
+                                                            {{ $raw['formula']['relative_text'] }}
+                                                        </div>
+                                                    @endif
                                                 </div>
                                             @endif
 
                                             @php
-                                                $maxNorm =
-                                                    $kinerja['maxByCriteria'][(int) $d->performance_criteria_id] ??
-                                                    null;
+                                                $maxNorm = $kinerja['maxNormalizedByCriteria'][(int) $d->performance_criteria_id] ?? ($kinerja['maxByCriteria'][(int) $d->performance_criteria_id] ?? null);
                                                 $maxNorm = $maxNorm !== null ? (float) $maxNorm : null;
-
-                                                $minNorm =
-                                                    $kinerja['minByCriteria'][(int) $d->performance_criteria_id] ??
-                                                    null;
-                                                $minNorm = $minNorm !== null ? (float) $minNorm : null;
-
-                                                $criteriaType = optional($d->performanceCriteria->type)->value ?? 'benefit';
                                             @endphp
 
                                             <div class="pt-3 mt-2 border-t border-slate-200">
-                                                <div class="grid sm:grid-cols-2 gap-2 mb-2">
-                                                    <div class="text-xs text-slate-500">
-                                                        Max nilai normalisasi grup:
-                                                        <span class="font-semibold text-slate-700">{{ $maxNorm !== null ? number_format($maxNorm, 2) : '-' }}</span>
-                                                    </div>
-                                                    <div class="text-xs text-slate-500">
-                                                        Min nilai normalisasi grup:
-                                                        <span class="font-semibold text-slate-700">{{ $minNorm !== null ? number_format($minNorm, 2) : '-' }}</span>
-                                                    </div>
+                                                <div class="text-xs text-slate-500 mb-2">
+                                                    Max nilai normalisasi (N) dalam scope:
+                                                    <span class="font-semibold text-slate-700">{{ $maxNorm !== null ? number_format($maxNorm, 2) : '-' }}</span>
                                                 </div>
                                                 <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Nilai
                                                     Kinerja Relatif (0–100)</div>
                                                 @if ($rel !== null)
-                                                    @if (($criteriaType ?? 'benefit') === 'cost')
-                                                        @if ($norm !== null && $minNorm !== null && $minNorm >= 0)
-                                                            <div class="text-sm text-slate-800 font-semibold">
-                                                                {{ number_format($minNorm, 2) }} /
-                                                                {{ number_format((float) $norm, 2) }} × 100
-                                                                = {{ number_format((float) $rel, 2) }}
-                                                            </div>
-                                                        @else
-                                                            <div class="text-sm text-slate-500">-</div>
-                                                        @endif
+                                                    @if ($norm !== null && $maxNorm !== null && $maxNorm > 0)
+                                                        <div class="text-sm text-slate-800 font-semibold">
+                                                            {{ number_format((float) $norm, 2) }} /
+                                                            {{ number_format($maxNorm, 2) }} × 100
+                                                            = {{ number_format((float) $rel, 2) }}
+                                                        </div>
                                                     @else
-                                                        @if ($norm !== null && $maxNorm !== null && $maxNorm > 0)
-                                                            <div class="text-sm text-slate-800 font-semibold">
-                                                                {{ number_format((float) $norm, 2) }} /
-                                                                {{ number_format($maxNorm, 2) }} × 100
-                                                                = {{ number_format((float) $rel, 2) }}
-                                                            </div>
-                                                        @else
-                                                            <div class="text-sm text-slate-500">-</div>
-                                                        @endif
+                                                        <div class="text-sm text-slate-500">-</div>
                                                     @endif
                                                 @else
                                                     <div class="text-sm text-slate-500">-</div>

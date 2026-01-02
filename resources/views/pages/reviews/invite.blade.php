@@ -2,12 +2,6 @@
 
 @section('content')
 <div class="container py-5">
-    @if(session('status'))
-        <div class="alert alert-success">
-            {{ session('status') }}
-        </div>
-    @endif
-
     @php
         $state = session('invite_state', $state ?? 'active');
     @endphp

@@ -34,9 +34,31 @@ $novPeriods = DB::table('assessment_periods')
 
 add('candidate November periods', $novPeriods);
 
-$periodIds = $novPeriods->pluck('id')->map(fn($v) => (int)$v)->filter()->values()->all();
+$decPeriods = DB::table('assessment_periods')
+    ->whereMonth('start_date', 12)
+    ->orWhere('name', 'like', '%Dec%')
+    ->orWhere('name', 'like', '%December%')
+    ->orWhere('name', 'like', '%Des%')
+    ->orWhere('name', 'like', '%Desember%')
+    ->orderByDesc('start_date')
+    ->limit(12)
+    ->get(['id','name','start_date','end_date','status']);
+
+add('candidate December periods', $decPeriods);
+
+$periodIds = $novPeriods
+    ->merge($decPeriods)
+    ->pluck('id')
+    ->map(fn ($v) => (int) $v)
+    ->filter()
+    ->unique()
+    ->values()
+    ->all();
 
 foreach ($periodIds as $pid) {
+    $periodMeta = DB::table('assessment_periods')->where('id', $pid)->first(['id','name','start_date','end_date','status']);
+    add("period_meta (period_id={$pid})", $periodMeta);
+
     $ucw = DB::table('unit_criteria_weights')
         ->where('assessment_period_id', $pid)
         ->selectRaw('status, COUNT(*) as cnt')
@@ -86,6 +108,104 @@ foreach ($periodIds as $pid) {
         ->count();
 
     add("unit_rater_weights groups ALL NULL (period_id={$pid})", $allNullGroupCount);
+
+    $invalidSumGroups = DB::table('unit_rater_weights as rw')
+        ->where('rw.assessment_period_id', $pid)
+        ->selectRaw('rw.unit_id, rw.performance_criteria_id, rw.assessee_profession_id')
+        ->groupBy('rw.unit_id','rw.performance_criteria_id','rw.assessee_profession_id')
+        ->havingRaw('ABS(SUM(COALESCE(rw.weight, 0)) - 100) > 0.01')
+        ->get()
+        ->count();
+
+    add("unit_rater_weights groups sum(weight)!=100 (period_id={$pid})", $invalidSumGroups);
+
+    // Check fairness: when types are present, enforce supervisor >= peer >= subordinate and self smallest.
+    $typeSums = DB::table('unit_rater_weights as rw')
+        ->where('rw.assessment_period_id', $pid)
+        ->selectRaw('rw.unit_id, rw.performance_criteria_id, rw.assessee_profession_id')
+        ->selectRaw("SUM(CASE WHEN rw.assessor_type='supervisor' THEN 1 ELSE 0 END) as supervisor_cnt")
+        ->selectRaw("SUM(CASE WHEN rw.assessor_type='peer' THEN 1 ELSE 0 END) as peer_cnt")
+        ->selectRaw("SUM(CASE WHEN rw.assessor_type='subordinate' THEN 1 ELSE 0 END) as subordinate_cnt")
+        ->selectRaw("SUM(CASE WHEN rw.assessor_type='self' THEN 1 ELSE 0 END) as self_cnt")
+        ->selectRaw("SUM(CASE WHEN rw.assessor_type='supervisor' THEN COALESCE(rw.weight,0) ELSE 0 END) as supervisor_sum")
+        ->selectRaw("SUM(CASE WHEN rw.assessor_type='peer' THEN COALESCE(rw.weight,0) ELSE 0 END) as peer_sum")
+        ->selectRaw("SUM(CASE WHEN rw.assessor_type='subordinate' THEN COALESCE(rw.weight,0) ELSE 0 END) as subordinate_sum")
+        ->selectRaw("SUM(CASE WHEN rw.assessor_type='self' THEN COALESCE(rw.weight,0) ELSE 0 END) as self_sum")
+        ->groupBy('rw.unit_id','rw.performance_criteria_id','rw.assessee_profession_id')
+        ->get();
+
+    $fairnessViolations = 0;
+    $fullTypeGroups = 0;
+    $fullTypeViolations = 0;
+    $missingAnyTypeGroups = 0;
+    $violationSamples = [];
+    foreach ($typeSums as $g) {
+        $sup = (float) ($g->supervisor_sum ?? 0);
+        $peer = (float) ($g->peer_sum ?? 0);
+        $sub = (float) ($g->subordinate_sum ?? 0);
+        $self = (float) ($g->self_sum ?? 0);
+        $supCnt = (int) ($g->supervisor_cnt ?? 0);
+        $peerCnt = (int) ($g->peer_cnt ?? 0);
+        $subCnt = (int) ($g->subordinate_cnt ?? 0);
+        $selfCnt = (int) ($g->self_cnt ?? 0);
+
+        if ($sup + $peer + $sub + $self <= 0) {
+            continue;
+        }
+
+        $present = [
+            'supervisor' => $supCnt > 0,
+            'peer' => $peerCnt > 0,
+            'subordinate' => $subCnt > 0,
+            'self' => $selfCnt > 0,
+        ];
+        if (in_array(false, $present, true)) {
+            $missingAnyTypeGroups++;
+        } else {
+            $fullTypeGroups++;
+        }
+
+        $ok = true;
+        // Compare only where both sides exist.
+        if ($present['supervisor'] && $present['peer'] && !($sup + 0.001 >= $peer)) {
+            $ok = false;
+        }
+        if ($present['peer'] && $present['subordinate'] && !($peer + 0.001 >= $sub)) {
+            $ok = false;
+        }
+        if ($present['subordinate'] && $present['self'] && !($sub + 0.001 >= $self)) {
+            $ok = false;
+        }
+        // If self exists, it should not exceed any other present type.
+        if ($present['self']) {
+            if (($present['supervisor'] && $self > $sup + 0.001) || ($present['peer'] && $self > $peer + 0.001) || ($present['subordinate'] && $self > $sub + 0.001)) {
+                $ok = false;
+            }
+        }
+
+        if (!$ok) {
+            $fairnessViolations++;
+            if (count($violationSamples) < 5) {
+                $violationSamples[] = [
+                    'unit_id' => (int) $g->unit_id,
+                    'performance_criteria_id' => (int) $g->performance_criteria_id,
+                    'assessee_profession_id' => (int) $g->assessee_profession_id,
+                    'counts' => ['supervisor' => $supCnt, 'peer' => $peerCnt, 'subordinate' => $subCnt, 'self' => $selfCnt],
+                    'sums' => ['supervisor' => $sup, 'peer' => $peer, 'subordinate' => $sub, 'self' => $self],
+                ];
+            }
+        }
+
+        if (!$ok && $present['supervisor'] && $present['peer'] && $present['subordinate'] && $present['self']) {
+            $fullTypeViolations++;
+        }
+    }
+
+    add("unit_rater_weights groups violating fairness (period_id={$pid})", $fairnessViolations);
+    add("unit_rater_weights groups with all 4 types (period_id={$pid})", $fullTypeGroups);
+    add("unit_rater_weights groups with all 4 types violating fairness (period_id={$pid})", $fullTypeViolations);
+    add("unit_rater_weights groups missing any type (period_id={$pid})", $missingAnyTypeGroups);
+    add("unit_rater_weights fairness violation samples (period_id={$pid})", $violationSamples);
 
     $sampleGroup = DB::table('unit_rater_weights as rw')
         ->join('performance_criterias as pc', 'pc.id', '=', 'rw.performance_criteria_id')

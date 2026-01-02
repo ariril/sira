@@ -13,6 +13,11 @@ use App\Services\Attendances\Collectors\OvertimeCollector;
 use App\Services\Attendances\Collectors\WorkHoursCollector;
 use App\Services\Reviews\Collectors\RatingCollector;
 use App\Services\CriteriaEngine\Contracts\CriteriaCollector;
+use App\Services\CriteriaEngine\Contracts\CriteriaNormalizer as CriteriaNormalizerContract;
+use App\Services\CriteriaEngine\Normalizers\AverageUnitNormalizer;
+use App\Services\CriteriaEngine\Normalizers\CustomTargetNormalizer;
+use App\Services\CriteriaEngine\Normalizers\MaxUnitNormalizer;
+use App\Services\CriteriaEngine\Normalizers\TotalUnitNormalizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -35,6 +40,9 @@ class CriteriaRegistry
     /** @var array<string, CriteriaCollector> */
     private array $systemCollectors;
 
+    /** @var array<string, CriteriaNormalizerContract> */
+    private array $normalizers;
+
     public function __construct()
     {
         $this->systemCollectors = [
@@ -45,6 +53,24 @@ class CriteriaRegistry
             'contribution' => new ContributionCollector(),
             'rating' => new RatingCollector(),
         ];
+
+        // Stateless normalizers. COST inversion happens inside each normalizer.
+        $this->normalizers = [
+            'total_unit' => new TotalUnitNormalizer(),
+            'max_unit' => new MaxUnitNormalizer(),
+            'average_unit' => new AverageUnitNormalizer(),
+            'custom_target' => new CustomTargetNormalizer(),
+        ];
+    }
+
+    public function normalizerForBasis(?string $basis): CriteriaNormalizerContract
+    {
+        $basis = (string) ($basis ?? '');
+        if ($basis === '') {
+            $basis = 'total_unit';
+        }
+
+        return $this->normalizers[$basis] ?? $this->normalizers['total_unit'];
     }
 
     public function systemKeyByName(string $name): ?string

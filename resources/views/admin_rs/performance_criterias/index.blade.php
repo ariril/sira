@@ -117,14 +117,6 @@
                 <h2 class="text-lg font-semibold text-slate-800">Usulan Kriteria Baru</h2>
                 <a href="#usulan-kriteria" class="text-sm text-slate-500 hover:underline">#</a>
             </div>
-            @if (session('status'))
-                <div class="mb-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 text-sm">
-                    {{ session('status') }}
-                </div>
-            @endif
-            @if ($errors->any())
-                <div class="mb-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 text-sm">{{ $errors->first() }}</div>
-            @endif
 
             <x-ui.table min-width="960px">
                 <x-slot name="head">

@@ -53,19 +53,6 @@
             </div>
         </form>
 
-        @if(session('status'))
-            <div class="bg-emerald-50 text-emerald-800 border border-emerald-100 rounded-xl p-4">{{ session('status') }}</div>
-        @endif
-        @if($errors->any())
-            <div class="bg-rose-50 text-rose-800 border border-rose-100 rounded-xl p-4">
-                <ul class="list-disc pl-5 space-y-1">
-                    @foreach($errors->all() as $e)
-                        <li>{{ $e }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
         <div class="space-y-4">
             @forelse($grouped as $assesseeId => $items)
                 @php

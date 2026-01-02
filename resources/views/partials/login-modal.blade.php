@@ -46,7 +46,11 @@
             @if ($errors->any())
                 <div class="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{{ $errors->first() }}</div>
             @endif
-            @if (session('status'))
+            @php
+                $rawStatus = session('status');
+                $statusIsFlag = in_array($rawStatus, ['profile-updated','password-updated','verification-link-sent'], true);
+            @endphp
+            @if (session('status') && !$statusIsFlag)
                 <div class="rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">{{ session('status') }}</div>
             @endif
 

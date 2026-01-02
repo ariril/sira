@@ -9,9 +9,6 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
-            @if ($errors->any())
-                <div class="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{{ $errors->first() }}</div>
-            @endif
         {{-- FILTERS --}}
         <form method="GET" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="grid gap-5 md:grid-cols-12">

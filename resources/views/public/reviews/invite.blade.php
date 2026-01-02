@@ -12,17 +12,6 @@
 
 @section('content')
 <div class="max-w-4xl mx-auto px-4 py-10">
-    @if ($errors->any())
-        <div class="mb-6 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 px-4 py-3">
-            <div class="font-medium mb-1">Terdapat kesalahan pada formulir:</div>
-            <ul class="list-disc ml-5 space-y-0.5 text-sm">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
     <div class="space-y-2 mb-6">
         <h1 class="text-3xl font-semibold text-slate-900">Ulasan Pelayanan</h1>
         <p class="text-slate-600">Mohon isi penilaian untuk staf yang tertera. Data kunjungan dan daftar staf bersifat terkunci.</p>

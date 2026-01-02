@@ -61,6 +61,11 @@ class AssessmentPeriod extends Model
     public const STATUS_APPROVAL = 'approval';
     public const STATUS_CLOSED  = 'closed';
 
+    /**
+     * NOTE: 'archived' is used in some legacy checks even though it's not part of STATUSES.
+     */
+    public const STATUS_ARCHIVED = 'archived';
+
     public const STATUSES = [
         self::STATUS_DRAFT,
         self::STATUS_ACTIVE,
@@ -115,6 +120,22 @@ class AssessmentPeriod extends Model
     public function isNonDeletable(): bool
     {
         return in_array((string) $this->status, self::NON_DELETABLE_STATUSES, true);
+    }
+
+    /**
+     * Periode dianggap "frozen" bila hasil penilaian sudah harus stabil dan tidak boleh berubah
+     * meskipun admin mengubah konfigurasi kriteria (mis. normalization_basis).
+     */
+    public function isFrozen(): bool
+    {
+        $status = (string) ($this->status ?? '');
+
+        return in_array($status, [
+            self::STATUS_LOCKED,
+            self::STATUS_APPROVAL,
+            self::STATUS_CLOSED,
+            self::STATUS_ARCHIVED,
+        ], true);
     }
 
     protected static function booted(): void

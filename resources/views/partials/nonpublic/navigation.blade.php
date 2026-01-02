@@ -309,10 +309,7 @@
                           @endforeach
                         </div>
                       @endif
-                      <form method="POST" action="{{ route('logout') }}" class="border-t pt-1">
-                        @csrf
-                        <button class="w-full text-left px-3 py-2 rounded hover:bg-slate-50 text-sm">Keluar</button>
-                      </form>
+                      <a href="{{ route('logout.get') }}" class="block w-full text-left px-3 py-2 rounded hover:bg-slate-50 text-sm border-t pt-1">Keluar</a>
                     </div>
                 </div>
             </div>

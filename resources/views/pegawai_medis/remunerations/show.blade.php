@@ -1,10 +1,13 @@
 <x-app-layout title="Detail Remunerasi">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div class="flex items-center justify-between mb-4">
-            <h1 class="text-2xl font-semibold">Detail Remunerasi</h1>
-            <a href="{{ route('pegawai_medis.remunerations.index') }}" class="px-3 py-2 rounded-lg border">Kembali</a>
+    <x-slot name="header">
+        <div class="flex items-center justify-between gap-4">
+            <h1 class="text-2xl font-semibold text-slate-800">Detail Remunerasi</h1>
+            <x-ui.button as="a" href="{{ route('pegawai_medis.remunerations.index') }}" variant="outline" class="h-10 px-4">
+                Kembali
+            </x-ui.button>
         </div>
-
+    </x-slot>
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div class="grid sm:grid-cols-3 gap-4 mb-4">
             <div class="p-4 rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
                 <div class="text-sm text-slate-500">Periode Penilaian</div>

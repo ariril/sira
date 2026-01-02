@@ -1,7 +1,8 @@
 <x-app-layout title="Tugas Tambahan Tersedia">
+    <x-slot name="header">
+        <h1 class="text-2xl font-semibold text-slate-800">Tugas Tambahan Tersedia</h1>
+    </x-slot>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        <h1 class="text-2xl font-semibold">Tugas Tambahan Tersedia</h1>
-
         @unless($activePeriod ?? null)
             <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
                 <div class="font-semibold">Tidak ada periode yang aktif saat ini.</div>

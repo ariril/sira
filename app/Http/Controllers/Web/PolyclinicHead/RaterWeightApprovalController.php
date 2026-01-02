@@ -142,9 +142,14 @@ class RaterWeightApprovalController extends Controller
     {
         abort_unless($raterWeight->status === RaterWeightStatus::PENDING, 403);
 
+        $data = $request->validate([
+            'comment' => ['required', 'string', 'max:1000'],
+        ]);
+
         $raterWeight->status = RaterWeightStatus::REJECTED;
         $raterWeight->decided_by = auth()->id();
         $raterWeight->decided_at = now();
+        $raterWeight->decided_note = $data['comment'];
         $raterWeight->save();
 
         return back()->with('status', 'Bobot penilai 360 ditolak.');

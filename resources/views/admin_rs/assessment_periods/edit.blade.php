@@ -12,10 +12,6 @@
                 @csrf
                 @method('PUT')
 
-                @if ($errors->any())
-                    <div class="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{{ $errors->first() }}</div>
-                @endif
-
                 <div class="grid md:grid-cols-2 gap-5">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Nama Periode</label>

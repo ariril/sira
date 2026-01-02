@@ -13,18 +13,6 @@
         @csrf
         @method('put')
 
-        @if (session('status') === 'password-updated')
-            <div class="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 px-4 py-3">
-                <div class="flex items-start gap-3">
-                    <i class="fa-solid fa-circle-check mt-0.5"></i>
-                    <div>
-                        <p class="font-semibold">{{ __('Berhasil') }}</p>
-                        <p class="text-sm">{{ __('Kata sandi berhasil diperbarui.') }}</p>
-                    </div>
-                </div>
-            </div>
-        @endif
-
         @if ($errors->updatePassword->any())
             <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3">
                 <div class="flex items-start gap-3">

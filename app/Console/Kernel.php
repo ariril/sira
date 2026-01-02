@@ -20,6 +20,8 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\ImportReviewInvitations::class,
         \App\Console\Commands\SyncAssessmentPeriodsLifecycle::class,
         \App\Console\Commands\DebugRaterWeightsNovember::class,
+        \App\Console\Commands\BackfillPerformanceAssessmentSnapshots::class,
+        \App\Console\Commands\VerifyPerformanceAssessmentSnapshots::class,
     ];
 
     protected function schedule(Schedule $schedule): void

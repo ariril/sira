@@ -17,11 +17,12 @@ return new class extends Migration
             $table->enum('assessor_type', ['self', 'supervisor', 'peer', 'subordinate']);
             $table->foreignId('assessor_profession_id')->nullable()->constrained('professions')->nullOnDelete();
             $table->unsignedInteger('assessor_level')->nullable();
-            $table->decimal('weight', 5, 2)->nullable(); // percent
+            $table->decimal('weight', 5, 2); // percent (stored decimal, entered as integer)
             $table->enum('status', ['draft', 'pending', 'active', 'rejected', 'archived'])->default('draft');
             $table->foreignId('proposed_by')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('decided_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('decided_at')->nullable();
+            $table->text('decided_note')->nullable();
             $table->timestamps();
 
             $table->unique([

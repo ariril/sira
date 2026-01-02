@@ -108,57 +108,66 @@ class UnitCriteriaWeightController extends Controller
         $itemsWorking = collect();
         $itemsHistory = collect();
         if ($unitId && Schema::hasTable('unit_criteria_weights')) {
+            $workingPeriodId = !empty($periodId) ? (int) $periodId : ($activePeriodId ?? null);
             $baseBuilder = DB::table('unit_criteria_weights as w')
                 ->join('performance_criterias as pc', 'pc.id', '=', 'w.performance_criteria_id')
                 ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'w.assessment_period_id')
-                ->selectRaw('w.id, w.weight, w.status, w.assessment_period_id, ap.name as period_name, pc.name as criteria_name, pc.type as criteria_type')
+                ->selectRaw('w.id, w.weight, w.status, w.decided_note, w.assessment_period_id, ap.name as period_name, pc.name as criteria_name, pc.type as criteria_type')
                 ->where('w.unit_id', $unitId);
-            if (!empty($periodId)) $baseBuilder->where('w.assessment_period_id', (int) $periodId);
 
-            $itemsWorking = (clone $baseBuilder)
-                ->where('w.status','!=','archived')
-                ->orderByDesc('w.assessment_period_id')
-                ->orderBy('pc.name')
-                ->get();
+            // Working list is always for a single period: selected period, or active period.
+            // If no active period exists and user didn't select a period, show nothing in working list.
+            $itemsWorking = !empty($workingPeriodId)
+                ? (clone $baseBuilder)
+                    ->where('w.assessment_period_id', (int) $workingPeriodId)
+                    ->where('w.status', '!=', 'archived')
+                    ->orderByDesc('w.assessment_period_id')
+                    ->orderBy('pc.name')
+                    ->get()
+                : collect();
 
             $itemsHistory = (clone $baseBuilder)
                 ->where('w.status','archived')
+                ->when(!empty($periodId), fn($q) => $q->where('w.assessment_period_id', (int) $periodId))
                 ->orderByDesc('w.assessment_period_id')
                 ->orderBy('pc.name')
                 ->get();
 
-            // Hitung total bobot (draft + rejected) untuk validasi 100%
-            $sumQuery = DB::table('unit_criteria_weights')
-                ->where('unit_id', $unitId)
-                ->whereIn('status', ['draft','rejected']);
-            if (!empty($targetPeriodId)) $sumQuery->where('assessment_period_id', $targetPeriodId);
-            $currentTotal = (float) $sumQuery->sum('weight');
+            // Totals are only meaningful for a concrete target period.
+            if (!empty($targetPeriodId)) {
+                // Hitung total bobot (draft + rejected) untuk validasi 100%
+                $currentTotal = (float) DB::table('unit_criteria_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $targetPeriodId)
+                    ->whereIn('status', ['draft','rejected'])
+                    ->sum('weight');
 
-            $pendingQuery = DB::table('unit_criteria_weights')
-                ->where('unit_id', $unitId)
-                ->where('status', 'pending');
-            if (!empty($targetPeriodId)) $pendingQuery->where('assessment_period_id', $targetPeriodId);
-            $pendingCount = (int) $pendingQuery->count();
-            $pendingTotal = (float) $pendingQuery->sum('weight');
+                $pendingQuery = DB::table('unit_criteria_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $targetPeriodId)
+                    ->where('status', 'pending');
+                $pendingCount = (int) $pendingQuery->count();
+                $pendingTotal = (float) $pendingQuery->sum('weight');
 
-            $committedQuery = DB::table('unit_criteria_weights')
-                ->where('unit_id', $unitId)
-                ->whereIn('status', ['pending','active']);
-            if (!empty($targetPeriodId)) $committedQuery->where('assessment_period_id', $targetPeriodId);
-            $committedTotal = (float) $committedQuery->sum('weight');
-            $requiredTotal = max(0, 100 - $committedTotal);
+                $committedTotal = (float) DB::table('unit_criteria_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $targetPeriodId)
+                    ->whereIn('status', ['pending','active'])
+                    ->sum('weight');
+                $requiredTotal = max(0, 100 - $committedTotal);
 
-            $activeQuery = DB::table('unit_criteria_weights')
-                ->where('unit_id', $unitId)
-                ->where('status', 'active');
-            if (!empty($targetPeriodId)) $activeQuery->where('assessment_period_id', $targetPeriodId);
-            $activeTotal = (float) $activeQuery->sum('weight');
+                $activeTotal = (float) DB::table('unit_criteria_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $targetPeriodId)
+                    ->where('status', 'active')
+                    ->sum('weight');
 
-            $hasDraftOrRejected = DB::table('unit_criteria_weights')
-                ->where('unit_id', $unitId)
-                ->whereIn('status', ['draft','rejected'])
-                ->when(!empty($targetPeriodId), fn($q) => $q->where('assessment_period_id', $targetPeriodId))
-                ->exists();
+                $hasDraftOrRejected = DB::table('unit_criteria_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $targetPeriodId)
+                    ->whereIn('status', ['draft','rejected'])
+                    ->exists();
+            }
         } else {
             $itemsWorking = collect();
             $itemsHistory = collect();
@@ -245,7 +254,9 @@ class UnitCriteriaWeightController extends Controller
             'assessment_period_id'    => $data['assessment_period_id'],
             'weight'                  => $data['weight'],
             'status'                  => 'draft',
-            'unit_head_id'            => $me->id,
+            'proposed_by'             => $me->id,
+            'decided_by'              => null,
+            'decided_at'              => null,
             'created_at'              => now(),
             'updated_at'              => now(),
         ]);
@@ -334,6 +345,9 @@ class UnitCriteriaWeightController extends Controller
         }
         DB::table('unit_criteria_weights')->where('id', $id)->update([
             'weight' => $data['weight'],
+            'decided_note' => null,
+            'decided_by' => null,
+            'decided_at' => null,
             'updated_at' => now(),
         ]);
 
@@ -370,11 +384,14 @@ class UnitCriteriaWeightController extends Controller
         if (!in_array($weight->status->value, ['draft','rejected'], true)) {
             return back()->withErrors(['status' => 'Hanya draft/ditolak yang bisa diajukan.']);
         }
-        $note = (string) $request->input('unit_head_note');
+        $note = (string) $request->input('proposed_note');
         $weight->update([
             'status' => 'pending',
-            'unit_head_id' => $me->id,
-            'unit_head_note' => $note,
+            'proposed_by' => $me->id,
+            'proposed_note' => $note,
+            'decided_note' => null,
+            'decided_by' => null,
+            'decided_at' => null,
         ]);
         return back()->with('status', 'Diajukan untuk persetujuan.');
     }
@@ -413,8 +430,11 @@ class UnitCriteriaWeightController extends Controller
         }
         foreach ($weights as $w) {
             $w->status = 'pending';
-            $w->unit_head_id = $me->id;
-            if (empty($w->unit_head_note)) $w->unit_head_note = 'Pengajuan massal';
+            $w->proposed_by = $me->id;
+            if (empty($w->proposed_note)) $w->proposed_note = 'Pengajuan massal';
+            $w->decided_note = null;
+            $w->decided_by = null;
+            $w->decided_at = null;
             $w->save();
         }
 
@@ -492,8 +512,11 @@ class UnitCriteriaWeightController extends Controller
                     'assessment_period_id' => $row->assessment_period_id,
                     'weight' => $row->weight,
                     'status' => 'draft',
-                    'unit_head_id' => $me->id,
-                    'unit_head_note' => 'Pengajuan perubahan tengah periode',
+                    'proposed_by' => $me->id,
+                    'proposed_note' => 'Pengajuan perubahan tengah periode',
+                    'decided_note' => null,
+                    'decided_by' => null,
+                    'decided_at' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -557,8 +580,11 @@ class UnitCriteriaWeightController extends Controller
                     'assessment_period_id' => $activePeriod->id,
                     'weight' => $row->weight,
                     'status' => 'draft',
-                    'unit_head_id' => $me->id,
-                    'unit_head_note' => 'Salinan dari periode sebelumnya',
+                    'proposed_by' => $me->id,
+                    'proposed_note' => 'Salinan dari periode sebelumnya',
+                    'decided_note' => null,
+                    'decided_by' => null,
+                    'decided_at' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -576,8 +602,22 @@ class UnitCriteriaWeightController extends Controller
 
     private function archiveNonActivePeriods(?int $unitId, ?int $activePeriodId): void
     {
-        if (!$unitId || !$activePeriodId) return;
-        if (!Schema::hasTable('assessment_periods') || !Schema::hasTable('unit_criteria_weights')) return;
+        if (!$unitId) return;
+        if (!Schema::hasTable('unit_criteria_weights')) return;
+
+        // If there's no active period, treat all existing weights as historical.
+        if (!$activePeriodId) {
+            DB::table('unit_criteria_weights')
+                ->where('unit_id', $unitId)
+                ->where('status', '!=', 'archived')
+                ->update([
+                    'status' => 'archived',
+                    'updated_at' => now(),
+                ]);
+            return;
+        }
+
+        if (!Schema::hasTable('assessment_periods')) return;
 
         DB::table('unit_criteria_weights')
             ->join('assessment_periods as ap', 'ap.id', '=', 'unit_criteria_weights.assessment_period_id')

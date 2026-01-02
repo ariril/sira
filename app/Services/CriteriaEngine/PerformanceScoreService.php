@@ -43,34 +43,11 @@ class PerformanceScoreService
         $agg = $this->aggregator->aggregate($period, $unitId, $userIds, $professionId);
         $criteriaUsed = $agg['criteria_used'] ?? [];
 
-        // Normalize per criteria (WSM normalization follows DB normalization_basis/custom_target_value)
-        $normalizedByKey = [];
         $criteriaMeta = [];
         foreach (($agg['criteria'] ?? []) as $key => $info) {
             $type = (string) ($info['type'] ?? 'benefit');
-            $raw = (array) ($info['raw'] ?? []);
-
-            $policy = $this->resolveNormalizationPolicyForKey((string) $key);
-            $basis = (string) ($policy['basis'] ?? 'total_unit');
-            $target = $policy['custom_target'] !== null ? (float) $policy['custom_target'] : null;
-
-            // Helpful default: if custom_target is selected but missing for attendance,
-            // use the period total days as a dynamic target.
-            if ($basis === 'custom_target' && $target === null && (string) $key === 'attendance') {
-                $target = $this->periodTotalDays($period);
-            }
-
-            $norm = $this->normalizer->normalizeWithBasis(
-                $type === 'cost' ? 'cost' : 'benefit',
-                $basis,
-                $raw,
-                $userIds,
-                $target
-            );
-            $normalizedByKey[$key] = $norm['normalized'];
-
             $readiness = (array) ($info['readiness'] ?? []);
-            $criteriaMeta[$key] = [
+            $criteriaMeta[(string) $key] = [
                 'label' => (string) ($info['label'] ?? $key),
                 'source' => (string) ($info['source'] ?? 'metric_import'),
                 'type' => $type === 'cost' ? 'cost' : 'benefit',
@@ -78,6 +55,22 @@ class PerformanceScoreService
                 'readiness_message' => $readiness['message'] ?? null,
             ];
         }
+
+        // Normalize per criteria (WSM normalization follows DB normalization_basis/custom_target_value)
+        $normSet = $this->normalizer->normalizeCriteriaSet(
+            (array) ($agg['criteria'] ?? []),
+            $userIds,
+            function (string $key) use ($period) {
+                $policy = $this->resolveNormalizationPolicyForKey($key);
+                $basis = (string) ($policy['basis'] ?? 'total_unit');
+                $target = $policy['custom_target'] !== null ? (float) $policy['custom_target'] : null;
+                if ($basis === 'custom_target' && $target === null && $key === 'attendance') {
+                    $target = $this->periodTotalDays($period);
+                }
+                return ['basis' => $basis, 'custom_target' => $target];
+            }
+        );
+        $normalizedByKey = (array) ($normSet['normalized_by_key'] ?? []);
 
         $weights = $this->weightProvider->getWeights($period, $unitId, $professionId, $criteriaUsed);
 

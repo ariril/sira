@@ -64,11 +64,16 @@ class RaterWeightController extends Controller
 
         $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
         $activePeriodId = (int) ($activePeriod?->id ?? 0);
-        $fallbackPeriodId = (int) (AssessmentPeriod::query()->orderByDesc('start_date')->value('id') ?? 0);
-        $currentPeriodId = (int) (($filters['assessment_period_id'] ?? null) ?: ($activePeriodId ?: $fallbackPeriodId));
+        $this->archiveNonActivePeriods($unitId, $activePeriodId);
+
+        // Working period is the active period only (unless user explicitly filters a period for browsing).
+        // When there is no active period and no filter is provided, we do not treat any period as "current".
+        $currentPeriodId = (int) (($filters['assessment_period_id'] ?? null) ?: $activePeriodId);
 
         $hasProfession = $professions->isNotEmpty();
-        $relevantCriteriaIds = $this->resolveRelevant360CriteriaIdsForUnit($unitId, $currentPeriodId);
+        $relevantCriteriaIds = $currentPeriodId > 0
+            ? $this->resolveRelevant360CriteriaIdsForUnit($unitId, $currentPeriodId)
+            : [];
         $hasRelevant360Criteria = !empty($relevantCriteriaIds);
 
         $hasRules = false;
@@ -92,8 +97,61 @@ class RaterWeightController extends Controller
             }
         }
 
-        if ($hasRelevant360Criteria && $hasRules && $hasProfession) {
+        $shouldSync = $activePeriodId > 0
+            && $currentPeriodId === $activePeriodId
+            && $hasRelevant360Criteria
+            && $hasRules
+            && $hasProfession;
+
+        if ($shouldSync) {
             $this->raterWeightGenerator->syncForUnitPeriod($unitId, $currentPeriodId);
+        }
+
+        // Ensure history can still show even if current period prerequisites are incomplete.
+        // If the rater weight table is empty for this unit, try to backfill from previous periods
+        // that already have 360 criteria weights (pending/active/archived).
+        $requestedPeriodId = (int) (!empty($filters['assessment_period_id'] ?? null) ? $filters['assessment_period_id'] : 0);
+        if ($unitId > 0 && Schema::hasTable('unit_rater_weights') && Schema::hasTable('unit_criteria_weights') && Schema::hasTable('performance_criterias')) {
+            if ($requestedPeriodId > 0 && $requestedPeriodId !== $activePeriodId) {
+                $hasAnyForRequested = DB::table('unit_rater_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $requestedPeriodId)
+                    ->exists();
+
+                if (!$hasAnyForRequested) {
+                    $this->raterWeightGenerator->syncForUnitPeriod($unitId, $requestedPeriodId);
+                    $this->archiveNonActivePeriods($unitId, $activePeriodId);
+                }
+            } elseif ($requestedPeriodId <= 0) {
+                $hasAnyHistory = DB::table('unit_rater_weights')
+                    ->where('unit_id', $unitId)
+                    ->when($activePeriodId > 0, fn($q) => $q->where('assessment_period_id', '!=', $activePeriodId))
+                    ->exists();
+
+                if (!$hasAnyHistory) {
+                    $candidatePeriodIds = DB::table('unit_criteria_weights as ucw')
+                        ->join('performance_criterias as pc', 'pc.id', '=', 'ucw.performance_criteria_id')
+                        ->where('ucw.unit_id', $unitId)
+                        ->whereNotNull('ucw.assessment_period_id')
+                        ->where('pc.is_360', 1)
+                        ->whereIn('ucw.status', ['pending', 'active', 'archived'])
+                        ->when($activePeriodId > 0, fn($q) => $q->where('ucw.assessment_period_id', '!=', $activePeriodId))
+                        ->select('ucw.assessment_period_id')
+                        ->distinct()
+                        ->orderByDesc('ucw.assessment_period_id')
+                        ->limit(6)
+                        ->pluck('ucw.assessment_period_id')
+                        ->map(fn($v) => (int) $v)
+                        ->filter(fn($v) => $v > 0)
+                        ->values()
+                        ->all();
+
+                    foreach ($candidatePeriodIds as $pid) {
+                        $this->raterWeightGenerator->syncForUnitPeriod($unitId, $pid);
+                    }
+                    $this->archiveNonActivePeriods($unitId, $activePeriodId);
+                }
+            }
         }
 
         // If a profession is requested but not in this unit's set, reset to null (avoid confusing empty results).
@@ -111,14 +169,24 @@ class RaterWeightController extends Controller
             ->when(!empty($filters['assessee_profession_id'] ?? null), fn($q) => $q->where('assessee_profession_id', (int) $filters['assessee_profession_id']))
             ->when(!empty($filters['status'] ?? null), fn($q) => $q->where('status', (string) $filters['status']));
 
-        // If user picks a specific period filter, respect it for both tables.
-        if (!empty($filters['assessment_period_id'] ?? null)) {
-            $base->where('assessment_period_id', (int) $filters['assessment_period_id']);
-        }
-
-        // Table A: Draft & Periode Berjalan (default period = active)
+        // Table A: Draft & Periode Berjalan (active period only)
         $workingQuery = (clone $base)
-            ->when(empty($filters['assessment_period_id'] ?? null) && $currentPeriodId > 0, fn($q) => $q->where('assessment_period_id', $currentPeriodId))
+            ->when(
+                empty($filters['assessment_period_id'] ?? null) && $activePeriodId > 0,
+                fn($q) => $q->where('assessment_period_id', $activePeriodId)
+            )
+            ->when(
+                !empty($filters['assessment_period_id'] ?? null) && (int) $filters['assessment_period_id'] !== $activePeriodId,
+                fn($q) => $q->whereRaw('1=0')
+            )
+            ->when(
+                !empty($filters['assessment_period_id'] ?? null) && (int) $filters['assessment_period_id'] === $activePeriodId,
+                fn($q) => $q->where('assessment_period_id', $activePeriodId)
+            )
+            ->when(
+                empty($filters['assessment_period_id'] ?? null) && $activePeriodId <= 0,
+                fn($q) => $q->whereRaw('1=0')
+            )
             ->whereIn('status', [
                 RaterWeightStatus::DRAFT->value,
                 RaterWeightStatus::REJECTED->value,
@@ -127,15 +195,15 @@ class RaterWeightController extends Controller
             ])
             ->orderByDesc('id');
 
-        // Table B: Riwayat (archived OR outside current period)
+        // Table B: Riwayat
+        // - Default (awal buka / "Semua"): tampilkan data selain periode aktif.
+        // - Jika user memilih periode tertentu: tampilkan data periode tersebut.
         $historyQuery = (clone $base)
-            ->where(function ($q) use ($filters, $currentPeriodId) {
-                $q->where('status', RaterWeightStatus::ARCHIVED->value);
-
-                if (empty($filters['assessment_period_id'] ?? null) && $currentPeriodId > 0) {
-                    $q->orWhere('assessment_period_id', '!=', $currentPeriodId);
-                }
-            })
+            ->when(
+                !empty($filters['assessment_period_id'] ?? null) && (int) $filters['assessment_period_id'] !== $activePeriodId,
+                fn($q) => $q->where('assessment_period_id', (int) $filters['assessment_period_id']),
+                fn($q) => $q->when($activePeriodId > 0, fn($qq) => $qq->where('assessment_period_id', '!=', $activePeriodId))
+            )
             ->orderByDesc('id');
 
         $itemsWorking = $workingQuery->paginate(20, ['*'], 'page_working')->withQueryString();
@@ -181,7 +249,7 @@ class RaterWeightController extends Controller
 
         // Checklist for submit-all readiness: per (Criteria, Assessee Profession) must total 100%.
         $checklist = collect();
-        if ($hasRelevant360Criteria && $currentPeriodId > 0) {
+        if ($shouldSync) {
             $checklist = $this->raterWeightSummaryService->summarizeForUnitPeriod(
                 unitId: $unitId,
                 periodId: $currentPeriodId,
@@ -398,6 +466,7 @@ class RaterWeightController extends Controller
                 $rw->proposed_by = null;
                 $rw->decided_by = null;
                 $rw->decided_at = null;
+                $rw->decided_note = null;
                 $rw->save();
                 $updated++;
             }
@@ -444,6 +513,7 @@ class RaterWeightController extends Controller
         $raterWeight->proposed_by = null;
         $raterWeight->decided_by = null;
         $raterWeight->decided_at = null;
+        $raterWeight->decided_note = null;
         $raterWeight->save();
 
         if ($request->expectsJson()) {
@@ -563,6 +633,7 @@ class RaterWeightController extends Controller
                 $rw->proposed_by = auth()->id();
                 $rw->decided_by = null;
                 $rw->decided_at = null;
+                $rw->decided_note = null;
                 $rw->save();
             }
         });
@@ -683,6 +754,37 @@ class RaterWeightController extends Controller
         abort_unless($me && (string) $me->role === 'kepala_unit', 403);
     }
 
+    private function archiveNonActivePeriods(int $unitId, int $activePeriodId): void
+    {
+        if ($unitId <= 0) return;
+        if (!Schema::hasTable('unit_rater_weights')) return;
+
+        // If there's no active period, treat all existing rater weights as historical.
+        if ($activePeriodId <= 0) {
+            DB::table('unit_rater_weights')
+                ->where('unit_id', $unitId)
+                ->where('status', '!=', RaterWeightStatus::ARCHIVED->value)
+                ->update([
+                    'status' => RaterWeightStatus::ARCHIVED->value,
+                    'updated_at' => now(),
+                ]);
+            return;
+        }
+
+        if (!Schema::hasTable('assessment_periods')) return;
+
+        DB::table('unit_rater_weights')
+            ->join('assessment_periods as ap', 'ap.id', '=', 'unit_rater_weights.assessment_period_id')
+            ->where('unit_rater_weights.unit_id', $unitId)
+            ->where('unit_rater_weights.status', '!=', RaterWeightStatus::ARCHIVED->value)
+            ->where('unit_rater_weights.assessment_period_id', '!=', $activePeriodId)
+            ->where('ap.status', '!=', AssessmentPeriod::STATUS_ACTIVE)
+            ->update([
+                'unit_rater_weights.status' => RaterWeightStatus::ARCHIVED->value,
+                'unit_rater_weights.updated_at' => now(),
+            ]);
+    }
+
     /**
      * @return array<int>
      */
@@ -722,7 +824,8 @@ class RaterWeightController extends Controller
             ->join('criteria_rater_rules as crr', 'crr.performance_criteria_id', '=', 'pc.id')
             ->where('ucw.unit_id', $unitId)
             ->where('ucw.assessment_period_id', $periodId)
-            ->where('ucw.status', '!=', 'archived')
+            // Only consider 360 criteria after the unit has submitted/activated its criteria weight.
+            ->whereIn('ucw.status', ['pending', 'active'])
             ->where('pc.is_360', 1)
             ->where('pc.is_active', 1)
             ->distinct()
@@ -739,7 +842,7 @@ class RaterWeightController extends Controller
      * @param array<int, int> $criteriaIds
      * @return array<int, string>
      */
-    private function resolveAllowedAssessorTypesForCriteriaIds(array $criteriaIds): array
+    private function resolveAllowedAssessorTypes(array $criteriaIds): array
     {
         if (empty($criteriaIds)) {
             return [];

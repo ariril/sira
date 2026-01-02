@@ -11,10 +11,6 @@
             <form method="POST" action="{{ route('admin_rs.assessment-periods.store') }}" class="space-y-6">
                 @csrf
 
-                @if ($errors->any())
-                    <div class="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{{ $errors->first() }}</div>
-                @endif
-
                 <div class="grid md:grid-cols-2 gap-5">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Nama Periode</label>

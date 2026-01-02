@@ -33,19 +33,6 @@
             </div>
         </form>
 
-        @if(session('status'))
-            <div class="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl px-4 py-3">
-                {{ session('status') }}
-            </div>
-        @endif
-
-        @if(session('danger'))
-            <div class="rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 text-sm flex items-start gap-2">
-                <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
-                <span>{{ session('danger') }}</span>
-            </div>
-        @endif
-
         @if(!empty($selectedId))
         {{-- CHECKLIST PRASYARAT --}}
         @if(!empty($prerequisites))

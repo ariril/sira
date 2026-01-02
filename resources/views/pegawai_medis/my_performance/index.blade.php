@@ -1,7 +1,8 @@
 <x-app-layout title="Kinerja Saya">
-    <div class="container-px py-6 space-y-6">
+    <x-slot name="header">
         <h1 class="text-2xl font-semibold text-slate-800">Kinerja Saya</h1>
-
+    </x-slot>
+    <div class="container-px py-6 space-y-6">
         @if(!$period)
             <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-700">
                 Belum ada periode berjalan saat ini.

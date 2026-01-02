@@ -1,22 +1,15 @@
-@extends('layouts.app')
-@section('content')
-<div class="container py-6">
-    <h1 class="mb-4">Tambah Kontribusi Tambahan</h1>
+<x-app-layout title="Tambah Kontribusi Tambahan">
+    <x-slot name="header">
+        <h1 class="text-2xl font-semibold text-slate-800">Tambah Kontribusi Tambahan</h1>
+    </x-slot>
+    <div class="container-px py-6 space-y-6">
 
     @unless($activePeriod ?? null)
-        <div class="alert alert-danger">
-            <div class="fw-bold">Periode penilaian tidak aktif.</div>
+        <div class="p-4 rounded-xl border text-sm bg-rose-50 border-rose-200 text-rose-800">
+            <div class="font-semibold">Periode penilaian tidak aktif.</div>
             <div>Input kontribusi hanya dapat dilakukan ketika periode berstatus ACTIVE.</div>
         </div>
     @endunless
-
-    @if($errors->any())
-        <div class="alert alert-danger">
-            <ul class="mb-0">
-                @foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach
-            </ul>
-        </div>
-    @endif
     @if($activePeriod ?? null)
         <form method="post" action="{{ route('pegawai_medis.additional_contributions.store') }}" enctype="multipart/form-data" class="card p-4 shadow-sm">
             @csrf
@@ -46,5 +39,5 @@
             </div>
         </form>
     @endif
-</div>
-@endsection
+    </div>
+</x-app-layout>

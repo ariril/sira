@@ -17,34 +17,7 @@
         @csrf
         @method('patch')
 
-        @if (session('status') === 'profile-updated')
-            <div class="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 px-4 py-3">
-                <div class="flex items-start gap-3">
-                    <i class="fa-solid fa-circle-check mt-0.5"></i>
-                    <div>
-                        <p class="font-semibold">{{ __('Berhasil') }}</p>
-                        <p class="text-sm">{{ __('Profil berhasil diperbarui.') }}</p>
-                    </div>
-                </div>
-            </div>
-        @endif
 
-        @if ($errors->any())
-            <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3">
-                <div class="flex items-start gap-3">
-                    <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
-                    <div>
-                        <p class="font-semibold">{{ __('Gagal menyimpan') }}</p>
-                        <p class="text-sm">{{ __('Form tidak valid. Silakan periksa kembali isian Anda:') }}</p>
-                        <ul class="mt-2 text-sm list-disc ps-5 space-y-0.5">
-                            @foreach ($errors->all() as $message)
-                                <li>{{ $message }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        @endif
 
         <div>
             <label for="name" class="block text-xs font-medium text-slate-600 mb-1">{{ __('Nama') }}</label>
@@ -67,11 +40,6 @@
                         </button>
                     </p>
 
-                    @if (session('status') === 'verification-link-sent')
-                        <p class="mt-2 font-medium text-sm text-green-600">
-                            {{ __('Tautan verifikasi baru telah dikirim ke alamat email Anda.') }}
-                        </p>
-                    @endif
                 </div>
             @endif
         </div>

@@ -46,8 +46,9 @@
         @if (!$hasRelevant360Criteria)
             <div class="p-4 rounded-xl border text-sm bg-amber-50 border-amber-200 text-amber-800">
                 <div class="font-semibold">Kriteria 360 belum dipilih untuk periode ini.</div>
-                <div class="mt-1">Bobot penilai 360 hanya relevan jika unit sudah menambahkan kriteria 360 pada
-                    periode berjalan (melalui Bobot Kriteria Unit).</div>
+                <div class="mt-1">Bobot penilai 360 akan muncul setelah Bobot Kriteria Unit untuk kriteria 360 pada periode ini
+                    <strong>diajukan (Pending)</strong> atau sudah <strong>Aktif</strong>.</div>
+                <div class="mt-1">Silakan buka Bobot Kriteria Unit lalu klik <strong>Ajukan Semua</strong> untuk kriteria 360.</div>
                 <div class="mt-3">
                     <x-ui.button variant="outline" as="a" href="{{ $unitCriteriaWeightsUrl }}">Buka Bobot
                         Kriteria Unit</x-ui.button>
@@ -289,7 +290,7 @@
                                     @if($isAuto100)
                                         <x-ui.input type="text" value="100 (otomatis)" :preserve-old="false" disabled class="h-9 w-28 max-w-[140px] text-right bg-slate-100 text-slate-500 border-slate-200" />
                                     @else
-                                        <x-ui.input type="number" :value="number_format((float) ($row->weight ?? 0), 0, '.', '')" :preserve-old="false" disabled class="h-9 w-24 max-w-[110px] text-right bg-slate-100 text-slate-500 border-slate-200" />
+                                        <x-ui.input type="text" :value="$row->weight === null ? '-' : number_format((float) $row->weight, 0, '.', '')" :preserve-old="false" disabled class="h-9 w-24 max-w-[110px] text-right bg-slate-100 text-slate-500 border-slate-200" />
                                     @endif
                                     <span class="text-xs text-slate-400">Terkunci</span>
                                 </div>
@@ -302,6 +303,26 @@
                                 <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Pending</span>
                             @elseif($st === 'rejected')
                                 <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Ditolak</span>
+                                @if(!empty($row->decided_note))
+                                    <div class="mt-2">
+                                        <button type="button" class="text-xs text-slate-600 underline hover:text-slate-800" x-on:click="$dispatch('open-modal', 'rw-note-{{ (int) $row->id }}')">Lihat komentar</button>
+                                    </div>
+
+                                    <x-modal name="rw-note-{{ (int) $row->id }}" :show="false" maxWidth="lg">
+                                        <div class="p-6">
+                                            <div class="flex items-start justify-between gap-3">
+                                                <h2 class="text-lg font-semibold text-slate-800">Komentar Penolakan</h2>
+                                                <button type="button" class="text-slate-400 hover:text-slate-600" x-on:click="$dispatch('close-modal', 'rw-note-{{ (int) $row->id }}')">
+                                                    <i class="fa-solid fa-xmark"></i>
+                                                </button>
+                                            </div>
+                                            <div class="mt-3 text-sm text-slate-700 whitespace-pre-wrap">{{ $row->decided_note }}</div>
+                                            <div class="mt-5 flex justify-end">
+                                                <x-ui.button type="button" variant="outline" x-on:click="$dispatch('close-modal', 'rw-note-{{ (int) $row->id }}')">Tutup</x-ui.button>
+                                            </div>
+                                        </div>
+                                    </x-modal>
+                                @endif
                             @else
                                 <span class="px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">Draft</span>
                             @endif
@@ -345,7 +366,7 @@
                         <td class="px-6 py-4">{{ $row->criteria?->name ?? '-' }}</td>
                         <td class="px-6 py-4">{{ $row->assesseeProfession?->name ?? '-' }}</td>
                         <td class="px-6 py-4">{{ $row->assessor_label }}</td>
-                        <td class="px-6 py-4 text-right">{{ number_format((float) $row->weight, 0) }}</td>
+                        <td class="px-6 py-4 text-right">{{ $row->weight === null ? '-' : number_format((float) $row->weight, 0) }}</td>
                         <td class="px-6 py-4">
                             @if ($st === 'archived')
                                 <span class="px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">Arsip</span>
@@ -355,6 +376,26 @@
                                 <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Pending</span>
                             @elseif($st === 'rejected')
                                 <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Ditolak</span>
+                                @if(!empty($row->decided_note))
+                                    <div class="mt-2">
+                                        <button type="button" class="text-xs text-slate-600 underline hover:text-slate-800" x-on:click="$dispatch('open-modal', 'rw-note-hist-{{ (int) $row->id }}')">Lihat komentar</button>
+                                    </div>
+
+                                    <x-modal name="rw-note-hist-{{ (int) $row->id }}" :show="false" maxWidth="lg">
+                                        <div class="p-6">
+                                            <div class="flex items-start justify-between gap-3">
+                                                <h2 class="text-lg font-semibold text-slate-800">Komentar Penolakan</h2>
+                                                <button type="button" class="text-slate-400 hover:text-slate-600" x-on:click="$dispatch('close-modal', 'rw-note-hist-{{ (int) $row->id }}')">
+                                                    <i class="fa-solid fa-xmark"></i>
+                                                </button>
+                                            </div>
+                                            <div class="mt-3 text-sm text-slate-700 whitespace-pre-wrap">{{ $row->decided_note }}</div>
+                                            <div class="mt-5 flex justify-end">
+                                                <x-ui.button type="button" variant="outline" x-on:click="$dispatch('close-modal', 'rw-note-hist-{{ (int) $row->id }}')">Tutup</x-ui.button>
+                                            </div>
+                                        </div>
+                                    </x-modal>
+                                @endif
                             @else
                                 <span class="px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">Draft</span>
                             @endif

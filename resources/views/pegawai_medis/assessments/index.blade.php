@@ -1,7 +1,8 @@
 <x-app-layout title="Penilaian Saya">
-    <div class="container-px py-6 space-y-6">
+    <x-slot name="header">
         <h1 class="text-2xl font-semibold text-slate-800">Penilaian Saya</h1>
-
+    </x-slot>
+    <div class="container-px py-6 space-y-6">
         @if($activePeriodHasWeights === false)
             <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
                 <div class="font-semibold">Skor kinerja periode aktif belum tersedia</div>

@@ -18,16 +18,20 @@ class UnitCriteriaWeight extends Model
         'status',
         'policy_doc_path',
         'policy_note',
-        'unit_head_id',
-        'unit_head_note',
-        'polyclinic_head_id',
+        'proposed_by',
+        'proposed_note',
+        'decided_by',
+        'decided_at',
+        'decided_note',
     ];
 
     protected $casts = [
         'weight'      => 'decimal:2',
         'status'      => UnitCriteriaWeightStatus::class,
         'policy_note' => 'string',
-        'unit_head_note' => 'string',
+        'proposed_note' => 'string',
+        'decided_at' => 'datetime',
+        'decided_note' => 'string',
     ];
 
     /*

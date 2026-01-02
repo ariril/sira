@@ -144,6 +144,49 @@ class PeriodPerformanceAssessmentService
             $calc = $this->scoreSvc->calculate((int) $unitId, $period, $userIds, $professionId);
             $criteriaIds = array_values(array_map('intval', (array) ($calc['criteria_ids'] ?? [])));
 
+            // If the period is frozen, persist a snapshot so later UI reads remain stable
+            // even if admins change performance_criterias.normalization_basis.
+            if ($period->isFrozen() && Schema::hasTable('performance_assessment_snapshots')) {
+                $now = now();
+                $snapRows = [];
+
+                foreach ($userIds as $uid) {
+                    $uid = (int) $uid;
+                    $userRow = $calc['users'][$uid] ?? null;
+                    if (!$userRow) {
+                        continue;
+                    }
+
+                    $snapRows[] = [
+                        'assessment_period_id' => (int) $period->id,
+                        'user_id' => $uid,
+                        'payload' => json_encode([
+                            'version' => 1,
+                            'calc' => [
+                                // Keep a calculate()-compatible shape.
+                                'criteria_ids' => $criteriaIds,
+                                'weights' => (array) ($calc['weights'] ?? []),
+                                'max_by_criteria' => (array) ($calc['max_by_criteria'] ?? []),
+                                'min_by_criteria' => (array) ($calc['min_by_criteria'] ?? []),
+                                'sum_raw_by_criteria' => (array) ($calc['sum_raw_by_criteria'] ?? []),
+                                'basis_by_criteria' => (array) ($calc['basis_by_criteria'] ?? []),
+                                'basis_value_by_criteria' => (array) ($calc['basis_value_by_criteria'] ?? []),
+                                'custom_target_by_criteria' => (array) ($calc['custom_target_by_criteria'] ?? []),
+                                'user' => $userRow,
+                            ],
+                        ], JSON_UNESCAPED_UNICODE),
+                        'snapshotted_at' => $now,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+
+                if (!empty($snapRows)) {
+                    // Insert-only for stability (don't overwrite existing snapshots).
+                    DB::table('performance_assessment_snapshots')->insertOrIgnore($snapRows);
+                }
+            }
+
             foreach ($userIds as $uid) {
                 $assessmentId = (int) ($assessmentMap[$uid] ?? 0);
                 if (!$assessmentId) {

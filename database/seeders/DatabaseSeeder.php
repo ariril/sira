@@ -150,6 +150,8 @@ class DatabaseSeeder extends Seeder
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
+
+                // ini pegawai medis
                 [
                     'employee_number' => '10.0001',
                     'name' => 'dr. Felix Christian Tjiptadi',
@@ -563,12 +565,40 @@ class DatabaseSeeder extends Seeder
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
+                [
+                    'name' => 'December 2025',
+                    'start_date' => '2025-12-01',
+                    'end_date' => '2025-12-31',
+                    'status' => AssessmentPeriod::STATUS_CLOSED,
+                    'locked_at' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
             ];
-            DB::table('assessment_periods')->upsert(
-                $periods,
-                ['name'],
-                ['start_date','end_date','status','locked_at','updated_at']
-            );
+
+            // NOTE: Do not use upsert() here unless there's a UNIQUE index on `name`.
+            // Some environments ended up with duplicated period rows (same name) because
+            // MySQL ON DUPLICATE KEY UPDATE only triggers on unique keys.
+            foreach ($periods as $p) {
+                // Defensive cleanup: if duplicates already exist, keep the oldest row.
+                $ids = DB::table('assessment_periods')
+                    ->where('name', $p['name'])
+                    ->orderBy('id')
+                    ->pluck('id');
+                if ($ids->count() > 1) {
+                    DB::table('assessment_periods')->whereIn('id', $ids->slice(1)->values()->all())->delete();
+                }
+
+                AssessmentPeriod::query()->updateOrCreate(
+                    ['name' => $p['name']],
+                    [
+                        'start_date' => $p['start_date'],
+                        'end_date' => $p['end_date'],
+                        'status' => $p['status'],
+                        'locked_at' => $p['locked_at'],
+                    ]
+                );
+            }
             $periodSeptId = DB::table('assessment_periods')->where('name', 'September 2025')->value('id');
             $periodOctId = DB::table('assessment_periods')->where('name', 'Oktober 2025')->value('id');
             $periodNovId = DB::table('assessment_periods')->where('name', 'November 2025')->value('id');
@@ -861,6 +891,7 @@ class DatabaseSeeder extends Seeder
         $this->seedCriteriaRaterRules();
         $this->call(EightStaffKpiSeeder::class);
         $this->call(NovemberRaterWeightSeeder::class);
+        $this->call(DecemberRaterWeightSeeder::class);
     }
 
     private function seedCriteriaRaterRules(): void

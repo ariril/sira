@@ -44,7 +44,8 @@ class EightStaffKpiSeeder extends Seeder
         $now = Carbon::now();
 
         $periodNov = DB::table('assessment_periods')->where('name', 'November 2025')->first();
-        if (!$periodNov) {
+        $periodDec = DB::table('assessment_periods')->where('name', 'December 2025')->first();
+        if (!$periodNov && !$periodDec) {
             return;
         }
 
@@ -148,13 +149,24 @@ class EightStaffKpiSeeder extends Seeder
         if ($openedById <= 0) {
             $openedById = (int) ($userId('admin.rs@rsud.local') ?? 0);
         }
-        $this->ensureAssessment360Window(
-            periodId: (int) $periodNov->id,
-            startDate: (string) $periodNov->start_date,
-            endDate: (string) $periodNov->end_date,
-            openedById: $openedById > 0 ? $openedById : null,
-            now: $now
-        );
+        if ($periodNov) {
+            $this->ensureAssessment360Window(
+                periodId: (int) $periodNov->id,
+                startDate: (string) $periodNov->start_date,
+                endDate: (string) $periodNov->end_date,
+                openedById: $openedById > 0 ? $openedById : null,
+                now: $now
+            );
+        }
+        if ($periodDec) {
+            $this->ensureAssessment360Window(
+                periodId: (int) $periodDec->id,
+                startDate: (string) $periodDec->start_date,
+                endDate: (string) $periodDec->end_date,
+                openedById: $openedById > 0 ? $openedById : null,
+                now: $now
+            );
+        }
 
         $absensiId      = $criteriaId('Kehadiran (Absensi)');
         $workHoursId    = $criteriaId('Jam Kerja (Absensi)');
@@ -203,7 +215,10 @@ class EightStaffKpiSeeder extends Seeder
         }
 
         // Clean old RAW data for these users/periods (seeder ini TIDAK menghitung skor).
-        $periodIds = [$periodNov->id];
+        $periodIds = array_values(array_filter([
+            $periodNov?->id,
+            $periodDec?->id,
+        ]));
 
         // Clean previous derived assessments for a clean demo (recalculation will recreate/update).
         $assessmentIds = DB::table('performance_assessments')
@@ -240,11 +255,19 @@ class EightStaffKpiSeeder extends Seeder
         DB::table('multi_rater_assessment_details')->whereIn('multi_rater_assessment_id', $mraIds)->delete();
         DB::table('multi_rater_assessments')->whereIn('id', $mraIds)->delete();
 
-        // Attendance cleanup for November.
-        DB::table('attendances')
-            ->whereIn('user_id', $targets)
-            ->whereBetween('attendance_date', [(string) $periodNov->start_date, (string) $periodNov->end_date])
-            ->delete();
+        // Attendance cleanup for seeded periods.
+        if ($periodNov) {
+            DB::table('attendances')
+                ->whereIn('user_id', $targets)
+                ->whereBetween('attendance_date', [(string) $periodNov->start_date, (string) $periodNov->end_date])
+                ->delete();
+        }
+        if ($periodDec) {
+            DB::table('attendances')
+                ->whereIn('user_id', $targets)
+                ->whereBetween('attendance_date', [(string) $periodDec->start_date, (string) $periodDec->end_date])
+                ->delete();
+        }
 
         // Supersede any existing active seeder attendance batches for these periods.
         DB::table('attendance_import_batches')
@@ -256,7 +279,8 @@ class EightStaffKpiSeeder extends Seeder
         // RAW November 2025 — Poli Umum
         // RAW November 2025 — Poli Gigi
         // Notes Excel: rating memakai SUM(rating) (bukan AVG) untuk normalisasi relatif unit.
-        $novRaw = $this->excelConfig['raw'][(int) $periodNov->id] ?? [
+        if ($periodNov) {
+            $novRaw = $this->excelConfig['raw'][(int) $periodNov->id] ?? [
             // Poli Umum (DOK-UM)
             'kepala_umum' => ['attendance_days' => 25, 'late_minutes' => 40, 'work_minutes' => 9000, 'overtime_days' => 3, 'discipline_360' => 87, 'teamwork_360' => 84, 'contrib' => 10, 'patients' => 205, 'complaints' => 4, 'rating_avg' => 4.6, 'rating_count' => 10, 'rating_sum' => 46],
             'dokter_umum1' => ['attendance_days' => 24, 'late_minutes' => 65, 'work_minutes' => 8700, 'overtime_days' => 2, 'discipline_360' => 82, 'teamwork_360' => 80, 'contrib' => 9, 'patients' => 150, 'complaints' => 6, 'rating_avg' => 4.5, 'rating_count' => 10, 'rating_sum' => 45],
@@ -272,23 +296,26 @@ class EightStaffKpiSeeder extends Seeder
             // Poli Gigi (DOK-SP)
             'dokter_spes1' => ['attendance_days' => 23, 'late_minutes' => 90,  'work_minutes' => 11520, 'overtime_days' => 1, 'discipline_360' => 84, 'teamwork_360' => 83, 'contrib' => 6,  'patients' => 160, 'complaints' => 3, 'rating_avg' => 4.0, 'rating_count' => 1, 'rating_sum' => 4],
             'dokter_spes2' => ['attendance_days' => 25, 'late_minutes' => 10,  'work_minutes' => 12480, 'overtime_days' => 3, 'discipline_360' => 91, 'teamwork_360' => 90, 'contrib' => 10, 'patients' => 175, 'complaints' => 0, 'rating_avg' => 4.8, 'rating_count' => 2, 'rating_sum' => 10],
-        ];
+            ];
 
-        $this->seedPeriod(
-            period: $periodNov,
-            data: $novRaw,
-            staff: $staff,
-            criteriaIds: compact('absensiId','workHoursId','overtimeId','lateMinutesId','kedis360Id','kerjasama360Id','kontribusiId','pasienId','komplainId','ratingId'),
-            assessmentDate: Carbon::create(2025, 11, 30),
-            professionIdResolver: $professionId,
-            unitIdResolver: $unitId,
-            exampleInactiveUnitId: null
-        );
+            $this->seedPeriod(
+                period: $periodNov,
+                data: $novRaw,
+                staff: $staff,
+                criteriaIds: compact('absensiId','workHoursId','overtimeId','lateMinutesId','kedis360Id','kerjasama360Id','kontribusiId','pasienId','komplainId','ratingId'),
+                assessmentDate: Carbon::create(2025, 11, 30),
+                professionIdResolver: $professionId,
+                unitIdResolver: $unitId,
+                exampleInactiveUnitId: null,
+                scheduleIn: '08:00:00',
+                scheduleOut: '16:00:00',
+                overtimeEnd: '18:00:00',
+            );
 
         // Ensure "Pegawai Medis → Penilaian Saya" has at least 1 row for November 2025
         // by recalculating from seeded RAW tables.
         // Some dev DBs don't have the newer `meta` column yet; avoid hard-failing the seeder.
-        if ($unitPoliUmumId > 0 || $unitPoliGigiId > 0) {
+            if ($unitPoliUmumId > 0 || $unitPoliGigiId > 0) {
             if (Schema::hasColumn('performance_assessment_details', 'meta')) {
                 /** @var PeriodPerformanceAssessmentService $perfSvc */
                 $perfSvc = app(PeriodPerformanceAssessmentService::class);
@@ -311,7 +338,7 @@ class EightStaffKpiSeeder extends Seeder
 
                 // Smoke checks (fail fast with clear debug output)
                 if ($unitPoliUmumId > 0) {
-                    $this->smokeCheckNovember2025(
+                    $this->smokeCheckPeriod(
                         periodId: (int) $periodNov->id,
                         unitId: (int) $unitPoliUmumId,
                         sampleUserId: (int) $staff['dokter_umum1']['id'],
@@ -320,7 +347,7 @@ class EightStaffKpiSeeder extends Seeder
                 }
 
                 if ($unitPoliGigiId > 0) {
-                    $this->smokeCheckNovember2025(
+                    $this->smokeCheckPeriod(
                         periodId: (int) $periodNov->id,
                         unitId: (int) $unitPoliGigiId,
                         sampleUserId: (int) $staff['dokter_spes2']['id'],
@@ -330,39 +357,155 @@ class EightStaffKpiSeeder extends Seeder
             } elseif ($this->command) {
                 $this->command->warn('Skipping recalc + smoke checks: kolom performance_assessment_details.meta tidak ada di schema DB ini.');
             }
-        }
+            }
 
         // Ensure all 8 users have performance_assessments rows (fallback when recalc is skipped).
-        $this->ensurePerformanceAssessmentsForUsers(
-            periodId: (int) $periodNov->id,
-            assessmentDate: '2025-11-30',
-            userIds: $targets,
-            now: $now
-        );
+            $this->ensurePerformanceAssessmentsForUsers(
+                periodId: (int) $periodNov->id,
+                assessmentDate: '2025-11-30',
+                userIds: $targets,
+                now: $now
+            );
 
-        $this->ensurePerformanceAssessmentDetailsForUsers(
-            periodId: (int) $periodNov->id,
-            userIds: $targets,
-            now: $now
-        );
+            $this->ensurePerformanceAssessmentDetailsForUsers(
+                periodId: (int) $periodNov->id,
+                userIds: $targets,
+                now: $now
+            );
 
-        $this->seedAssessmentApprovalsForNovember2025(
-            periodId: (int) $periodNov->id,
-            staff: $staff,
-            actedAt: Carbon::create(2025, 11, 30),
-            now: $now
-        );
+            $this->seedAssessmentApprovalsForPeriod(
+                periodId: (int) $periodNov->id,
+                staff: $staff,
+                actedAt: Carbon::create(2025, 11, 30),
+                now: $now,
+                note: 'Seeder auto-approve (Nov 2025 demo).'
+            );
 
-        $this->seedDemoRemunerationsForNovember2025(
-            periodId: (int) $periodNov->id,
-            emails: $emails,
-            now: $now
-        );
+            $this->seedDemoRemunerationsForPeriod(
+                periodId: (int) $periodNov->id,
+                emails: $emails,
+                now: $now
+            );
 
-        $this->assertNovember2025SeedCoverage(
-            periodId: (int) $periodNov->id,
-            userIds: $targets
-        );
+            $this->assertSeedCoverage(
+                periodId: (int) $periodNov->id,
+                userIds: $targets
+            );
+        }
+
+        // =========================================================
+        // DECEMBER 2025
+        // Catatan: jam masuk 07:30 dan jam keluar 15:00.
+        // Variasikan scan masuk/keluar, keterlambatan, durasi kerja, dan lembur via total dataset.
+        // =========================================================
+        if ($periodDec) {
+            $decRaw = $this->excelConfig['raw'][(int) $periodDec->id] ?? [
+                // Poli Umum (DOK-UM)
+                'kepala_umum' => ['attendance_days' => 24, 'late_minutes' => 35, 'work_minutes' => 11880, 'overtime_days' => 3, 'discipline_360' => 88, 'teamwork_360' => 85, 'contrib' => 10, 'patients' => 210, 'complaints' => 3, 'rating_avg' => 4.7, 'rating_count' => 10, 'rating_sum' => 47],
+                'dokter_umum1' => ['attendance_days' => 23, 'late_minutes' => 80, 'work_minutes' => 11385, 'overtime_days' => 2, 'discipline_360' => 81, 'teamwork_360' => 79, 'contrib' => 8, 'patients' => 155, 'complaints' => 5, 'rating_avg' => 4.5, 'rating_count' => 10, 'rating_sum' => 45],
+                'dokter_umum2' => ['attendance_days' => 24, 'late_minutes' => 25, 'work_minutes' => 12060, 'overtime_days' => 4, 'discipline_360' => 85, 'teamwork_360' => 84, 'contrib' => 9, 'patients' => 170, 'complaints' => 2, 'rating_avg' => 4.6, 'rating_count' => 10, 'rating_sum' => 46],
+
+                // Poli Umum (PRW)
+                'perawat1' => ['attendance_days' => 24, 'late_minutes' => 30, 'work_minutes' => 13200, 'overtime_days' => 3, 'discipline_360' => 89, 'teamwork_360' => 91, 'contrib' => 8, 'patients' => 0, 'complaints' => 0, 'rating_avg' => 4.5, 'rating_count' => 2, 'rating_sum' => 9],
+                'perawat2' => ['attendance_days' => 23, 'late_minutes' => 60, 'work_minutes' => 12880, 'overtime_days' => 2, 'discipline_360' => 86, 'teamwork_360' => 87, 'contrib' => 7, 'patients' => 0, 'complaints' => 0, 'rating_avg' => 4.0, 'rating_count' => 1, 'rating_sum' => 4],
+
+                // Poli Gigi (DOK-UM / kepala unit)
+                'kepala_gigi' => ['attendance_days' => 24, 'late_minutes' => 20, 'work_minutes' => 12600, 'overtime_days' => 2, 'discipline_360' => 90, 'teamwork_360' => 88, 'contrib' => 8, 'patients' => 145, 'complaints' => 1, 'rating_avg' => 4.5, 'rating_count' => 2, 'rating_sum' => 9],
+
+                // Poli Gigi (DOK-SP)
+                'dokter_spes1' => ['attendance_days' => 22, 'late_minutes' => 95, 'work_minutes' => 11880, 'overtime_days' => 1, 'discipline_360' => 83, 'teamwork_360' => 82, 'contrib' => 6, 'patients' => 165, 'complaints' => 2, 'rating_avg' => 4.0, 'rating_count' => 1, 'rating_sum' => 4],
+                'dokter_spes2' => ['attendance_days' => 25, 'late_minutes' => 15, 'work_minutes' => 13500, 'overtime_days' => 3, 'discipline_360' => 92, 'teamwork_360' => 90, 'contrib' => 10, 'patients' => 180, 'complaints' => 1, 'rating_avg' => 4.8, 'rating_count' => 2, 'rating_sum' => 10],
+            ];
+
+            $this->seedPeriod(
+                period: $periodDec,
+                data: $decRaw,
+                staff: $staff,
+                criteriaIds: compact('absensiId','workHoursId','overtimeId','lateMinutesId','kedis360Id','kerjasama360Id','kontribusiId','pasienId','komplainId','ratingId'),
+                assessmentDate: Carbon::create(2025, 12, 31),
+                professionIdResolver: $professionId,
+                unitIdResolver: $unitId,
+                exampleInactiveUnitId: null,
+                scheduleIn: '07:30:00',
+                scheduleOut: '15:00:00',
+                overtimeEnd: '17:00:00',
+            );
+
+            if ($unitPoliUmumId > 0 || $unitPoliGigiId > 0) {
+                if (Schema::hasColumn('performance_assessment_details', 'meta')) {
+                    /** @var PeriodPerformanceAssessmentService $perfSvc */
+                    $perfSvc = app(PeriodPerformanceAssessmentService::class);
+                    $profDoku = (int) ($professionId('DOK-UM') ?? 0);
+                    $profDoksp = (int) ($professionId('DOK-SP') ?? 0);
+                    $profPrw = (int) ($professionId('PRW') ?? 0);
+
+                    if ($unitPoliUmumId > 0 && $profDoku > 0) {
+                        $perfSvc->recalculateForGroup((int) $periodDec->id, (int) $unitPoliUmumId, (int) $profDoku);
+                    }
+                    if ($unitPoliUmumId > 0 && $profPrw > 0) {
+                        $perfSvc->recalculateForGroup((int) $periodDec->id, (int) $unitPoliUmumId, (int) $profPrw);
+                    }
+                    if ($unitPoliGigiId > 0 && $profDoksp > 0) {
+                        $perfSvc->recalculateForGroup((int) $periodDec->id, (int) $unitPoliGigiId, (int) $profDoksp);
+                    }
+                    if ($unitPoliGigiId > 0 && $profDoku > 0) {
+                        $perfSvc->recalculateForGroup((int) $periodDec->id, (int) $unitPoliGigiId, (int) $profDoku);
+                    }
+
+                    if ($unitPoliUmumId > 0) {
+                        $this->smokeCheckPeriod(
+                            periodId: (int) $periodDec->id,
+                            unitId: (int) $unitPoliUmumId,
+                            sampleUserId: (int) $staff['dokter_umum1']['id'],
+                            sampleUserLabel: 'dokter_umum1',
+                        );
+                    }
+
+                    if ($unitPoliGigiId > 0) {
+                        $this->smokeCheckPeriod(
+                            periodId: (int) $periodDec->id,
+                            unitId: (int) $unitPoliGigiId,
+                            sampleUserId: (int) $staff['dokter_spes2']['id'],
+                            sampleUserLabel: 'dokter_spes2',
+                        );
+                    }
+                } elseif ($this->command) {
+                    $this->command->warn('Skipping recalc + smoke checks: kolom performance_assessment_details.meta tidak ada di schema DB ini.');
+                }
+            }
+
+            $this->ensurePerformanceAssessmentsForUsers(
+                periodId: (int) $periodDec->id,
+                assessmentDate: '2025-12-31',
+                userIds: $targets,
+                now: $now
+            );
+
+            $this->ensurePerformanceAssessmentDetailsForUsers(
+                periodId: (int) $periodDec->id,
+                userIds: $targets,
+                now: $now
+            );
+
+            $this->seedAssessmentApprovalsForPeriod(
+                periodId: (int) $periodDec->id,
+                staff: $staff,
+                actedAt: Carbon::create(2025, 12, 31),
+                now: $now,
+                note: 'Seeder auto-approve (Dec 2025 demo).'
+            );
+
+            $this->seedDemoRemunerationsForPeriod(
+                periodId: (int) $periodDec->id,
+                emails: $emails,
+                now: $now
+            );
+
+            $this->assertSeedCoverage(
+                periodId: (int) $periodDec->id,
+                userIds: $targets
+            );
+        }
     }
 
     private function ensureAssessment360Window(int $periodId, string $startDate, string $endDate, ?int $openedById, Carbon $now): void
@@ -538,7 +681,7 @@ class EightStaffKpiSeeder extends Seeder
         }
     }
 
-    private function seedAssessmentApprovalsForNovember2025(int $periodId, array $staff, Carbon $actedAt, Carbon $now): void
+    private function seedAssessmentApprovalsForPeriod(int $periodId, array $staff, Carbon $actedAt, Carbon $now, string $note): void
     {
         if (!Schema::hasTable('assessment_approvals') || !Schema::hasTable('performance_assessments')) {
             return;
@@ -582,7 +725,7 @@ class EightStaffKpiSeeder extends Seeder
                 [
                     'approver_id' => $approverId,
                     'status' => 'approved',
-                    'note' => 'Seeder auto-approve (Nov 2025 demo).',
+                    'note' => $note,
                     'acted_at' => $actedAt,
                     'updated_at' => $now,
                     'created_at' => $now,
@@ -596,7 +739,7 @@ class EightStaffKpiSeeder extends Seeder
      *
      * @param array<int,string> $emails
      */
-    private function seedDemoRemunerationsForNovember2025(int $periodId, array $emails, Carbon $now): void
+    private function seedDemoRemunerationsForPeriod(int $periodId, array $emails, Carbon $now): void
     {
         if (!Schema::hasTable('users') || !Schema::hasTable('unit_profession_remuneration_allocations') || !Schema::hasTable('remunerations')) {
             return;
@@ -680,7 +823,7 @@ class EightStaffKpiSeeder extends Seeder
      *
      * @param array<int> $userIds
      */
-    private function assertNovember2025SeedCoverage(int $periodId, array $userIds): void
+    private function assertSeedCoverage(int $periodId, array $userIds): void
     {
         $userIds = array_values(array_filter(array_map(fn($v) => (int) $v, $userIds), fn($v) => $v > 0));
         if ($periodId <= 0 || empty($userIds)) {
@@ -783,12 +926,12 @@ class EightStaffKpiSeeder extends Seeder
                 continue;
             }
             if ($cnt <= 0) {
-                throw new \RuntimeException('EightStaffKpiSeeder: expected data in table ' . $table . ' for Nov 2025 users, but found 0 rows.');
+                throw new \RuntimeException('EightStaffKpiSeeder: expected data in table ' . $table . ' for seeded users, but found 0 rows.');
             }
         }
     }
 
-    private function smokeCheckNovember2025(int $periodId, int $unitId, int $sampleUserId, string $sampleUserLabel): void
+    private function smokeCheckPeriod(int $periodId, int $unitId, int $sampleUserId, string $sampleUserLabel): void
     {
         if ($periodId <= 0 || $unitId <= 0 || $sampleUserId <= 0) {
             throw new \RuntimeException('SmokeCheck: invalid ids. periodId=' . $periodId . ', unitId=' . $unitId . ', sampleUserId=' . $sampleUserId);
@@ -799,7 +942,7 @@ class EightStaffKpiSeeder extends Seeder
             throw new \RuntimeException('SmokeCheck: AssessmentPeriod not found. periodId=' . $periodId);
         }
 
-        // 1) Ensure sample user has 1 row in performance_assessments for November 2025
+        // 1) Ensure sample user has 1 row in performance_assessments for the period
         $assessment = PerformanceAssessment::query()
             ->where('assessment_period_id', $periodId)
             ->where('user_id', $sampleUserId)
@@ -817,7 +960,7 @@ class EightStaffKpiSeeder extends Seeder
                     ->where('u.unit_id', $unitId)
                     ->count(),
             ];
-            throw new \RuntimeException("SmokeCheck FAILED (1): Missing performance_assessments row for sample user (Nov 2025).\n" . json_encode($debug, JSON_PRETTY_PRINT));
+            throw new \RuntimeException("SmokeCheck FAILED (1): Missing performance_assessments row for sample user.\n" . json_encode($debug, JSON_PRETTY_PRINT));
         }
 
         // Active criteria = unit_criteria_weights.status=active, criteria is_active=1, and weight>0
@@ -930,7 +1073,10 @@ class EightStaffKpiSeeder extends Seeder
         Carbon $assessmentDate,
         callable $professionIdResolver,
         callable $unitIdResolver,
-        ?int $exampleInactiveUnitId
+        ?int $exampleInactiveUnitId,
+        string $scheduleIn,
+        string $scheduleOut,
+        string $overtimeEnd,
     ): void {
         $now = Carbon::now();
 
@@ -999,9 +1145,10 @@ class EightStaffKpiSeeder extends Seeder
                         'status' => (string) ($cfg['status'] ?? 'active'),
                         'policy_doc_path' => null,
                         'policy_note' => 'Seeder bobot dari Excel template',
-                        'unit_head_id' => null,
-                        'unit_head_note' => null,
-                        'polyclinic_head_id' => null,
+                        'proposed_by' => null,
+                        'proposed_note' => null,
+                        'decided_by' => null,
+                        'decided_at' => null,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];
@@ -1021,9 +1168,10 @@ class EightStaffKpiSeeder extends Seeder
                         'status' => $status,
                         'policy_doc_path' => null,
                         'policy_note' => 'Seeder bobot default',
-                        'unit_head_id' => null,
-                        'unit_head_note' => null,
-                        'polyclinic_head_id' => null,
+                        'proposed_by' => null,
+                        'proposed_note' => null,
+                        'decided_by' => null,
+                        'decided_at' => null,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];
@@ -1292,7 +1440,17 @@ class EightStaffKpiSeeder extends Seeder
             $totalWork = (int) ($row['work_minutes'] ?? 0);
             $overtimeDays = (int) ($row['overtime_days'] ?? 0);
             $dates = $this->takeDates((string) $period->start_date, (string) $period->end_date, $hadirDays);
-            $planRows = $this->buildAttendancePlan($userId, $dates, $totalLate, $totalWork, $overtimeDays, $now);
+            $planRows = $this->buildAttendancePlan(
+                userId: $userId,
+                dates: $dates,
+                totalLateMinutes: $totalLate,
+                totalWorkMinutes: $totalWork,
+                overtimeDays: $overtimeDays,
+                now: $now,
+                scheduleIn: $scheduleIn,
+                scheduleOut: $scheduleOut,
+                overtimeEnd: $overtimeEnd,
+            );
             if (!empty($planRows)) {
                 // 1) Insert preview/import rows first (pipeline source-of-truth)
                 $empNo = (string) (DB::table('users')->where('id', $userId)->value('employee_number') ?? '');
@@ -1751,7 +1909,17 @@ class EightStaffKpiSeeder extends Seeder
      * @param array<int,string> $dates
      * @return array<int,array<string,mixed>>
      */
-    private function buildAttendancePlan(int $userId, array $dates, int $totalLateMinutes, int $totalWorkMinutes, int $overtimeDays, Carbon $now): array
+    private function buildAttendancePlan(
+        int $userId,
+        array $dates,
+        int $totalLateMinutes,
+        int $totalWorkMinutes,
+        int $overtimeDays,
+        Carbon $now,
+        string $scheduleIn,
+        string $scheduleOut,
+        string $overtimeEnd,
+    ): array
     {
         $count = count($dates);
         if ($count <= 0) {
@@ -1780,7 +1948,7 @@ class EightStaffKpiSeeder extends Seeder
             $isOvertime = $overtimeDays > 0 && $i >= $overtimeIdxStart;
 
             $date = (string) $dates[$i];
-            $scheduledIn = $date . ' 08:00:00';
+            $scheduledIn = $date . ' ' . $scheduleIn;
             $checkIn = Carbon::parse($scheduledIn)->addMinutes((int) $lateMinutes[$i]);
             $checkOut = (clone $checkIn)->addMinutes((int) $work);
 
@@ -1788,14 +1956,14 @@ class EightStaffKpiSeeder extends Seeder
                 'user_id' => $userId,
                 'attendance_date' => $date,
                 'shift_name' => 'Pagi',
-                'scheduled_in' => '08:00:00',
-                'scheduled_out' => '16:00:00',
+                'scheduled_in' => $scheduleIn,
+                'scheduled_out' => $scheduleOut,
                 'check_in' => $checkIn->toDateTimeString(),
                 'check_out' => $checkOut->toDateTimeString(),
                 'late_minutes' => $lateMinutes[$i],
                 'work_duration_minutes' => $work,
                 'overtime_shift' => $isOvertime ? 1 : 0,
-                'overtime_end' => $isOvertime ? '18:00:00' : null,
+                'overtime_end' => $isOvertime ? $overtimeEnd : null,
                 'attendance_status' => 'Hadir',
                 'created_at' => $now,
                 'updated_at' => $now,

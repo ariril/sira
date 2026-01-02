@@ -33,12 +33,16 @@ return new class extends Migration
             $table->string('policy_doc_path')->nullable();
             $table->text('policy_note')->nullable();
 
-            $table->foreignId('unit_head_id')->nullable()
+            $table->foreignId('proposed_by')->nullable()
                 ->constrained('users')->nullOnDelete();
-            $table->text('unit_head_note')->nullable();
+            $table->text('proposed_note')->nullable();
 
-            $table->foreignId('polyclinic_head_id')->nullable()
+            $table->foreignId('decided_by')->nullable()
                 ->constrained('users')->nullOnDelete();
+            $table->timestamp('decided_at')->nullable();
+
+            // Catatan keputusan (mis. alasan penolakan dari Kepala Poliklinik)
+            $table->text('decided_note')->nullable();
 
             $table->timestamps();
 

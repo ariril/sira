@@ -55,7 +55,9 @@ class RaterWeightGenerator
             ->join('criteria_rater_rules as crr', 'crr.performance_criteria_id', '=', 'pc.id')
             ->where('ucw.unit_id', $unitId)
             ->where('ucw.assessment_period_id', $periodId)
-            ->where('ucw.status', '!=', 'archived')
+            // Only generate 360 rater weights after the unit has submitted/activated the criteria weight.
+            // Note: historical periods may have been marked as archived; treat archived as eligible for history generation.
+            ->whereIn('ucw.status', ['pending', 'active', 'archived'])
             ->where('pc.is_360', true)
             ->distinct()
             ->pluck('pc.id')
@@ -244,7 +246,7 @@ class RaterWeightGenerator
                                 'assessor_type' => $assessorType,
                                 'assessor_profession_id' => $assessorProfessionId,
                                 'assessor_level' => $assessorLevel,
-                                'weight' => $isSingleLine ? 100 : null,
+                                'weight' => $isSingleLine ? 100 : 0,
                                 'status' => RaterWeightStatus::DRAFT->value,
                                 'proposed_by' => null,
                                 'decided_by' => null,

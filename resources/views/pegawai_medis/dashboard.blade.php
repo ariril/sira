@@ -1,7 +1,8 @@
 <x-app-layout title="Dashboard Pegawai Medis">
+    <x-slot name="header">
+        <h1 class="text-2xl font-semibold text-slate-800">Dashboard Pegawai Medis</h1>
+    </x-slot>
     <div class="container-px py-6">
-        <h1 class="text-2xl font-semibold mb-4">Dashboard Pegawai Medis</h1>
-
         @if (! $activePeriod)
             <div class="mb-4 rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-800">
                 Tidak ada periode aktif. Hubungi Admin RS untuk mengaktifkan periode penilaian terlebih dahulu.

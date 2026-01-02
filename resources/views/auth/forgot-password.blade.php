@@ -11,12 +11,6 @@
                 </div>
 
                 <div class="p-6">
-                    @if (session('status'))
-                        <div class="mb-4 rounded-lg bg-green-50 text-green-700 px-4 py-3 text-sm">
-                            {{ session('status') }}
-                        </div>
-                    @endif
-
                     <form method="POST" action="{{ route('password.email') }}" class="space-y-5">
                         @csrf
 

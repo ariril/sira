@@ -4,23 +4,6 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
-        @if(session('status'))
-            <div class="p-4 rounded-xl border text-sm bg-emerald-50 border-emerald-200 text-emerald-800">
-                {{ session('status') }}
-            </div>
-        @endif
-
-        @if($errors->any())
-            <div class="p-4 rounded-xl border text-sm bg-rose-50 border-rose-200 text-rose-800">
-                <div class="font-semibold">Tidak dapat memproses permintaan.</div>
-                <ul class="mt-1 list-disc pl-5">
-                    @foreach($errors->all() as $err)
-                        <li>{{ $err }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
             <form method="GET" class="grid gap-4 md:grid-cols-12 items-end">
                 <div class="md:col-span-3">
@@ -106,10 +89,32 @@
                                         @csrf
                                         <x-ui.button type="submit" variant="violet" class="h-10 px-4">Approve</x-ui.button>
                                     </form>
-                                    <form method="POST" action="{{ route('kepala_poliklinik.rater_weights.reject', $row) }}" onsubmit="return confirm('Tolak bobot ini?')">
-                                        @csrf
-                                        <x-ui.button type="submit" variant="danger" class="h-10 px-4">Reject</x-ui.button>
-                                    </form>
+                                    <x-ui.button type="button" variant="danger" class="h-10 px-4" x-on:click="$dispatch('open-modal', 'rw-reject-{{ (int) $row->id }}')">Tolak</x-ui.button>
+
+                                    <x-modal name="rw-reject-{{ (int) $row->id }}" :show="false" maxWidth="lg">
+                                        <div class="p-6">
+                                            <div class="flex items-start justify-between gap-3">
+                                                <h2 class="text-lg font-semibold text-slate-800">Tolak Bobot Penilai 360</h2>
+                                                <button type="button" class="text-slate-400 hover:text-slate-600" x-on:click="$dispatch('close-modal', 'rw-reject-{{ (int) $row->id }}')">
+                                                    <i class="fa-solid fa-xmark"></i>
+                                                </button>
+                                            </div>
+
+                                            <form method="POST" action="{{ route('kepala_poliklinik.rater_weights.reject', $row) }}" class="mt-4 space-y-4">
+                                                @csrf
+                                                <div>
+                                                    <label class="block text-sm font-medium text-slate-700 mb-1">Komentar</label>
+                                                    <textarea name="comment" rows="4" class="w-full rounded-xl border-slate-300 focus:border-slate-400 focus:ring-slate-300" placeholder="Tuliskan alasan penolakan / arahan perbaikan..." required></textarea>
+                                                    <div class="mt-1 text-xs text-slate-500">Komentar ini akan terlihat oleh Kepala Unit.</div>
+                                                </div>
+
+                                                <div class="flex justify-end gap-2">
+                                                    <x-ui.button type="button" variant="outline" x-on:click="$dispatch('close-modal', 'rw-reject-{{ (int) $row->id }}')">Batal</x-ui.button>
+                                                    <x-ui.button type="submit" variant="danger">Kirim Penolakan</x-ui.button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </x-modal>
                                 </div>
                             @else
                                 <span class="text-xs text-slate-400">—</span>

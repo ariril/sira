@@ -25,10 +25,11 @@ class RaterWeight extends Model
         'proposed_by',
         'decided_by',
         'decided_at',
+        'decided_note',
     ];
 
     protected $casts = [
-        'weight' => 'decimal:2',
+        'weight' => 'integer',
         'status' => RaterWeightStatus::class,
         'decided_at' => 'datetime',
         'assessor_level' => 'integer',

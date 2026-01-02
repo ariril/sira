@@ -24,8 +24,10 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->singleton(\App\Services\CriteriaEngine\CriteriaNormalizer::class, function () {
-            return new \App\Services\CriteriaEngine\CriteriaNormalizer();
+        $this->app->singleton(\App\Services\CriteriaEngine\CriteriaNormalizer::class, function ($app) {
+            return new \App\Services\CriteriaEngine\CriteriaNormalizer(
+                $app->make(\App\Services\CriteriaEngine\CriteriaRegistry::class)
+            );
         });
 
         $this->app->bind(

@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\RaterWeightStatus;
+use App\Models\AssessmentPeriod;
 use App\Models\RaterWeight;
 use App\Services\RaterWeights\RaterWeightGenerator;
 use Illuminate\Database\Seeder;
@@ -29,9 +30,17 @@ class NovemberRaterWeightSeeder extends Seeder
                 continue;
             }
 
+            $period = DB::table('assessment_periods')->where('id', $periodId)->first(['id', 'status', 'name']);
+            if (!$period) {
+                $this->command?->warn("NovemberRaterWeightSeeder: period_id={$periodId} not found.");
+                continue;
+            }
+
+            // For history periods (non-active), we still seed weights so the Riwayat table is meaningful.
+            // We will archive rater weights after seeding when the period is non-active.
+
             $unitIds = DB::table('unit_criteria_weights')
                 ->where('assessment_period_id', $periodId)
-                ->where('status', '!=', 'archived')
                 ->distinct()
                 ->pluck('unit_id')
                 ->map(fn ($v) => (int) $v)
@@ -50,10 +59,10 @@ class NovemberRaterWeightSeeder extends Seeder
             }
 
             // Fill missing weights, but only when a group is entirely empty (non-destructive).
+            // Treat "all zero" as empty too (weights should not be 0 in realistic distributions).
             $rows = RaterWeight::query()
                 ->where('assessment_period_id', $periodId)
                 ->whereIn('unit_id', $unitIds)
-                ->whereIn('status', [RaterWeightStatus::DRAFT->value, RaterWeightStatus::REJECTED->value])
                 ->orderBy('unit_id')
                 ->orderBy('performance_criteria_id')
                 ->orderBy('assessee_profession_id')
@@ -63,7 +72,6 @@ class NovemberRaterWeightSeeder extends Seeder
                 ->get();
 
             if ($rows->isEmpty()) {
-                $this->command?->info("NovemberRaterWeightSeeder: nothing to seed for period_id={$periodId}.");
                 continue;
             }
 
@@ -78,7 +86,7 @@ class NovemberRaterWeightSeeder extends Seeder
                     // If group has exactly one row, it should be auto-100.
                     if ($groupRows->count() === 1) {
                         $rw = $groupRows->first();
-                        if ($rw && $rw->weight === null) {
+                        if ($rw && ($rw->weight === null || (float) $rw->weight === 0.0)) {
                             $rw->weight = 100;
                             $rw->save();
                             $updated++;
@@ -88,17 +96,18 @@ class NovemberRaterWeightSeeder extends Seeder
 
                     // Non-destructive rule: only fill when ALL weights are still null.
                     $allNull = $groupRows->every(fn ($r) => $r->weight === null);
-                    if (!$allNull) {
+                    $allZero = $groupRows->every(fn ($r) => $r->weight !== null && (float) $r->weight === 0.0);
+                    if (!($allNull || $allZero)) {
                         continue;
                     }
 
-                    // Realistic default distribution (in basis points) by assessor_type.
+                    // Realistic default distribution (integer percent points) by assessor_type.
                     // supervisor highest, peer moderate, subordinate smaller, self smallest.
                     $typePriority = [
-                        'supervisor' => 6000,
-                        'peer' => 2500,
-                        'subordinate' => 1000,
-                        'self' => 500,
+                        'supervisor' => 60,
+                        'peer' => 25,
+                        'subordinate' => 10,
+                        'self' => 5,
                     ];
 
                     $rowsByType = $groupRows->groupBy(fn ($r) => (string) ($r->assessor_type ?? ''));
@@ -124,12 +133,12 @@ class NovemberRaterWeightSeeder extends Seeder
                         if ($n <= 0) {
                             continue;
                         }
-                        $baseCents = intdiv(10000, $n);
-                        $remainder = 10000 - ($baseCents * $n);
+                        $base = intdiv(100, $n);
+                        $remainder = 100 - ($base * $n);
                         $i = 0;
                         foreach ($groupRows as $rw) {
-                            $cents = $baseCents + ($i === 0 ? $remainder : 0);
-                            $rw->weight = $cents / 100;
+                            $points = $base + ($i < $remainder ? 1 : 0);
+                            $rw->weight = $points;
                             $rw->save();
                             $updated++;
                             $i++;
@@ -137,15 +146,15 @@ class NovemberRaterWeightSeeder extends Seeder
                         continue;
                     }
 
-                    // Normalize type shares to sum to 10000 basis points.
+                    // Normalize type shares to sum to 100 integer points.
                     $typeShares = [];
                     $allocated = 0;
                     foreach ($presentWeights as $t => $w) {
-                        $share = (int) floor(($w / $sumBase) * 10000);
+                        $share = (int) floor(($w / $sumBase) * 100);
                         $typeShares[$t] = $share;
                         $allocated += $share;
                     }
-                    $remainder = 10000 - $allocated;
+                    $remainder = 100 - $allocated;
                     if ($remainder !== 0) {
                         $target = array_key_exists('supervisor', $typeShares) ? 'supervisor' : array_key_first($typeShares);
                         $typeShares[$target] = (int) ($typeShares[$target] ?? 0) + $remainder;
@@ -177,18 +186,20 @@ class NovemberRaterWeightSeeder extends Seeder
                             $bps = [];
                             $alloc = 0;
                             for ($i = 0; $i < $sorted->count(); $i++) {
-                                $bp = (int) floor(($ratios[$i] / $ratioSum) * $shareBp);
-                                $bps[$i] = $bp;
-                                $alloc += $bp;
+                                $points = (int) floor(($ratios[$i] / $ratioSum) * $shareBp);
+                                $bps[$i] = $points;
+                                $alloc += $points;
                             }
                             $rem = $shareBp - $alloc;
-                            if ($rem !== 0) {
-                                $bps[0] = ($bps[0] ?? 0) + $rem;
+                            // Spread remainder as +1 across earliest rows to keep integers.
+                            for ($k = 0; $k < abs($rem); $k++) {
+                                $idx = $k % max(1, $sorted->count());
+                                $bps[$idx] = ($bps[$idx] ?? 0) + ($rem > 0 ? 1 : -1);
                             }
 
                             for ($i = 0; $i < $sorted->count(); $i++) {
                                 $rw = $sorted[$i];
-                                $rw->weight = ((int) $bps[$i]) / 100;
+                                $rw->weight = (int) ($bps[$i] ?? 0);
                                 $rw->save();
                                 $updated++;
                             }
@@ -197,12 +208,12 @@ class NovemberRaterWeightSeeder extends Seeder
 
                         // Default: split evenly within the same assessor_type.
                         $n = $typeRows->count();
-                        $base = intdiv($shareBp, $n);
-                        $rem = $shareBp - ($base * $n);
+                        $base = intdiv((int) $shareBp, $n);
+                        $rem = (int) $shareBp - ($base * $n);
                         $i = 0;
                         foreach ($typeRows as $rw) {
-                            $bp = $base + ($i === 0 ? $rem : 0);
-                            $rw->weight = $bp / 100;
+                            $points = $base + ($i < $rem ? 1 : 0);
+                            $rw->weight = $points;
                             $rw->save();
                             $updated++;
                             $i++;
@@ -211,7 +222,20 @@ class NovemberRaterWeightSeeder extends Seeder
                 }
             });
 
-            $this->command?->info("NovemberRaterWeightSeeder: period_id={$periodId} updated_rows={$updated}");
+            // If the target period is not active, archive rater weights after seeding so they show as history.
+            if ((string) ($period->status ?? '') !== AssessmentPeriod::STATUS_ACTIVE) {
+                $archived = RaterWeightStatus::ARCHIVED->value;
+
+                $rwArchived = (int) DB::table('unit_rater_weights')
+                    ->where('assessment_period_id', $periodId)
+                    ->where('status', '!=', $archived)
+                    ->update([
+                        'status' => $archived,
+                        'updated_at' => now(),
+                    ]);
+
+                $pname = (string) ($period->name ?? '');
+            }
         }
     }
 
@@ -225,37 +249,45 @@ class NovemberRaterWeightSeeder extends Seeder
             return [$forced];
         }
 
-        // Prefer the demo period name if it exists.
-        $demoId = (int) (DB::table('assessment_periods')->where('name', 'November 2025')->value('id') ?? 0);
-        if ($demoId > 0) {
-            return [$demoId];
-        }
-
-        // Default: pick the latest period that starts in November.
-        $ids = DB::table('assessment_periods')
-            ->whereMonth('start_date', 11)
+        // Prefer explicit demo period names if they exist (Indonesian/English).
+        $byName = DB::table('assessment_periods')
+            ->whereIn('name', ['November 2025', 'Desember 2025', 'December 2025'])
             ->orderByDesc('start_date')
-            ->limit(1)
             ->pluck('id')
             ->map(fn ($v) => (int) $v)
             ->filter(fn ($v) => $v > 0)
             ->values()
             ->all();
 
+        if (!empty($byName)) {
+            return array_values(array_unique($byName));
+        }
+
+        // Default: pick the latest period that starts in November and the latest that starts in December.
+        $nov = (int) (DB::table('assessment_periods')->whereMonth('start_date', 11)->orderByDesc('start_date')->value('id') ?? 0);
+        $dec = (int) (DB::table('assessment_periods')->whereMonth('start_date', 12)->orderByDesc('start_date')->value('id') ?? 0);
+
+        $ids = array_values(array_unique(array_filter([$nov, $dec], fn ($v) => (int) $v > 0)));
         if (!empty($ids)) {
             return $ids;
         }
 
-        // Fallback: name-based search.
-        return DB::table('assessment_periods')
+        // Fallback: name-based search for both months.
+        $fallback = DB::table('assessment_periods')
             ->where('name', 'like', '%Nov%')
             ->orWhere('name', 'like', '%November%')
+            ->orWhere('name', 'like', '%Des%')
+            ->orWhere('name', 'like', '%Dec%')
+            ->orWhere('name', 'like', '%Desember%')
+            ->orWhere('name', 'like', '%December%')
             ->orderByDesc('start_date')
-            ->limit(1)
+            ->limit(2)
             ->pluck('id')
             ->map(fn ($v) => (int) $v)
             ->filter(fn ($v) => $v > 0)
             ->values()
             ->all();
+
+        return array_values(array_unique($fallback));
     }
 }

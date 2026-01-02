@@ -187,7 +187,7 @@
                                 <x-ui.icon-button icon="fa-trash" />
                             </form>
                         </div>
-                        @if ($st === 'closed' && $duePast)
+                        @if ($st === 'closed' && $duePast && $activeClaims === 0 && $reviewWaiting === 0)
                             <p class="mt-2 text-[11px] text-amber-600">Jatuh tempo sudah lewat. Edit tanggal untuk
                                 membuka kembali.</p>
                         @endif

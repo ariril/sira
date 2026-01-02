@@ -1,7 +1,8 @@
 <x-app-layout title="Remunerasi Saya">
-    <div class="container-px py-6 space-y-6">
+    <x-slot name="header">
         <h1 class="text-2xl font-semibold text-slate-800">Remunerasi Saya</h1>
-
+    </x-slot>
+    <div class="container-px py-6 space-y-6">
         @php
             $banners = $banners ?? [];
             $statusCard = $statusCard ?? null;

@@ -8,9 +8,19 @@ use App\Services\CriteriaEngine\CriteriaAggregator;
 use App\Services\CriteriaEngine\CriteriaNormalizer;
 use App\Services\CriteriaEngine\CriteriaRegistry;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PerformanceScoreService
 {
+    private function clampPct(float $value): float
+    {
+        if (!is_finite($value)) {
+            return 0.0;
+        }
+
+        return max(0.0, min(100.0, $value));
+    }
+
     public function __construct(
         private readonly CriteriaAggregator $aggregator,
         private readonly CriteriaNormalizer $normalizer,
@@ -43,8 +53,15 @@ class PerformanceScoreService
         $unitId = (int) $unitId;
         $userIds = array_values(array_unique(array_map('intval', $userIds)));
 
+        // Frozen period: prefer snapshot so results don't change even if criteria config changes.
+        $snapshot = $this->tryLoadSnapshotCalculation($period, $userIds);
+        if ($snapshot !== null) {
+            $snapshot['calculation_source'] = 'snapshot';
+            return $snapshot;
+        }
+
         if ($unitId <= 0 || empty($userIds)) {
-            return ['users' => [], 'criteria_ids' => [], 'weights' => [], 'max_by_criteria' => [], 'min_by_criteria' => []];
+            return ['users' => [], 'criteria_ids' => [], 'weights' => [], 'max_by_criteria' => [], 'min_by_criteria' => [], 'calculation_source' => 'live'];
         }
 
         $weightsCfg = $this->resolveUnitWeightsForPeriod($unitId, $period);
@@ -62,7 +79,7 @@ class PerformanceScoreService
             foreach ($userIds as $uid) {
                 $usersOut[(int) $uid] = ['criteria' => [], 'total_wsm' => null, 'sum_weight' => 0.0];
             }
-            return ['users' => $usersOut, 'criteria_ids' => [], 'weights' => [], 'max_by_criteria' => [], 'min_by_criteria' => []];
+            return ['users' => $usersOut, 'criteria_ids' => [], 'weights' => [], 'max_by_criteria' => [], 'min_by_criteria' => [], 'calculation_source' => 'live'];
         }
 
         $criteriaRows = PerformanceCriteria::query()
@@ -87,6 +104,9 @@ class PerformanceScoreService
         $normalizedByCriteriaId = [];
         $rawByCriteriaId = [];
         $sumRawByCriteriaId = [];
+        $basisByCriteriaId = [];
+        $basisValueByCriteriaId = [];
+        $customTargetByCriteriaId = [];
         $readinessByCriteriaId = [];
         foreach ($criteriaIds as $criteriaId) {
             $criteriaId = (int) $criteriaId;
@@ -149,18 +169,32 @@ class PerformanceScoreService
             $rawByCriteriaId[$criteriaId] = $rawByUser;
             $sumRawByCriteriaId[$criteriaId] = (float) array_sum(array_map('floatval', $rawByUser));
 
-            // Per definisi: normalisasi yang dipakai adalah TOTAL_UNIT.
-            $basis = 'total_unit';
-            $target = null;
+            $criteriaType = (string) ($c?->type?->value ?? (string) ($c?->type ?? 'benefit'));
+            $criteriaType = $criteriaType === 'cost' ? 'cost' : 'benefit';
 
-            // Normalisasi tidak membedakan cost/benefit; cost/benefit dipakai pada tahap nilai relatif.
+            $basis = (string) (($c->normalization_basis ?? null) ?: 'total_unit');
+            if (!in_array($basis, ['total_unit', 'max_unit', 'average_unit', 'custom_target'], true)) {
+                $basis = 'total_unit';
+            }
+
+            $target = null;
+            if ($basis === 'custom_target') {
+                $targetVal = $c->custom_target_value !== null ? (float) $c->custom_target_value : null;
+                $target = ($targetVal !== null && $targetVal > 0.0) ? $targetVal : null;
+            }
+
+            $basisByCriteriaId[$criteriaId] = $basis;
+            $customTargetByCriteriaId[$criteriaId] = $target;
+
             $norm = $this->normalizer->normalizeWithBasis(
-                'benefit',
+                $criteriaType,
                 $basis,
                 $rawByUser,
                 $userIds,
                 $target
             );
+
+            $basisValueByCriteriaId[$criteriaId] = (float) ($norm['basis_value'] ?? 0.0);
 
             $normalizedByCriteriaId[$criteriaId] = (array) ($norm['normalized'] ?? []);
         }
@@ -208,28 +242,10 @@ class PerformanceScoreService
                 $normalized = (float) ($normalizedByCriteriaId[$criteriaId][$uid] ?? 0.0);
                 $maxNorm = (float) ($maxNormByCriteriaId[$criteriaId] ?? 0.0);
 
-                $minNorm = (float) ($minNormByCriteriaId[$criteriaId] ?? 0.0);
-
-                // Nilai Relatif (0–100):
-                // - BENEFIT: (nilai_normalisasi / max_grup) * 100
-                // - COST: (min_grup / nilai_normalisasi) * 100
-                if ($type === 'benefit') {
-                    $relative = $maxNorm > 0.0 ? (($normalized / $maxNorm) * 100.0) : 0.0;
-                } else {
-                    // If all normalized are 0 (maxNorm==0), treat as not computable -> 0.
-                    if ($maxNorm <= 0.0) {
-                        $relative = 0.0;
-                    } elseif ($normalized <= 0.0) {
-                        // If min is also 0 and there exists positive values (maxNorm>0), this user is the best (tied) -> 100.
-                        $relative = ($minNorm <= 0.0) ? 100.0 : 0.0;
-                    } else {
-                        $relative = ($minNorm / $normalized) * 100.0;
-                    }
-                }
-
-                // Hard cap for safety: nilai relatif must be within 0..100.
-                // This avoids any drift from floating point / edge-case math.
-                $relative = max(0.0, min(100.0, (float) $relative));
+                // Nilai Relatif (0–100) selalu pakai rumus benefit:
+                // R = IF(max(N)>0, (N/max(N))*100, 0)
+                $relative = $maxNorm > 0.0 ? (($normalized / $maxNorm) * 100.0) : 0.0;
+                $relative = $this->clampPct($relative);
 
                 if ($included) {
                     $sumWeightIncluded += $activeWeight;
@@ -242,7 +258,10 @@ class PerformanceScoreService
                     'criteria_id' => $criteriaId,
                     'criteria_name' => $c ? (string) $c->name : ('Kriteria #' . $criteriaId),
                     'type' => $type,
-                    'normalization_basis' => 'total_unit',
+                    'normalization_basis' => (string) ($basisByCriteriaId[$criteriaId] ?? 'total_unit'),
+                    'basis_value' => (float) ($basisValueByCriteriaId[$criteriaId] ?? 0.0),
+                    'custom_target_value' => $customTargetByCriteriaId[$criteriaId] ?? null,
+                    'max_normalized_in_scope' => (float) ($maxNormByCriteriaId[$criteriaId] ?? 0.0),
                     // Display the weight that is actually used in WSM when included.
                     'weight' => $included ? $activeWeight : $weight,
                     'weight_status' => $included ? 'active' : $weightStatus,
@@ -272,6 +291,99 @@ class PerformanceScoreService
             'max_by_criteria' => $maxNormByCriteriaId,
             'min_by_criteria' => $minNormByCriteriaId,
             'sum_raw_by_criteria' => $sumRawByCriteriaId,
+            'basis_by_criteria' => $basisByCriteriaId,
+            'basis_value_by_criteria' => $basisValueByCriteriaId,
+            'custom_target_by_criteria' => $customTargetByCriteriaId,
+            'calculation_source' => 'live',
+        ];
+    }
+
+    /**
+     * @param array<int> $userIds
+     * @return array<string,mixed>|null
+     */
+    private function tryLoadSnapshotCalculation(AssessmentPeriod $period, array $userIds): ?array
+    {
+        if (!$period->isFrozen()) {
+            return null;
+        }
+
+        if (!Schema::hasTable('performance_assessment_snapshots')) {
+            return null;
+        }
+
+        $periodId = (int) $period->id;
+        if ($periodId <= 0 || empty($userIds)) {
+            return null;
+        }
+
+        $rows = DB::table('performance_assessment_snapshots')
+            ->where('assessment_period_id', $periodId)
+            ->whereIn('user_id', $userIds)
+            ->get(['user_id', 'payload', 'snapshotted_at']);
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+
+        $users = [];
+        $criteriaIds = [];
+        $weights = [];
+        $maxByCriteria = [];
+        $minByCriteria = [];
+        $sumRawByCriteria = [];
+        $basisByCriteria = [];
+        $basisValueByCriteria = [];
+        $customTargetByCriteria = [];
+        $snapshottedAt = null;
+
+        foreach ($rows as $r) {
+            $uid = (int) $r->user_id;
+            $payload = is_string($r->payload) ? json_decode($r->payload, true) : (array) $r->payload;
+            if (!is_array($payload)) {
+                continue;
+            }
+
+            $calc = (array) ($payload['calc'] ?? []);
+            $userRow = $calc['user'] ?? null;
+            if (!is_array($userRow)) {
+                continue;
+            }
+
+            $users[$uid] = $userRow;
+
+            // Use first valid snapshot's group-level meta as the response meta.
+            if (empty($criteriaIds) && isset($calc['criteria_ids'])) {
+                $criteriaIds = array_values(array_map('intval', (array) $calc['criteria_ids']));
+                $weights = (array) ($calc['weights'] ?? []);
+                $maxByCriteria = (array) ($calc['max_by_criteria'] ?? []);
+                $minByCriteria = (array) ($calc['min_by_criteria'] ?? []);
+                $sumRawByCriteria = (array) ($calc['sum_raw_by_criteria'] ?? []);
+                $basisByCriteria = (array) ($calc['basis_by_criteria'] ?? []);
+                $basisValueByCriteria = (array) ($calc['basis_value_by_criteria'] ?? []);
+                $customTargetByCriteria = (array) ($calc['custom_target_by_criteria'] ?? []);
+                $snapshottedAt = $r->snapshotted_at ?? null;
+            }
+        }
+
+        // Require at least the requested users.
+        foreach ($userIds as $uid) {
+            if (!array_key_exists((int) $uid, $users)) {
+                return null;
+            }
+        }
+
+        return [
+            'users' => $users,
+            'criteria_ids' => $criteriaIds,
+            'weights' => $weights,
+            'max_by_criteria' => $maxByCriteria,
+            'min_by_criteria' => $minByCriteria,
+            'sum_raw_by_criteria' => $sumRawByCriteria,
+            'basis_by_criteria' => $basisByCriteria,
+            'basis_value_by_criteria' => $basisValueByCriteria,
+            'custom_target_by_criteria' => $customTargetByCriteria,
+            'snapshotted_at' => $snapshottedAt,
         ];
     }
 

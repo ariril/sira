@@ -67,22 +67,35 @@ class UnitCriteriaApprovalController extends Controller
         // IU: Sesuai kebutuhan saat ini, Kepala Poliklinik dapat menyetujui semua unit
         $me = Auth::user();
 
-    $weight->status = UCWStatus::ACTIVE;
-        $weight->polyclinic_head_id = $me->id;
+        $weight->status = UCWStatus::ACTIVE;
+        $weight->decided_by = $me->id;
+        $weight->decided_at = now();
+        $weight->decided_note = null;
         $weight->save();
         return back()->with('status','Bobot kriteria disetujui.');
     }
 
     public function reject(Request $request, Weight $weight)
     {
-        $data = $request->validate(['reason' => ['required','string','max:255']]);
+        // Accept both legacy "reason" and new "comment" payload.
+        $data = $request->validate([
+            'comment' => ['nullable','string','max:1000'],
+            'reason' => ['nullable','string','max:255'],
+        ]);
+
+        $comment = trim((string) ($data['comment'] ?? $data['reason'] ?? ''));
+        if ($comment === '') {
+            return back()->withErrors(['comment' => 'Komentar penolakan wajib diisi.']);
+        }
 
         $me = Auth::user();
 
-    $weight->status = UCWStatus::REJECTED;
-        $weight->polyclinic_head_id = $me->id;
-        // Simpan alasan di policy_note agar tercatat
-        $weight->policy_note = trim('Rejected: '.$data['reason']);
+        $weight->status = UCWStatus::REJECTED;
+        $weight->decided_by = $me->id;
+        $weight->decided_at = now();
+        $weight->decided_note = $comment;
+        // Legacy: keep writing to policy_note so existing UI/exports don't break.
+        $weight->policy_note = trim('Rejected: '.$comment);
         $weight->save();
         return back()->with('status','Bobot kriteria ditolak.');
     }
@@ -122,7 +135,9 @@ class UnitCriteriaApprovalController extends Controller
         DB::transaction(function () use ($pendingQuery, $me) {
             $pendingQuery->update([
                 'status' => UCWStatus::ACTIVE,
-                'polyclinic_head_id' => $me->id,
+                'decided_by' => $me->id,
+                'decided_at' => now(),
+                'decided_note' => null,
             ]);
         });
 

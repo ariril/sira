@@ -14,19 +14,6 @@
         </div>
     </div>
 
-    @if(isset($error))
-        <div class="bg-rose-50 border border-rose-100 text-rose-700 rounded-xl px-4 py-3 text-sm">{{ $error }}</div>
-    @endif
-    @if($errors->any())
-        <div class="bg-rose-50 border border-rose-100 text-rose-700 rounded-xl px-4 py-3 text-sm">
-            <ul class="list-disc list-inside">
-                @foreach($errors->all() as $e)
-                    <li>{{ $e }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
     <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <h2 class="text-base font-semibold text-slate-800 mb-4">Upload Excel / CSV</h2>
         <p class="text-sm text-slate-600 mb-4">

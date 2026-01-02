@@ -32,31 +32,13 @@
     {{-- Header slot (opsional) --}}
     @isset($header)
         <header class="bg-white shadow">
-            <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[84px] flex items-center">
                 {{ $header }}
             </div>
         </header>
     @endisset
 
-    {{-- Flash status (opsional) --}}
-    @if (session('status'))
-        <div>
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-                <div class="rounded-lg bg-green-50 text-green-800 px-4 py-3 text-sm">
-                    {{ session('status') }}
-                </div>
-            </div>
-        </div>
-    @endif
-
-    {{-- Global single error (tampilkan hanya pesan pertama) --}}
-    @if ($errors->any() && !($suppressGlobalError ?? false))
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-            <div class="rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">
-                {{ $errors->first() }}
-            </div>
-        </div>
-    @endif
+    @include('partials.global-notification')
 
     {{-- Konten utama --}}
     <main class="py-6 flex-1"> {{-- flex-1 pushes footer to bottom when content is short --}}

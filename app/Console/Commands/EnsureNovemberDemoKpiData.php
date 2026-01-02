@@ -136,9 +136,10 @@ class EnsureNovemberDemoKpiData extends Command
                         'weight' => (float) $w,
                         'policy_doc_path' => null,
                         'policy_note' => 'Auto demo seed (Nov) - default weights',
-                        'unit_head_id' => null,
-                        'unit_head_note' => null,
-                        'polyclinic_head_id' => null,
+                        'proposed_by' => null,
+                        'proposed_note' => null,
+                        'decided_by' => null,
+                        'decided_at' => null,
                         'updated_at' => $now,
                         'created_at' => $now,
                     ]

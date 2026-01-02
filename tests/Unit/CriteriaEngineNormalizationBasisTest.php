@@ -2,327 +2,115 @@
 
 namespace Tests\Unit;
 
-use App\Models\AssessmentPeriod;
-use App\Models\CriteriaMetric;
-use App\Models\MetricImportBatch;
-use App\Models\PerformanceCriteria;
-use App\Models\Unit;
-use App\Models\UnitCriteriaWeight;
-use App\Models\User;
-use App\Services\CriteriaEngine\PerformanceScoreService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Services\CriteriaEngine\Normalizers\AverageUnitNormalizer;
+use App\Services\CriteriaEngine\Normalizers\CustomTargetNormalizer;
+use App\Services\CriteriaEngine\Normalizers\MaxUnitNormalizer;
+use App\Services\CriteriaEngine\Normalizers\TotalUnitNormalizer;
 use Tests\TestCase;
 
 class CriteriaEngineNormalizationBasisTest extends TestCase
 {
-    use RefreshDatabase;
-
-    private function makeUser(string $email, int $unitId): User
+    public function test_total_unit_benefit_sums_to_100(): void
     {
-        return User::create([
-            'employee_number' => uniqid('emp'),
-            'name' => $email,
-            'start_date' => now()->toDateString(),
-            'gender' => 'Laki-laki',
-            'nationality' => 'ID',
-            'address' => 'Test',
-            'phone' => '0800',
-            'email' => $email,
-            'last_education' => 'S1',
-            'position' => 'Tester',
-            'unit_id' => $unitId,
-            'profession_id' => null,
-            'password' => 'password',
-            'last_role' => User::ROLE_PEGAWAI_MEDIS,
-        ]);
+        $raw = [
+            1 => 25,
+            2 => 50,
+            3 => 69,
+        ];
+
+        $n = (new TotalUnitNormalizer())->normalize($raw, ['type' => 'benefit']);
+        $norm = (array) ($n['normalized'] ?? []);
+
+        $this->assertEqualsWithDelta(17.3611, (float) $norm[1], 0.01);
+        $this->assertEqualsWithDelta(100.0, array_sum(array_map('floatval', $norm)), 0.02);
     }
 
-    private function seedMetricCriteria(string $basis, ?float $target = null): int
+    public function test_total_unit_cost_inverts_so_bigger_raw_smaller_n(): void
     {
-        $c = PerformanceCriteria::create([
-            'name' => 'Jumlah Pasien Ditangani',
-            'source' => 'metric_import',
-            'type' => 'benefit',
-            'data_type' => 'numeric',
-            'input_method' => 'import',
-            'aggregation_method' => 'sum',
-            'normalization_basis' => $basis,
-            'custom_target_value' => $target,
-            'is_active' => 1,
-            'is_360' => 0,
-        ]);
+        $raw = [
+            1 => 10,
+            2 => 20,
+            3 => 30,
+        ];
 
-        return (int) $c->id;
+        $n = (new TotalUnitNormalizer())->normalize($raw, ['type' => 'cost']);
+        $norm = (array) ($n['normalized'] ?? []);
+
+        $this->assertGreaterThan((float) $norm[2], (float) $norm[1]);
+        $this->assertGreaterThan((float) $norm[3], (float) $norm[2]);
+        $this->assertEqualsWithDelta(83.3333, (float) $norm[1], 0.01);
+        $this->assertEqualsWithDelta(50.0, (float) $norm[3], 0.01);
     }
 
-    private function seedMetricCostCriteria(string $basis, ?float $target = null): int
+    public function test_max_unit_benefit_max_raw_is_100(): void
     {
-        $c = PerformanceCriteria::create([
-            'name' => 'Jumlah Komplain Pasien',
-            'source' => 'metric_import',
-            'type' => 'cost',
-            'data_type' => 'numeric',
-            'input_method' => 'import',
-            'aggregation_method' => 'sum',
-            'normalization_basis' => $basis,
-            'custom_target_value' => $target,
-            'is_active' => 1,
-            'is_360' => 0,
-        ]);
+        $raw = [
+            1 => 120,
+            2 => 139,
+            3 => 157,
+        ];
 
-        return (int) $c->id;
+        $n = (new MaxUnitNormalizer())->normalize($raw, ['type' => 'benefit']);
+        $norm = (array) ($n['normalized'] ?? []);
+
+        $this->assertEqualsWithDelta(76.4331, (float) $norm[1], 0.01);
+        $this->assertEqualsWithDelta(100.0, (float) $norm[3], 0.001);
     }
 
-    public function test_max_unit_normalization_for_benefit(): void
+    public function test_max_unit_cost_raw_zero_is_100(): void
     {
-        $unit = Unit::create([
-            'name' => 'Unit Test',
-            'slug' => 'unit-test',
-            'code' => 'UT',
-            'type' => 'lainnya',
-            'is_active' => true,
-        ]);
+        $raw = [
+            1 => 0,
+            2 => 10,
+        ];
 
-        $period = AssessmentPeriod::create([
-            'name' => 'Periode Uji',
-            'start_date' => now()->startOfMonth()->toDateString(),
-            'end_date' => now()->endOfMonth()->toDateString(),
-            'status' => 'active',
-        ]);
+        $n = (new MaxUnitNormalizer())->normalize($raw, ['type' => 'cost']);
+        $norm = (array) ($n['normalized'] ?? []);
 
-        $criteriaId = $this->seedMetricCriteria('max_unit');
-
-        UnitCriteriaWeight::create([
-            'unit_id' => $unit->id,
-            'assessment_period_id' => $period->id,
-            'performance_criteria_id' => $criteriaId,
-            'weight' => 100,
-            'status' => 'active',
-        ]);
-
-        $u1 = $this->makeUser('u1@test.local', $unit->id);
-        $u2 = $this->makeUser('u2@test.local', $unit->id);
-        $u3 = $this->makeUser('u3@test.local', $unit->id);
-
-        $batch = MetricImportBatch::create([
-            'file_name' => 'test.csv',
-            'assessment_period_id' => $period->id,
-            'imported_by' => $u1->id,
-            'status' => 'processed',
-        ]);
-
-        foreach ([[$u1, 120], [$u2, 139], [$u3, 157]] as [$user, $val]) {
-            CriteriaMetric::create([
-                'import_batch_id' => $batch->id,
-                'user_id' => $user->id,
-                'assessment_period_id' => $period->id,
-                'performance_criteria_id' => $criteriaId,
-                'value_numeric' => $val,
-            ]);
-        }
-
-        /** @var PerformanceScoreService $svc */
-        $svc = app(PerformanceScoreService::class);
-        $out = $svc->calculate($unit->id, $period, [$u1->id, $u2->id, $u3->id]);
-
-        $key = 'metric:' . $criteriaId;
-        $rows1 = $out['users'][$u1->id]['criteria'] ?? [];
-        $row1 = collect($rows1)->firstWhere('key', $key);
-        $this->assertNotNull($row1);
-
-        // max = 157 => 120/157*100 = 76.433...
-        $this->assertEqualsWithDelta(76.433, (float) $row1['normalized'], 0.01);
-
-        $rows3 = $out['users'][$u3->id]['criteria'] ?? [];
-        $row3 = collect($rows3)->firstWhere('key', $key);
-        $this->assertEqualsWithDelta(100.0, (float) $row3['normalized'], 0.001);
+        $this->assertEqualsWithDelta(100.0, (float) $norm[1], 0.001);
+        $this->assertEqualsWithDelta(0.0, (float) $norm[2], 0.001);
     }
 
-    public function test_custom_target_normalization_for_benefit(): void
+    public function test_average_unit_benefit_is_capped_at_100(): void
     {
-        $unit = Unit::create([
-            'name' => 'Unit Test',
-            'slug' => 'unit-test',
-            'code' => 'UT',
-            'type' => 'lainnya',
-            'is_active' => true,
-        ]);
+        // avg = (200+100)/2 = 150
+        $raw = [
+            1 => 200,
+            2 => 100,
+        ];
 
-        $period = AssessmentPeriod::create([
-            'name' => 'Periode Uji',
-            'start_date' => now()->startOfMonth()->toDateString(),
-            'end_date' => now()->endOfMonth()->toDateString(),
-            'status' => 'active',
-        ]);
+        $n = (new AverageUnitNormalizer())->normalize($raw, ['type' => 'benefit']);
+        $norm = (array) ($n['normalized'] ?? []);
 
-        $criteriaId = $this->seedMetricCriteria('custom_target', 200);
-
-        UnitCriteriaWeight::create([
-            'unit_id' => $unit->id,
-            'assessment_period_id' => $period->id,
-            'performance_criteria_id' => $criteriaId,
-            'weight' => 100,
-            'status' => 'active',
-        ]);
-
-        $u1 = $this->makeUser('u1@test.local', $unit->id);
-
-        $batch = MetricImportBatch::create([
-            'file_name' => 'test.csv',
-            'assessment_period_id' => $period->id,
-            'imported_by' => $u1->id,
-            'status' => 'processed',
-        ]);
-
-        CriteriaMetric::create([
-            'import_batch_id' => $batch->id,
-            'user_id' => $u1->id,
-            'assessment_period_id' => $period->id,
-            'performance_criteria_id' => $criteriaId,
-            'value_numeric' => 157,
-        ]);
-
-        /** @var PerformanceScoreService $svc */
-        $svc = app(PerformanceScoreService::class);
-        $out = $svc->calculate($unit->id, $period, [$u1->id]);
-
-        $key = 'metric:' . $criteriaId;
-        $rows = $out['users'][$u1->id]['criteria'] ?? [];
-        $row = collect($rows)->firstWhere('key', $key);
-        $this->assertNotNull($row);
-
-        // 157/200*100 = 78.5
-        $this->assertEqualsWithDelta(78.5, (float) $row['normalized'], 0.001);
+        $this->assertEqualsWithDelta(100.0, (float) $norm[1], 0.001);
+        $this->assertEqualsWithDelta(66.6667, (float) $norm[2], 0.02);
     }
 
-    public function test_average_unit_normalization_for_cost(): void
+    public function test_custom_target_benefit_is_capped_at_100(): void
     {
-        $unit = Unit::create([
-            'name' => 'Unit Test',
-            'slug' => 'unit-test',
-            'code' => 'UT',
-            'type' => 'lainnya',
-            'is_active' => true,
-        ]);
+        $raw = [
+            1 => 200,
+        ];
 
-        $period = AssessmentPeriod::create([
-            'name' => 'Periode Uji',
-            'start_date' => now()->startOfMonth()->toDateString(),
-            'end_date' => now()->endOfMonth()->toDateString(),
-            'status' => 'active',
-        ]);
+        $n = (new CustomTargetNormalizer())->normalize($raw, ['type' => 'benefit', 'target' => 100]);
+        $norm = (array) ($n['normalized'] ?? []);
 
-        $criteriaId = $this->seedMetricCostCriteria('average_unit');
-
-        UnitCriteriaWeight::create([
-            'unit_id' => $unit->id,
-            'assessment_period_id' => $period->id,
-            'performance_criteria_id' => $criteriaId,
-            'weight' => 100,
-            'status' => 'active',
-        ]);
-
-        $u1 = $this->makeUser('u1@test.local', $unit->id);
-        $u2 = $this->makeUser('u2@test.local', $unit->id);
-        $u3 = $this->makeUser('u3@test.local', $unit->id);
-
-        $batch = MetricImportBatch::create([
-            'file_name' => 'test.csv',
-            'assessment_period_id' => $period->id,
-            'imported_by' => $u1->id,
-            'status' => 'processed',
-        ]);
-
-        // avg = (0 + 10 + 50000) / 3 = 16670
-        // Rumus baku: (nilai individu / avg) * 100 (cost/benefit sama untuk normalisasi)
-        foreach ([[$u1, 0], [$u2, 10], [$u3, 50000]] as [$user, $val]) {
-            CriteriaMetric::create([
-                'import_batch_id' => $batch->id,
-                'user_id' => $user->id,
-                'assessment_period_id' => $period->id,
-                'performance_criteria_id' => $criteriaId,
-                'value_numeric' => $val,
-            ]);
-        }
-
-        /** @var PerformanceScoreService $svc */
-        $svc = app(PerformanceScoreService::class);
-        $out = $svc->calculate($unit->id, $period, [$u1->id, $u2->id, $u3->id]);
-
-        $key = 'metric:' . $criteriaId;
-        $row1 = collect($out['users'][$u1->id]['criteria'] ?? [])->firstWhere('key', $key);
-        $row2 = collect($out['users'][$u2->id]['criteria'] ?? [])->firstWhere('key', $key);
-        $row3 = collect($out['users'][$u3->id]['criteria'] ?? [])->firstWhere('key', $key);
-
-        $this->assertNotNull($row1);
-        $this->assertNotNull($row2);
-        $this->assertNotNull($row3);
-
-        $this->assertEqualsWithDelta(0.0, (float) $row1['normalized'], 0.001);
-        $this->assertEqualsWithDelta((10 / 16670) * 100.0, (float) $row2['normalized'], 0.0001);
-        $this->assertEqualsWithDelta((50000 / 16670) * 100.0, (float) $row3['normalized'], 0.01);
+        $this->assertEqualsWithDelta(100.0, (float) $norm[1], 0.001);
     }
 
-    public function test_custom_target_normalization_for_cost(): void
+    public function test_custom_target_cost_inverts_and_is_capped(): void
     {
-        $unit = Unit::create([
-            'name' => 'Unit Test',
-            'slug' => 'unit-test',
-            'code' => 'UT',
-            'type' => 'lainnya',
-            'is_active' => true,
-        ]);
+        $raw = [
+            1 => 0,
+            2 => 50,
+            3 => 200,
+        ];
 
-        $period = AssessmentPeriod::create([
-            'name' => 'Periode Uji',
-            'start_date' => now()->startOfMonth()->toDateString(),
-            'end_date' => now()->endOfMonth()->toDateString(),
-            'status' => 'active',
-        ]);
+        $n = (new CustomTargetNormalizer())->normalize($raw, ['type' => 'cost', 'target' => 100]);
+        $norm = (array) ($n['normalized'] ?? []);
 
-        $criteriaId = $this->seedMetricCostCriteria('custom_target', 100);
-
-        UnitCriteriaWeight::create([
-            'unit_id' => $unit->id,
-            'assessment_period_id' => $period->id,
-            'performance_criteria_id' => $criteriaId,
-            'weight' => 100,
-            'status' => 'active',
-        ]);
-
-        $u1 = $this->makeUser('u1@test.local', $unit->id);
-        $u2 = $this->makeUser('u2@test.local', $unit->id);
-        $u3 = $this->makeUser('u3@test.local', $unit->id);
-
-        $batch = MetricImportBatch::create([
-            'file_name' => 'test.csv',
-            'assessment_period_id' => $period->id,
-            'imported_by' => $u1->id,
-            'status' => 'processed',
-        ]);
-
-        // Rumus baku: (nilai individu / target) * 100 (cost/benefit sama untuk normalisasi)
-        foreach ([[$u1, 0], [$u2, 50], [$u3, 200]] as [$user, $val]) {
-            CriteriaMetric::create([
-                'import_batch_id' => $batch->id,
-                'user_id' => $user->id,
-                'assessment_period_id' => $period->id,
-                'performance_criteria_id' => $criteriaId,
-                'value_numeric' => $val,
-            ]);
-        }
-
-        /** @var PerformanceScoreService $svc */
-        $svc = app(PerformanceScoreService::class);
-        $out = $svc->calculate($unit->id, $period, [$u1->id, $u2->id, $u3->id]);
-
-        $key = 'metric:' . $criteriaId;
-        $row1 = collect($out['users'][$u1->id]['criteria'] ?? [])->firstWhere('key', $key);
-        $row2 = collect($out['users'][$u2->id]['criteria'] ?? [])->firstWhere('key', $key);
-        $row3 = collect($out['users'][$u3->id]['criteria'] ?? [])->firstWhere('key', $key);
-
-        $this->assertEqualsWithDelta(0.0, (float) $row1['normalized'], 0.001);
-        $this->assertEqualsWithDelta(50.0, (float) $row2['normalized'], 0.001);
-        $this->assertEqualsWithDelta(200.0, (float) $row3['normalized'], 0.001);
+        $this->assertEqualsWithDelta(100.0, (float) $norm[1], 0.001);
+        $this->assertEqualsWithDelta(50.0, (float) $norm[2], 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $norm[3], 0.001);
     }
 }

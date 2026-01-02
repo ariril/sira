@@ -62,6 +62,26 @@
                                 @break
                             @case('rejected')
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-100">Rejected</span>
+                                @if(!empty($it->decided_note))
+                                    <div class="mt-2">
+                                        <button type="button" class="text-xs text-slate-600 underline hover:text-slate-800" x-on:click="$dispatch('open-modal', 'ucw-note-{{ (int) $it->id }}')">Lihat komentar</button>
+                                    </div>
+
+                                    <x-modal name="ucw-note-{{ (int) $it->id }}" :show="false" maxWidth="lg">
+                                        <div class="p-6">
+                                            <div class="flex items-start justify-between gap-3">
+                                                <h2 class="text-lg font-semibold text-slate-800">Komentar Penolakan</h2>
+                                                <button type="button" class="text-slate-400 hover:text-slate-600" x-on:click="$dispatch('close-modal', 'ucw-note-{{ (int) $it->id }}')">
+                                                    <i class="fa-solid fa-xmark"></i>
+                                                </button>
+                                            </div>
+                                            <div class="mt-3 text-sm text-slate-700 whitespace-pre-wrap">{{ $it->decided_note }}</div>
+                                            <div class="mt-5 flex justify-end">
+                                                <x-ui.button type="button" variant="outline" x-on:click="$dispatch('close-modal', 'ucw-note-{{ (int) $it->id }}')">Tutup</x-ui.button>
+                                            </div>
+                                        </div>
+                                    </x-modal>
+                                @endif
                                 @break
                             @case('pending')
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Pending</span>
@@ -79,13 +99,34 @@
                                         Approve
                                     </x-ui.button>
                                 </form>
-                                <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.reject', $it) }}" onsubmit="return confirm('Tolak bobot ini?');">
-                                    @csrf
-                                    <input type="hidden" name="reason" value="Tidak sesuai kebijakan" />
-                                    <x-ui.button type="submit" variant="reject" class="h-9 px-3 text-xs">
-                                        Reject
-                                    </x-ui.button>
-                                </form>
+                                <x-ui.button type="button" variant="reject" class="h-9 px-3 text-xs" x-on:click="$dispatch('open-modal', 'ucw-reject-{{ (int) $it->id }}')">
+                                    Tolak
+                                </x-ui.button>
+
+                                <x-modal name="ucw-reject-{{ (int) $it->id }}" :show="false" maxWidth="lg">
+                                    <div class="p-6">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <h2 class="text-lg font-semibold text-slate-800">Tolak Bobot Kriteria</h2>
+                                            <button type="button" class="text-slate-400 hover:text-slate-600" x-on:click="$dispatch('close-modal', 'ucw-reject-{{ (int) $it->id }}')">
+                                                <i class="fa-solid fa-xmark"></i>
+                                            </button>
+                                        </div>
+
+                                        <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.reject', $it) }}" class="mt-4 space-y-4">
+                                            @csrf
+                                            <div>
+                                                <label class="block text-sm font-medium text-slate-700 mb-1">Komentar</label>
+                                                <textarea name="comment" rows="4" class="w-full rounded-xl border-slate-300 focus:border-slate-400 focus:ring-slate-300" placeholder="Tuliskan alasan penolakan / arahan perbaikan..." required></textarea>
+                                                <div class="mt-1 text-xs text-slate-500">Komentar ini akan terlihat oleh Kepala Unit.</div>
+                                            </div>
+
+                                            <div class="flex justify-end gap-2">
+                                                <x-ui.button type="button" variant="outline" x-on:click="$dispatch('close-modal', 'ucw-reject-{{ (int) $it->id }}')">Batal</x-ui.button>
+                                                <x-ui.button type="submit" variant="reject">Kirim Penolakan</x-ui.button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </x-modal>
                             </div>
                         @else
                             <span class="text-slate-400 text-xs">—</span>
