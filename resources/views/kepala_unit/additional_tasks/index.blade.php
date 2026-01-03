@@ -84,6 +84,7 @@
                     $canCancel = in_array($st, ['open', 'draft']);
                     $activeClaims = (int)($it->active_claims ?? 0);
                     $reviewWaiting = (int)($it->review_waiting ?? 0);
+                    $finishedClaims = (int)($it->finished_claims ?? 0);
                     $maxClaims = $it->max_claims ?? null;
 
                     $statusLabel = 'Draft';
@@ -98,14 +99,18 @@
                         $statusClass = 'bg-rose-100 text-rose-700';
                         $statusHint  = 'Tugas dibatalkan oleh kepala unit dan tidak dapat diklaim.';
                     } elseif ($st === 'closed') {
-                        if ($duePast) {
-                            $statusLabel = 'Kadaluarsa';
-                            $statusClass = 'bg-slate-200 text-slate-700';
-                            $statusHint  = 'Jatuh tempo sudah lewat, tugas tidak dapat diklaim.';
-                        } elseif ($reviewWaiting > 0) {
+                        if ($reviewWaiting > 0) {
                             $statusLabel = 'Menunggu Review';
                             $statusClass = 'bg-sky-100 text-sky-700';
                             $statusHint  = 'Ada klaim yang sudah dikirim pegawai dan menunggu tindakan (validasi/persetujuan).';
+                        } elseif ($duePast && $finishedClaims > 0) {
+                            $statusLabel = 'Selesai';
+                            $statusClass = 'bg-emerald-100 text-emerald-700';
+                            $statusHint  = 'Tugas sudah selesai dan sudah dipakai dalam perhitungan periode sebelumnya.';
+                        } elseif ($duePast) {
+                            $statusLabel = 'Ditutup';
+                            $statusClass = 'bg-slate-200 text-slate-700';
+                            $statusHint  = 'Jatuh tempo/periode sudah berakhir sehingga tugas ditutup (tidak dapat diklaim lagi).';
                         } elseif ($activeClaims > 0) {
                             $isQuotaFull = !empty($maxClaims) && $activeClaims >= (int) $maxClaims;
                             $statusLabel = $isQuotaFull ? 'Kuota Penuh' : 'Sedang Diklaim';
@@ -187,9 +192,8 @@
                                 <x-ui.icon-button icon="fa-trash" />
                             </form>
                         </div>
-                        @if ($st === 'closed' && $duePast && $activeClaims === 0 && $reviewWaiting === 0)
-                            <p class="mt-2 text-[11px] text-amber-600">Jatuh tempo sudah lewat. Edit tanggal untuk
-                                membuka kembali.</p>
+                        @if ($st === 'closed' && $duePast && $activeClaims === 0 && $reviewWaiting === 0 && $finishedClaims === 0)
+                            <p class="mt-2 text-[11px] text-amber-600">Jatuh tempo sudah lewat. Edit tanggal untuk membuka kembali.</p>
                         @endif
                     </td>
                 </tr>

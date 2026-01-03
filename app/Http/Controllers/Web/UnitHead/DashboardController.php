@@ -20,13 +20,18 @@ class DashboardController extends Controller
         $unitId = optional(Auth::user())->unit_id;
 
         $stats = [
-            'total_pegawai' => User::where('unit_id', $unitId)->count(),
-            'total_dokter'  => User::where('unit_id', $unitId)
-                ->whereNotNull('profession_id')
-                ->role('pegawai_medis')->count(),
-            'total_admin'   => User::where('unit_id', $unitId)
-                ->role('admin_rs')->count(),
+            'members' => 0,
+            'pending' => 0,
+            'avg_wsm' => '—',
+            'add_tasks' => 0,
         ];
+
+        if ($unitId) {
+            $stats['members'] = (int) User::query()
+                ->where('unit_id', $unitId)
+                ->role('pegawai_medis')
+                ->count();
+        }
 
         $review = [
             'avg_rating_unit_30d'   => null,
@@ -88,12 +93,22 @@ class DashboardController extends Controller
                 ->first();
         }
 
-        if ($unitId && Schema::hasTable('performance_assessments') && Schema::hasTable('users')) {
-            $kinerja['penilaian_pending'] = DB::table('performance_assessments as pa')
+        // Avg WSM (periode aktif) untuk tampilan dashboard.
+        if (
+            $unitId &&
+            !empty($kinerja['periode_aktif']?->id) &&
+            Schema::hasTable('performance_assessments') &&
+            Schema::hasTable('users')
+        ) {
+            $avg = DB::table('performance_assessments as pa')
                 ->join('users as u', 'u.id', '=', 'pa.user_id')
                 ->where('u.unit_id', $unitId)
-                ->where('pa.validation_status', 'Menunggu Validasi')
-                ->count();
+                ->where('pa.assessment_period_id', (int) $kinerja['periode_aktif']->id)
+                ->avg('pa.total_wsm_score');
+
+            if ($avg !== null) {
+                $stats['avg_wsm'] = number_format((float) $avg, 2);
+            }
         }
 
         $notifications = [];
@@ -149,6 +164,9 @@ class DashboardController extends Controller
                 ->where('aa.status', 'pending')
                 ->where('u.unit_id', $unitId)
                 ->count();
+
+            $stats['pending'] = (int) $pendingApprovals;
+
             if ($pendingApprovals > 0) {
                 $notifications[] = [
                     'type' => 'warning',
@@ -173,22 +191,24 @@ class DashboardController extends Controller
         }
 
         if ($unitId && Schema::hasTable('additional_task_claims') && Schema::hasTable('additional_tasks')) {
-                $countsByStatus = DB::table('additional_task_claims as c')
-                    ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
-                    ->where('t.unit_id', $unitId)
-                    ->whereIn('c.status', AdditionalTaskStatusService::REVIEW_WAITING_STATUSES)
-                    ->groupBy('c.status')
-                    ->select('c.status', DB::raw('count(*) as aggregate'))
-                    ->pluck('aggregate', 'status');
+            $countsByStatus = DB::table('additional_task_claims as c')
+                ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
+                ->where('t.unit_id', $unitId)
+                ->whereIn('c.status', AdditionalTaskStatusService::REVIEW_WAITING_STATUSES)
+                ->groupBy('c.status')
+                ->select('c.status', DB::raw('count(*) as aggregate'))
+                ->pluck('aggregate', 'status');
 
-                $submittedCount = (int) ($countsByStatus['submitted'] ?? 0);
-                $validatedCount = (int) ($countsByStatus['validated'] ?? 0);
-                $pendingTaskClaims = $submittedCount + $validatedCount;
+            $submittedCount = (int) ($countsByStatus['submitted'] ?? 0);
+            $validatedCount = (int) ($countsByStatus['validated'] ?? 0);
+            $pendingTaskClaims = $submittedCount + $validatedCount;
+
+            $stats['add_tasks'] = (int) $pendingTaskClaims;
 
             if ($pendingTaskClaims > 0) {
                 $notifications[] = [
                     'type' => 'info',
-                    'text' => $pendingTaskClaims . ' klaim tugas tambahan butuh tindakan ('. $submittedCount .' menunggu validasi, '. $validatedCount .' menunggu persetujuan).',
+                    'text' => $pendingTaskClaims . ' klaim tugas tambahan butuh tindakan (' . $submittedCount . ' menunggu validasi, ' . $validatedCount . ' menunggu persetujuan).',
                     'href' => route('kepala_unit.additional_task_claims.review_index'),
                 ];
             }

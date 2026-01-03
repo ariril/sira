@@ -194,7 +194,7 @@ class RemunerationController extends Controller
         });
 
         return redirect()->route('admin_rs.remunerations.calc.index', ['period_id' => $periodId])
-            ->with('status', 'Perhitungan selesai (berdasarkan skor kinerja WSM terkonfigurasi).');
+            ->with('status', 'Perhitungan selesai (berdasarkan skor kinerja terkonfigurasi).');
     }
 
     /**

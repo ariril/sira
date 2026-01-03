@@ -327,6 +327,8 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
         Route::post('unit-criteria-weights/approve-all', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'approveAll'])->name('unit_criteria_weights.approve_all');
         Route::post('unit-criteria-weights/{weight}/approve', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'approve'])->name('unit_criteria_weights.approve');
         Route::post('unit-criteria-weights/{weight}/reject',  [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'reject'])->name('unit_criteria_weights.reject');
+        Route::post('unit-criteria-weights/units/{unitId}/approve', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'approveUnit'])->name('unit_criteria_weights.approve_unit');
+        Route::post('unit-criteria-weights/units/{unitId}/reject',  [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'rejectUnit'])->name('unit_criteria_weights.reject_unit');
     // Read-only list per unit & detail
     Route::get('unit-criteria-weights/units', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'units'])->name('unit_criteria_weights.units');
     Route::get('unit-criteria-weights/units/{unitId}', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'unit'])->name('unit_criteria_weights.unit');

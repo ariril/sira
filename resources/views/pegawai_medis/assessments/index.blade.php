@@ -18,7 +18,7 @@
                         <th class="px-6 py-4 text-left whitespace-nowrap">Tanggal</th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">
-                            <span title="WSM (Weighted Sum Method)">Skor Kinerja</span>
+                            <span>Skor Kinerja</span>
                         </th>
                         <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                     </tr>

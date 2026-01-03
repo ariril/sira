@@ -94,6 +94,52 @@ class DashboardController extends Controller
             'logo' => $siteConfig['logo'],
         ])->filter(fn ($v) => blank($v))->keys()->values()->all();
 
+        // ====== NOTIFICATIONS (actionable only) ======
+        $notifications = [];
+
+        if (!$sysChecks['app_key']) {
+            $notifications[] = [
+                'type' => 'error',
+                'text' => 'APP_KEY belum terpasang. Aplikasi tidak aman untuk dijalankan.',
+                'href' => null,
+            ];
+        }
+        if (!$sysChecks['database']) {
+            $notifications[] = [
+                'type' => 'error',
+                'text' => 'Koneksi database bermasalah. Periksa konfigurasi DB.',
+                'href' => null,
+            ];
+        }
+        if (!$sysChecks['cache']) {
+            $notifications[] = [
+                'type' => 'warning',
+                'text' => 'Cache tidak berjalan normal. Beberapa fitur bisa melambat.',
+                'href' => null,
+            ];
+        }
+        if (!$sysChecks['storage_writable']) {
+            $notifications[] = [
+                'type' => 'warning',
+                'text' => 'Storage tidak writable. Upload / log bisa gagal.',
+                'href' => null,
+            ];
+        }
+
+        if (!$siteConfig['exists']) {
+            $notifications[] = [
+                'type' => 'warning',
+                'text' => 'Konfigurasi situs belum diisi. Lengkapi profil RS sebelum digunakan.',
+                'href' => null,
+            ];
+        } elseif (!empty($siteConfig['missing'])) {
+            $notifications[] = [
+                'type' => 'warning',
+                'text' => 'Konfigurasi situs belum lengkap: ' . implode(', ', $siteConfig['missing']) . '.',
+                'href' => null,
+            ];
+        }
+
         // ====== USER TERBARU ======
         $recentUsers = User::query()
             ->select(['id','name','email','last_role','created_at'])
@@ -102,16 +148,17 @@ class DashboardController extends Controller
             ->limit(8)->get()
             ->map(function($u){
                 $u->display_role = $u->getActiveRoleSlug();
+                // Backward-compatible field name used by some views
+                $u->role_label = $u->display_role;
                 return $u;
             });
 
         return view('super_admin.dashboard', compact(
             'stats',
-            'userDistribution',
-            'sysSummary',
             'sysChecks',
             'siteConfig',
-            'recentUsers'
+            'recentUsers',
+            'notifications'
         ));
     }
 }

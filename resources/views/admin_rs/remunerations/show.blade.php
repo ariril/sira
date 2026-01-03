@@ -61,7 +61,7 @@
                     $isEqual = fn($a, $b) => is_numeric($a) && is_numeric($b) && abs((float)$a - (float)$b) < 0.00001;
                 @endphp
                 <div class="md:col-span-2">
-                    <dt class="text-slate-500 mb-1">Ringkasan Perhitungan (WSM)</dt>
+                    <dt class="text-slate-500 mb-1">Ringkasan Perhitungan Kinerja</dt>
                     <dd>
                         <div class="overflow-auto rounded-xl border border-slate-200">
                             <table class="min-w-[760px] w-full text-sm">
@@ -108,7 +108,7 @@
                                 </tbody>
                                 <tfoot>
                                     <tr class="bg-slate-50 border-t border-slate-200">
-                                        <td colspan="7" class="px-4 py-2 text-right font-medium">Total Skor WSM</td>
+                                        <td colspan="7" class="px-4 py-2 text-right font-medium">Total Skor Kinerja</td>
                                         <td class="px-4 py-2 text-right font-semibold">{{ $fmtNum($wsm['total'], 4) }}</td>
                                     </tr>
                                 </tfoot>

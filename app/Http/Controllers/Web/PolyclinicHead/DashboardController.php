@@ -117,9 +117,9 @@ class DashboardController extends Controller
 
         // Ringkas ke struktur yang dipakai view kepala_poli.dashboard
         $summary = [
-            'wsm'            => 0, // placeholder, belum ada perhitungan WSM khusus poliklinik
+            'wsm'            => null, // belum ada perhitungan WSM khusus poliklinik
             'reviews_30d'    => $review['total_ulasan_unit_30d'] ?? 0,
-            'avg_rating'     => $review['avg_rating_unit_30d'] ?? 0,
+            'avg_rating'     => $review['avg_rating_unit_30d'] ?? null,
             'pending_assess' => $kinerja['penilaian_pending'] ?? 0,
         ];
 
@@ -157,7 +157,6 @@ class DashboardController extends Controller
 
         return view('kepala_poli.dashboard', [
             'stats'         => $summary,
-            'approvalsList' => null,
             'notifications' => $notifications,
             'activePeriod'  => $kinerja['periode_aktif'],
         ]);

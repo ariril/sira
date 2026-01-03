@@ -57,7 +57,7 @@
                         <tr>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Kriteria</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Bobot</th>
-                            <th class="px-6 py-4 text-left whitespace-nowrap">Skor (WSM)</th>
+                                    <th class="px-6 py-4 text-left whitespace-nowrap">Skor Kinerja</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Relatif Unit (%)</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Kontribusi</th>
                         </tr>

@@ -32,8 +32,12 @@
     {{-- Header slot (opsional) --}}
     @isset($header)
         <header class="bg-white shadow">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[84px] flex items-center">
-                {{ $header }}
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[84px]">
+                <div class="min-h-[84px] flex items-center">
+                    <div class="w-full">
+                        {{ $header }}
+                    </div>
+                </div>
             </div>
         </header>
     @endisset

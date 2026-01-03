@@ -3,13 +3,6 @@
         <div class="flex items-center justify-between gap-3">
             <h1 class="text-2xl font-semibold text-slate-800">Approval Bobot Kriteria</h1>
             <div class="flex items-center gap-2">
-                <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.approve_all') }}" onsubmit="return confirm('Setujui semua bobot pending yang ditampilkan?');">
-                    @csrf
-                    <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}" />
-                    <x-ui.button type="submit" variant="approve" class="h-10 px-4 text-sm" :disabled="$pendingCount === 0">
-                        Approve Semua
-                    </x-ui.button>
-                </form>
                 <x-ui.button as="a" href="{{ route('kepala_poliklinik.unit_criteria_weights.units') }}" variant="violet" class="h-10 px-4 text-sm">Lihat per Unit</x-ui.button>
             </div>
         </div>
@@ -38,118 +31,112 @@
             </div>
         </form>
 
-        {{-- TABLE --}}
-        <x-ui.table min-width="960px">
-            <x-slot name="head">
-                <tr>
-                    <th class="px-6 py-4 text-left whitespace-nowrap">Unit</th>
-                    <th class="px-6 py-4 text-left whitespace-nowrap">Kriteria</th>
-                    <th class="px-6 py-4 text-right whitespace-nowrap">Bobot</th>
-                    <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
-                    <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
-                </tr>
-            </x-slot>
-            @forelse($items as $it)
-                <tr class="hover:bg-slate-50">
-                    <td class="px-6 py-4">{{ $it->unit->name ?? '-' }}</td>
-                    <td class="px-6 py-4">{{ $it->performanceCriteria->name ?? '-' }}</td>
-                    <td class="px-6 py-4 text-right">{{ number_format((float)($it->weight ?? 0), 2) }}</td>
-                    <td class="px-6 py-4">
-                        @php($status = $it->status?->value ?? (string) $it->status ?? 'draft')
-                        @switch($status)
-                            @case('active')
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Active</span>
-                                @break
-                            @case('rejected')
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-100">Rejected</span>
-                                @if(!empty($it->decided_note))
-                                    <div class="mt-2">
-                                        <button type="button" class="text-xs text-slate-600 underline hover:text-slate-800" x-on:click="$dispatch('open-modal', 'ucw-note-{{ (int) $it->id }}')">Lihat komentar</button>
-                                    </div>
+        {{-- PER-UNIT COLLAPSIBLE LIST --}}
+        <div class="space-y-4">
+            @forelse($units as $u)
+                @php
+                    $unitId = (int) ($u->id ?? 0);
+                    $rows = $itemsByUnit->get($unitId) ?? collect();
+                    $ruleCount = $rows->count();
+                    $pendingCount = (int) ($pendingByUnit[$unitId] ?? 0);
+                @endphp
 
-                                    <x-modal name="ucw-note-{{ (int) $it->id }}" :show="false" maxWidth="lg">
-                                        <div class="p-6">
-                                            <div class="flex items-start justify-between gap-3">
-                                                <h2 class="text-lg font-semibold text-slate-800">Komentar Penolakan</h2>
-                                                <button type="button" class="text-slate-400 hover:text-slate-600" x-on:click="$dispatch('close-modal', 'ucw-note-{{ (int) $it->id }}')">
-                                                    <i class="fa-solid fa-xmark"></i>
-                                                </button>
-                                            </div>
-                                            <div class="mt-3 text-sm text-slate-700 whitespace-pre-wrap">{{ $it->decided_note }}</div>
-                                            <div class="mt-5 flex justify-end">
-                                                <x-ui.button type="button" variant="outline" x-on:click="$dispatch('close-modal', 'ucw-note-{{ (int) $it->id }}')">Tutup</x-ui.button>
-                                            </div>
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100" x-data="{ open: false, rejecting: false }">
+                    <button type="button" class="w-full px-6 py-4 flex items-center justify-between gap-3" x-on:click="open = !open; if (!open) rejecting = false;">
+                        <div class="min-w-0 text-left">
+                            <div class="text-slate-800 font-semibold truncate">{{ $u->name ?? '-' }}</div>
+                            <div class="text-xs text-slate-500">{{ $ruleCount }} aturan</div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            @if($pendingCount > 0)
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">{{ $pendingCount }} pending</span>
+                            @endif
+                            <i class="fa-solid fa-chevron-down text-slate-400 transition-transform" x-bind:class="open ? 'rotate-180' : ''"></i>
+                        </div>
+                    </button>
+
+                    <div x-show="open" x-cloak class="px-6 pb-6">
+                        <div class="border-t border-slate-100 pt-4">
+                            <x-ui.table min-width="720px">
+                                <x-slot name="head">
+                                    <tr>
+                                        <th class="px-6 py-4 text-left whitespace-nowrap">Kriteria</th>
+                                        <th class="px-6 py-4 text-right whitespace-nowrap">Bobot</th>
+                                        <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                                    </tr>
+                                </x-slot>
+                                @forelse($rows as $it)
+                                    @php($status = $it->status?->value ?? (string) $it->status ?? 'draft')
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="px-6 py-4">{{ $it->performanceCriteria->name ?? '-' }}</td>
+                                        <td class="px-6 py-4 text-right">{{ number_format((float)($it->weight ?? 0), 2) }}</td>
+                                        <td class="px-6 py-4">
+                                            @switch($status)
+                                                @case('active')
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Active</span>
+                                                    @break
+                                                @case('rejected')
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-100">Rejected</span>
+                                                    @break
+                                                @case('pending')
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Pending</span>
+                                                    @break
+                                                @default
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-100">Draft</span>
+                                            @endswitch
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="3" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
+                                @endforelse
+                            </x-ui.table>
+
+                            @if($pendingCount > 0)
+                                <div class="mt-4 flex justify-end gap-2">
+                                    <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.approve_unit', $unitId) }}" onsubmit="return confirm('Setujui semua bobot pending pada unit ini?');">
+                                        @csrf
+                                        <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}" />
+                                        <x-ui.button type="submit" variant="approve" class="h-10 px-4 text-sm">Setuju</x-ui.button>
+                                    </form>
+                                    <x-ui.button type="button" variant="reject" class="h-10 px-4 text-sm" x-on:click="rejecting = !rejecting">Tolak</x-ui.button>
+                                </div>
+
+                                <div x-show="rejecting" x-cloak class="mt-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                                    <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.reject_unit', $unitId) }}" class="space-y-4" onsubmit="return confirm('Tolak semua bobot pending pada unit ini?');">
+                                        @csrf
+                                        <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}" />
+                                        <div>
+                                            <label class="block text-sm font-medium text-slate-700 mb-1">Catatan (wajib)</label>
+                                            <textarea name="comment" rows="4" class="w-full rounded-xl border-slate-300 focus:border-slate-400 focus:ring-slate-300" placeholder="Tuliskan apa yang perlu diubah..." required></textarea>
+                                            <div class="mt-1 text-xs text-slate-500">Catatan ini akan terlihat oleh Kepala Unit.</div>
                                         </div>
-                                    </x-modal>
-                                @endif
-                                @break
-                            @case('pending')
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Pending</span>
-                                @break
-                            @default
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-100">Draft</span>
-                        @endswitch
-                    </td>
-                    <td class="px-6 py-4 text-right">
-                        @if($status === 'pending')
-                            <div class="inline-flex gap-2">
-                                <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.approve', $it) }}">
-                                    @csrf
-                                    <x-ui.button type="submit" variant="approve" class="h-9 px-3 text-xs">
-                                        Approve
-                                    </x-ui.button>
-                                </form>
-                                <x-ui.button type="button" variant="reject" class="h-9 px-3 text-xs" x-on:click="$dispatch('open-modal', 'ucw-reject-{{ (int) $it->id }}')">
-                                    Tolak
-                                </x-ui.button>
-
-                                <x-modal name="ucw-reject-{{ (int) $it->id }}" :show="false" maxWidth="lg">
-                                    <div class="p-6">
-                                        <div class="flex items-start justify-between gap-3">
-                                            <h2 class="text-lg font-semibold text-slate-800">Tolak Bobot Kriteria</h2>
-                                            <button type="button" class="text-slate-400 hover:text-slate-600" x-on:click="$dispatch('close-modal', 'ucw-reject-{{ (int) $it->id }}')">
-                                                <i class="fa-solid fa-xmark"></i>
-                                            </button>
+                                        <div class="flex justify-end gap-2">
+                                            <x-ui.button type="button" variant="outline" x-on:click="rejecting = false">Batal</x-ui.button>
+                                            <x-ui.button type="submit" variant="reject">Kirim Penolakan</x-ui.button>
                                         </div>
-
-                                        <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.reject', $it) }}" class="mt-4 space-y-4">
-                                            @csrf
-                                            <div>
-                                                <label class="block text-sm font-medium text-slate-700 mb-1">Komentar</label>
-                                                <textarea name="comment" rows="4" class="w-full rounded-xl border-slate-300 focus:border-slate-400 focus:ring-slate-300" placeholder="Tuliskan alasan penolakan / arahan perbaikan..." required></textarea>
-                                                <div class="mt-1 text-xs text-slate-500">Komentar ini akan terlihat oleh Kepala Unit.</div>
-                                            </div>
-
-                                            <div class="flex justify-end gap-2">
-                                                <x-ui.button type="button" variant="outline" x-on:click="$dispatch('close-modal', 'ucw-reject-{{ (int) $it->id }}')">Batal</x-ui.button>
-                                                <x-ui.button type="submit" variant="reject">Kirim Penolakan</x-ui.button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </x-modal>
-                            </div>
-                        @else
-                            <span class="text-slate-400 text-xs">—</span>
-                        @endif
-                    </td>
-                </tr>
+                                    </form>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
             @empty
-                <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
+                <div class="bg-white rounded-2xl shadow-sm p-8 border border-slate-100 text-center text-slate-500">Tidak ada data.</div>
             @endforelse
-        </x-ui.table>
+        </div>
 
         {{-- FOOTER PAGINATION --}}
         <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div class="text-sm text-slate-600">
                 Menampilkan
-                <span class="font-medium text-slate-800">{{ $items->firstItem() ?? 0 }}</span>
+                <span class="font-medium text-slate-800">{{ $units->firstItem() ?? 0 }}</span>
                 -
-                <span class="font-medium text-slate-800">{{ $items->lastItem() ?? 0 }}</span>
+                <span class="font-medium text-slate-800">{{ $units->lastItem() ?? 0 }}</span>
                 dari
-                <span class="font-medium text-slate-800">{{ $items->total() }}</span>
-                data
+                <span class="font-medium text-slate-800">{{ $units->total() }}</span>
+                unit
             </div>
-                <div>{{ $items->withQueryString()->links() }}</div>
+            <div>{{ $units->withQueryString()->links() }}</div>
         </div>
     </div>
 </x-app-layout>

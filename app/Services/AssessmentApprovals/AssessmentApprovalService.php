@@ -153,12 +153,36 @@ class AssessmentApprovalService
                 throw new \RuntimeException('Unit Kepala Poliklinik tidak ditemukan.');
             }
 
-            $isChildUnit = DB::table('units')
-                ->where('id', $targetUnitId)
+            // Allow own unit
+            if ($targetUnitId === $myUnitId) {
+                return;
+            }
+
+            // If the unit hierarchy is configured, only allow child units.
+            // Otherwise (fallback dataset), allow all units of type 'poliklinik'
+            // to match the listing scope used in the controller/dashboard.
+            $hasChildren = DB::table('units')
                 ->where('parent_id', $myUnitId)
                 ->exists();
 
-            if (!$isChildUnit) {
+            if ($hasChildren) {
+                $isChildUnit = DB::table('units')
+                    ->where('id', $targetUnitId)
+                    ->where('parent_id', $myUnitId)
+                    ->exists();
+
+                if (!$isChildUnit) {
+                    throw new \RuntimeException('Tidak memiliki akses untuk melihat penilaian ini.');
+                }
+                return;
+            }
+
+            $isPoliklinikUnit = DB::table('units')
+                ->where('id', $targetUnitId)
+                ->where('type', 'poliklinik')
+                ->exists();
+
+            if (!$isPoliklinikUnit) {
                 throw new \RuntimeException('Tidak memiliki akses untuk melihat penilaian ini.');
             }
             return;

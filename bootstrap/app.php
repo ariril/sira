@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Session\TokenMismatchException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -26,5 +27,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // $middleware->appendToGroup('web', [ \App\Http\Middleware\RoleMiddleware::class ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (TokenMismatchException $e, $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Sesi Anda sudah kedaluwarsa. Silakan muat ulang halaman dan coba lagi.',
+                ], 419);
+            }
+
+            return redirect()
+                ->back()
+                ->with('danger', 'Sesi Anda sudah kedaluwarsa. Silakan muat ulang halaman dan coba lagi.');
+        });
     })->create();

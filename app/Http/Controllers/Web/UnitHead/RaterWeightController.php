@@ -204,6 +204,7 @@ class RaterWeightController extends Controller
                 fn($q) => $q->where('assessment_period_id', (int) $filters['assessment_period_id']),
                 fn($q) => $q->when($activePeriodId > 0, fn($qq) => $qq->where('assessment_period_id', '!=', $activePeriodId))
             )
+            ->orderByDesc('assessment_period_id')
             ->orderByDesc('id');
 
         $itemsWorking = $workingQuery->paginate(20, ['*'], 'page_working')->withQueryString();

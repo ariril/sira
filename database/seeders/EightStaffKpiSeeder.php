@@ -1294,9 +1294,39 @@ class EightStaffKpiSeeder extends Seeder
         // =========================================================
         $taskPointsIdByUnit = [];
         $taskMoneyIdByUnit = [];
+
+        // Seed rule:
+        // - Create a small, realistic quota of claims per task (per period): 2 for November demo, 3 for December demo.
+        // - Distribute claim ownership evenly among eligible staff (exclude kepala_* entries).
+        $desiredClaimsPerTask = 2;
+        if (Str::contains((string) $period->name, 'December')) {
+            $desiredClaimsPerTask = 3;  
+        }
+
+        $eligibleStaffIdsByUnit = [];
+        foreach ($staff as $key => $info) {
+            if (Str::startsWith((string) $key, 'kepala_')) {
+                continue;
+            }
+            $uSlug = (string) ($info['unit_slug'] ?? '');
+            $uId = (int) ($info['id'] ?? 0);
+            if ($uSlug === '' || $uId <= 0) {
+                continue;
+            }
+            $eligibleStaffIdsByUnit[$uSlug] ??= [];
+            $eligibleStaffIdsByUnit[$uSlug][] = $uId;
+        }
+
+        $taskClaimQuotaById = [];
         foreach (collect($staff)->pluck('unit_slug')->unique()->values()->all() as $unitSlug) {
             $uId = (int) $unitIdResolver((string) $unitSlug);
             if ($uId <= 0) {
+                continue;
+            }
+
+            $eligibleIds = $eligibleStaffIdsByUnit[(string) $unitSlug] ?? [];
+            $claimQuota = min($desiredClaimsPerTask, count($eligibleIds));
+            if ($claimQuota <= 0) {
                 continue;
             }
 
@@ -1321,7 +1351,7 @@ class EightStaffKpiSeeder extends Seeder
                 'due_time' => '23:59:00',
                 'bonus_amount' => null,
                 'points' => 10,
-                'max_claims' => 99,
+                'max_claims' => $claimQuota,
                 'cancel_window_hours' => 24,
                 'default_penalty_type' => 'none',
                 'default_penalty_value' => 0,
@@ -1331,6 +1361,8 @@ class EightStaffKpiSeeder extends Seeder
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
+
+            $taskClaimQuotaById[(int) $taskPointsIdByUnit[(string) $unitSlug]] = $claimQuota;
 
             $taskMoneyIdByUnit[(string) $unitSlug] = (int) DB::table('additional_tasks')->insertGetId([
                 'unit_id' => $uId,
@@ -1344,7 +1376,7 @@ class EightStaffKpiSeeder extends Seeder
                 'due_time' => '23:59:00',
                 'bonus_amount' => 500000,
                 'points' => null,
-                'max_claims' => 99,
+                'max_claims' => $claimQuota,
                 'cancel_window_hours' => 24,
                 'default_penalty_type' => 'none',
                 'default_penalty_value' => 0,
@@ -1354,6 +1386,76 @@ class EightStaffKpiSeeder extends Seeder
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
+
+            $taskClaimQuotaById[(int) $taskMoneyIdByUnit[(string) $unitSlug]] = $claimQuota;
+        }
+
+        // Seed claims evenly per unit across both tasks (round-robin).
+        $rrIndexByUnit = [];
+        foreach (collect($staff)->pluck('unit_slug')->unique()->values()->all() as $unitSlug) {
+            $eligibleIds = $eligibleStaffIdsByUnit[(string) $unitSlug] ?? [];
+            $eligibleCount = count($eligibleIds);
+            if ($eligibleCount <= 0) {
+                continue;
+            }
+
+            $rrIndexByUnit[(string) $unitSlug] ??= 0;
+
+            $taskIds = [
+                (int) ($taskPointsIdByUnit[(string) $unitSlug] ?? 0),
+                (int) ($taskMoneyIdByUnit[(string) $unitSlug] ?? 0),
+            ];
+            foreach ($taskIds as $taskId) {
+                if ($taskId <= 0) {
+                    continue;
+                }
+                $quota = (int) ($taskClaimQuotaById[$taskId] ?? 0);
+                if ($quota <= 0) {
+                    continue;
+                }
+
+                $start = $rrIndexByUnit[(string) $unitSlug] % $eligibleCount;
+                $rrIndexByUnit[(string) $unitSlug] = $start + $quota;
+
+                for ($i = 0; $i < $quota; $i++) {
+                    $uid = (int) $eligibleIds[($start + $i) % $eligibleCount];
+                    if ($uid <= 0) {
+                        continue;
+                    }
+
+                    // Awarded points: points task uses its points; money task still contributes points via awarded_points.
+                    $awardedPoints = $taskId === (int) ($taskPointsIdByUnit[(string) $unitSlug] ?? 0) ? 10.0 : 10.0;
+
+                    DB::table('additional_task_claims')->insert([
+                        'additional_task_id' => $taskId,
+                        'user_id' => $uid,
+                        'status' => 'approved',
+                        'claimed_at' => $assessmentDate,
+                        'completed_at' => null,
+                        'cancelled_at' => null,
+                        'cancelled_by' => null,
+                        'cancel_deadline_at' => null,
+                        'cancel_reason' => null,
+                        'penalty_type' => 'none',
+                        'penalty_value' => 0,
+                        'penalty_base' => 'task_bonus',
+                        'penalty_applied' => 0,
+                        'penalty_applied_at' => null,
+                        'penalty_amount' => null,
+                        'penalty_note' => null,
+                        'result_file_path' => null,
+                        'result_note' => 'Seeder claim (quota=' . $quota . ')',
+                        'awarded_points' => $awardedPoints,
+                        'awarded_bonus_amount' => null,
+                        'reviewed_by_id' => null,
+                        'reviewed_at' => $assessmentDate,
+                        'review_comment' => 'Seeder auto approve',
+                        'is_violation' => 0,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                }
+            }
         }
 
         foreach ($data as $key => $row) {
@@ -1363,40 +1465,11 @@ class EightStaffKpiSeeder extends Seeder
             }
             $unitId = (int) $unitIdResolver($staff[$key]['unit_slug']);
 
-            // 0) Kontribusi Tambahan: claim awarded_points sesuai RAW dataset (kontrib).
+            // 0) Kontribusi Tambahan:
+            // additional_task_claims sudah diseed merata (lihat blok di atas).
+            // Tetap mirror kontribusi ke additional_contributions (legacy / direct-entry module).
             $contribPoints = (float) ($row['contrib'] ?? 0);
             $unitSlug = (string) ($staff[$key]['unit_slug'] ?? '');
-            $taskId = (int) ($taskPointsIdByUnit[$unitSlug] ?? 0);
-            if ($taskId > 0 && $contribPoints > 0) {
-                DB::table('additional_task_claims')->insert([
-                    'additional_task_id' => (int) $taskId,
-                    'user_id' => $userId,
-                    'status' => 'approved',
-                    'claimed_at' => $assessmentDate,
-                    'completed_at' => null,
-                    'cancelled_at' => null,
-                    'cancelled_by' => null,
-                    'cancel_deadline_at' => null,
-                    'cancel_reason' => null,
-                    'penalty_type' => 'none',
-                    'penalty_value' => 0,
-                    'penalty_base' => 'task_bonus',
-                    'penalty_applied' => 0,
-                    'penalty_applied_at' => null,
-                    'penalty_amount' => null,
-                    'penalty_note' => null,
-                    'result_file_path' => null,
-                    'result_note' => 'Seeder claim (kontrib=' . $contribPoints . ')',
-                    'awarded_points' => (float) $contribPoints,
-                    'awarded_bonus_amount' => null,
-                    'reviewed_by_id' => null,
-                    'reviewed_at' => $assessmentDate,
-                    'review_comment' => 'Seeder auto approve',
-                    'is_violation' => 0,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-            }
 
             // Mirror kontribusi also into additional_contributions table (legacy / direct-entry module).
             if (Schema::hasTable('additional_contributions') && $contribPoints > 0) {

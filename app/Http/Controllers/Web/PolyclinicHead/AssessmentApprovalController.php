@@ -143,7 +143,7 @@ class AssessmentApprovalController extends Controller
         }
     }
 
-    public function detail(Request $request, AssessmentApproval $assessment, AssessmentApprovalService $approvalSvc, AssessmentApprovalDetailService $detailSvc): View
+    public function detail(Request $request, AssessmentApproval $assessment, AssessmentApprovalService $approvalSvc, AssessmentApprovalDetailService $detailSvc): View|RedirectResponse
     {
         $this->authorizeAccess();
 
@@ -155,7 +155,11 @@ class AssessmentApprovalController extends Controller
         ]);
 
         $pa = $assessment->performanceAssessment;
-        $approvalSvc->assertCanViewPerformanceAssessment(Auth::user(), $pa);
+        try {
+            $approvalSvc->assertCanViewPerformanceAssessment(Auth::user(), $pa);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['status' => $e->getMessage()]);
+        }
 
         $breakdown = $detailSvc->getBreakdown($pa);
         $raw = $detailSvc->getRawImportedValues($pa);

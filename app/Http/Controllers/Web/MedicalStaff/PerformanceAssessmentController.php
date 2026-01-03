@@ -363,9 +363,9 @@ class PerformanceAssessmentController extends Controller
                 ['label' => 'Nilai Relatif (R)', 'value' => $relative !== null ? number_format($relative, 2) : '-'],
                 ['label' => 'Bobot', 'value' => $weight !== null ? number_format($weight, 2) : '-'],
                 [
-                    'label' => 'Kontribusi (versi WSM)',
+                    'label' => 'Kontribusi (berbobot)',
                     'value' => $contributionWeightedAvg !== null ? number_format($contributionWeightedAvg, 2) : '-',
-                    'hint' => 'Kontribusi = (bobot/ΣBobotAktif) × R. Total WSM = Σ(bobot×R)/Σ(bobot).',
+                    'hint' => 'Kontribusi = (bobot/ΣBobotAktif) × R. Total skor kinerja = Σ(bobot×R)/Σ(bobot).',
                 ],
                 [
                     'label' => 'Kontribusi (R×bobot/100)',

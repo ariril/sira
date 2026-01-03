@@ -43,7 +43,7 @@
                 @if(isset($d['wsm']['total']))
                 <tfoot>
                     <tr class="bg-slate-50 border-t border-slate-200">
-                        <td colspan="4" class="px-4 py-2 text-right font-medium">Total Skor WSM</td>
+                        <td colspan="4" class="px-4 py-2 text-right font-medium">Total Skor Kinerja</td>
                         <td class="px-4 py-2 text-right font-semibold">{{ $fmt($d['wsm']['total'], 4) }}</td>
                     </tr>
                 </tfoot>

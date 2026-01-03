@@ -44,7 +44,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <x-stat-card label="File Absensi Diunggah" value="{{ $stats['attendance_batches'] ?? 0 }}" icon="fa-file-excel" accent="from-emerald-500 to-teal-600"/>
             <x-stat-card label="Data Absensi" value="{{ $stats['attendances'] ?? 0 }}" icon="fa-calendar-check" accent="from-emerald-500 to-teal-600"/>
-            <x-stat-card label="Penilaian Pending" value="{{ $stats['approvals_pending'] ?? 0 }}" icon="fa-list-check" accent="from-emerald-500 to-teal-600"/>
+            <x-stat-card label="Penilaian Pending (Lv.1)" value="{{ $stats['approvals_pending_l1'] ?? 0 }}" icon="fa-list-check" accent="from-emerald-500 to-teal-600"/>
             <x-stat-card label="Unit Dapat Alokasi" value="{{ $stats['unit_allocations'] ?? 0 }}" icon="fa-diagram-project" accent="from-emerald-500 to-teal-600"/>
         </div>
 

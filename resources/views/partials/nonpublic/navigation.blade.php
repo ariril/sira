@@ -290,7 +290,7 @@
                        class="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow border p-1 space-y-1">
                       <a href="{{ route('profile.edit') }}" class="block px-3 py-2 rounded hover:bg-slate-50 text-sm">Profil</a>
                       @if($user && $user->roles->count() > 1)
-                        <div class="px-3 pt-2 border-t text-[11px] font-semibold uppercase tracking-wide text-slate-400">Ganti Peran</div>
+                        <div class="px-3 pt-2 border-t border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Ganti Peran</div>
                         <div class="max-h-48 overflow-auto py-1">
                           @foreach($user->roles as $r)
                             @php $isActive = ($role === $r->slug); @endphp
@@ -309,7 +309,8 @@
                           @endforeach
                         </div>
                       @endif
-                      <a href="{{ route('logout.get') }}" class="block w-full text-left px-3 py-2 rounded hover:bg-slate-50 text-sm border-t pt-1">Keluar</a>
+                      <div class="border-t border-slate-200 my-1"></div>
+                      <a href="{{ route('logout.get') }}" class="block w-full text-left px-3 py-2 rounded hover:bg-slate-50 text-sm">Keluar</a>
                     </div>
                 </div>
             </div>

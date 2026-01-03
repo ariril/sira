@@ -892,6 +892,8 @@ class DatabaseSeeder extends Seeder
         $this->call(EightStaffKpiSeeder::class);
         $this->call(NovemberRaterWeightSeeder::class);
         $this->call(DecemberRaterWeightSeeder::class);
+        $this->call(DummyAdditionalTaskUsageSeeder::class);
+        
     }
 
     private function seedCriteriaRaterRules(): void

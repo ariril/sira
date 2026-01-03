@@ -36,7 +36,7 @@
 
         {{-- KPI cards (samakan gaya dengan Admin RS / Super Admin) --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <x-stat-card label="Avg Rating (30 hari)" value="{{ number_format($me['avg_rating_30d'] ?? 0, 2) }}" icon="fa-star" accent="from-cyan-500 to-sky-600" />
+            <x-stat-card label="Avg Rating (30 hari)" value="{{ ($me['avg_rating_30d'] ?? null) === null ? '—' : number_format((float) $me['avg_rating_30d'], 2) }}" icon="fa-star" accent="from-cyan-500 to-sky-600" />
             <x-stat-card label="Total Review (30 hari)" value="{{ $me['total_review_30d'] ?? 0 }}" icon="fa-comments" accent="from-cyan-500 to-sky-600" />
             <x-stat-card label="Remunerasi Terakhir" value="{{ optional($me['remunerasi_terakhir'])->total ?? '-' }}" icon="fa-wallet" accent="from-cyan-500 to-sky-600" />
             <x-stat-card label="Skor Kinerja Terakhir" value="{{ $me['nilai_kinerja_terakhir'] ?? '-' }}" icon="fa-gauge" accent="from-cyan-500 to-sky-600" />

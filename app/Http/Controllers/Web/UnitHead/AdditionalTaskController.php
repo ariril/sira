@@ -76,6 +76,9 @@ class AdditionalTaskController extends Controller
                     'claims as review_waiting' => function ($q) {
                         $q->whereIn('status', AdditionalTaskStatusService::REVIEW_WAITING_STATUSES);
                     },
+                    'claims as finished_claims' => function ($q) {
+                        $q->whereIn('status', ['approved', 'completed']);
+                    },
                 ])
                 ->where('additional_tasks.unit_id', $unitId)
                 ->orderByDesc('additional_tasks.id');

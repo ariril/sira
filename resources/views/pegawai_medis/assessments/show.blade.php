@@ -22,7 +22,7 @@
                 <div class="text-lg font-semibold">{{ $assessment->validation_status?->value ?? '-' }}</div>
             </div>
             <div class="p-4 rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
-                <div class="text-sm text-slate-500" title="WSM (Weighted Sum Method)">Skor Kinerja</div>
+                <div class="text-sm text-slate-500">Skor Kinerja</div>
                 @if (($kinerja['applicable'] ?? false) && ($kinerja['hasWeights'] ?? false))
                     <div class="flex items-center justify-between gap-3">
                         <div class="text-lg font-semibold">{{ number_format((float) ($kinerja['total'] ?? 0), 2) }}
@@ -125,7 +125,7 @@
                                         <tr>
                                             <th class="px-4 py-2 text-left">Kriteria</th>
                                             <th class="px-4 py-2 text-right">Bobot</th>
-                                            <th class="px-4 py-2 text-right" title="Nilai relatif (0–100) yang dipakai untuk total WSM">Nilai Relatif</th>
+                                            <th class="px-4 py-2 text-right" title="Nilai relatif (0–100) yang dipakai untuk total skor kinerja">Nilai Relatif</th>
                                             <th class="px-4 py-2 text-right" title="Kontribusi = (bobot/ΣBobotAktif)×Nilai Relatif">Kontribusi
                                             </th>
                                         </tr>
@@ -154,7 +154,7 @@
                                 ΣBobotAktif = {{ number_format((float) ($kinerja['sumWeight'] ?? 0), 2) }}.
                             </div>
                             <div class="text-xs text-slate-500">
-                                Total WSM = Σ(bobot×nilai relatif) / Σ(bobot) (hanya kriteria aktif).
+                                Total skor kinerja = Σ(bobot×nilai relatif) / Σ(bobot) (hanya kriteria aktif).
                             </div>
                         </div>
 
@@ -242,7 +242,7 @@
                                                     Nilai Kinerja (Relatif Unit):
                                                     {{ $rel !== null ? number_format((float) $rel, 2) : '-' }}
                                                 </div>
-                                                <div class="text-sm text-slate-600" title="WSM (Weighted Sum Method)">
+                                                <div class="text-sm text-slate-600">
                                                     Nilai Normalisasi: {{ $norm !== null ? number_format((float) $norm, 2) : '-' }}
                                                 </div>
 
@@ -283,7 +283,7 @@
 
                                             @if (!empty($raw['formula']))
                                                 <div class="pt-3 mt-2 border-t border-slate-200 space-y-2">
-                                                    <div class="text-xs uppercase tracking-wide text-slate-500" title="WSM (Weighted Sum Method)">
+                                                    <div class="text-xs uppercase tracking-wide text-slate-500">
                                                         Rumus (teks)
                                                     </div>
                                                     @if (!empty($raw['formula']['normalization_text']))
