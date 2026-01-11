@@ -19,12 +19,13 @@ class ReviewInvitation extends Model
         'unit_id',
         'patient_name',
         'contact',
+        'email',
         'token_plain',
         'token_hash',
         'status',
         'expires_at',
         'sent_at',
-        'opened_at',
+        'clicked_at',
         'used_at',
         'client_ip',
         'user_agent',
@@ -33,7 +34,7 @@ class ReviewInvitation extends Model
     protected $casts = [
         'expires_at' => 'datetime',
         'sent_at' => 'datetime',
-        'opened_at' => 'datetime',
+        'clicked_at' => 'datetime',
         'used_at' => 'datetime',
     ];
 

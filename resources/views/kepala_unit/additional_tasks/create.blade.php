@@ -20,8 +20,8 @@
                 enctype="multipart/form-data"
                 class="grid md:grid-cols-2 gap-5"
                 x-data="{
-                    bonus: null,
-                    points: null,
+                    bonus: @js(old('bonus_amount')),
+                    points: @js(old('points')),
                     cancelWindow: @js(old('cancel_window_hours', 24)),
                     penaltyType: @js(old('default_penalty_type', 'none')),
                     penaltyValue: @js(old('default_penalty_value', 0)),
@@ -102,7 +102,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Maks. Klaim</label>
-                    <x-ui.input type="number" name="max_claims" value="1" />
+                    <x-ui.input type="number" name="max_claims" :value="old('max_claims', 1)" />
                 </div>
 
                 <div>

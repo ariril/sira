@@ -369,7 +369,7 @@ class EnsureNovemberDemoKpiData extends Command
                         'status' => 'used',
                         'expires_at' => $now->copy()->addDays(7),
                         'sent_at' => $now->copy()->subDays(1),
-                        'opened_at' => $now->copy()->subHours(2),
+                        'clicked_at' => $now->copy()->subHours(2),
                         'used_at' => $now,
                         'client_ip' => '127.0.0.1',
                         'user_agent' => 'AutoDemoSeeder',

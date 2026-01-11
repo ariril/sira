@@ -11,6 +11,7 @@ use App\Http\Controllers\Web\FaqController;
 use App\Http\Controllers\Web\AboutPageController;
 use App\Http\Controllers\Web\ContactController;
 use App\Http\Controllers\Web\PublicReviewController;
+use App\Http\Controllers\Web\ReviewInvitationRedirectController;
 
 // Dashboards per role
 use App\Http\Controllers\Web\SuperAdmin\DashboardController as SADashboard;
@@ -36,6 +37,10 @@ Route::get('/contact',              [ContactController::class, 'index'])->name('
 
 
 // Invitation-based public reviews (one-time token)
+Route::get('/r/{token}', ReviewInvitationRedirectController::class)
+    ->middleware('throttle:review-invite')
+    ->name('reviews.invite.short');
+
 Route::get('/reviews/invite/{token}', [PublicReviewController::class, 'show'])
     ->middleware('throttle:review-invite')
     ->name('reviews.invite.show');
@@ -170,6 +175,12 @@ Route::middleware(['auth','verified','role:admin_rs'])
         // Review Invitations (import invitation links from Excel)
         Route::get('review-invitations', [\App\Http\Controllers\Web\AdminHospital\ReviewInvitationController::class, 'index'])
             ->name('review_invitations.index');
+        Route::post('review-invitations/{id}/send-email', [\App\Http\Controllers\Web\AdminHospital\ReviewInvitationController::class, 'sendEmail'])
+            ->name('review_invitations.send_email');
+        Route::post('review-invitations/send-email-bulk', [\App\Http\Controllers\Web\AdminHospital\ReviewInvitationController::class, 'sendEmailBulk'])
+            ->name('review_invitations.send_email_bulk');
+        Route::post('review-invitations/test-email', [\App\Http\Controllers\Web\AdminHospital\ReviewInvitationController::class, 'testEmail'])
+            ->name('review_invitations.test_email');
         Route::get('review-invitations/import', [\App\Http\Controllers\Web\AdminHospital\ReviewInvitationImportController::class, 'form'])
             ->name('review_invitations.import.form');
         Route::post('review-invitations/import', [\App\Http\Controllers\Web\AdminHospital\ReviewInvitationImportController::class, 'process'])

@@ -7,6 +7,7 @@ use App\Models\AssessmentPeriod;
 use App\Services\Reviews\Imports\ReviewInvitationImport;
 use App\Services\Reviews\ReviewInvitationService;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -17,9 +18,15 @@ class ReviewInvitationImportController extends Controller
     public function form(Request $request): View
     {
         ['period' => $period, 'periodWarning' => $periodWarning, 'periodOptions' => $periodOptions, 'selectedPeriodId' => $selectedPeriodId] = $this->resolvePeriodContext($request);
+
+        $errorMessage = session()->pull('review_invitation_import_error');
+        $results = session()->pull('review_invitation_import_results', []);
+        $summary = session()->pull('review_invitation_import_summary');
+
         return view('admin_rs.review_invitations.import', [
-            'results' => session('review_invitation_import_results', []),
-            'summary' => session('review_invitation_import_summary', null),
+            'results' => $results,
+            'summary' => $summary,
+            'errorMessage' => $errorMessage,
             'period' => $period,
             'periodWarning' => $periodWarning,
             'periodOptions' => $periodOptions,
@@ -27,7 +34,7 @@ class ReviewInvitationImportController extends Controller
         ]);
     }
 
-    public function process(Request $request, ReviewInvitationService $service): View
+    public function process(Request $request, ReviewInvitationService $service): View|RedirectResponse
     {
         ['period' => $period, 'periodWarning' => $periodWarning, 'periodOptions' => $periodOptions, 'selectedPeriodId' => $selectedPeriodId] = $this->resolvePeriodContext($request, true);
 
@@ -49,7 +56,31 @@ class ReviewInvitationImportController extends Controller
         $service->setTargetPeriodId($period?->id ? (int) $period->id : null);
 
         $import = new ReviewInvitationImport($service);
-        $import->import($request->file('file')->getRealPath());
+
+        try {
+            $import->import($request->file('file')->getRealPath());
+        } catch (\RuntimeException $e) {
+            \Log::warning('review_invitation_import_header_error', [
+                'error' => $e->getMessage(),
+            ]);
+
+            session(['review_invitation_import_error' => $e->getMessage()]);
+
+            return redirect()
+                ->route('admin_rs.review_invitations.import.form', ['period_id' => $selectedPeriodId])
+                ->withInput();
+        } catch (\Throwable $e) {
+            \Log::error('review_invitation_import_failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            $msg = str_contains($e->getMessage(), "Unknown column 'email'")
+                ? 'Kolom email belum tersedia di database. Jalankan migrate:fresh (dev) agar schema terbaru terpasang.'
+                : 'Gagal memproses file import. Silakan cek format file dan coba lagi.';
+
+            session(['review_invitation_import_error' => $msg]);
+            return redirect()->route('admin_rs.review_invitations.import.form', ['period_id' => $selectedPeriodId]);
+        }
 
         $results = $import->results;
 
@@ -66,19 +97,17 @@ class ReviewInvitationImportController extends Controller
             ->all();
 
         session([
-            'review_invitation_import_results' => $results,
-            'review_invitation_import_summary' => $summary,
+            // persist for export
             'review_invitation_import_success' => $successRows,
+            // clear any previous error
+            'review_invitation_import_error' => null,
         ]);
 
-        return view('admin_rs.review_invitations.import', [
-            'results' => $results,
-            'summary' => $summary,
-            'period' => $period,
-            'periodWarning' => $periodWarning,
-            'periodOptions' => $periodOptions,
-            'selectedPeriodId' => $selectedPeriodId,
-        ]);
+        // show result only right after upload (flash)
+        session()->flash('review_invitation_import_results', $results);
+        session()->flash('review_invitation_import_summary', $summary);
+
+        return redirect()->route('admin_rs.review_invitations.import.form', ['period_id' => $selectedPeriodId]);
     }
 
     /**

@@ -28,12 +28,12 @@ class ReviewInvitationImport
             $headings[$col] = Str::lower(trim((string) $sheet->getCell("{$col}1")->getValue()));
         }
 
-        $required = ['registration_ref', 'patient_name', 'phone', 'unit', 'staff_numbers'];
+        $required = ['registration_ref', 'patient_name', 'phone', 'email', 'unit', 'staff_numbers'];
         $map = [];
         foreach ($required as $key) {
             $col = array_search($key, $headings, true);
             if ($col === false) {
-                throw new \RuntimeException('Header tidak sesuai. Wajib ada kolom: registration_ref, patient_name, phone, unit, staff_numbers.');
+                throw new \RuntimeException('Header tidak sesuai. Wajib ada kolom: registration_ref, patient_name, phone, email, unit, staff_numbers.');
             }
             $map[$key] = $col;
         }

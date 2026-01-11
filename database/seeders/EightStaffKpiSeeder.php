@@ -1658,7 +1658,7 @@ class EightStaffKpiSeeder extends Seeder
                     'status' => 'used',
                     'expires_at' => $assessmentDate->copy()->addDays(7),
                     'sent_at' => $assessmentDate->copy()->subDays(1),
-                    'opened_at' => $assessmentDate->copy()->subHours(3),
+                    'clicked_at' => $assessmentDate->copy()->subHours(3),
                     'used_at' => $assessmentDate,
                     'client_ip' => '127.0.0.1',
                     'user_agent' => 'Seeder',

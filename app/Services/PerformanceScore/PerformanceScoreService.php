@@ -186,8 +186,11 @@ class PerformanceScoreService
             $basisByCriteriaId[$criteriaId] = $basis;
             $customTargetByCriteriaId[$criteriaId] = $target;
 
+            // IMPORTANT:
+            // Normalisasi (nilai_normalisasi) disajikan sebagai basis-percentage (raw/basis*100)
+            // untuk BENEFIT dan COST. Penalti COST diterapkan pada nilai_relativ_unit.
             $norm = $this->normalizer->normalizeWithBasis(
-                $criteriaType,
+                'benefit',
                 $basis,
                 $rawByUser,
                 $userIds,
@@ -242,10 +245,25 @@ class PerformanceScoreService
                 $normalized = (float) ($normalizedByCriteriaId[$criteriaId][$uid] ?? 0.0);
                 $maxNorm = (float) ($maxNormByCriteriaId[$criteriaId] ?? 0.0);
 
-                // Nilai Relatif (0–100) selalu pakai rumus benefit:
-                // R = IF(max(N)>0, (N/max(N))*100, 0)
-                $relative = $maxNorm > 0.0 ? (($normalized / $maxNorm) * 100.0) : 0.0;
-                $relative = $this->clampPct($relative);
+                // Nilai Relatif (0–100):
+                // - BENEFIT: R = IF(max(N)>0, (N/max(N))*100, 0)
+                // - COST:    R =
+                //      - if min(N)=0: top performer (N=0) => 100, others => 0
+                //      - else: (min(N)/N)*100
+                if ($readinessStatus !== 'ready') {
+                    $relative = 0.0;
+                } elseif ($type === 'cost') {
+                    $minNorm = (float) ($minNormByCriteriaId[$criteriaId] ?? 0.0);
+                    if ($minNorm <= 0.0) {
+                        $relative = $normalized <= 0.0 ? 100.0 : 0.0;
+                    } else {
+                        $relative = $normalized > 0.0 ? (($minNorm / $normalized) * 100.0) : 0.0;
+                    }
+                } else {
+                    $relative = $maxNorm > 0.0 ? (($normalized / $maxNorm) * 100.0) : 0.0;
+                }
+
+                $relative = $this->clampPct((float) $relative);
 
                 if ($included) {
                     $sumWeightIncluded += $activeWeight;
@@ -452,7 +470,7 @@ class PerformanceScoreService
             $customTargetByCriteriaId[$criteriaId] = $target;
 
             $norm = $this->normalizer->normalizeWithBasis(
-                $criteriaType,
+                'benefit',
                 $basis,
                 $rawByUser,
                 $userIds,
@@ -506,8 +524,20 @@ class PerformanceScoreService
                 $normalized = (float) ($normalizedByCriteriaId[$criteriaId][$uid] ?? 0.0);
                 $maxNorm = (float) ($maxNormByCriteriaId[$criteriaId] ?? 0.0);
 
-                $relative = $maxNorm > 0.0 ? (($normalized / $maxNorm) * 100.0) : 0.0;
-                $relative = $this->clampPct($relative);
+                if ($readinessStatus !== 'ready') {
+                    $relative = 0.0;
+                } elseif ($type === 'cost') {
+                    $minNorm = (float) ($minNormByCriteriaId[$criteriaId] ?? 0.0);
+                    if ($minNorm <= 0.0) {
+                        $relative = $normalized <= 0.0 ? 100.0 : 0.0;
+                    } else {
+                        $relative = $normalized > 0.0 ? (($minNorm / $normalized) * 100.0) : 0.0;
+                    }
+                } else {
+                    $relative = $maxNorm > 0.0 ? (($normalized / $maxNorm) * 100.0) : 0.0;
+                }
+
+                $relative = $this->clampPct((float) $relative);
 
                 if ($included) {
                     $sumWeightIncluded += $activeWeight;

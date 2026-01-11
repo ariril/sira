@@ -28,11 +28,31 @@ class ReviewInvitationService
         $registrationRef = trim((string) ($row['registration_ref'] ?? ''));
         $patientName = trim((string) ($row['patient_name'] ?? ''));
         $phone = trim((string) ($row['phone'] ?? ''));
+        $email = trim((string) ($row['email'] ?? ''));
         $unitName = trim((string) ($row['unit'] ?? ''));
         $staffNumbersRaw = trim((string) ($row['staff_numbers'] ?? ''));
 
         $patientName = $patientName !== '' ? $patientName : null;
         $contact = $phone !== '' ? $phone : null;
+
+        if (!Schema::hasColumn('review_invitations', 'email')) {
+            return $this->fail(
+                $rowNumber,
+                'Kolom email belum tersedia di database. Jalankan migrate:fresh (dev) agar schema terbaru terpasang.',
+                $registrationRef,
+                $patientName,
+                $contact,
+                $unitName
+            );
+        }
+
+        if ($email === '') {
+            return $this->fail($rowNumber, 'email wajib diisi.', $registrationRef, $patientName, $contact, $unitName);
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $this->fail($rowNumber, 'email tidak valid.', $registrationRef, $patientName, $contact, $unitName);
+        }
 
         if ($registrationRef === '') {
             return $this->fail($rowNumber, 'registration_ref wajib diisi.', $registrationRef, $patientName, $contact, $unitName);
@@ -86,54 +106,71 @@ class ReviewInvitationService
 
         $duplicate = ReviewInvitation::query()
             ->where('registration_ref', $registrationRef)
-            ->whereIn('status', ['created', 'sent', 'opened'])
+            ->whereIn('status', ['created', 'sent', 'clicked'])
             ->where(function ($q) use ($now) {
                 $q->whereNull('expires_at')->orWhere('expires_at', '>', $now);
             })
             ->exists();
 
         if ($duplicate) {
-            return $this->skip($rowNumber, 'Duplikat: invitation aktif sudah ada (created/sent/opened).', $registrationRef, $patientName, $contact, $unitName);
+            return $this->skip($rowNumber, 'Duplikat: invitation aktif sudah ada (created/sent/clicked).', $registrationRef, $patientName, $contact, $unitName);
         }
 
         [$tokenPlain, $tokenHash] = $this->generateToken();
 
         $periodId = $this->targetPeriodId;
 
-        $invitation = DB::transaction(function () use ($now, $registrationRef, $patientName, $contact, $unit, $tokenPlain, $tokenHash, $staff, $periodId) {
-            $payload = [
+        try {
+            $invitation = DB::transaction(function () use ($now, $registrationRef, $patientName, $contact, $email, $unit, $tokenPlain, $tokenHash, $staff, $periodId) {
+                $payload = [
+                    'registration_ref' => $registrationRef,
+                    'unit_id' => $unit->id,
+                    'patient_name' => $patientName,
+                    'contact' => $contact,
+                    'token_hash' => $tokenHash,
+                    'status' => 'created',
+                    'expires_at' => $now->copy()->addDays(7),
+                ];
+
+                if (Schema::hasColumn('review_invitations', 'email')) {
+                    $payload['email'] = $email;
+                }
+
+                if (Schema::hasColumn('review_invitations', 'token_plain')) {
+                    $payload['token_plain'] = $tokenPlain;
+                }
+
+                if ($periodId && Schema::hasColumn('review_invitations', 'assessment_period_id')) {
+                    $payload['assessment_period_id'] = $periodId;
+                }
+
+                $inv = ReviewInvitation::create($payload);
+
+                $mapRows = $staff->map(fn (User $u) => [
+                    'invitation_id' => $inv->id,
+                    'user_id' => $u->id,
+                    'role' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all();
+
+                ReviewInvitationStaff::insert($mapRows);
+
+                return $inv;
+            });
+        } catch (\Throwable $e) {
+            \Log::warning('review_invitation_import_row_failed', [
+                'row' => $rowNumber,
                 'registration_ref' => $registrationRef,
-                'unit_id' => $unit->id,
-                'patient_name' => $patientName,
-                'contact' => $contact,
-                'token_hash' => $tokenHash,
-                'status' => 'sent',
-                'expires_at' => $now->copy()->addDays(7),
-                'sent_at' => $now,
-            ];
+                'error' => $e->getMessage(),
+            ]);
 
-            if (Schema::hasColumn('review_invitations', 'token_plain')) {
-                $payload['token_plain'] = $tokenPlain;
-            }
+            $msg = str_contains($e->getMessage(), "Unknown column 'email'")
+                ? 'Kolom email belum tersedia di database. Jalankan migrate:fresh (dev) agar schema terbaru terpasang.'
+                : 'Gagal menyimpan undangan ke database. Cek data dan konfigurasi.';
 
-            if ($periodId && Schema::hasColumn('review_invitations', 'assessment_period_id')) {
-                $payload['assessment_period_id'] = $periodId;
-            }
-
-            $inv = ReviewInvitation::create($payload);
-
-            $mapRows = $staff->map(fn (User $u) => [
-                'invitation_id' => $inv->id,
-                'user_id' => $u->id,
-                'role' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ])->all();
-
-            ReviewInvitationStaff::insert($mapRows);
-
-            return $inv;
-        });
+            return $this->fail($rowNumber, $msg, $registrationRef, $patientName, $contact, $unitName);
+        }
 
         $link = url('/reviews/invite/' . $tokenPlain);
 
@@ -144,6 +181,7 @@ class ReviewInvitationService
             'registration_ref' => $registrationRef,
             'patient_name' => $patientName,
             'contact' => $contact,
+            'email' => $email,
             'unit' => $unit->name,
             'link_undangan' => $link,
         ];

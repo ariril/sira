@@ -79,8 +79,50 @@ class DashboardController extends Controller
             ? AssessmentPeriod::query()->where('status', AssessmentPeriod::STATUS_LOCKED)->orderByDesc('start_date')->first()
             : null;
 
+        // Upcoming (not yet active) period
+        $nextPeriod = null;
+        if (Schema::hasTable('assessment_periods')) {
+            $nextPeriod = AssessmentPeriod::query()
+                ->whereDate('start_date', '>', $today)
+                ->orderBy('start_date')
+                ->first();
+        }
+
         $activePeriodId = $activePeriod?->id;
         $activePeriodName = $activePeriod?->name;
+
+        // Period reminders
+        if (!$activePeriod) {
+            if ($nextPeriod) {
+                $notifications[] = [
+                    'type' => 'error',
+                    'text' => sprintf(
+                        'Saat ini belum ada periode penilaian yang aktif. Periode berikutnya: %s (%s–%s).',
+                        (string) ($nextPeriod->name ?? '-'),
+                        Carbon::parse($nextPeriod->start_date)->format('d/m/Y'),
+                        Carbon::parse($nextPeriod->end_date)->format('d/m/Y'),
+                    ),
+                    'href' => route('admin_rs.assessment-periods.index') . '?status=' . AssessmentPeriod::STATUS_DRAFT,
+                ];
+            } else {
+                $notifications[] = [
+                    'type' => 'error',
+                    'text' => 'Saat ini belum ada periode penilaian yang aktif dan belum ada periode berikutnya yang dijadwalkan.',
+                    'href' => route('admin_rs.assessment-periods.index'),
+                ];
+            }
+        } elseif ($nextPeriod) {
+            $notifications[] = [
+                'type' => 'info',
+                'text' => sprintf(
+                    'Periode berikutnya belum aktif: %s (%s–%s).',
+                    (string) ($nextPeriod->name ?? '-'),
+                    Carbon::parse($nextPeriod->start_date)->format('d/m/Y'),
+                    Carbon::parse($nextPeriod->end_date)->format('d/m/Y'),
+                ),
+                'href' => route('admin_rs.assessment-periods.index') . '?status=' . AssessmentPeriod::STATUS_DRAFT,
+            ];
+        }
 
         // Units without allocation: if there's a LOCKED period that isn't the active one, treat it as urgent.
         $allocationPeriod = null;

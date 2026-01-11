@@ -4,16 +4,21 @@ namespace App\Providers;
 
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\{DB, Log, View, Cache, Schema, Blade};
+use Illuminate\Support\Facades\{DB, Log, View, Cache, Schema, Blade, Event};
 use App\Models\{Profession, SiteSetting, AboutPage};
+use App\Listeners\LogMailMessageSent;
+use App\Support\Mail\LastMailSendStore;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(LastMailSendStore::class, fn () => new LastMailSendStore());
+
         $this->app->singleton(\App\Services\CriteriaEngine\CriteriaRegistry::class, function () {
             return new \App\Services\CriteriaEngine\CriteriaRegistry();
         });
@@ -47,6 +52,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Event::listen(MessageSent::class, LogMailMessageSent::class);
+
         RateLimiter::for('review-invite', function (Request $request) {
             return Limit::perMinute(30)->by((string) $request->ip());
         });

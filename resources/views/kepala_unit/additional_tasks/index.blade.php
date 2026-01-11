@@ -62,7 +62,7 @@
                     </th>
                     <th class="px-6 py-4 text-right whitespace-nowrap">
                         Aksi
-                        <span class="inline-block ml-1 text-amber-600 cursor-help" title="Perbedaan: (1) Ditutup: tugas dihentikan sementara dan bisa dibuka lagi selama belum lewat jatuh tempo. (2) Dibatalkan: final—tidak bisa dibuka/diklaim lagi. Catatan: Edit disembunyikan jika tugas sudah Selesai/Menunggu Review. Hapus hanya tersedia untuk Draft/Dibatalkan yang belum punya klaim.">!</span>
+                        <span class="inline-block ml-1 text-amber-600 cursor-help" title="Perbedaan: (1) Ditutup: tugas dihentikan sementara dan bisa dibuka lagi selama belum lewat jatuh tempo. (2) Dibatalkan: final-tidak bisa dibuka/diklaim lagi. Catatan: Edit disembunyikan jika tugas sudah Selesai/Menunggu Review. Hapus hanya tersedia untuk Draft/Dibatalkan yang belum punya klaim.">!</span>
                     </th>
                 </tr>
             </x-slot>

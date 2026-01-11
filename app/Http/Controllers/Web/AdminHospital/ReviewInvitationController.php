@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Web\AdminHospital;
 use App\Http\Controllers\Controller;
 use App\Models\AssessmentPeriod;
 use App\Models\ReviewInvitation;
+use App\Services\Reviews\ReviewInvitationEmailService;
 use App\Support\AssessmentPeriodGuard;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -44,6 +46,80 @@ class ReviewInvitationController extends Controller
             'periodOptions' => $periodOptions,
             'selectedPeriodId' => $selectedPeriodId,
         ]);
+    }
+
+    public function sendEmail(int $id, ReviewInvitationEmailService $service): RedirectResponse
+    {
+        /** @var ReviewInvitation $invitation */
+        $invitation = ReviewInvitation::query()->findOrFail($id);
+
+        $email = trim((string) ($invitation->email ?? ''));
+        if ($email === '') {
+            return back()->with('error', 'Email undangan belum diisi.');
+        }
+
+        if ($invitation->used_at !== null) {
+            return back()->with('error', 'Undangan sudah digunakan.');
+        }
+
+        try {
+            $service->sendSingle($invitation);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal mengirim email undangan. Silakan cek konfigurasi email / log.');
+        }
+
+        return back()->with('success', 'Email undangan berhasil dikirim.');
+    }
+
+    public function sendEmailBulk(Request $request, ReviewInvitationEmailService $service): RedirectResponse
+    {
+        $validated = $request->validate([
+            'period_id' => ['required', 'integer'],
+        ]);
+
+        $periodId = (int) $validated['period_id'];
+
+        $result = null;
+        $errorMsg = null;
+        try {
+            $result = $service->sendBulkByPeriod($periodId);
+        } catch (\Throwable $e) {
+            \Log::error('bulk_review_invitation_send_failed', [
+                'period_id' => $periodId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            $errorMsg = $e->getMessage();
+        }
+
+        if ($result) {
+            $msg = 'Email bulk selesai. Dikirim: ' . ($result['sent'] ?? 0) . ', Gagal: ' . ($result['failed'] ?? 0) . ', Total: ' . ($result['attempted'] ?? 0) . '.';
+            if ($errorMsg) {
+                return back()->with('error', $msg . ' (Ada error: ' . $errorMsg . ')');
+            }
+            return back()->with('success', $msg);
+        }
+
+        return back()->with('error', 'Gagal mengirim email bulk. Silakan cek konfigurasi email / log.');
+    }
+
+    public function testEmail(Request $request, ReviewInvitationEmailService $service): RedirectResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+        ]);
+
+        $to = (string) $validated['email'];
+        $result = $service->sendTestEmail($to);
+
+        session(['mail_test_result' => $result]);
+
+        if (!($result['success'] ?? false)) {
+            return back()->with('error', (string) ($result['error'] ?? 'Gagal mengirim email test.'));
+        }
+
+        $msgId = (string) (($result['message_id'] ?? '') ?: '-');
+        return back()->with('success', 'Email test terkirim (accepted). Message-ID: ' . $msgId);
     }
 
     /**

@@ -19,6 +19,7 @@ return new class extends Migration {
 
             $table->string('patient_name')->nullable();
             $table->string('contact')->nullable();
+            $table->string('email')->nullable();
 
             // Optional link to assessment period (for lifecycle validation).
             // Note: existing DBs might not have this column; application code falls back safely.
@@ -33,13 +34,13 @@ return new class extends Migration {
             // Optional: store the plain token (if needed by business flow)
             $table->string('token_plain', 64)->nullable()->unique();
 
-            $table->enum('status', ['created', 'sent', 'opened', 'used', 'expired', 'cancelled'])
+            $table->enum('status', ['created', 'sent', 'clicked', 'used', 'expired', 'cancelled'])
                 ->default('created')
                 ->index();
 
             $table->timestamp('expires_at')->nullable()->index();
             $table->timestamp('sent_at')->nullable();
-            $table->timestamp('opened_at')->nullable();
+            $table->timestamp('clicked_at')->nullable();
             $table->timestamp('used_at')->nullable();
 
             $table->string('client_ip', 45)->nullable();

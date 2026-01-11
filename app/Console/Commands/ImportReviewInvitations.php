@@ -98,7 +98,7 @@ class ImportReviewInvitations extends Command
 
             $duplicate = ReviewInvitation::query()
                 ->where('registration_ref', $registrationRef)
-                ->whereIn('status', ['created', 'sent', 'opened'])
+                ->whereIn('status', ['created', 'sent', 'clicked'])
                 ->where(function ($q) {
                     $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
                 })

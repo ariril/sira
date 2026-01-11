@@ -12,6 +12,46 @@
             </div>
         @endif
 
+        @if(!empty($errorMessage))
+            <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
+                {{ $errorMessage }}
+            </div>
+        @endif
+
+        @if($summary)
+            @php
+                $s = (int) ($summary['success'] ?? 0);
+                $f = (int) ($summary['failed'] ?? 0);
+                $sk = (int) ($summary['skipped'] ?? 0);
+                $total = $s + $f + $sk;
+
+                $bannerClasses = 'border-slate-200 bg-slate-50 text-slate-700';
+                if ($total > 0) {
+                    if ($f > 0) {
+                        $bannerClasses = 'border-rose-200 bg-rose-50 text-rose-800';
+                    } elseif ($sk > 0) {
+                        $bannerClasses = 'border-amber-200 bg-amber-50 text-amber-800';
+                    } elseif ($s > 0) {
+                        $bannerClasses = 'border-emerald-200 bg-emerald-50 text-emerald-800';
+                    }
+                }
+            @endphp
+            <div class="rounded-xl border {{ $bannerClasses }} px-4 py-3 text-sm flex flex-wrap items-center gap-2">
+                <span class="font-semibold">Ringkasan Import:</span>
+                <span>Total: {{ $total }}</span>
+                <span>• Sukses: {{ $s }}</span>
+                <span>• Gagal: {{ $f }}</span>
+                <span>• Skip: {{ $sk }}</span>
+                @if($total === 0)
+                    <span class="text-slate-600">Tidak ada baris diproses.</span>
+                @elseif($s === 0 && $f === 0 && $sk > 0)
+                    <span class="text-slate-600">Semua baris di-skip (cek duplikat atau data tidak lengkap).</span>
+                @elseif($f > 0)
+                    <span class="text-slate-600">Periksa detail di tabel hasil untuk baris gagal.</span>
+                @endif
+            </div>
+        @endif
+
         @if($period ?? null)
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                 <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 px-4 py-3 text-sm">
@@ -131,11 +171,23 @@
             </div>
         @endif
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <h2 class="text-base font-semibold text-slate-800 mb-3">Format Kolom</h2>
-            <p class="text-sm text-slate-600 mb-4">Pastikan heading sesuai format berikut.</p>
-            <pre class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[13px] overflow-auto">registration_ref | patient_name | phone | unit | staff_numbers</pre>
-            <pre class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[13px] overflow-auto mt-3">Contoh: REG-2024-009812 | Maria L. | 08xxx | Poli Umum | D001;P012</pre>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+            <h2 class="text-base font-semibold text-slate-800">Format Kolom</h2>
+            <p class="text-sm text-slate-600">Gunakan header berikut (case-insensitive). Setiap kolom di Excel adalah kolom terpisah.</p>
+
+            @php
+                $sample = "registration_ref,patient_name,phone,email,unit,staff_numbers\n" .
+                          "REG-2024-009812,Maria L.,08xxx,maria@example.com,Poli Umum,D001;P012\n" .
+                          "REG-2024-009999,Budi S.,0812xxx,budi@example.com,UGD,D005;P020";
+            @endphp
+
+            <pre class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[13px] overflow-auto">{{ $sample }}</pre>
+
+            <ul class="list-disc list-inside text-sm text-slate-600 space-y-1">
+                <li><span class="font-semibold">staff_numbers</span> pisahkan dengan tanda titik koma (<code>;</code>)</li>
+                <li><span class="font-semibold">email</span> wajib dan harus format valid</li>
+                <li><span class="font-semibold">phone</span> opsional; jika kosong biarkan sel kosong</li>
+            </ul>
         </div>
 
         @if($summary)

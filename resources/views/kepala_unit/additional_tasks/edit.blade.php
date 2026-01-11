@@ -13,8 +13,8 @@
                 enctype="multipart/form-data"
                 class="grid md:grid-cols-2 gap-5"
                 x-data="{
-                    bonus: @js($item->bonus_amount),
-                    points: @js($item->points),
+                    bonus: @js(old('bonus_amount', $item->bonus_amount)),
+                    points: @js(old('points', $item->points)),
                     cancelWindow: @js(old('cancel_window_hours', $item->cancel_window_hours ?? 24)),
                     penaltyType: @js(old('default_penalty_type', $item->default_penalty_type ?? 'none')),
                     penaltyValue: @js(old('default_penalty_value', $item->default_penalty_value ?? 0)),

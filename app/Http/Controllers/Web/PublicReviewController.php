@@ -51,10 +51,10 @@ class PublicReviewController extends Controller
             abort(410, 'Link kedaluwarsa.');
         }
 
-        if ($invitation->opened_at === null) {
+        if ($invitation->clicked_at === null) {
             $invitation->forceFill([
-                'opened_at' => $now,
-                'status' => $invitation->status === 'sent' || $invitation->status === 'created' ? 'opened' : $invitation->status,
+                'clicked_at' => $now,
+                'status' => $invitation->status === 'sent' || $invitation->status === 'created' ? 'clicked' : $invitation->status,
                 'client_ip' => $request->ip(),
                 'user_agent' => substr((string) $request->header('User-Agent'), 0, 255),
             ])->save();

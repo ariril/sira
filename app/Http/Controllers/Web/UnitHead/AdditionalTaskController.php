@@ -175,7 +175,14 @@ class AdditionalTaskController extends Controller
 
         $filePath = null;
         if ($request->hasFile('supporting_file')) {
-            $filePath = $request->file('supporting_file')->store('additional_tasks/supporting', 'public');
+            try {
+                $filePath = $request->file('supporting_file')->store('additional_tasks/supporting', 'public');
+            } catch (\Throwable $e) {
+                report($e);
+                return back()->withErrors([
+                    'supporting_file' => 'Gagal mengunggah file pendukung. Silakan coba lagi atau unggah file lain.',
+                ])->withInput();
+            }
         }
 
         $task = AdditionalTask::create([
@@ -289,10 +296,19 @@ class AdditionalTaskController extends Controller
 
         $filePath = $task->policy_doc_path;
         if ($request->hasFile('supporting_file')) {
+            try {
+                $newPath = $request->file('supporting_file')->store('additional_tasks/supporting', 'public');
+            } catch (\Throwable $e) {
+                report($e);
+                return back()->withErrors([
+                    'supporting_file' => 'Gagal mengunggah file pendukung. Silakan coba lagi atau unggah file lain.',
+                ])->withInput();
+            }
+
             if ($filePath) {
                 Storage::disk('public')->delete($filePath);
             }
-            $filePath = $request->file('supporting_file')->store('additional_tasks/supporting', 'public');
+            $filePath = $newPath;
         }
 
         $task->update([
