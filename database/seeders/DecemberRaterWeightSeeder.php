@@ -45,6 +45,7 @@ class DecemberRaterWeightSeeder extends Seeder
                     ->where('status', '!=', $archived)
                     ->update([
                         'status' => $archived,
+                        'was_active_before' => 1,
                         'updated_at' => now(),
                     ]);
 
@@ -55,6 +56,9 @@ class DecemberRaterWeightSeeder extends Seeder
                         ->where('status', '!=', 'archived')
                         ->update([
                             'status' => 'archived',
+                            // Tandai bahwa baris ini pernah aktif untuk periode tersebut.
+                            // Ini penting agar laporan periode lama tetap bisa memakai bobotnya.
+                            'was_active_before' => 1,
                             'updated_at' => now(),
                         ]);
                 }

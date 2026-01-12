@@ -698,11 +698,17 @@ class PerformanceScoreService
             return ['weights_all' => [], 'weights_active' => [], 'status_by_criteria' => []];
         }
 
+        $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
+        $select = ['performance_criteria_id', 'weight', 'status'];
+        if ($hasWasActiveBefore) {
+            $select[] = 'was_active_before';
+        }
+
         // Fetch ALL statuses so criteria can still be displayed even if not active.
         $rows = DB::table('unit_criteria_weights')
             ->where('unit_id', $unitId)
             ->where('assessment_period_id', $periodId)
-            ->get(['performance_criteria_id', 'weight', 'status']);
+            ->get($select);
 
         if ($rows->isEmpty()) {
             return ['weights_all' => [], 'weights_active' => [], 'status_by_criteria' => []];
@@ -715,6 +721,7 @@ class PerformanceScoreService
             'pending' => 4,
             'draft' => 3,
             'rejected' => 2,
+            // archived hanya valid bila was_active_before=1
             'archived' => 1,
         ];
 
@@ -724,6 +731,11 @@ class PerformanceScoreService
         foreach ($rows as $r) {
             $cid = (int) $r->performance_criteria_id;
             $st = (string) ($r->status ?? 'unknown');
+            if ($st === 'archived' && property_exists($r, 'was_active_before') && !((bool) ($r->was_active_before ?? false))) {
+                // Abaikan arsip yang bukan bobot aktif periode tersebut.
+                continue;
+            }
+
             $p = (int) ($priority[$st] ?? 0);
 
             if (!array_key_exists($cid, $pickedPriority) || $p > (int) $pickedPriority[$cid]) {
@@ -733,11 +745,24 @@ class PerformanceScoreService
             }
         }
 
-        // Build active weights for WSM (hanya status=active).
+        // Build weights effective for perhitungan:
+        // - Jika ada status=active pada periode tsb, pakai active.
+        // - Jika tidak ada (periode sudah ditutup/diarsip), pakai archived yang was_active_before=1.
+        $hasAnyActive = $rows->contains(fn($r) => (string) ($r->status ?? '') === 'active');
         $weightsActive = [];
         foreach ($rows as $r) {
-            if ((string) $r->status === 'active') {
-                $weightsActive[(int) $r->performance_criteria_id] = (float) $r->weight;
+            $st = (string) ($r->status ?? '');
+            if ($hasAnyActive) {
+                if ($st === 'active') {
+                    $weightsActive[(int) $r->performance_criteria_id] = (float) $r->weight;
+                }
+                continue;
+            }
+
+            if ($st === 'archived') {
+                if (!property_exists($r, 'was_active_before') || (bool) ($r->was_active_before ?? false)) {
+                    $weightsActive[(int) $r->performance_criteria_id] = (float) $r->weight;
+                }
             }
         }
 

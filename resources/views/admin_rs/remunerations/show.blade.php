@@ -6,7 +6,7 @@
                 @if(empty($item->published_at))
                 <form method="POST" action="{{ route('admin_rs.remunerations.publish', $item) }}">
                     @csrf
-                    <x-ui.button type="submit" variant="success" class="h-10 px-4 text-sm">Publish</x-ui.button>
+                    <x-ui.button type="submit" variant="success" class="h-10 px-4 text-sm">Publikasikan</x-ui.button>
                 </form>
                 @endif
                 <x-ui.button as="a" href="{{ route('admin_rs.remunerations.index') }}" variant="success" class="h-10 px-4 text-sm">Kembali</x-ui.button>
@@ -33,19 +33,15 @@
                     <dt class="text-slate-500">Status</dt>
                     <dd>
                         @if(!empty($item->published_at))
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Published</span>
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Dipublikasikan</span>
                         @else
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Draft</span>
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Draf</span>
                         @endif
                     </dd>
                 </div>
                 <div>
                     <dt class="text-slate-500">Terakhir Dihitung</dt>
                     <dd class="text-slate-800 font-medium">{{ optional($item->calculated_at)->format('d M Y H:i') ?? '-' }}</dd>
-                </div>
-                <div>
-                    <dt class="text-slate-500">Dihitung Oleh</dt>
-                    <dd class="text-slate-800 font-medium">{{ $item->revisedBy->name ?? '-' }}</dd>
                 </div>
                 @if(!empty($wsm['rows']))
                 @php
@@ -59,6 +55,14 @@
                         return rtrim(rtrim($formatted, '0'), '.');
                     };
                     $isEqual = fn($a, $b) => is_numeric($a) && is_numeric($b) && abs((float)$a - (float)$b) < 0.00001;
+                    $typeLabel = function($type) {
+                        $t = strtolower((string) $type);
+                        return match ($t) {
+                            'benefit' => 'Manfaat',
+                            'cost' => 'Beban',
+                            default => (string) $type,
+                        };
+                    };
                 @endphp
                 <div class="md:col-span-2">
                     <dt class="text-slate-500 mb-1">Ringkasan Perhitungan Kinerja</dt>
@@ -88,7 +92,7 @@
                                         @endphp
                                         <tr class="border-t border-slate-100">
                                             <td class="px-4 py-2">{{ $row['criteria_name'] }}</td>
-                                            <td class="px-4 py-2">{{ $row['type'] }}</td>
+                                            <td class="px-4 py-2">{{ $typeLabel($row['type'] ?? '-') }}</td>
                                             <td class="px-4 py-2 text-right">{{ $fmtNum($row['weight'], 2) }}</td>
                                             <td class="px-4 py-2 text-right">
                                                 @if($maxMatch)
@@ -101,15 +105,15 @@
                                             </td>
                                             <td class="px-4 py-2 text-right">{{ $fmtNum($row['min'], 2) }}</td>
                                             <td class="px-4 py-2 text-right">{{ $fmtNum($row['max'], 2) }}</td>
-                                            <td class="px-4 py-2 text-right">{{ $fmtNum($row['normalized'], 4) }}</td>
-                                            <td class="px-4 py-2 text-right">{{ $fmtNum($row['contribution'], 4) }}</td>
+                                            <td class="px-4 py-2 text-right">{{ $fmtNum($row['normalized'], 2) }}</td>
+                                            <td class="px-4 py-2 text-right">{{ $fmtNum($row['contribution'], 2) }}</td>
                                         </tr>
                                     @endforeach
                                 </tbody>
                                 <tfoot>
                                     <tr class="bg-slate-50 border-t border-slate-200">
                                         <td colspan="7" class="px-4 py-2 text-right font-medium">Total Skor Kinerja</td>
-                                        <td class="px-4 py-2 text-right font-semibold">{{ $fmtNum($wsm['total'], 4) }}</td>
+                                        <td class="px-4 py-2 text-right font-semibold">{{ $fmtNum($wsm['total'], 2) }}</td>
                                     </tr>
                                 </tfoot>
                             </table>

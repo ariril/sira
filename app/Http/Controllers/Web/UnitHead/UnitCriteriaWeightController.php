@@ -503,6 +503,7 @@ class UnitCriteriaWeightController extends Controller
             foreach ($activeRows as $row) {
                 DB::table('unit_criteria_weights')->where('id', $row->id)->update([
                     'status' => 'archived',
+                    'was_active_before' => 1,
                     'updated_at' => now(),
                 ]);
 
@@ -565,6 +566,9 @@ class UnitCriteriaWeightController extends Controller
                 ->where('unit_id', $unitId)
                 ->where('assessment_period_id', $previousPeriod->id)
                 ->where('status', 'archived')
+                ->when(Schema::hasColumn('unit_criteria_weights', 'was_active_before'), function ($q) {
+                    $q->where('was_active_before', 1);
+                })
                 ->get();
         }
 
@@ -612,6 +616,7 @@ class UnitCriteriaWeightController extends Controller
                 ->where('status', '!=', 'archived')
                 ->update([
                     'status' => 'archived',
+                    'was_active_before' => 1,
                     'updated_at' => now(),
                 ]);
             return;
@@ -627,6 +632,7 @@ class UnitCriteriaWeightController extends Controller
             ->where('ap.status', '!=', 'active')
             ->update([
                 'unit_criteria_weights.status' => 'archived',
+                'unit_criteria_weights.was_active_before' => 1,
                 'unit_criteria_weights.updated_at' => now(),
             ]);
     }

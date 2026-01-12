@@ -29,7 +29,7 @@
             <div class="mt-6 flex justify-end gap-3">
                 <a href="{{ route('admin_rs.remunerations.calc.index') }}"
                     class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
-                    <i class="fa-solid fa-rotate-left"></i> Reset
+                    <i class="fa-solid fa-rotate-left"></i> Atur Ulang
                 </a>
                 <button type="submit"
                     class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm">
@@ -90,7 +90,7 @@
                 $diff = $allocated - $remTotal;
             @endphp
             <div class="grid gap-5 md:grid-cols-3">
-                <x-stat-card label="Total Alokasi Published" value="{{ number_format($allocated, 2) }}"
+                <x-stat-card label="Total Alokasi Dipublikasikan" value="{{ number_format($allocated, 2) }}"
                     icon="fa-sack-dollar" accent="from-emerald-500 to-teal-600" />
                 <x-stat-card label="Total Remunerasi Terhitung" value="{{ number_format($remTotal, 2) }}"
                     icon="fa-wallet" accent="from-sky-500 to-indigo-600" />
@@ -105,7 +105,7 @@
                         <th class="px-6 py-4 text-left whitespace-nowrap">Nama</th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Unit</th>
                         <th class="px-6 py-4 text-right whitespace-nowrap">Jumlah</th>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Status Publish</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Status Publikasi</th>
                     </tr>
                 </x-slot>
 
@@ -117,10 +117,10 @@
                         <td class="px-6 py-4">
                             @if (!empty($it->published_at))
                                 <span
-                                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Published</span>
+                                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Dipublikasikan</span>
                             @else
                                 <span
-                                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Draft</span>
+                                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Draf</span>
                             @endif
                         </td>
                     </tr>
@@ -133,10 +133,10 @@
             </x-ui.table>
 
             @if (session('auditRows') && (int) session('auditPeriodId') === (int) $selectedId)
-                <x-section title="Audit (Alokasi vs WSM vs Remunerasi)" class="mt-6">
+                <x-section title="Audit (Alokasi vs Kinerja vs Remunerasi)" class="mt-6">
                     <div class="text-sm text-slate-600 mb-3">
-                        Audit ini mengecek per grup (unit + profesi): total WSM, WSM NULL, total expected (alokasi ×
-                        porsi) vs total actual (data remunerations), dan jumlah user yang berbeda.
+                        Audit ini mengecek per grup (unit + profesi): total kinerja, kinerja kosong (belum ada nilai), total perkiraan (alokasi ×
+                        porsi) vs total realisasi (data remunerasi), dan jumlah pengguna yang berbeda.
                     </div>
 
                     <x-ui.table min-width="980px">
@@ -145,12 +145,12 @@
                                 <th class="px-6 py-4 text-left whitespace-nowrap">Unit</th>
                                 <th class="px-6 py-4 text-left whitespace-nowrap">Profesi</th>
                                 <th class="px-6 py-4 text-right whitespace-nowrap">Alokasi</th>
-                                <th class="px-6 py-4 text-right whitespace-nowrap">Users</th>
-                                <th class="px-6 py-4 text-right whitespace-nowrap">WSM Total</th>
-                                <th class="px-6 py-4 text-right whitespace-nowrap">WSM NULL</th>
-                                <th class="px-6 py-4 text-right whitespace-nowrap">Expected</th>
-                                <th class="px-6 py-4 text-right whitespace-nowrap">Actual</th>
-                                <th class="px-6 py-4 text-right whitespace-nowrap">Diff Users</th>
+                                <th class="px-6 py-4 text-right whitespace-nowrap">Jumlah Pengguna</th>
+                                <th class="px-6 py-4 text-right whitespace-nowrap">Total Kinerja</th>
+                                <th class="px-6 py-4 text-right whitespace-nowrap">Kinerja Kosong</th>
+                                <th class="px-6 py-4 text-right whitespace-nowrap">Perkiraan</th>
+                                <th class="px-6 py-4 text-right whitespace-nowrap">Realisasi</th>
+                                <th class="px-6 py-4 text-right whitespace-nowrap">Pengguna Berbeda</th>
                             </tr>
                         </x-slot>
                         @php

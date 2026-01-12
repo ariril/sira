@@ -16,6 +16,7 @@ class UnitCriteriaWeight extends Model
         'weight',
         'assessment_period_id',
         'status',
+        'was_active_before',
         'policy_doc_path',
         'policy_note',
         'proposed_by',
@@ -28,6 +29,7 @@ class UnitCriteriaWeight extends Model
     protected $casts = [
         'weight'      => 'decimal:2',
         'status'      => UnitCriteriaWeightStatus::class,
+        'was_active_before' => 'boolean',
         'policy_note' => 'string',
         'proposed_note' => 'string',
         'decided_at' => 'datetime',

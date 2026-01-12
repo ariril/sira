@@ -410,12 +410,18 @@ class RaterWeightController extends Controller
 
         $sourceRows = collect();
         foreach ($sourceStatusPriority as $st) {
-            $sourceRows = DB::table('unit_rater_weights')
+            $q = DB::table('unit_rater_weights')
                 ->where('unit_id', $unitId)
                 ->where('assessment_period_id', (int) $previousPeriod->id)
                 ->whereIn('performance_criteria_id', $criteriaIds)
-                ->where('status', $st)
-                ->get();
+                ->where('status', $st);
+
+            // Untuk status archived, hanya gunakan baris yang memang pernah aktif.
+            if ($st === RaterWeightStatus::ARCHIVED->value && Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
+                $q->where('was_active_before', 1);
+            }
+
+            $sourceRows = $q->get();
             if ($sourceRows->isNotEmpty()) {
                 break;
             }
@@ -771,6 +777,7 @@ class RaterWeightController extends Controller
                 ->where('status', '!=', RaterWeightStatus::ARCHIVED->value)
                 ->update([
                     'status' => RaterWeightStatus::ARCHIVED->value,
+                    'was_active_before' => 1,
                     'updated_at' => now(),
                 ]);
             return;
@@ -786,6 +793,7 @@ class RaterWeightController extends Controller
             ->where('ap.status', '!=', AssessmentPeriod::STATUS_ACTIVE)
             ->update([
                 'unit_rater_weights.status' => RaterWeightStatus::ARCHIVED->value,
+                'unit_rater_weights.was_active_before' => 1,
                 'unit_rater_weights.updated_at' => now(),
             ]);
     }
@@ -918,6 +926,17 @@ class RaterWeightController extends Controller
                     ->from('unit_rater_weights')
                     ->whereColumn('unit_rater_weights.assessment_period_id', 'assessment_periods.id')
                     ->where('unit_rater_weights.unit_id', $unitId);
+
+                // Prioritaskan bobot yang memang pernah aktif.
+                $sub->where(function ($q) {
+                    $q->where('unit_rater_weights.status', 'active')
+                        ->orWhere(function ($q) {
+                            $q->where('unit_rater_weights.status', 'archived');
+                            if (Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
+                                $q->where('unit_rater_weights.was_active_before', 1);
+                            }
+                        });
+                });
             })
             ->first();
     }

@@ -284,11 +284,27 @@ class PeriodPerformanceAssessmentService
         }
 
         $periodId = (int) $period->id;
+        $isActive = (string) ($period->status ?? '') === AssessmentPeriod::STATUS_ACTIVE;
+
         $rows = DB::table('unit_criteria_weights')
             ->where('unit_id', (int) $unitId)
             ->where('assessment_period_id', $periodId)
-            ->where('status', 'active')
-            ->get(['performance_criteria_id', 'weight', 'status']);
+            ->when($isActive, function ($q) {
+                $q->where('status', 'active');
+            }, function ($q) {
+                $q->where(function ($q) {
+                    $q->where('status', 'active')
+                        ->orWhere(function ($q) {
+                            $q->where('status', 'archived');
+                            if (\Illuminate\Support\Facades\Schema::hasColumn('unit_criteria_weights', 'was_active_before')) {
+                                $q->where('was_active_before', 1);
+                            }
+                        });
+                });
+            })
+            ->orderByRaw("CASE WHEN status='active' THEN 0 WHEN status='archived' THEN 1 ELSE 2 END")
+            ->orderByDesc('updated_at')
+            ->get(['performance_criteria_id', 'weight', 'status', 'was_active_before', 'updated_at']);
 
         if ($rows->isEmpty()) {
             return [];
@@ -296,7 +312,13 @@ class PeriodPerformanceAssessmentService
 
         $out = [];
         foreach ($rows as $r) {
-            $out[(int) $r->performance_criteria_id] = (float) $r->weight;
+            $cid = (int) ($r->performance_criteria_id ?? 0);
+            if ($cid <= 0) {
+                continue;
+            }
+            if (!array_key_exists($cid, $out)) {
+                $out[$cid] = (float) $r->weight;
+            }
         }
 
         return $out;

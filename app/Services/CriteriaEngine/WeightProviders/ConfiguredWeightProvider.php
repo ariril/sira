@@ -34,6 +34,7 @@ class ConfiguredWeightProvider implements WeightProvider
             'ucw.performance_criteria_id',
             'ucw.weight',
             'ucw.status',
+            'ucw.was_active_before',
             'pc.name',
             'pc.input_method',
             'pc.is_360',
@@ -56,7 +57,12 @@ class ConfiguredWeightProvider implements WeightProvider
         if (!$isActive && $rows->contains(fn($r) => (string) $r->status === 'active')) {
             $rows = $rows->filter(fn($r) => (string) $r->status === 'active');
         } elseif (!$isActive) {
-            $rows = $rows->filter(fn($r) => (string) $r->status === 'archived');
+            $rows = $rows->filter(function ($r) {
+                if ((string) $r->status !== 'archived') {
+                    return false;
+                }
+                return !property_exists($r, 'was_active_before') || (bool) ($r->was_active_before ?? false);
+            });
         }
 
         // Convert DB rows to key => rawWeight

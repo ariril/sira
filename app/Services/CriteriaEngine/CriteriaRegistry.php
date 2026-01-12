@@ -267,7 +267,7 @@ class CriteriaRegistry
             ->where('unit_id', $unitId)
             ->where('assessment_period_id', $periodId)
             ->whereIn('status', $statuses)
-            ->get(['performance_criteria_id', 'status']);
+            ->get(['performance_criteria_id', 'status', 'was_active_before']);
 
         if ($rows->isEmpty()) {
             return [];
@@ -276,7 +276,13 @@ class CriteriaRegistry
         if (!$isActive && $rows->contains(fn($r) => (string) $r->status === 'active')) {
             $rows = $rows->filter(fn($r) => (string) $r->status === 'active');
         } elseif (!$isActive) {
-            $rows = $rows->filter(fn($r) => (string) $r->status === 'archived');
+            $rows = $rows->filter(function ($r) {
+                if ((string) $r->status !== 'archived') {
+                    return false;
+                }
+                // Jika kolom tersedia, pastikan arsip tersebut memang pernah aktif.
+                return !property_exists($r, 'was_active_before') || (bool) ($r->was_active_before ?? false);
+            });
         }
 
         return $rows

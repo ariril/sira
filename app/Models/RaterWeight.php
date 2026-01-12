@@ -22,6 +22,7 @@ class RaterWeight extends Model
         'assessor_level',
         'weight',
         'status',
+        'was_active_before',
         'proposed_by',
         'decided_by',
         'decided_at',
@@ -31,6 +32,7 @@ class RaterWeight extends Model
     protected $casts = [
         'weight' => 'float',
         'status' => RaterWeightStatus::class,
+        'was_active_before' => 'boolean',
         'decided_at' => 'datetime',
         'assessor_level' => 'integer',
     ];

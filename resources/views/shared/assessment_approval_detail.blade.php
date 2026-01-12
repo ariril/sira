@@ -3,7 +3,7 @@
         <div class="flex items-center justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-semibold">Detail Penilaian</h1>
-                <p class="text-slate-600 text-sm">Ringkasan skor, data pendukung, dan riwayat approval</p>
+                <p class="text-slate-600 text-sm">Ringkasan skor, data pendukung, dan riwayat persetujuan</p>
             </div>
             <a href="{{ $backUrl }}"
                class="inline-flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
@@ -43,7 +43,7 @@
         {{-- Breakdown --}}
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="flex items-center justify-between gap-3 mb-4">
-                <h2 class="text-lg font-semibold">Breakdown Perhitungan</h2>
+                <h2 class="text-lg font-semibold">Rincian Perhitungan</h2>
                 @if(($breakdown['hasWeights'] ?? false) && isset($breakdown['total']))
                     <div class="text-sm text-slate-600">Total (berdasarkan bobot periode): <span class="font-semibold text-slate-900">{{ number_format((float) $breakdown['total'], 2) }}</span></div>
                 @endif
@@ -78,7 +78,7 @@
 
         {{-- Raw Supporting Data --}}
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
-            <h2 class="text-lg font-semibold mb-4">Data Pendukung (Import)</h2>
+            <h2 class="text-lg font-semibold mb-4">Data Pendukung (Impor)</h2>
 
             <x-ui.table min-width="900px">
                 <x-slot name="head">
@@ -110,7 +110,7 @@
         {{-- Approval History --}}
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="flex items-center justify-between gap-3 mb-4">
-                <h2 class="text-lg font-semibold">Riwayat Approval</h2>
+                <h2 class="text-lg font-semibold">Riwayat Persetujuan</h2>
 
                 @if(auth()->user()?->role === 'admin_rs')
                     @php
@@ -129,8 +129,8 @@
             <x-ui.table min-width="900px">
                 <x-slot name="head">
                     <tr>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Level</th>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Approver</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Tingkat</th>
+                        <th class="px-6 py-4 text-left whitespace-nowrap">Penyetuju</th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Diproses</th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">Catatan</th>
@@ -144,11 +144,11 @@
                         <td class="px-6 py-4">{{ $ap->approver?->name ?? '-' }}</td>
                         <td class="px-6 py-4">
                             @if ($st === 'approved')
-                                <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">Approved</span>
+                                <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">Disetujui</span>
                             @elseif ($st === 'rejected')
-                                <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Rejected</span>
+                                <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Ditolak</span>
                             @else
-                                <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Pending</span>
+                                <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Menunggu</span>
                             @endif
                         </td>
                         <td class="px-6 py-4">{{ $ap->acted_at ? $ap->acted_at->format('d M Y H:i') : '-' }}</td>

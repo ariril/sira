@@ -1,5 +1,5 @@
 @extends('layouts.public')
-@section('title', ($site->short_name ?? 'Unit Remuneration') . ' - RSUD MGR Gabriel Manek')
+@section('title', ($site->short_name ?? 'Remunerasi Unit') . ' - RSUD MGR Gabriel Manek')
 
 @section('content')
     <div class="max-w-7xl mx-auto px-4 sm:px-6">
@@ -8,7 +8,7 @@
         <section class="grid md:grid-cols-2 gap-12 items-center py-16">
             <div>
                 <h2 class="text-4xl md:text-5xl font-semibold text-slate-800 mb-4">
-                    {{ $site?->short_name ?? 'Unit Remuneration' }}
+                    {{ $site?->short_name ?? 'Remunerasi Unit' }}
                 </h2>
                 <p class="text-slate-500 mb-8">
                     {{ $site?->name
@@ -27,7 +27,7 @@
             <div>
                 <img class="w-full h-auto rounded-xl shadow-2xl"
                      src="{{ $site?->hero_path ? Storage::url($site?->hero_path) : Storage::url('images/hero.jpeg') }}"
-                     alt="{{ $site?->name ?? 'Portal Remuneration' }}">
+                     alt="{{ $site?->name ?? 'Portal Remunerasi' }}">
             </div>
         </section>
 

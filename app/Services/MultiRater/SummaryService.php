@@ -29,7 +29,13 @@ class SummaryService
                     ->where('assessment_period_id', (int) $selectedPeriod->id)
                     ->where('unit_id', $unitId)
                     ->where('assessee_profession_id', $professionId)
-                    ->whereIn('status', ['active', 'archived'])
+                    ->where(function ($q) {
+                        $q->where('status', 'active')
+                            ->orWhere(function ($q) {
+                                $q->where('status', 'archived')
+                                    ->where('was_active_before', true);
+                            });
+                    })
                     ->get(['performance_criteria_id', 'assessor_type', 'weight']);
             }
 

@@ -1062,7 +1062,7 @@ class RemunerationController extends Controller
      */
     public function show(Remuneration $remuneration): View
     {
-        $remuneration->load(['user:id,name,unit_id','assessmentPeriod:id,name','revisedBy:id,name']);
+        $remuneration->load(['user:id,name,unit_id','assessmentPeriod:id,name']);
         $wsm = $this->buildWsmBreakdown($remuneration);
         $calcDetails = null;
 
@@ -1151,21 +1151,34 @@ class RemunerationController extends Controller
 
             $rows = [];
             foreach ($details['wsm']['criteria_rows'] as $row) {
+                $w = (float) ($row['weight'] ?? 0);
+                $norm01 = (float) ($row['normalized'] ?? 0);
+                if ($norm01 < 0) $norm01 = 0.0;
+                if ($norm01 > 1) $norm01 = 1.0;
+                // Tampilkan dalam skala 0..100
+                $normalized = $norm01 * 100.0;
+                // Kontribusi = ternormalisasi(0..1) * bobot(%) => 0..100
+                $contrib = $norm01 * $w;
                 $rows[] = [
                     'criteria_name' => $row['label'] ?? ($row['key'] ?? '-'),
                     'type'          => $row['type'] ?? '-',
-                    'weight'        => (float) ($row['weight'] ?? 0),
+                    'weight'        => $w,
                     'score'         => (float) ($row['raw'] ?? 0),
                     'min'           => 0,
                     'max'           => (float) ($row['criteria_total'] ?? 0),
-                    'normalized'    => round((float) ($row['normalized'] ?? 0), 4),
-                    'contribution'  => round((float) ($row['weighted'] ?? 0), 4),
+                    'normalized'    => round($normalized, 2),
+                    'contribution'  => round($contrib, 2),
                 ];
+            }
+
+            $total = 0.0;
+            foreach ($rows as $r) {
+                $total += (float) ($r['contribution'] ?? 0);
             }
 
             return [
                 'rows'  => $rows,
-                'total' => round((float) ($details['wsm']['user_total'] ?? $details['wsm']['total'] ?? 0), 4),
+                'total' => round($total, 2),
             ];
         }
 
@@ -1195,13 +1208,32 @@ class RemunerationController extends Controller
         if (!$criteriaIds) return null;
 
         // Fetch ACTIVE weights for this unit & period
-        $weights = UnitCriteriaWeight::query()
+        $weightRows = UnitCriteriaWeight::query()
             ->where('unit_id', $unitId)
             ->whereIn('performance_criteria_id', $criteriaIds)
             ->where('assessment_period_id', $periodId)
-            ->where('status', 'active')
-            ->get(['performance_criteria_id','weight'])
-            ->keyBy('performance_criteria_id');
+            ->where(function ($q) {
+                $q->where('status', 'active')
+                    ->orWhere(function ($q) {
+                        $q->where('status', 'archived')
+                            ->where('was_active_before', true);
+                    });
+            })
+            // Prioritaskan baris ACTIVE; jika tidak ada, pakai ARCHIVED yang pernah aktif.
+            ->orderByRaw("CASE WHEN status='active' THEN 0 WHEN status='archived' AND was_active_before=1 THEN 1 ELSE 2 END")
+            ->orderByDesc('updated_at')
+            ->get(['performance_criteria_id','weight','status','was_active_before','updated_at']);
+
+        $weights = [];
+        foreach ($weightRows as $wr) {
+            $cid = (int) ($wr->performance_criteria_id ?? 0);
+            if ($cid <= 0) {
+                continue;
+            }
+            if (!isset($weights[$cid])) {
+                $weights[$cid] = $wr;
+            }
+        }
 
         // Compute min/max per criteria in this period for normalization
         $minMax = PerformanceAssessmentDetail::query()
@@ -1230,7 +1262,13 @@ class RemunerationController extends Controller
                 $norm = ($score > 0 && $min > 0) ? ($min / $score) : 0.0;
             }
             if ($norm < 0) $norm = 0.0; if ($norm > 1) $norm = 1.0;
-            $contrib = $norm * ($w / 100.0);
+
+            // Tampilkan dalam skala 0..100
+            $normalized = $norm * 100.0;
+
+            // Kontribusi (0..100): jika nilai=100 dan bobot=20 maka kontribusi=20
+            // Secara umum kontribusi = ternormalisasi(0..1) * bobot(%)
+            $contrib = $norm * $w;
             $total += $contrib;
             $rows[] = [
                 'criteria_name' => $crit?->name ?? ('Kriteria #'.$cid),
@@ -1239,14 +1277,14 @@ class RemunerationController extends Controller
                 'score'         => $score,
                 'min'           => $min,
                 'max'           => $max,
-                'normalized'    => round($norm, 4),
-                'contribution'  => round($contrib, 4),
+                'normalized'    => round($normalized, 2),
+                'contribution'  => round($contrib, 2),
             ];
         }
 
         return [
             'rows'  => $rows,
-            'total' => round($total, 4),
+            'total' => round($total, 2),
         ];
     }
 }

@@ -41,7 +41,15 @@ class RaterWeightResolver
             ->where('unit_id', $unitId)
             ->where('performance_criteria_id', $criteriaId)
             ->whereIn('assessee_profession_id', $assesseeProfessionIds)
-            ->whereIn('status', ['active', 'archived'])
+            ->where(function ($q) {
+                $q->where('status', 'active')
+                    ->orWhere(function ($q) {
+                        $q->where('status', 'archived');
+                        if (\Illuminate\Support\Facades\Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
+                            $q->where('was_active_before', 1);
+                        }
+                    });
+            })
             ->get(['assessee_profession_id', 'assessor_type', 'weight', 'status']);
 
         if ($rows->isEmpty()) {
