@@ -27,9 +27,17 @@ class AttendanceCollector implements CriteriaCollector
             ->selectRaw('user_id, COUNT(*) as total_hadir')
             ->whereIn('user_id', $userIds)
             ->whereBetween('attendance_date', [$period->start_date, $period->end_date])
-            ->where('attendance_status', AttendanceStatus::HADIR)
-            ->whereNotNull('check_in')
-            ->whereNotNull('check_out')
+            ->where(function ($q) {
+                $q->whereIn('attendance_status', [
+                    AttendanceStatus::HADIR->value,
+                    AttendanceStatus::TERLAMBAT->value,
+                ])->whereNotNull('check_in')->whereNotNull('check_out');
+
+                $q->orWhereIn('attendance_status', [
+                    AttendanceStatus::LIBUR_UMUM->value,
+                    AttendanceStatus::LIBUR_RUTIN->value,
+                ]);
+            })
             ->groupBy('user_id')
             ->pluck('total_hadir', 'user_id')
             ->map(fn($v) => (float) $v)

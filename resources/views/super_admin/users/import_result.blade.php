@@ -1,8 +1,19 @@
-@extends('layouts.app')
+<x-app-layout title="Hasil Impor Pengguna">
+    <x-slot name="header">
+        <div class="flex items-center justify-between">
+            <h1 class="text-2xl font-semibold text-slate-800">Hasil Impor Pengguna</h1>
+            <div class="flex items-center gap-3">
+                <x-ui.button as="a" href="{{ route('super_admin.users.import.form') }}" variant="outline" class="h-12 px-5 text-base">
+                    <i class="fa-solid fa-rotate-left mr-2"></i> Import Lagi
+                </x-ui.button>
+                <x-ui.button as="a" href="{{ route('super_admin.users.index') }}" variant="primary" class="h-12 px-6 text-base">
+                    <i class="fa-solid fa-users mr-2"></i> Daftar Pengguna
+                </x-ui.button>
+            </div>
+        </div>
+    </x-slot>
 
-@section('content')
-<div class="container-px py-6 space-y-6 max-w-6xl mx-auto">
-    <h1 class="text-2xl font-semibold text-slate-800">Hasil Impor Pengguna</h1>
+    <div class="container-px py-6 space-y-6">
 
     <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
@@ -82,9 +93,14 @@
         @endif
     </div>
 
-    <div class="flex justify-between">
-        <a href="{{ route('super_admin.users.import.form') }}" class="text-sm text-slate-600 hover:text-slate-800">Impor Lagi</a>
-        <a href="{{ route('super_admin.users.index') }}" class="btn-blue-grad text-sm font-medium px-5 py-2 rounded-lg">Ke Daftar Pengguna</a>
+        <div class="flex items-center justify-between">
+            <x-ui.button as="a" href="{{ route('super_admin.users.index') }}" variant="outline" class="h-12 px-6 text-base">
+                <i class="fa-solid fa-arrow-left mr-2"></i> Kembali
+            </x-ui.button>
+
+            <x-ui.button as="a" href="{{ route('super_admin.users.import.form') }}" variant="primary" class="h-12 px-6 text-base">
+                <i class="fa-solid fa-file-arrow-up mr-2"></i> Import Lagi
+            </x-ui.button>
+        </div>
     </div>
-</div>
-@endsection
+</x-app-layout>

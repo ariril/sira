@@ -1,28 +1,41 @@
-@extends('layouts.app')
-
-@section('content')
-<div class="container-px py-6 space-y-6 max-w-6xl mx-auto">
-    <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-semibold text-slate-800">Import Pengguna</h1>
-        <div class="flex gap-3">
-            <a href="{{ route('super_admin.users.import.template') }}" class="btn-blue-grad h-12 px-5 inline-flex items-center rounded-xl text-sm font-medium">
-                <i class="fa-solid fa-download mr-2"></i> Download Template
-            </a>
-            <a href="{{ route('super_admin.users.index') }}" class="btn-blue-grad h-12 px-5 inline-flex items-center rounded-xl text-sm font-medium">
-                <i class="fa-solid fa-users mr-2"></i> Daftar Pengguna
-            </a>
+<x-app-layout title="Import Pengguna">
+    <x-slot name="header">
+        <div class="flex items-center justify-between">
+            <h1 class="text-2xl font-semibold text-slate-800">Import Pengguna</h1>
+            <div class="flex items-center gap-3">
+                <x-ui.button as="a" href="{{ route('super_admin.users.import.template') }}" variant="outline" class="h-12 px-5 text-base">
+                    <i class="fa-solid fa-download mr-2"></i> Download Template
+                </x-ui.button>
+                <x-ui.button as="a" href="{{ route('super_admin.users.index') }}" variant="primary" class="h-12 px-6 text-base">
+                    <i class="fa-solid fa-users mr-2"></i> Daftar Pengguna
+                </x-ui.button>
+            </div>
         </div>
-    </div>
+    </x-slot>
 
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+    <div class="container-px py-6 space-y-6">
+        @if(!empty($error))
+            <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
+                {{ $error }}
+            </div>
+        @endif
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <h2 class="text-base font-semibold text-slate-800 mb-4">Upload Excel / CSV</h2>
-        <p class="text-sm text-slate-600 mb-4">
-            Format header: <code>name,email,roles,profession_slug,employee_number,unit_slug,password,start_date,gender,nationality,address,phone,last_education,position</code>.
-            <span class="block mt-1">Kolom opsional dapat dikosongkan. <code>roles</code> berisi slug dipisah koma (contoh: <code>super_admin,admin_rs</code>).</span>
-            <span class="block mt-1"><code>unit_slug</code> menggunakan <b>slug</b> unit (bukan ID). Jika kosong akan diset <code>null</code>.</span>
-            <span class="block mt-1"><code>profession_slug</code> boleh diisi <b>kode profesi</b> (kolom <code>professions.code</code>) atau <b>slug dari nama profesi</b> (contoh: "Dokter Spesialis Anak" → <code>dokter-spesialis-anak</code>). Jika kosong akan diset <code>null</code>.</span>
-            <span class="block mt-1"><code>start_date</code> format <code>YYYY-MM-DD</code>. Jika <code>password</code> kosong akan dibuatkan otomatis acak 12 karakter (untuk user baru).</span>
-        </p>
+
+        <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div class="text-xs font-semibold text-slate-700">Header wajib (nama kolom harus sama)</div>
+            <div class="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-[12px] text-slate-700 break-all">
+                name,email,roles,profession_slug,employee_number,unit_slug,password,start_date,gender,nationality,address,phone,last_education,position
+            </div>
+            <ul class="mt-3 text-sm text-slate-600 list-disc list-inside space-y-1">
+                <li>Kolom opsional boleh dikosongkan.</li>
+                <li><span class="font-medium">roles</span>: slug dipisah koma (contoh: <code>super_admin,admin_rs</code>).</li>
+                <li><span class="font-medium">unit_slug</span>: gunakan slug unit (bukan ID). Jika kosong diset <code>null</code>.</li>
+                <li><span class="font-medium">profession_slug</span>: boleh isi kode profesi (<code>professions.code</code>) atau slug dari nama profesi (contoh: <code>dokter-spesialis-anak</code>).</li>
+                <li><span class="font-medium">start_date</span>: format <code>YYYY-MM-DD</code>. Jika <span class="font-medium">password</span> kosong, user baru akan dibuatkan password acak 12 karakter.</li>
+            </ul>
+        </div>
         <form action="{{ route('super_admin.users.import.process') }}" method="POST" enctype="multipart/form-data" class="space-y-6" id="user-import-form">
             @csrf
             <div>
@@ -44,9 +57,9 @@
                 @error('file')<div class="text-xs text-rose-600 mt-1">{{ $message }}</div>@enderror
             </div>
             <div class="flex justify-end">
-                <button type="submit" class="btn-blue-grad h-12 px-6 inline-flex items-center rounded-xl text-sm font-medium">
+                <x-ui.button type="submit" variant="primary" class="h-12 px-6 text-base">
                     <i class="fa-solid fa-file-arrow-up mr-2"></i> Unggah & Import
-                </button>
+                </x-ui.button>
             </div>
         </form>
     </div>
@@ -64,7 +77,7 @@
             <li><code>profession_slug</code> dan <code>unit_slug</code> harus cocok dengan data master (jika diisi namun tidak ditemukan, baris akan gagal).</li>
         </ul>
     </div>
-</div>
+    </div>
 <script>
     document.addEventListener('DOMContentLoaded', function(){
         const input = document.getElementById('user-file');
@@ -138,4 +151,4 @@
         resetState();
     });
 </script>
-@endsection
+</x-app-layout>

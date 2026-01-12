@@ -30,7 +30,7 @@
                             <x-ui.select name="performance_criteria_id" :options="$patientImportCriteriaOptions" placeholder="Pilih kriteria" required />
                         </div>
                     </div>
-                    <p class="text-xs text-slate-500">Template berisi kolom: no_rm, patient_name, patient_phone, clinic, employee_numbers (dipisah koma).</p>
+                    <p class="text-xs text-slate-500">Template otomatis berisi semua pegawai medis, dengan kolom: NIP, Nama, Unit, Kriteria, Tipe, Nilai (isi nilai di kolom Nilai yang berwarna).</p>
                     <x-ui.button type="submit" variant="success" class="h-11 px-5">Generate Excel</x-ui.button>
                 </form>
             </div>

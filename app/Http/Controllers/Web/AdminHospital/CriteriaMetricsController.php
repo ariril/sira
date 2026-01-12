@@ -141,11 +141,52 @@ class CriteriaMetricsController extends Controller
             return back()->withErrors(['file' => 'Import gagal: '.$e->getMessage()]);
         }
 
+        if ((int) ($result['imported_rows'] ?? 0) === 0) {
+            $samples = $result['samples'] ?? [];
+
+            $fmtRows = function ($rows): string {
+                if (!is_array($rows) || !$rows) return '-';
+                $nums = [];
+                foreach ($rows as $r) {
+                    if (is_array($r)) {
+                        $nums[] = (string) ($r['row'] ?? '');
+                    } else {
+                        $nums[] = (string) $r;
+                    }
+                }
+                $nums = array_values(array_filter($nums, fn($v) => $v !== ''));
+                return $nums ? implode(', ', $nums) : '-';
+            };
+
+            $msg = "Tidak ada data yang tersimpan dari file ini. "
+                . "Penyebab paling sering: kolom 'Nilai' masih kosong atau NIP tidak sesuai." . "\n"
+                . sprintf(
+                    "Ringkasan: total=%d, tersimpan=%d, skipped=%d (kosong_nilai=%d, kosong_nip=%d, baris_kosong=%d), nilai_tidak_valid=%d, staff_tidak_ditemukan=%d.",
+                    (int) ($result['total_rows'] ?? 0),
+                    (int) ($result['imported_rows'] ?? 0),
+                    (int) ($result['skipped_rows'] ?? 0),
+                    (int) ($result['skipped_empty_value_rows'] ?? 0),
+                    (int) ($result['skipped_empty_employee_number_rows'] ?? 0),
+                    (int) ($result['skipped_blank_rows'] ?? 0),
+                    (int) ($result['invalid_value_rows'] ?? 0),
+                    (int) ($result['missing_staff_refs'] ?? 0),
+                )
+                . "\n"
+                . "Contoh baris (nomor baris Excel): "
+                . "nilai_kosong=" . $fmtRows($samples['empty_value_rows'] ?? []) . ", "
+                . "nip_kosong=" . $fmtRows($samples['empty_employee_number_rows'] ?? []) . ", "
+                . "nilai_tidak_valid=" . $fmtRows($samples['invalid_value_rows'] ?? []) . ", "
+                . "staff_tidak_ditemukan=" . $fmtRows($samples['missing_staff_rows'] ?? []) . ".";
+
+            return back()->withErrors(['file' => $msg]);
+        }
+
         $msg = sprintf(
-            'Import selesai: invitations=%d, staff_terdampak=%d, skipped=%d, staff_tidak_ditemukan=%d. (batch_id=%d)',
-            (int) ($result['created_invitations'] ?? 0),
+            'Import selesai: baris_tersimpan=%d, staff_terdampak=%d, skipped=%d, nilai_tidak_valid=%d, staff_tidak_ditemukan=%d. (batch_id=%d)',
+            (int) ($result['imported_rows'] ?? 0),
             (int) ($result['affected_staff'] ?? 0),
             (int) ($result['skipped_rows'] ?? 0),
+            (int) ($result['invalid_value_rows'] ?? 0),
             (int) ($result['missing_staff_refs'] ?? 0),
             (int) ($result['batch_id'] ?? 0),
         );

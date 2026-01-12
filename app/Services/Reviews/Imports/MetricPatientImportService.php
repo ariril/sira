@@ -6,13 +6,12 @@ use App\Models\AssessmentPeriod;
 use App\Models\CriteriaMetric;
 use App\Models\MetricImportBatch;
 use App\Models\PerformanceCriteria;
-use App\Models\ReviewInvitation;
-use App\Models\ReviewInvitationStaff;
 use App\Models\User;
 use App\Services\Imports\EmployeeNumberNormalizer;
+use App\Services\Imports\TabularFileReader;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use App\Services\Imports\TabularFileReader;
+use Illuminate\Support\Str;
 
 class MetricPatientImportService
 {
@@ -22,6 +21,10 @@ class MetricPatientImportService
     ) {
     }
 
+    /**
+     * Import metrics from a staff-based template.
+     * Expected header (case-insensitive): employee_number, name, unit, type, value
+     */
     public function import(
         UploadedFile $file,
         PerformanceCriteria $criteria,
@@ -51,7 +54,7 @@ class MetricPatientImportService
         ]);
 
         try {
-            return DB::transaction(function () use ($file, $criteria, $period, $batch, $replaceExisting, $expiresDays) {
+            return DB::transaction(function () use ($file, $criteria, $period, $batch, $replaceExisting) {
                 if (!$replaceExisting) {
                     $exists = CriteriaMetric::query()
                         ->where('assessment_period_id', $period->id)
@@ -75,81 +78,93 @@ class MetricPatientImportService
                 }
 
                 $map = $this->mapHeader($header);
-                foreach (['no_rm', 'patient_name', 'patient_phone', 'clinic', 'employee_numbers'] as $k) {
+                foreach (['employee_number', 'value'] as $k) {
                     if (($map[$k] ?? false) === false) {
-                        throw new \RuntimeException('Header tidak sesuai. Wajib ada kolom: no_rm, patient_name, patient_phone, clinic, employee_numbers.');
+                        throw new \RuntimeException('Header tidak sesuai. Wajib ada kolom: NIP (employee_number) dan Nilai (value).');
                     }
                 }
 
                 $now = now();
-                $expiresAt = $expiresDays > 0 ? $now->copy()->addDays($expiresDays) : null;
 
-                $createdInvitations = 0;
                 $skippedRows = 0;
+                $skippedBlankRows = 0;
+                $skippedEmptyEmployeeNumberRows = 0;
+                $skippedEmptyValueRows = 0;
                 $missingStaffRefs = 0;
-                $countsByUserId = [];
+                $invalidValueRows = 0;
+
+                $sampleLimit = 8;
+                $sampleBlankRows = [];
+                $sampleEmptyEmployeeNumberRows = [];
+                $sampleEmptyValueRows = [];
+                $sampleInvalidValueRows = [];
+                $sampleMissingStaffRows = [];
+
+                /** @var array<int,array<string,mixed>> $valueRowsByUserId */
+                $valueRowsByUserId = [];
 
                 foreach ($rows as $idx => $row) {
-                    $noRm = $this->cellToString($row[$map['no_rm']] ?? null);
-                    $patientName = $this->cellToString($row[$map['patient_name']] ?? null);
-                    $phone = $this->cellToString($row[$map['patient_phone']] ?? null);
-                    $employeeNumbersRaw = $this->cellToString($row[$map['employee_numbers']] ?? null);
+                    $rowNo = $idx + 2; // data starts at row 2
 
-                    if ($patientName === '' && $noRm === '' && $employeeNumbersRaw === '') {
+                    $employeeNumberRaw = $this->cellToString($row[$map['employee_number']] ?? null);
+                    $valueRaw = $this->cellToString($row[$map['value']] ?? null);
+                    $nameRaw = ($map['name'] !== false) ? $this->cellToString($row[$map['name']] ?? null) : '';
+
+                    if ($employeeNumberRaw === '' && $valueRaw === '' && $nameRaw === '') {
                         $skippedRows++;
+                        $skippedBlankRows++;
+                        if (count($sampleBlankRows) < $sampleLimit) {
+                            $sampleBlankRows[] = $rowNo;
+                        }
                         continue;
                     }
 
-                    $employeeNumbers = $this->parseEmployeeNumbers($employeeNumbersRaw);
-                    if (!$employeeNumbers) {
+                    $employeeNumber = $this->employeeNumberNormalizer->normalize($employeeNumberRaw);
+                    if ($employeeNumber === '') {
                         $skippedRows++;
+                        $skippedEmptyEmployeeNumberRows++;
+                        if (count($sampleEmptyEmployeeNumberRows) < $sampleLimit) {
+                            $sampleEmptyEmployeeNumberRows[] = $rowNo;
+                        }
                         continue;
                     }
 
-                    $users = User::query()
-                        ->whereIn('employee_number', $employeeNumbers)
-                        ->get(['id', 'employee_number']);
+                    if (trim($valueRaw) === '') {
+                        $skippedRows++;
+                        $skippedEmptyValueRows++;
+                        if (count($sampleEmptyValueRows) < $sampleLimit) {
+                            $sampleEmptyValueRows[] = $rowNo;
+                        }
+                        continue;
+                    }
 
-                    if ($users->isEmpty()) {
+                    $valueNormalized = str_replace(',', '.', trim($valueRaw));
+                    if (!is_numeric($valueNormalized)) {
+                        $invalidValueRows++;
+                        if (count($sampleInvalidValueRows) < $sampleLimit) {
+                            $sampleInvalidValueRows[] = ['row' => $rowNo, 'value' => $valueRaw];
+                        }
+                        continue;
+                    }
+
+                    $user = User::query()
+                        ->where('employee_number', $employeeNumber)
+                        ->first(['id']);
+
+                    if (!$user) {
                         $missingStaffRefs++;
+                        if (count($sampleMissingStaffRows) < $sampleLimit) {
+                            $sampleMissingStaffRows[] = ['row' => $rowNo, 'employee_number' => $employeeNumber];
+                        }
                         continue;
                     }
 
-                    $token = $this->generateUniqueToken();
-
-                    $invitation = ReviewInvitation::create([
-                        'patient_name' => $patientName !== '' ? $patientName : 'Pasien',
-                        'phone' => $phone !== '' ? $phone : null,
-                        'no_rm' => $noRm !== '' ? $noRm : null,
-                        'token' => $token,
-                        'expires_at' => $expiresAt,
-                        'status' => 'pending',
-                    ]);
-
-                    $pivotRows = [];
-                    foreach ($users as $u) {
-                        $pivotRows[] = [
-                            'invitation_id' => $invitation->id,
-                            'user_id' => $u->id,
-                            'created_at' => $now,
-                            'updated_at' => $now,
-                        ];
-                        $countsByUserId[$u->id] = ($countsByUserId[$u->id] ?? 0) + 1;
-                    }
-                    ReviewInvitationStaff::insert($pivotRows);
-
-                    $createdInvitations++;
-                }
-
-                // Upsert aggregated metric values
-                $valueRows = [];
-                foreach ($countsByUserId as $userId => $count) {
-                    $valueRows[] = [
+                    $valueRowsByUserId[$user->id] = [
                         'import_batch_id' => $batch->id,
-                        'user_id' => (int) $userId,
+                        'user_id' => (int) $user->id,
                         'assessment_period_id' => $period->id,
                         'performance_criteria_id' => $criteria->id,
-                        'value_numeric' => (float) $count,
+                        'value_numeric' => (float) $valueNormalized,
                         'value_datetime' => null,
                         'value_text' => null,
                         'created_at' => $now,
@@ -157,6 +172,7 @@ class MetricPatientImportService
                     ];
                 }
 
+                $valueRows = array_values($valueRowsByUserId);
                 if ($valueRows) {
                     DB::table('imported_criteria_values')->upsert(
                         $valueRows,
@@ -169,10 +185,23 @@ class MetricPatientImportService
 
                 return [
                     'batch_id' => $batch->id,
-                    'created_invitations' => $createdInvitations,
+                    'total_rows' => count($rows),
+                    'imported_rows' => count($valueRows),
                     'skipped_rows' => $skippedRows,
+                    'skipped_blank_rows' => $skippedBlankRows,
+                    'skipped_empty_employee_number_rows' => $skippedEmptyEmployeeNumberRows,
+                    'skipped_empty_value_rows' => $skippedEmptyValueRows,
+                    'invalid_value_rows' => $invalidValueRows,
                     'missing_staff_refs' => $missingStaffRefs,
-                    'affected_staff' => count($countsByUserId),
+                    'affected_staff' => count($valueRowsByUserId),
+
+                    'samples' => [
+                        'blank_rows' => $sampleBlankRows,
+                        'empty_employee_number_rows' => $sampleEmptyEmployeeNumberRows,
+                        'empty_value_rows' => $sampleEmptyValueRows,
+                        'invalid_value_rows' => $sampleInvalidValueRows,
+                        'missing_staff_rows' => $sampleMissingStaffRows,
+                    ],
                 ];
             });
         } catch (\Throwable $e) {
@@ -181,74 +210,62 @@ class MetricPatientImportService
         }
     }
 
+    /**
+     * @return array<string,int|false>
+     */
     private function mapHeader(array $header): array
     {
-        $norm = array_map(function ($h) {
-            $h = strtolower((string) $h);
-            $h = trim(preg_replace('/\s+/', ' ', $h));
-            $h = str_replace(['-', ' '], ['_', '_'], $h);
-            return $h;
-        }, $header);
+        $normalized = [];
+        foreach ($header as $i => $h) {
+            $key = Str::of((string) $h)->trim()->lower()->toString();
+            $key = preg_replace('/^\xEF\xBB\xBF/', '', $key) ?? $key;
+            $normalized[$i] = $key;
+        }
 
-        $find = function (array $aliases) use ($norm) {
-            foreach ($aliases as $a) {
-                $i = array_search($a, $norm, true);
-                if ($i !== false) {
-                    return $i;
+        $map = [];
+        foreach ($normalized as $i => $key) {
+            if ($key === '') {
+                continue;
+            }
+            $map[$key] = $i;
+        }
+
+        $pick = function (array $candidates) use ($map): int|false {
+            foreach ($candidates as $c) {
+                if (array_key_exists($c, $map)) {
+                    return (int) $map[$c];
                 }
             }
             return false;
         };
 
         return [
-            'no_rm' => $find(['no_rm', 'nomr', 'no_rekam_medis', 'no_rm_pasien']),
-            'patient_name' => $find(['patient_name', 'nama_pasien', 'nama']),
-            'patient_phone' => $find(['patient_phone', 'patient_contact', 'phone', 'contact', 'no_hp', 'telp']),
-            'clinic' => $find(['clinic', 'poliklinik', 'unit', 'ruangan']),
-            'employee_numbers' => $find(['employee_numbers', 'nip', 'nips', 'employee_number', 'pegawai', 'employee_number_list']),
+            // Support Indonesian/English headers
+            'employee_number' => $pick(['nip', 'employee_number', 'employee no', 'employee_no', 'no pegawai', 'nomor pegawai']),
+            'name' => $pick(['nama', 'name']),
+            'unit' => $pick(['unit']),
+            'criteria' => $pick(['kriteria', 'criteria']),
+            'type' => $pick(['tipe', 'type']),
+            'value' => $pick(['nilai', 'value']),
         ];
     }
 
-    private function cellToString(mixed $val): string
+    private function cellToString(mixed $cell): string
     {
-        if ($val === null) {
+        if ($cell === null) {
             return '';
         }
-        if (is_bool($val)) {
-            return $val ? '1' : '0';
-        }
-        return trim((string) $val);
-    }
 
-    private function parseEmployeeNumbers(string $raw): array
-    {
-        $raw = trim($raw);
-        if ($raw === '') {
-            return [];
+        if (is_bool($cell)) {
+            return $cell ? '1' : '0';
         }
 
-        $parts = preg_split('/\s*,\s*/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $out = [];
-        foreach ($parts as $p) {
-            $p = $this->employeeNumberNormalizer->normalize((string) $p);
-            if ($p !== '') {
-                $out[] = $p;
-            }
+        if (is_int($cell) || is_float($cell)) {
+            // Keep as is; avoid scientific notation where possible
+            $s = (string) $cell;
+            return $s;
         }
 
-        return array_values(array_unique($out));
-    }
-
-    private function generateUniqueToken(): string
-    {
-        for ($i = 0; $i < 5; $i++) {
-            $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
-            $exists = ReviewInvitation::query()->where('token', $token)->exists();
-            if (!$exists) {
-                return $token;
-            }
-        }
-
-        throw new \RuntimeException('Gagal menghasilkan token unik.');
+        return trim((string) $cell);
     }
 }

@@ -100,9 +100,8 @@ class AttendanceImportController extends Controller
                 if ($this->looksLikeScientificNotation($rawNip)) {
                     $warnScientific = true;
                 }
-                if ($this->looksLikeLongNumericIdentifier($rawNip)) {
-                    $warnNumeric = true;
-                }
+                // NOTE: Do not warn just because NIP is long digits.
+                // Long NIP is normal; we only warn when it actually looks like scientific (E+) formatting.
 
                 $previewRows[] = [
                     'row_no' => $idx + 2,
@@ -416,15 +415,19 @@ class AttendanceImportController extends Controller
         if (!$date) return [false, 'bad_date', $parsed];
 
         // DB kolom check_in/check_out adalah DATETIME -> gabungkan tanggal + jam scan
-        $in  = $this->combineDateTime($date, $data['check_in'] ?? '');
-        $out = $this->combineDateTime($date, $data['check_out'] ?? '');
+        $rawIn = $data['check_in'] ?? '';
+        $rawOut = $data['check_out'] ?? '';
+
+        $in  = $this->combineDateTime($date, $rawIn);
+        $out = $this->combineDateTime($date, $rawOut);
         if ($in) $parsed['check_in'] = 
             \Carbon\Carbon::parse($in)->format('H:i');
         if ($out) $parsed['check_out'] = 
             \Carbon\Carbon::parse($out)->format('H:i');
 
-        if (($data['check_in'] ?? '') !== '' && !$in) return [false, 'bad_time', $parsed];
-        if (($data['check_out'] ?? '') !== '' && !$out) return [false, 'bad_time', $parsed];
+        // Treat 00:00 as empty time (often used for libur/blank rows)
+        if ($this->hasNonEmptyNonZeroTime($rawIn) && !$in) return [false, 'bad_time', $parsed];
+        if ($this->hasNonEmptyNonZeroTime($rawOut) && !$out) return [false, 'bad_time', $parsed];
 
         $status = $this->deriveStatus($data, $in, $out);
 
@@ -462,11 +465,29 @@ class AttendanceImportController extends Controller
             return [false, 'db_error', $parsed];
         }
     }
-    private function combineDateTime(\DateTimeImmutable $date, ?string $time): ?string
+    private function combineDateTime(\DateTimeImmutable $date, mixed $time): ?string
     {
+        if ($time === null) {
+            return null;
+        }
+
+        // Excel time serial (fraction of day). 0 means 00:00.
+        if (is_int($time) || is_float($time) || (is_string($time) && preg_match('/^\d+(?:\.\d+)?$/', trim($time)))) {
+            $num = (float) trim((string) $time);
+            if ($num == 0.0) {
+                return null;
+            }
+            try {
+                $dt = ExcelDate::excelToDateTimeObject($num);
+                return $date->format('Y-m-d') . ' ' . $dt->format('H:i:s');
+            } catch (\Throwable $e) {
+                // fall through to string parsing
+            }
+        }
+
         $time = trim((string)$time);
         if ($time === '') return null;
-        if (preg_match('/^0{1,2}:0{2}(:0{2})?$/', $time)) return null;
+        if ($this->isZeroTimeString($time)) return null;
         if (preg_match('/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $time, $m)) {
             $hh = str_pad($m[1], 2, '0', STR_PAD_LEFT);
             $mm = $m[2];
@@ -546,11 +567,29 @@ class AttendanceImportController extends Controller
         return $this->employeeNumberNormalizer->expandScientificToPlainInteger($val);
     }
 
-    private function ensureTime(?string $time): ?string
+    private function ensureTime(mixed $time): ?string
     {
+        if ($time === null) {
+            return null;
+        }
+
+        // Excel time serial (fraction of day). 0 means 00:00.
+        if (is_int($time) || is_float($time) || (is_string($time) && preg_match('/^\d+(?:\.\d+)?$/', trim($time)))) {
+            $num = (float) trim((string) $time);
+            if ($num == 0.0) {
+                return null;
+            }
+            try {
+                $dt = ExcelDate::excelToDateTimeObject($num);
+                return $dt->format('H:i:s');
+            } catch (\Throwable $e) {
+                // fall through
+            }
+        }
+
         $time = trim((string)$time);
         if ($time === '') return null;
-        if (preg_match('/^0{1,2}:0{2}(:0{2})?$/', $time)) return null;
+        if ($this->isZeroTimeString($time)) return null;
         if (preg_match('/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $time, $m)) {
             $hh = str_pad($m[1], 2, '0', STR_PAD_LEFT);
             $mm = $m[2];
@@ -558,6 +597,31 @@ class AttendanceImportController extends Controller
             return "$hh:$mm:$ss";
         }
         return null;
+    }
+
+    private function isZeroTimeString(string $time): bool
+    {
+        $time = trim($time);
+        return (bool) preg_match('/^0{1,2}:0{2}(:0{2})?$/', $time);
+    }
+
+    private function hasNonEmptyNonZeroTime(mixed $time): bool
+    {
+        if ($time === null) {
+            return false;
+        }
+        $s = trim((string) $time);
+        if ($s === '') {
+            return false;
+        }
+        if ($this->isZeroTimeString($s)) {
+            return false;
+        }
+        // If numeric string/number and equals 0 -> treat empty
+        if (is_numeric($s) && ((float) $s) == 0.0) {
+            return false;
+        }
+        return true;
     }
 
     private function durationToMinutes(?string $val): ?int
@@ -585,6 +649,8 @@ class AttendanceImportController extends Controller
         $s = strtolower(trim((string)($data['status'] ?? '')));
         if ($s !== '') {
             return match ($s) {
+                'libur umum'  => AttendanceStatus::LIBUR_UMUM,
+                'libur rutin' => AttendanceStatus::LIBUR_RUTIN,
                 'sakit'      => AttendanceStatus::SAKIT,
                 'izin'       => AttendanceStatus::IZIN,
                 'cuti'       => AttendanceStatus::CUTI,
@@ -597,8 +663,8 @@ class AttendanceImportController extends Controller
         // From Indonesian sheet columns
         $late = strtolower(trim((string)($data['late'] ?? '')));
         $note = strtolower(trim((string)($data['note'] ?? '')));
-        $liburUmum  = strtolower(trim((string)($data['holiday_umum'] ?? '')));
-        $liburRutin = strtolower(trim((string)($data['holiday_rutin'] ?? '')));
+        $holidayPublic = $this->toBool($data['holiday_umum'] ?? '');
+        $holidayRegular = $this->toBool($data['holiday_rutin'] ?? '');
 
         if (str_contains($note, 'sakit')) return AttendanceStatus::SAKIT;
         if (str_contains($note, 'izin'))  return AttendanceStatus::IZIN;
@@ -606,6 +672,12 @@ class AttendanceImportController extends Controller
 
         // If both times empty
         if (!$checkIn && !$checkOut) {
+            if ($holidayPublic) {
+                return AttendanceStatus::LIBUR_UMUM;
+            }
+            if ($holidayRegular) {
+                return AttendanceStatus::LIBUR_RUTIN;
+            }
             return AttendanceStatus::ABSEN;
         }
 
@@ -671,9 +743,6 @@ class AttendanceImportController extends Controller
         $raw = trim((string)($data['employee_number_raw'] ?? ($data['employee_number'] ?? '')));
         if ($raw !== '' && $this->looksLikeScientificNotation($raw)) {
             return 'NIP tidak ditemukan. NIP terdeteksi format scientific (E+). Ubah format kolom NIP menjadi TEXT di Excel lalu simpan ulang agar tidak gagal.';
-        }
-        if ($raw !== '' && $this->looksLikeLongNumericIdentifier($raw)) {
-            return 'NIP tidak ditemukan. NIP tampak dibaca sebagai Number (angka panjang). Pastikan kolom NIP berformat TEXT di Excel agar digit tidak berubah.';
         }
 
         return $default['no_user'];

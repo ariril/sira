@@ -39,6 +39,8 @@ return new class extends Migration
 
             $table->enum('attendance_status', [    // status_kehadiran
                 'Hadir',
+                'Libur Umum',
+                'Libur Rutin',
                 'Sakit',
                 'Izin',
                 'Cuti',

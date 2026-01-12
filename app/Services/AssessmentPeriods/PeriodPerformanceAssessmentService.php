@@ -299,7 +299,7 @@ class PeriodPerformanceAssessmentService
             'rating' => [],
         ];
 
-        // Attendance-derived metrics (Hadir only)
+        // Attendance-derived metrics (count workdays present + holidays)
         if (($criteriaIds['kehadiran'] ?? null) || ($criteriaIds['jam_kerja'] ?? null) || ($criteriaIds['lembur'] ?? null) || ($criteriaIds['keterlambatan'] ?? null)) {
             $attendanceRows = DB::table('attendances')
                 ->selectRaw(
@@ -310,7 +310,12 @@ class PeriodPerformanceAssessmentService
                      COALESCE(SUM(CASE WHEN (overtime_shift = 1 OR overtime_end IS NOT NULL OR overtime_note IS NOT NULL) THEN 1 ELSE 0 END),0) as overtime_count'
                 )
                 ->whereIn('user_id', $userIds)
-                ->where('attendance_status', AttendanceStatus::HADIR->value)
+                ->whereIn('attendance_status', [
+                    AttendanceStatus::HADIR->value,
+                    AttendanceStatus::TERLAMBAT->value,
+                    AttendanceStatus::LIBUR_UMUM->value,
+                    AttendanceStatus::LIBUR_RUTIN->value,
+                ])
                 ->when($start && $end, fn($q) => $q->whereBetween('attendance_date', [$start, $end]))
                 ->groupBy('user_id')
                 ->get();

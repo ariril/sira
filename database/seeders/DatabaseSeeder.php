@@ -153,7 +153,7 @@ class DatabaseSeeder extends Seeder
 
                 // ini pegawai medis
                 [
-                    'employee_number' => '10.0001',
+                    'employee_number' => '02.0003',
                     'name' => 'dr. Felix Christian Tjiptadi',
                     'start_date' => '2022-01-15',
                     'gender' => 'Laki-laki',
@@ -173,7 +173,7 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '10.0002',
+                    'employee_number' => '197511132008031001',
                     'name' => 'dr. Theodorus L. Mau bere',
                     'start_date' => '2021-02-10',
                     'gender' => 'Laki-laki',
@@ -193,7 +193,7 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '10.0003',
+                    'employee_number' => '17',
                     'name' => 'dr. Charles Saputra',
                     'start_date' => '2023-01-10',
                     'gender' => 'Laki-laki',
@@ -213,7 +213,7 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '10.0004',
+                    'employee_number' => '197203302006042019',
                     'name' => 'Fransisca Tjitra N. Seran, SE',
                     'start_date' => '2018-11-05',
                     'gender' => 'Perempuan',
@@ -233,7 +233,7 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '10.0005',
+                    'employee_number' => '196507071999032002',
                     'name' => 'Maria Magdalena Seran',
                     'start_date' => '2010-01-01',
                     'gender' => 'Perempuan',
@@ -273,7 +273,7 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '10.0006',
+                    'employee_number' => '161',
                     'name' => 'dr. Januario E. Bria M.Kes, Sp.B',
                     'start_date' => '2021-05-01',
                     'gender' => 'Laki-laki',
@@ -293,7 +293,7 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
-                    'employee_number' => '10.0007',
+                    'employee_number' => '198802092022022002',
                     'name' => 'drg. Susanti S. Leo',
                     'start_date' => '2022-02-02',
                     'gender' => 'Perempuan',

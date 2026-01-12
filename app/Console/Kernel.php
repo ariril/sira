@@ -22,6 +22,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\DebugRaterWeightsNovember::class,
         \App\Console\Commands\BackfillPerformanceAssessmentSnapshots::class,
         \App\Console\Commands\VerifyPerformanceAssessmentSnapshots::class,
+        \App\Console\Commands\BackfillHolidayAttendanceStatus::class,
     ];
 
     protected function schedule(Schedule $schedule): void
