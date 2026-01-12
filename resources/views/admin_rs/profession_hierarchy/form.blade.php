@@ -70,17 +70,12 @@
                 </div>
 
                 <div class="md:col-span-6">
-                    <label class="inline-flex items-center gap-3">
-                        <input type="checkbox" name="is_required" value="1" class="rounded border-slate-300"
-                            {{ old('is_required', $item->is_required) ? 'checked' : '' }}>
-                        <span class="text-sm text-slate-700">Required</span>
-                    </label>
-                </div>
-
-                <div class="md:col-span-6">
-                    <label class="inline-flex items-center gap-3">
-                        <input type="checkbox" name="is_active" value="1" class="rounded border-slate-300"
-                            {{ old('is_active', $item->is_active) ? 'checked' : '' }}>
+                    <label class="inline-flex items-center gap-2 h-12 px-3 rounded-xl border border-slate-300 bg-white">
+                        <input type="checkbox"
+                               name="is_active"
+                               value="1"
+                               class="h-4 w-4 rounded border-slate-300 text-blue-600"
+                               @checked(old('is_active', $item->is_active ?? 1))>
                         <span class="text-sm text-slate-700">Aktif</span>
                     </label>
                 </div>

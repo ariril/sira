@@ -69,13 +69,20 @@ class MultiRaterSubmissionController extends Controller
                 $assessorHasKepalaPoliklinik = $assessor ? (bool) $assessor->hasRole('kepala_poliklinik') : false;
 
                 $contextResolver = function ($target) use ($assessorProfessionId, $criteriaByType, $assessorHasKepalaPoliklinik) {
-                    $assessorType = AssessorTypeResolver::resolveByIds(
-                        (int) Auth::id(),
-                        $assessorProfessionId ? (int) $assessorProfessionId : null,
-                        (int) $target->id,
-                        !empty($target->profession_id) ? (int) $target->profession_id : null,
-                        $assessorHasKepalaPoliklinik
-                    );
+                    // Special case:
+                    // Kepala Unit must be able to rate themselves as the unit's supervisor (atasan level 1)
+                    // so the supervisor weight doesn't become 0 for the unit head.
+                    if ((int) $target->id === (int) Auth::id()) {
+                        $assessorType = 'supervisor';
+                    } else {
+                        $assessorType = AssessorTypeResolver::resolveByIds(
+                            (int) Auth::id(),
+                            $assessorProfessionId ? (int) $assessorProfessionId : null,
+                            (int) $target->id,
+                            !empty($target->profession_id) ? (int) $target->profession_id : null,
+                            $assessorHasKepalaPoliklinik
+                        );
+                    }
 
                     return [
                         'assessor_type' => $assessorType,
@@ -86,7 +93,6 @@ class MultiRaterSubmissionController extends Controller
                 $rawStaff = User::query()
                     ->role('pegawai_medis')
                     ->where('unit_id', $unitId)
-                    ->where('id', '!=', Auth::id())
                     ->with(['profession','unit'])
                     ->orderBy('name')
                     ->get()
@@ -117,7 +123,7 @@ class MultiRaterSubmissionController extends Controller
                         ];
                     });
 
-                $formData = SimpleFormData::build($periodId, Auth::id(), $assessorProfessionId, $rawStaff, $contextResolver);
+                $formData = SimpleFormData::build($periodId, Auth::id(), $assessorProfessionId, $rawStaff, $contextResolver, true);
                 $unitStaff = collect($formData['targets']);
                 $criteriaOptions = collect($formData['criteria_catalog']);
                 $remainingAssignments = $formData['remaining_assignments'];
@@ -218,8 +224,8 @@ class MultiRaterSubmissionController extends Controller
             );
         }
 
-        $assessment->status = 'submitted';
-        $assessment->submitted_at = Carbon::now();
+        $assessment->status = 'in_progress';
+        $assessment->submitted_at = null;
         $assessment->save();
 
         $assessee = $assessment->assessee()->first(['id', 'unit_id', 'profession_id']);
@@ -231,6 +237,6 @@ class MultiRaterSubmissionController extends Controller
             );
         }
 
-        return redirect()->route('kepala_unit.multi_rater.index')->with('status', 'Penilaian 360 berhasil dikirim.');
+        return redirect()->route('kepala_unit.multi_rater.index')->with('status', 'Penilaian 360 berhasil disimpan. Status akan menjadi SUBMITTED saat periode penilaian berakhir.');
     }
 }

@@ -88,6 +88,13 @@ class HomeController extends Controller
                 ->count();
         });
 
+            // Demo override untuk keperluan screenshot:
+            // Set `.env` -> DEMO_SCREENSHOT_STATS=true untuk memaksa nilai statistik tertentu.
+            if ((bool) config('app.demo_screenshot_stats', false)) {
+                $capaianKinerja = 92.3;
+                $tugasTambahan = 5;
+            }
+
         // Catatan: Sistem tidak mencatat jadwal tenaga medis, jadi tidak ada statistik "Jadwal Besok" di beranda.
 
         $stats = [

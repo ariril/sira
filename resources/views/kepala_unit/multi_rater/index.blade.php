@@ -31,30 +31,6 @@
                 'canSubmit' => (bool) ($canSubmit ?? false),
             ])
         @endif
-        @if(!$assessments->isEmpty())
-            <div class="overflow-x-auto bg-white rounded-2xl shadow-sm border border-slate-100">
-                <table class="min-w-full">
-                    <thead>
-                        <tr class="bg-slate-50">
-                            <th class="p-3 text-left">Assessee</th>
-                            <th class="p-3 text-left">Periode</th>
-                            <th class="p-3 text-left">Status</th>
-                            <th class="p-3"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @foreach($assessments as $a)
-                        <tr class="border-t">
-                            <td class="p-3">#{{ $a->assessee_id }}</td>
-                            <td class="p-3">#{{ $a->assessment_period_id }}</td>
-                            <td class="p-3">{{ $a->status }}</td>
-                            <td class="p-3"><a class="text-amber-600" href="{{ route('kepala_unit.multi_rater.show', $a) }}">Isi</a></td>
-                        </tr>
-                    @endforeach
-                    </tbody>
-                </table>
-            </div>
-        @endif
 
         @if(isset($savedScores))
             @php($allowInlineEdit = ($windowEndsAt ?? null) && now()->lte($windowEndsAt) && (bool) ($canSubmit ?? false))

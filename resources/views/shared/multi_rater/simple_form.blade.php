@@ -55,14 +55,27 @@
         </template>
 
         <div class="grid gap-4 sm:grid-cols-12" x-show="canSubmit" x-cloak>
-            <div class="sm:col-span-12">
-                <label class="block text-sm font-medium text-slate-700 mb-1">Cari Nama / NIP</label>
-                <x-ui.input type="text" placeholder="Ketik nama atau NIP untuk memfilter" x-model.debounce.300ms="searchTerm" @input="refreshTargetSelect()" />
-            </div>
             <div class="sm:col-span-6">
-                <label class="block text-sm font-medium text-slate-700 mb-1">Target Dinilai</label>
-                <div x-ref="targetSelectWrapper">
-                    <x-ui.select :options="[]" placeholder="Pilih target" x-init="refreshTargetSelect()" x-on:change="onTargetChange($event.target.value)" />
+                <label class="block text-sm font-medium text-slate-700 mb-1">Target Dinilai (Nama / NIP)</label>
+                <div class="relative" @click.away="targetDropdown = false; maybeAutoSelectTarget()">
+                    <x-ui.input type="text" placeholder="Contoh: dr. Charles / 10.00…" x-model="targetQuery" @focus="openTargetDropdown(false)" @input="openTargetDropdown(true)" @keydown.enter.prevent="maybeAutoSelectTarget(); targetDropdown = false" class="pr-12" />
+                    <button type="button" class="absolute right-11 top-1/2 -translate-y-1/2 text-slate-400" x-show="selectedTargetId" @click="clearTarget()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                    <i class="fa-solid fa-chevron-down pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <div x-show="targetDropdown" x-cloak class="absolute z-20 mt-2 w-full rounded-2xl border border-slate-200 bg-white shadow-xl max-h-64 overflow-y-auto">
+                        <template x-if="filteredTargets().length === 0">
+                            <div class="px-4 py-3 text-sm text-slate-500">Target tidak ditemukan.</div>
+                        </template>
+                        <template x-for="person in filteredTargets()" :key="person.id">
+                            <button type="button" class="w-full text-left px-4 py-3 text-sm hover:bg-amber-50" @mousedown.prevent="selectTarget(person)" @click.prevent>
+                                <span class="font-medium" x-text="person.label ?? person.name"></span>
+                                <template x-if="person.employee_number">
+                                    <span class="text-slate-500" x-text="' • ' + person.employee_number"></span>
+                                </template>
+                            </button>
+                        </template>
+                    </div>
                 </div>
             </div>
             <div class="sm:col-span-6">
@@ -99,8 +112,9 @@
                 items: initialItems,
                 criteriaCatalog,
                 criteriaMap: {},
-                searchTerm: '',
+                targetQuery: '',
                 selectedTargetId: '',
+                targetDropdown: false,
                 selectedCriteriaId: '',
                 applyAll: false,
                 score: '',
@@ -116,42 +130,56 @@
                         acc[item.id] = item;
                         return acc;
                     }, {});
-                    this.refreshTargetSelect();
                     this.refreshCriteriaSelect();
                 },
                 progressMessage() {
                     return `Tersisa ${this.remainingPeople} Orang dengan ${this.remainingAssignments} penilaian kriteria yang belum diisi.`;
                 },
-                targetSelect() { return this.$refs.targetSelectWrapper?.querySelector('select'); },
                 criteriaSelect() { return this.$refs.criteriaSelectWrapper?.querySelector('select'); },
-                filteredTargets() {
-                    if (!this.searchTerm) return this.items;
-                    const term = this.searchTerm.toLowerCase();
-                    return this.items.filter(item => (item.searchable || '').includes(term));
-                },
-                refreshTargetSelect() {
-                    const sel = this.targetSelect();
-                    if (!sel) return;
-                    const previous = sel.value;
-                    sel.innerHTML = '';
-                    const opt0 = document.createElement('option');
-                    opt0.value = '';
-                    opt0.textContent = this.items.length ? 'Pilih target' : 'Tidak ada target tersedia';
-                    sel.appendChild(opt0);
-                    this.filteredTargets().forEach(t => {
-                        const option = document.createElement('option');
-                        option.value = t.id;
-                        const nip = t.employee_number ? ` • ${t.employee_number}` : '';
-                        option.textContent = t.label ?? (t.name + nip);
-                        sel.appendChild(option);
-                    });
-                    if (previous && this.filteredTargets().some(t => String(t.id) === String(previous))) {
-                        sel.value = previous;
-                        this.selectedTargetId = previous;
-                    } else {
-                        this.selectedTargetId = '';
-                        sel.value = '';
+                normalizeText(value) { return String(value ?? '').trim().toLowerCase(); },
+                maybeAutoSelectTarget() {
+                    if (this.selectedTargetId) return;
+                    const term = this.normalizeText(this.targetQuery);
+                    if (!term) return;
+                    const matches = this.filteredTargets();
+                    if (matches.length === 1) {
+                        this.selectTarget(matches[0]);
                     }
+                },
+                openTargetDropdown(clearSelection = false) {
+                    this.targetDropdown = true;
+                    // Only clear the current selection if the user actually types/edits the field.
+                    if (clearSelection && this.selectedTargetId) {
+                        this.selectedTargetId = '';
+                        this.selectedCriteriaId = '';
+                        this.refreshCriteriaSelect();
+                    }
+                },
+                filteredTargets() {
+                    const term = this.normalizeText(this.targetQuery);
+                    if (!term) return this.items;
+                    return this.items.filter(item => {
+                        const haystack = this.normalizeText([
+                            item.label,
+                            item.name,
+                            item.employee_number,
+                            item.searchable,
+                        ].filter(Boolean).join(' '));
+                        return haystack.includes(term);
+                    });
+                },
+                selectTarget(person) {
+                    this.selectedTargetId = String(person.id);
+                    this.targetQuery = String(person.label ?? person.name ?? '');
+                    this.targetDropdown = false;
+                    this.selectedCriteriaId = '';
+                    this.refreshCriteriaSelect();
+                },
+                clearTarget() {
+                    this.selectedTargetId = '';
+                    this.targetQuery = '';
+                    this.targetDropdown = false;
+                    this.selectedCriteriaId = '';
                     this.refreshCriteriaSelect();
                 },
                 refreshCriteriaSelect() {
@@ -191,11 +219,6 @@
                         this.selectedCriteriaId = '';
                         sel.value = '';
                     }
-                },
-                onTargetChange(value) {
-                    this.selectedTargetId = value;
-                    this.selectedCriteriaId = '';
-                    this.refreshCriteriaSelect();
                 },
                 handleApplyAllToggle() {
                     if (this.applyAll) {
@@ -306,7 +329,10 @@
                 updateTargetPending(pendingIds) {
                     const targetIndex = this.items.findIndex(item => String(item.id) === String(this.selectedTargetId));
                     if (targetIndex === -1) {
-                        this.refreshTargetSelect();
+                        this.selectedTargetId = '';
+                        this.targetQuery = '';
+                        this.targetDropdown = false;
+                        this.refreshCriteriaSelect();
                         return false;
                     }
                     this.items[targetIndex].pending_criteria = pendingIds;
@@ -314,10 +340,11 @@
                     if (cleared) {
                         this.items.splice(targetIndex, 1);
                         this.selectedTargetId = '';
+                        this.targetQuery = '';
+                        this.targetDropdown = false;
                     }
                     this.applyAll = false;
                     this.selectedCriteriaId = '';
-                    this.refreshTargetSelect();
                     this.refreshCriteriaSelect();
                     return cleared;
                 },

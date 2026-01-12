@@ -22,7 +22,72 @@ class AssessmentPeriodLifecycleService
 
         AssessmentPeriod::syncByNow();
 
+        $this->finalizeMultiRaterAssessments();
         $this->autoCloseApprovedPeriods();
+    }
+
+    /**
+     * Multi-rater (360) rule:
+     * - While the 360 window is running, each save keeps the assessment status as in_progress.
+        * - After the window end date has passed, assessments that have been started (in_progress) become submitted.
+        *   Assessments still in invited state are NOT considered filled and will be cancelled.
+     */
+    private function finalizeMultiRaterAssessments(): void
+    {
+        if (!Schema::hasTable('assessment_360_windows')
+            || !Schema::hasTable('multi_rater_assessments')
+            || !Schema::hasTable('multi_rater_assessment_details')) {
+            return;
+        }
+
+        $today = now()->toDateString();
+
+        $expiredPeriodIds = DB::table('assessment_360_windows')
+            ->whereNotNull('end_date')
+            ->where('end_date', '<', $today)
+            ->pluck('assessment_period_id')
+            ->filter()
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($expiredPeriodIds->isEmpty()) {
+            return;
+        }
+
+        // Close any still-active windows that have passed their end date.
+        DB::table('assessment_360_windows')
+            ->whereIn('assessment_period_id', $expiredPeriodIds)
+            ->where('is_active', true)
+            ->update([
+                'is_active' => false,
+                'updated_at' => now(),
+            ]);
+
+        // Mark as submitted only if the assessment was started (in_progress) and has at least one saved detail row.
+        DB::table('multi_rater_assessments as mra')
+            ->whereIn('mra.assessment_period_id', $expiredPeriodIds)
+            ->where('mra.status', '=', 'in_progress')
+            ->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('multi_rater_assessment_details as d')
+                    ->whereColumn('d.multi_rater_assessment_id', 'mra.id');
+            })
+            ->update([
+                'status' => 'submitted',
+                'submitted_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+        // Any invitations not started by the rater by the window end are cancelled.
+        DB::table('multi_rater_assessments as mra')
+            ->whereIn('mra.assessment_period_id', $expiredPeriodIds)
+            ->where('mra.status', '=', 'invited')
+            ->update([
+                'status' => 'cancelled',
+                'submitted_at' => null,
+                'updated_at' => now(),
+            ]);
     }
 
     private function autoCloseApprovedPeriods(): void

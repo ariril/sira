@@ -2,6 +2,7 @@
 
 namespace App\Services\MultiRater;
 
+use App\Models\MultiRaterAssessment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 
@@ -11,7 +12,7 @@ class SimpleFormData
      * @param  Collection  $targets  Collection of stdClass/array with id, name, etc.
      * @param  callable  $contextResolver  function ($target): array{assessor_type:string, criteria:iterable}
      */
-    public static function build(int $periodId, int $raterId, ?int $assessorProfessionId, Collection $targets, callable $contextResolver): array
+    public static function build(int $periodId, int $raterId, ?int $assessorProfessionId, Collection $targets, callable $contextResolver, bool $seedInvites = false): array
     {
         $completedByTarget = DB::table('multi_rater_assessments as mra')
             ->join('multi_rater_assessment_details as d', 'd.multi_rater_assessment_id', '=', 'mra.id')
@@ -63,6 +64,24 @@ class SimpleFormData
 
             if (empty($pending)) {
                 continue;
+            }
+
+            if ($seedInvites) {
+                // Ensure an invitation row exists before the user starts scoring.
+                // Status should remain INVITED until the first save action.
+                MultiRaterAssessment::firstOrCreate(
+                    [
+                        'assessee_id' => (int) $target->id,
+                        'assessor_id' => (int) $raterId,
+                        'assessor_profession_id' => $assessorProfessionId ? (int) $assessorProfessionId : null,
+                        'assessor_type' => $assessorType,
+                        'assessment_period_id' => (int) $periodId,
+                    ],
+                    [
+                        'status' => 'invited',
+                        'submitted_at' => null,
+                    ]
+                );
             }
 
             $searchSource = trim(($target->name ?? '') . ' ' . ($target->employee_number ?? ''));

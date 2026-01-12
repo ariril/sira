@@ -123,4 +123,7 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    // Demo override untuk keperluan screenshot (welcome stats)
+    'demo_screenshot_stats' => (bool) env('DEMO_SCREENSHOT_STATS', false),
+
 ];

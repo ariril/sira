@@ -21,6 +21,19 @@ class StoreController extends Controller
 {
     public function store(Request $req, PeriodPerformanceAssessmentService $perfSvc)
     {
+        // Browser locale can format number inputs with comma decimals (e.g. 99,00 / 99.00).
+        // Keep persistence consistent: score is stored & validated as INTEGER (1..100).
+        // So we normalize any numeric-like value to an integer string BEFORE validation.
+        if ($req->has('score')) {
+            $raw = trim((string) $req->input('score'));
+            $raw = str_replace(',', '.', $raw);
+            if ($raw !== '' && is_numeric($raw)) {
+                $req->merge([
+                    'score' => (string) ((int) round((float) $raw)),
+                ]);
+            }
+        }
+
         $applyAll = $req->boolean('apply_all');
         $rules = [
             'assessment_period_id' => ['required_without:period_id', 'integer'],
@@ -66,6 +79,13 @@ class StoreController extends Controller
         }
 
         $assessorType = AssessorTypeResolver::resolve($assessor, $target, (int) $assessorProfessionId);
+
+        // Special case:
+        // When a unit head rates themselves, the relationship should contribute to the supervisor bucket
+        // (atasan level 1) so the supervisor weight isn't treated as missing.
+        if ($raterRole === 'kepala_unit' && (int) $targetId === (int) $raterId) {
+            $assessorType = 'supervisor';
+        }
         $unitId = $validated['unit_id'] ?? $target->unit_id;
 
         $window = Assessment360Window::where('assessment_period_id', $periodId)
@@ -121,7 +141,7 @@ class StoreController extends Controller
                 'assessment_period_id' => $periodId,
             ],
             [
-                'status' => 'in_progress',
+                'status' => 'invited',
                 'submitted_at' => null,
             ]
         );
@@ -135,6 +155,7 @@ class StoreController extends Controller
 
         if ($assessment->status === 'invited') {
             $assessment->status = 'in_progress';
+            $assessment->submitted_at = null;
             $assessment->save();
         }
 
@@ -167,10 +188,12 @@ class StoreController extends Controller
         $eligibleCriteriaIds = CriteriaResolver::filterCriteriaIdsByAssessorType($criteriaIds, $assessorType);
         $pending = $eligibleCriteriaIds->diff($completed)->values();
 
-        // Auto-submit when all criteria are filled for this target
-        if ($pending->isEmpty() && $assessment->status !== 'submitted') {
-            $assessment->status = 'submitted';
-            $assessment->submitted_at = now();
+        // IMPORTANT:
+        // Keep status IN_PROGRESS while the 360 window is open.
+        // Finalization to SUBMITTED is handled after the window/period ends.
+        if ($assessment->status !== 'in_progress') {
+            $assessment->status = 'in_progress';
+            $assessment->submitted_at = null;
             $assessment->save();
         }
 

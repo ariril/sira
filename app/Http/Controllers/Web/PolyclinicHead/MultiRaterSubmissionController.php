@@ -117,7 +117,8 @@ class MultiRaterSubmissionController extends Controller
                     Auth::id(),
                     $assessorProfessionId,
                     $rawMedics,
-                    $contextResolver
+                    $contextResolver,
+                    true
                 );
                 $targets = collect($medicForm['targets']);
                 $criteriaOptions = collect($medicForm['criteria_catalog']);
@@ -223,10 +224,10 @@ class MultiRaterSubmissionController extends Controller
             );
         }
 
-        $assessment->status = 'submitted';
-        $assessment->submitted_at = Carbon::now();
+        $assessment->status = 'in_progress';
+        $assessment->submitted_at = null;
         $assessment->save();
 
-        return redirect()->route('kepala_poliklinik.multi_rater.index')->with('status', 'Penilaian 360 berhasil dikirim.');
+        return redirect()->route('kepala_poliklinik.multi_rater.index')->with('status', 'Penilaian 360 berhasil disimpan. Status akan menjadi SUBMITTED saat periode penilaian berakhir.');
     }
 }

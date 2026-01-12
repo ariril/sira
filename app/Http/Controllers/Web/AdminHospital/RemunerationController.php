@@ -596,6 +596,21 @@ class RemunerationController extends Controller
     {
         $details = $rem->calculation_details ?? [];
         if (!empty($details['wsm']['criteria_rows'])) {
+            // Jika calculation_details dibuat saat bobot belum tersedia (semua bobot = 0),
+            // jangan pakai snapshot lama; hitung ulang dari unit_criteria_weights.
+            $hasNonZeroWeight = false;
+            foreach ($details['wsm']['criteria_rows'] as $r) {
+                if ((float) ($r['weight'] ?? 0) > 0) {
+                    $hasNonZeroWeight = true;
+                    break;
+                }
+            }
+
+            if (!$hasNonZeroWeight) {
+                // Fall through ke perhitungan live.
+                goto __WSM_LIVE__;
+            }
+
             $rows = [];
             foreach ($details['wsm']['criteria_rows'] as $row) {
                 $rows[] = [
@@ -615,6 +630,8 @@ class RemunerationController extends Controller
                 'total' => round((float) ($details['wsm']['user_total'] ?? $details['wsm']['total'] ?? 0), 4),
             ];
         }
+
+        __WSM_LIVE__:
 
         $userId = $rem->user_id;
         $periodId = $rem->assessment_period_id;

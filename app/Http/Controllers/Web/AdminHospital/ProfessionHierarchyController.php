@@ -109,7 +109,7 @@ class ProfessionHierarchyController extends Controller
     {
         abort_unless($request->user()?->isAdministrasi(), 403);
 
-        $data = $this->validatePayload($request, $professionReportingLine->id);
+        $data = $this->validatePayload($request, $professionReportingLine->id, $professionReportingLine);
 
         try {
             $professionReportingLine->fill($data);
@@ -145,7 +145,7 @@ class ProfessionHierarchyController extends Controller
         return back()->with('status', 'Aturan berhasil dihapus.');
     }
 
-    private function validatePayload(Request $request, ?int $ignoreId = null): array
+    private function validatePayload(Request $request, ?int $ignoreId = null, ?ProfessionReportingLine $existing = null): array
     {
         $relationType = (string) $request->input('relation_type', 'supervisor');
 
@@ -177,7 +177,10 @@ class ProfessionHierarchyController extends Controller
         ]);
 
         // Normalize booleans (checkboxes)
-        $validated['is_required'] = (bool) ($request->boolean('is_required'));
+        // If the UI no longer sends is_required, preserve existing value on update; default true on create.
+        $validated['is_required'] = $request->has('is_required')
+            ? (bool) ($request->boolean('is_required'))
+            : (bool) ($existing?->is_required ?? true);
         $validated['is_active'] = (bool) ($request->boolean('is_active'));
 
         // Enforce level null unless supervisor (defensive)

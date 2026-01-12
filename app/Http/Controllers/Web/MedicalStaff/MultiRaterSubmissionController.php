@@ -105,7 +105,7 @@ class MultiRaterSubmissionController extends Controller
                 ] : null;
 
                 if ($selfTarget) {
-                    $selfForm = SimpleFormData::build($periodId, Auth::id(), $assessorProfessionId, collect([$selfTarget]), $contextResolver);
+                    $selfForm = SimpleFormData::build($periodId, Auth::id(), $assessorProfessionId, collect([$selfTarget]), $contextResolver, true);
                     $selfTargets = collect($selfForm['targets']);
                     $selfCriteriaOptions = collect($selfForm['criteria_catalog']);
                     $selfRemainingAssignments = $selfForm['remaining_assignments'];
@@ -142,7 +142,7 @@ class MultiRaterSubmissionController extends Controller
                         ];
                     });
 
-                $formData = SimpleFormData::build($periodId, Auth::id(), $assessorProfessionId, $rawPeers, $contextResolver);
+                $formData = SimpleFormData::build($periodId, Auth::id(), $assessorProfessionId, $rawPeers, $contextResolver, true);
                 $unitPeers = collect($formData['targets']);
                 $criteriaOptions = collect($formData['criteria_catalog']);
                 $remainingAssignments = $formData['remaining_assignments'];
@@ -249,10 +249,10 @@ class MultiRaterSubmissionController extends Controller
             );
         }
 
-        $assessment->status = 'submitted';
-        $assessment->submitted_at = Carbon::now();
+        $assessment->status = 'in_progress';
+        $assessment->submitted_at = null;
         $assessment->save();
 
-        return redirect()->route('pegawai_medis.multi_rater.index')->with('status', 'Penilaian 360 berhasil dikirim.');
+        return redirect()->route('pegawai_medis.multi_rater.index')->with('status', 'Penilaian 360 berhasil disimpan. Status akan menjadi SUBMITTED saat periode penilaian berakhir.');
     }
 }

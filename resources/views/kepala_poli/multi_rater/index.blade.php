@@ -18,21 +18,6 @@
         ])
         @if($window && !empty($periodId) && $windowIsActive)
             @include('shared.multi_rater.simple_form', [
-                'title' => 'Penilaian Diri',
-                'periodId' => $periodId,
-                'unitId' => null,
-                'raterRole' => 'kepala_poliklinik',
-                'targets' => $selfTargets ?? collect(),
-                'criteriaOptions' => $selfCriteriaOptions ?? collect(),
-                'postRoute' => 'kepala_poliklinik.multi_rater.store',
-                'remainingAssignments' => $selfRemainingAssignments ?? 0,
-                'totalAssignments' => $selfTotalAssignments ?? 0,
-                'buttonClasses' => 'bg-gradient-to-r from-fuchsia-500 to-violet-600 hover:from-fuchsia-600 hover:to-violet-700 shadow-sm text-white',
-                'savedTableKey' => 'kepala-poliklinik',
-                'canSubmit' => (bool) ($canSubmit ?? false),
-            ])
-
-            @include('shared.multi_rater.simple_form', [
                 'title' => 'Penilaian Pegawai',
                 'periodId' => $periodId,
                 'unitId' => null,
@@ -72,6 +57,31 @@
                                     </span>
                                 @else
                                     <span class="text-xs text-slate-500">-</span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-3">
+                                @if($allowInlineEdit)
+                                    <form class="inline-flex items-center gap-2" onsubmit="event.preventDefault(); const fd=new FormData(this);
+                                        fetch('{{ route('kepala_poliklinik.multi_rater.store') }}',{method:'POST',headers:{'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'},body:fd})
+                                            .then(async (r) => {
+                                                const data = await r.json().catch(() => ({}));
+                                                if (!r.ok) {
+                                                    const msg = data?.message || 'Gagal menyimpan perubahan.';
+                                                    alert(msg);
+                                                    return;
+                                                }
+                                                location.reload();
+                                            });">
+                                        <input type="hidden" name="assessment_period_id" value="{{ $periodId }}">
+                                        <input type="hidden" name="rater_role" value="kepala_poliklinik">
+                                        <input type="hidden" name="target_user_id" value="{{ $s->target_user_id }}">
+                                        <input type="hidden" name="performance_criteria_id" value="{{ $s->performance_criteria_id }}">
+                                        <x-ui.input type="number" min="1" max="100" step="1" name="score" :value="(int) $s->score" class="h-10 w-24 text-right text-sm" />
+                                        <x-ui.button type="submit" variant="violet" class="h-10 px-4 text-sm font-semibold">Ubah</x-ui.button>
+                                    </form>
+                                @else
+                                    <span class="text-slate-500 text-sm">Tidak dapat diubah</span>
+                                @endif
                             </td>
                             <td class="px-6 py-4 text-slate-600">{{ ($s->updated_at ?? $s->created_at)?->timezone('Asia/Jakarta')->format('d M Y H:i') }}</td>
                         </tr>
