@@ -226,13 +226,36 @@ class NovemberRaterWeightSeeder extends Seeder
             if ((string) ($period->status ?? '') !== AssessmentPeriod::STATUS_ACTIVE) {
                 $archived = RaterWeightStatus::ARCHIVED->value;
 
-                $rwArchived = (int) DB::table('unit_rater_weights')
+                $rwUpdates = [
+                    'status' => $archived,
+                    'updated_at' => now(),
+                ];
+                if (Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
+                    // Only mark as previously active if the row was active.
+                    $rwUpdates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE was_active_before END");
+                }
+
+                DB::table('unit_rater_weights')
                     ->where('assessment_period_id', $periodId)
                     ->where('status', '!=', $archived)
-                    ->update([
-                        'status' => $archived,
+                    ->update($rwUpdates);
+
+                // Ensure criteria weights for this historical period are archived as well.
+                if (Schema::hasTable('unit_criteria_weights')) {
+                    $ucwUpdates = [
+                        'status' => 'archived',
                         'updated_at' => now(),
-                    ]);
+                    ];
+                    if (Schema::hasColumn('unit_criteria_weights', 'was_active_before')) {
+                        // Only mark as previously active if the row was active.
+                        $ucwUpdates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE was_active_before END");
+                    }
+
+                    DB::table('unit_criteria_weights')
+                        ->where('assessment_period_id', $periodId)
+                        ->where('status', '!=', 'archived')
+                        ->update($ucwUpdates);
+                }
 
                 $pname = (string) ($period->name ?? '');
             }

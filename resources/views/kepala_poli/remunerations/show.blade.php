@@ -43,12 +43,6 @@
                     <dt class="text-slate-500">Tanggal Pembayaran</dt>
                     <dd class="text-slate-800 font-medium">{{ $item->payment_date?->format('Y-m-d') ?? '-' }}</dd>
                 </div>
-                <div class="md:col-span-2">
-                    <dt class="text-slate-500 mb-1">Catatan Perhitungan</dt>
-                    <dd>
-                        <pre class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[13px] overflow-auto">{{ json_encode($item->calculation_details, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
-                    </dd>
-                </div>
             </dl>
         </div>
     </div>

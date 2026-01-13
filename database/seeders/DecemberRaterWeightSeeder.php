@@ -40,27 +40,39 @@ class DecemberRaterWeightSeeder extends Seeder
             if ((string) ($period->status ?? '') !== AssessmentPeriod::STATUS_ACTIVE) {
                 $archived = RaterWeightStatus::ARCHIVED->value;
 
+                $hasRwWasActiveBefore = Schema::hasColumn('unit_rater_weights', 'was_active_before');
+                $hasUcwWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
+
+                $rwUpdates = [
+                    'status' => $archived,
+                    'updated_at' => now(),
+                ];
+                if ($hasRwWasActiveBefore) {
+                    // Only mark as previously active if the row was active.
+                    $rwUpdates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE was_active_before END");
+                }
+
                 $rwUpdated = (int) DB::table('unit_rater_weights')
                     ->where('assessment_period_id', $periodId)
                     ->where('status', '!=', $archived)
-                    ->update([
-                        'status' => $archived,
-                        'was_active_before' => 1,
-                        'updated_at' => now(),
-                    ]);
+                    ->update($rwUpdates);
 
                 $ucwUpdated = 0;
                 if (Schema::hasTable('unit_criteria_weights')) {
+                    $ucwUpdates = [
+                        'status' => 'archived',
+                        'updated_at' => now(),
+                    ];
+                    if ($hasUcwWasActiveBefore) {
+                        // Tandai bahwa baris ini pernah aktif untuk periode tersebut.
+                        // Ini penting agar laporan periode lama tetap bisa memakai bobotnya.
+                        $ucwUpdates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE was_active_before END");
+                    }
+
                     $ucwUpdated = (int) DB::table('unit_criteria_weights')
                         ->where('assessment_period_id', $periodId)
                         ->where('status', '!=', 'archived')
-                        ->update([
-                            'status' => 'archived',
-                            // Tandai bahwa baris ini pernah aktif untuk periode tersebut.
-                            // Ini penting agar laporan periode lama tetap bisa memakai bobotnya.
-                            'was_active_before' => 1,
-                            'updated_at' => now(),
-                        ]);
+                        ->update($ucwUpdates);
                 }
 
                 $pname = (string) ($period->name ?? '');

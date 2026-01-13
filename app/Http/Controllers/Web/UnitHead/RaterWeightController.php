@@ -770,16 +770,22 @@ class RaterWeightController extends Controller
         if ($unitId <= 0) return;
         if (!Schema::hasTable('unit_rater_weights')) return;
 
+        $hasWasActiveBefore = Schema::hasColumn('unit_rater_weights', 'was_active_before');
+
         // If there's no active period, treat all existing rater weights as historical.
         if ($activePeriodId <= 0) {
+            $updates = [
+                'status' => RaterWeightStatus::ARCHIVED->value,
+                'updated_at' => now(),
+            ];
+            if ($hasWasActiveBefore) {
+                $updates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE was_active_before END");
+            }
+
             DB::table('unit_rater_weights')
                 ->where('unit_id', $unitId)
                 ->where('status', '!=', RaterWeightStatus::ARCHIVED->value)
-                ->update([
-                    'status' => RaterWeightStatus::ARCHIVED->value,
-                    'was_active_before' => 1,
-                    'updated_at' => now(),
-                ]);
+                ->update($updates);
             return;
         }
 
@@ -791,11 +797,13 @@ class RaterWeightController extends Controller
             ->where('unit_rater_weights.status', '!=', RaterWeightStatus::ARCHIVED->value)
             ->where('unit_rater_weights.assessment_period_id', '!=', $activePeriodId)
             ->where('ap.status', '!=', AssessmentPeriod::STATUS_ACTIVE)
-            ->update([
+            ->update(array_filter([
                 'unit_rater_weights.status' => RaterWeightStatus::ARCHIVED->value,
-                'unit_rater_weights.was_active_before' => 1,
+                'unit_rater_weights.was_active_before' => $hasWasActiveBefore
+                    ? DB::raw("CASE WHEN unit_rater_weights.status='active' THEN 1 ELSE unit_rater_weights.was_active_before END")
+                    : null,
                 'unit_rater_weights.updated_at' => now(),
-            ]);
+            ], fn($v) => $v !== null));
     }
 
     /**

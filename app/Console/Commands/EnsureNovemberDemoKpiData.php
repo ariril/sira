@@ -107,13 +107,19 @@ class EnsureNovemberDemoKpiData extends Command
         ];
 
         foreach ($unitIds as $unitId) {
-            $activeCount = (int) DB::table('unit_criteria_weights')
+            $periodStatus = (string) ($period->status ?? '');
+            $seedStatus = $periodStatus === 'active' ? 'active' : 'archived';
+            $hasWasActiveBefore = 
+                \Illuminate\Support\Facades\Schema::hasTable('unit_criteria_weights')
+                && \Illuminate\Support\Facades\Schema::hasColumn('unit_criteria_weights', 'was_active_before');
+
+            $existingCount = (int) DB::table('unit_criteria_weights')
                 ->where('assessment_period_id', $periodId)
                 ->where('unit_id', $unitId)
-                ->where('status', 'active')
+                ->where('status', $seedStatus)
                 ->count();
 
-            if ($activeCount > 0) {
+            if ($existingCount > 0) {
                 continue;
             }
 
@@ -130,10 +136,12 @@ class EnsureNovemberDemoKpiData extends Command
                         'unit_id' => $unitId,
                         'performance_criteria_id' => $critId,
                         'assessment_period_id' => $periodId,
-                        'status' => 'active',
+                        'status' => $seedStatus,
                     ],
                     [
                         'weight' => (float) $w,
+                        // IMPORTANT: do NOT force was_active_before=1 for demo-seeded archived rows.
+                        // A row should only be marked as previously active if it really was active.
                         'policy_doc_path' => null,
                         'policy_note' => 'Auto demo seed (Nov) - default weights',
                         'proposed_by' => null,

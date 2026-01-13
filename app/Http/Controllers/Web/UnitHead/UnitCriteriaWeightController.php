@@ -500,12 +500,14 @@ class UnitCriteriaWeightController extends Controller
         }
 
         DB::transaction(function () use ($activeRows, $me, $periodId) {
+            $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
             foreach ($activeRows as $row) {
-                DB::table('unit_criteria_weights')->where('id', $row->id)->update([
+                DB::table('unit_criteria_weights')->where('id', $row->id)->update(array_filter([
                     'status' => 'archived',
-                    'was_active_before' => 1,
+                    // This row really was active, so it is valid to mark was_active_before=1.
+                    'was_active_before' => $hasWasActiveBefore ? 1 : null,
                     'updated_at' => now(),
-                ]);
+                ], fn($v) => $v !== null));
 
                 DB::table('unit_criteria_weights')->insert([
                     'unit_id' => $row->unit_id,
@@ -609,16 +611,22 @@ class UnitCriteriaWeightController extends Controller
         if (!$unitId) return;
         if (!Schema::hasTable('unit_criteria_weights')) return;
 
+        $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
+
         // If there's no active period, treat all existing weights as historical.
         if (!$activePeriodId) {
+            $updates = [
+                'status' => 'archived',
+                'updated_at' => now(),
+            ];
+            if ($hasWasActiveBefore) {
+                $updates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE was_active_before END");
+            }
+
             DB::table('unit_criteria_weights')
                 ->where('unit_id', $unitId)
                 ->where('status', '!=', 'archived')
-                ->update([
-                    'status' => 'archived',
-                    'was_active_before' => 1,
-                    'updated_at' => now(),
-                ]);
+                ->update($updates);
             return;
         }
 
@@ -630,11 +638,13 @@ class UnitCriteriaWeightController extends Controller
             ->where('unit_criteria_weights.status', '!=', 'archived')
             ->where('unit_criteria_weights.assessment_period_id', '!=', $activePeriodId)
             ->where('ap.status', '!=', 'active')
-            ->update([
+            ->update(array_filter([
                 'unit_criteria_weights.status' => 'archived',
-                'unit_criteria_weights.was_active_before' => 1,
+                'unit_criteria_weights.was_active_before' => $hasWasActiveBefore
+                    ? DB::raw("CASE WHEN unit_criteria_weights.status='active' THEN 1 ELSE unit_criteria_weights.was_active_before END")
+                    : null,
                 'unit_criteria_weights.updated_at' => now(),
-            ]);
+            ], fn($v) => $v !== null));
     }
 
     private function previousPeriod($activePeriod, ?int $unitId)

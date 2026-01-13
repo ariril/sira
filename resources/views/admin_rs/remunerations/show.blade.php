@@ -77,7 +77,6 @@
                                         <th class="px-4 py-3 text-right">Nilai</th>
                                         <th class="px-4 py-3 text-right">Min</th>
                                         <th class="px-4 py-3 text-right">Max</th>
-                                        <th class="px-4 py-3 text-right">Ternormalisasi</th>
                                         <th class="px-4 py-3 text-right">Kontribusi</th>
                                     </tr>
                                 </thead>
@@ -105,14 +104,13 @@
                                             </td>
                                             <td class="px-4 py-2 text-right">{{ $fmtNum($row['min'], 2) }}</td>
                                             <td class="px-4 py-2 text-right">{{ $fmtNum($row['max'], 2) }}</td>
-                                            <td class="px-4 py-2 text-right">{{ $fmtNum($row['normalized'], 2) }}</td>
                                             <td class="px-4 py-2 text-right">{{ $fmtNum($row['contribution'], 2) }}</td>
                                         </tr>
                                     @endforeach
                                 </tbody>
                                 <tfoot>
                                     <tr class="bg-slate-50 border-t border-slate-200">
-                                        <td colspan="7" class="px-4 py-2 text-right font-medium">Total Skor Kinerja</td>
+                                        <td colspan="6" class="px-4 py-2 text-right font-medium">Total Skor Kinerja</td>
                                         <td class="px-4 py-2 text-right font-semibold">{{ $fmtNum($wsm['total'], 2) }}</td>
                                     </tr>
                                 </tfoot>
@@ -122,12 +120,6 @@
                 </div>
                 @endif
 
-                <div class="md:col-span-2">
-                    <dt class="text-slate-500 mb-1">Catatan Perhitungan</dt>
-                    <dd>
-                        <x-remunerations.calculation-details :details="$calcDetails" />
-                    </dd>
-                </div>
             </dl>
         </div>
 

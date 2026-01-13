@@ -633,11 +633,24 @@ class EightStaffKpiSeeder extends Seeder
                 continue;
             }
 
+            // For active periods: use status=active.
+            // For finished periods: use archived weights that were previously active.
+            $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
             $activeCriteriaIds = DB::table('unit_criteria_weights')
                 ->where('assessment_period_id', $periodId)
                 ->where('unit_id', $unitId)
-                ->where('status', 'active')
                 ->where('weight', '>', 0)
+                ->where(function ($q) use ($hasWasActiveBefore) {
+                    $q->where('status', 'active');
+                    if ($hasWasActiveBefore) {
+                        $q->orWhere(function ($qq) {
+                            $qq->where('status', 'archived')->where('was_active_before', 1);
+                        });
+                    } else {
+                        // Older schema fallback: allow archived as historical.
+                        $q->orWhere('status', 'archived');
+                    }
+                })
                 ->pluck('performance_criteria_id')
                 ->map(fn($v) => (int) $v)
                 ->filter(fn($v) => $v > 0)
@@ -1207,10 +1220,20 @@ class EightStaffKpiSeeder extends Seeder
 
         // Pastikan bobot aktif per unit & periode tersedia agar tampil di ringkasan WSM
         $unitIds = collect($staff)->pluck('unit_slug')->unique()->map(fn($slug) => $unitIdResolver($slug))->all();
-        DB::table('unit_criteria_weights')
-            ->where('assessment_period_id', $period->id)
-            ->whereIn('unit_id', $unitIds)
-            ->delete();
+
+        $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
+
+        // IMPORTANT:
+        // - For finished/non-active periods, never seed/leave working weights.
+        // - If no weights exist for that period yet (migrate:fresh), seed them and immediately archive.
+        $periodStatus = (string) ($period->status ?? '');
+        $isActivePeriod = $periodStatus === AssessmentPeriod::STATUS_ACTIVE;
+        if ($isActivePeriod) {
+            DB::table('unit_criteria_weights')
+                ->where('assessment_period_id', $period->id)
+                ->whereIn('unit_id', $unitIds)
+                ->delete();
+        }
 
         // Default weights (Excel mapping) when no Excel template provided (sum=100).
         $defaultWeights = [
@@ -1256,6 +1279,7 @@ class EightStaffKpiSeeder extends Seeder
                         'performance_criteria_id' => $critId,
                         'weight' => (float) ($cfg['weight'] ?? 0.0),
                         'assessment_period_id' => $period->id,
+                        // Seed using the intended working status; for non-active periods we will archive immediately.
                         'status' => (string) ($cfg['status'] ?? 'active'),
                         'policy_doc_path' => null,
                         'policy_note' => 'Seeder bobot dari Excel template',
@@ -1279,6 +1303,7 @@ class EightStaffKpiSeeder extends Seeder
                         'performance_criteria_id' => $critId,
                         'weight' => (float) $weight,
                         'assessment_period_id' => $period->id,
+                        // Seed using the intended working status; for non-active periods we will archive immediately.
                         'status' => $status,
                         'policy_doc_path' => null,
                         'policy_note' => 'Seeder bobot default',
@@ -1350,6 +1375,11 @@ class EightStaffKpiSeeder extends Seeder
             }
 
             foreach ($unitWeightRows as $r) {
+                if ($hasWasActiveBefore) {
+                    // Do NOT force was_active_before=1 for non-active periods.
+                    // We'll set it to 1 only for rows that were truly active when we archive them.
+                    $r['was_active_before'] = 0;
+                }
                 $weightRows[] = $r;
                 if (($r['status'] ?? '') === 'active') {
                     $critId = (int) ($r['performance_criteria_id'] ?? 0);
@@ -1359,8 +1389,53 @@ class EightStaffKpiSeeder extends Seeder
                 }
             }
         }
-        if (!empty($weightRows)) {
+
+        // Insert weights:
+        // - Active periods: always insert (we deleted above).
+        // - Non-active periods: insert only if there are no weights yet, then archive immediately.
+        $shouldInsert = false;
+        if ($isActivePeriod) {
+            $shouldInsert = true;
+        } else {
+            $existingCnt = (int) DB::table('unit_criteria_weights')
+                ->where('assessment_period_id', $period->id)
+                ->whereIn('unit_id', $unitIds)
+                ->count();
+            $shouldInsert = $existingCnt <= 0;
+        }
+
+        if ($shouldInsert && !empty($weightRows)) {
             DB::table('unit_criteria_weights')->insert($weightRows);
+        }
+
+        if (!$isActivePeriod) {
+            // Archive in two steps to ensure the flag is set based on the *previous* status.
+            $base = DB::table('unit_criteria_weights')
+                ->where('assessment_period_id', $period->id)
+                ->whereIn('unit_id', $unitIds)
+                ->where('status', '!=', 'archived');
+
+            if ($hasWasActiveBefore) {
+                (clone $base)
+                    ->where('status', 'active')
+                    ->update([
+                        'status' => 'archived',
+                        'was_active_before' => 1,
+                        'updated_at' => $now,
+                    ]);
+
+                (clone $base)
+                    ->where('status', '!=', 'active')
+                    ->update([
+                        'status' => 'archived',
+                        'updated_at' => $now,
+                    ]);
+            } else {
+                (clone $base)->update([
+                    'status' => 'archived',
+                    'updated_at' => $now,
+                ]);
+            }
         }
 
         // Create one attendance import batch per period (so attendance rows are linked to attendance_import_* tables).

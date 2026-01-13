@@ -25,7 +25,6 @@
                         <th class="px-4 py-3 text-left">Kriteria</th>
                         <th class="px-4 py-3 text-right">Bobot (%)</th>
                         <th class="px-4 py-3 text-right">Nilai</th>
-                        <th class="px-4 py-3 text-right">Ternormalisasi</th>
                         <th class="px-4 py-3 text-right">Kontribusi</th>
                     </tr>
                 </thead>
@@ -35,7 +34,6 @@
                             <td class="px-4 py-2">{{ $row['name'] ?? '-' }}</td>
                             <td class="px-4 py-2 text-right">{{ $fmt($row['weight'] ?? 0, 2) }}</td>
                             <td class="px-4 py-2 text-right">{{ $fmt($row['score'] ?? 0, 2) }}</td>
-                            <td class="px-4 py-2 text-right">{{ $fmt($row['normalized'] ?? 0, 4) }}</td>
                             <td class="px-4 py-2 text-right">{{ $fmt($row['contribution'] ?? 0, 4) }}</td>
                         </tr>
                     @endforeach
@@ -43,7 +41,7 @@
                 @if(isset($d['wsm']['total']))
                 <tfoot>
                     <tr class="bg-slate-50 border-t border-slate-200">
-                        <td colspan="4" class="px-4 py-2 text-right font-medium">Total Skor Kinerja</td>
+                        <td colspan="3" class="px-4 py-2 text-right font-medium">Total Skor Kinerja</td>
                         <td class="px-4 py-2 text-right font-semibold">{{ $fmt($d['wsm']['total'], 4) }}</td>
                     </tr>
                 </tfoot>

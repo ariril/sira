@@ -29,37 +29,57 @@ class UnitCriteriaWeightsFromSuggestedSeeder extends Seeder
         $criteriaIds = $criteriaWeightsById->keys()->all();
 
         $unitIds = DB::table('units')->pluck('id')->all();
-        $periodIds = DB::table('assessment_periods')->pluck('id')->all();
+
+        // Only seed for periods that are not finished.
+        // For finished periods (locked/approval/closed/archived), weights must not be created/left as active.
+        $periods = DB::table('assessment_periods')
+            ->whereIn('status', ['draft', 'active'])
+            ->get(['id', 'status']);
 
         $now = now();
         $inserted = 0;
 
-        foreach ($periodIds as $periodId) {
+        $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
+
+        foreach ($periods as $period) {
+            $periodId = (int) ($period->id ?? 0);
+            if ($periodId <= 0) {
+                continue;
+            }
+
+            $periodStatus = (string) ($period->status ?? 'draft');
+            $targetStatus = $periodStatus === 'active' ? 'active' : 'draft';
+
             foreach ($unitIds as $unitId) {
-                $existing = DB::table('unit_criteria_weights')
+                // If the unit already has any working weights for this period, do nothing.
+                $hasAny = DB::table('unit_criteria_weights')
                     ->where('assessment_period_id', $periodId)
                     ->where('unit_id', $unitId)
-                    ->where('status', 'active')
-                    ->pluck('performance_criteria_id')
-                    ->all();
+                    ->where('status', '!=', 'archived')
+                    ->exists();
 
-                $existingMap = array_fill_keys($existing, true);
+                if ($hasAny) {
+                    continue;
+                }
+
                 $rows = [];
 
                 foreach ($criteriaIds as $criteriaId) {
-                    if (isset($existingMap[$criteriaId])) {
-                        continue;
-                    }
-
-                    $rows[] = [
+                    $row = [
                         'unit_id' => $unitId,
                         'performance_criteria_id' => $criteriaId,
                         'assessment_period_id' => $periodId,
-                        'status' => 'active',
+                        'status' => $targetStatus,
                         'weight' => (float) ($criteriaWeightsById[$criteriaId] ?? 0),
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];
+
+                    if ($hasWasActiveBefore) {
+                        $row['was_active_before'] = false;
+                    }
+
+                    $rows[] = $row;
                 }
 
                 if ($rows) {
@@ -68,6 +88,6 @@ class UnitCriteriaWeightsFromSuggestedSeeder extends Seeder
                 }
             }
         }
-        $this->command?->info("UnitCriteriaWeightsFromSuggestedSeeder inserted {$inserted} rows (status=active).");
+        $this->command?->info("UnitCriteriaWeightsFromSuggestedSeeder inserted {$inserted} rows (status=active/draft).");
     }
 }

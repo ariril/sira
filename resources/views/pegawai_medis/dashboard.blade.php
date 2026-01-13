@@ -12,9 +12,9 @@
         @if(!empty($approvalBanner) || !empty($rejectedClaim) || !empty($criteriaNotice))
             <div class="mb-4 space-y-2" aria-live="polite">
                 @if(!empty($approvalBanner))
-                    <div class="rounded-lg px-4 py-3 text-sm bg-rose-50 text-rose-800 flex items-center justify-between gap-3">
+                    <div class="rounded-lg px-4 py-3 text-sm bg-emerald-50 text-emerald-800 flex items-center justify-between gap-3">
                         <span>Penilaian periode {{ $approvalBanner['period_name'] }} telah disetujui.</span>
-                        <a href="{{ $approvalBanner['ack_url'] }}" class="underline font-medium text-rose-800">Lihat</a>
+                        <a href="{{ $approvalBanner['ack_url'] }}" class="underline font-medium text-emerald-800">Lihat</a>
                     </div>
                 @endif
 

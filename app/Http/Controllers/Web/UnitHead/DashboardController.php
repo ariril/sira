@@ -155,6 +155,33 @@ class DashboardController extends Controller
                         'href' => route('kepala_unit.unit-criteria-weights.index', ['period_id' => $periodId]),
                     ];
                 }
+
+                // Success state: weights complete and already active, or complete but still pending approval.
+                if ($rejectedCount === 0 && $draftTotal <= 0 && $committed >= 100) {
+                    $breakdown = DB::table('unit_criteria_weights')
+                        ->where('unit_id', $unitId)
+                        ->where('assessment_period_id', $periodId)
+                        ->selectRaw("SUM(CASE WHEN status='active' THEN weight ELSE 0 END) as active_weight")
+                        ->selectRaw("SUM(CASE WHEN status='pending' THEN weight ELSE 0 END) as pending_weight")
+                        ->first();
+
+                    $activeWeight = (float) ($breakdown->active_weight ?? 0);
+                    $pendingWeight = (float) ($breakdown->pending_weight ?? 0);
+
+                    if ($activeWeight >= 100 && $pendingWeight <= 0) {
+                        $notifications[] = [
+                            'type' => 'success',
+                            'text' => 'Bobot kriteria periode ' . ($activePeriod->name ?? '') . ' sudah disetujui dan aktif.',
+                            'href' => route('kepala_unit.unit-criteria-weights.index', ['period_id' => $periodId]),
+                        ];
+                    } elseif ($pendingWeight > 0) {
+                        $notifications[] = [
+                            'type' => 'info',
+                            'text' => 'Bobot kriteria periode ' . ($activePeriod->name ?? '') . ' sudah lengkap 100% dan menunggu persetujuan.',
+                            'href' => route('kepala_unit.unit-criteria-weights.index', ['period_id' => $periodId]),
+                        ];
+                    }
+                }
             }
         }
 

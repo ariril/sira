@@ -167,12 +167,12 @@ class DashboardController extends Controller
         // Tampilkan 2 notif import hanya ketika ada periode dengan status=LOCKED.
         if ($lockedPeriod) {
             $notifications[] = [
-                'type' => 'info',
+                'type' => 'success',
                 'text' => 'Import Absensi sudah bisa diisi.',
                 'href' => route('admin_rs.attendances.import.form'),
             ];
             $notifications[] = [
-                'type' => 'info',
+                'type' => 'success',
                 'text' => 'Import Metric sudah bisa diisi.',
                 'href' => route('admin_rs.metrics.index'),
             ];

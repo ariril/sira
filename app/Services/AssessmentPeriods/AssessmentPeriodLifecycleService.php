@@ -24,6 +24,72 @@ class AssessmentPeriodLifecycleService
 
         $this->finalizeMultiRaterAssessments();
         $this->autoCloseApprovedPeriods();
+
+        // After lifecycle transitions, freeze configuration rows for non-active periods.
+        $this->archiveFrozenPeriodWeights();
+    }
+
+    private function archiveFrozenPeriodWeights(): void
+    {
+        if (!Schema::hasTable('assessment_periods')) {
+            return;
+        }
+
+        $frozenStatuses = [
+            AssessmentPeriod::STATUS_LOCKED,
+            AssessmentPeriod::STATUS_APPROVAL,
+            AssessmentPeriod::STATUS_CLOSED,
+            AssessmentPeriod::STATUS_ARCHIVED,
+        ];
+
+        $periodIds = DB::table('assessment_periods')
+            ->whereIn('status', $frozenStatuses)
+            ->pluck('id')
+            ->filter()
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($periodIds)) {
+            return;
+        }
+
+        // Unit criteria weights: archive all non-archived rows for frozen periods.
+        // Mark was_active_before=1 ONLY if the row used to be active.
+        if (Schema::hasTable('unit_criteria_weights')) {
+            $updates = [
+                'status' => 'archived',
+                'updated_at' => now(),
+            ];
+
+            if (Schema::hasColumn('unit_criteria_weights', 'was_active_before')) {
+                $updates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE 0 END");
+            }
+
+            DB::table('unit_criteria_weights')
+                ->whereIn('assessment_period_id', $periodIds)
+                ->where('status', '!=', 'archived')
+                ->update($updates);
+        }
+
+        // Unit rater weights: archive all non-archived rows for frozen periods.
+        // Mark was_active_before=1 ONLY if the row used to be active.
+        if (Schema::hasTable('unit_rater_weights')) {
+            $updates = [
+                'status' => 'archived',
+                'updated_at' => now(),
+            ];
+
+            if (Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
+                $updates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE 0 END");
+            }
+
+            DB::table('unit_rater_weights')
+                ->whereIn('assessment_period_id', $periodIds)
+                ->where('status', '!=', 'archived')
+                ->update($updates);
+        }
     }
 
     /**
