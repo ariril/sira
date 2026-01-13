@@ -12,6 +12,9 @@
                         <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
                         <th class="px-6 py-4 text-left whitespace-nowrap">
                             <span>Skor Kinerja</span>
+                            <span class="ml-1 text-slate-400" title="Skor Kinerja di sini adalah Skor Kinerja Relatif (0–100), yaitu hasil agregasi nilai relatif berbobot. Angka ini belum dibagi/diratakan terhadap seluruh pegawai; jika dibagi terhadap semua pegawai maka angkanya akan menjadi kecil.">
+                                <i class="fa-solid fa-circle-exclamation"></i>
+                            </span>
                         </th>
                         <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                     </tr>

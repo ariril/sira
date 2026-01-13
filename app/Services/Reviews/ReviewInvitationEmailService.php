@@ -106,7 +106,7 @@ class ReviewInvitationEmailService
             'timestamp' => now()->toDateTimeString(),
             'invitation_id' => $invitation->id,
             'to_email' => $email,
-            'subject' => 'Undangan Survei Kepuasan',
+            'subject' => 'Survei Kepuasan Pelayanan RSUD MGR. Gabriel Manek SVD Atambua',
             'message_id' => $messageId,
             'smtp' => $this->smtpMeta(),
         ]);

@@ -106,125 +106,135 @@
                     };
                     $createdAt = $review->created_at?->timezone('Asia/Jakarta');
                     $averageRating = $review->average_rating ?? 0;
+                    $detailsCount = $review->details?->count() ?? 0;
                 @endphp
-                <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-5">
-                    <div class="flex flex-wrap items-start justify-between gap-4">
-                        <div>
-                            <p class="text-[11px] font-semibold tracking-[0.2em] text-slate-400">NOMOR RM</p>
-                            <p class="text-2xl font-semibold text-slate-900">{{ $review->registration_ref }}</p>
-                            <p class="text-sm text-slate-500">Dibuat
-                                {{ $createdAt?->format('d M Y H:i') ?? '-' }}</p>
-                        </div>
-                        <div class="text-right space-y-2">
-                            <span
-                                class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold {{ $badgeClass }}">
-                                <span class="w-2 h-2 rounded-full bg-current"></span>
-                                {{ $statusEnum?->label() ?? ucfirst((string) $review->status) }}
-                            </span>
-                            <p class="text-sm text-slate-500">
-                                Rating rata-rata: <span
-                                    class="font-semibold text-slate-800">{{ number_format($averageRating, 1) }} / 5</span>
-                            </p>
-                        </div>
-                    </div>
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100" x-data="{ open: false, showReject: false }">
+                    <button type="button"
+                        class="w-full px-6 py-4 flex items-start justify-between gap-4"
+                        x-on:click="open = !open; if (!open) showReject = false;">
+                        <div class="min-w-0 text-left">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="text-[11px] font-semibold tracking-[0.2em] text-slate-400">NOMOR RM</div>
+                                <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold {{ $badgeClass }}">
+                                    <span class="w-2 h-2 rounded-full bg-current"></span>
+                                    {{ $statusEnum?->label() ?? ucfirst((string) $review->status) }}
+                                </span>
+                            </div>
 
-                    <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2">
-                        <p class="text-slate-700 leading-relaxed">{{ $review->comment }}</p>
-                        <div class="text-sm text-slate-500 flex flex-wrap gap-4">
-                            <span>Pasien: <span
-                                    class="font-medium text-slate-800">{{ $review->patient_name ?? 'Anonim' }}</span></span>
-                            @if ($review->contact)
-                                <span>Kontak: {{ $review->contact }}</span>
+                            <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <div class="text-lg font-semibold text-slate-900 truncate">{{ $review->registration_ref }}</div>
+                                <div class="text-xs text-slate-500">
+                                    Dibuat {{ $createdAt?->format('d M Y H:i') ?? '-' }}
+                                    <span class="mx-1">•</span>
+                                    {{ $detailsCount }} penilai
+                                </div>
+                            </div>
+
+                            <div class="mt-2 text-sm text-slate-600 line-clamp-2">
+                                {{ $review->comment }}
+                            </div>
+                        </div>
+
+                        <div class="flex items-start gap-3 flex-shrink-0">
+                            <div class="text-right">
+                                <div class="text-xs text-slate-500">Rating rata-rata</div>
+                                <div class="text-sm font-semibold text-slate-800">{{ number_format($averageRating, 1) }} / 5</div>
+                            </div>
+                            <i class="fa-solid fa-chevron-down text-slate-400 transition-transform mt-1"
+                                x-bind:class="open ? 'rotate-180' : ''"></i>
+                        </div>
+                    </button>
+
+                    <div x-show="open" x-cloak class="px-6 pb-6">
+                        <div class="border-t border-slate-100 pt-4 space-y-5">
+                            <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2">
+                                <p class="text-slate-700 leading-relaxed">{{ $review->comment }}</p>
+                                <div class="text-sm text-slate-500 flex flex-wrap gap-4">
+                                    <span>Pasien: <span class="font-medium text-slate-800">{{ $review->patient_name ?? 'Anonim' }}</span></span>
+                                    @if ($review->contact)
+                                        <span>Kontak: {{ $review->contact }}</span>
+                                    @endif
+                                </div>
+                            </div>
+
+                            <div class="space-y-3">
+                                @foreach ($review->details as $detail)
+                                    @php
+                                        $roleLabel =
+                                            $detail->role instanceof \App\Enums\MedicalStaffReviewRole
+                                                ? $detail->role->value
+                                                : (string) $detail->role;
+                                    @endphp
+                                    <div class="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-slate-100 p-4">
+                                        <div>
+                                            <div class="flex items-center gap-2 font-semibold text-slate-900">
+                                                {{ $detail->medicalStaff->name ?? '-' }}
+                                                <span class="text-xs uppercase tracking-wide text-slate-400">{{ $roleLabel }}</span>
+                                            </div>
+                                            <div class="text-sm text-slate-500">{{ $detail->medicalStaff->profession->name ?? 'Profesi tidak tersedia' }}</div>
+                                            @if ($detail->comment)
+                                                <div class="text-sm text-slate-600 mt-2 leading-relaxed">{{ $detail->comment }}</div>
+                                            @endif
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="inline-flex items-center gap-1 text-amber-500 font-semibold text-lg">
+                                                {{ $detail->rating }}
+                                                <i class="fa-solid fa-star text-base"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            @if ($review->decision_note)
+                                @php
+                                    $decidedAt = $review->decided_at?->timezone('Asia/Jakarta');
+                                @endphp
+                                <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm text-slate-600 space-y-1">
+                                    <div class="font-semibold text-slate-700">Catatan Keputusan</div>
+                                    <div>{{ $review->decision_note }}</div>
+                                    <div class="text-xs text-slate-500">
+                                        Oleh {{ $review->decidedBy->name ?? 'Kepala Unit' }} pada
+                                        {{ $decidedAt?->format('d M Y H:i') ?? '-' }}
+                                    </div>
+                                </div>
+                            @endif
+
+                            @if ($isPending)
+                                <div class="border-t border-slate-100 pt-4">
+                                    <div class="flex flex-wrap items-center justify-end gap-3">
+                                        <form method="POST" action="{{ route('kepala_unit.reviews.approve', $review) }}">
+                                            @csrf
+                                            <x-ui.button type="submit" variant="success" class="h-11 px-6 text-sm">
+                                                <i class="fa-solid fa-circle-check"></i> Approve
+                                            </x-ui.button>
+                                        </form>
+
+                                        <template x-if="!showReject">
+                                            <x-ui.button type="button" variant="outline" class="h-11 px-6 text-sm" @click="showReject = true">
+                                                <i class="fa-solid fa-circle-xmark"></i> Reject
+                                            </x-ui.button>
+                                        </template>
+                                    </div>
+
+                                    <div x-show="showReject" x-cloak class="mt-4 w-full">
+                                        <form method="POST" action="{{ route('kepala_unit.reviews.reject', $review) }}"
+                                            class="bg-rose-50 border border-rose-100 rounded-2xl p-4 space-y-3 max-w-4xl ml-auto">
+                                            @csrf
+                                            <label class="block text-sm font-medium text-rose-900">Catatan Penolakan</label>
+                                            <textarea name="note" rows="3"
+                                                class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-200"
+                                                placeholder="Tuliskan alasan penolakan..." required></textarea>
+                                            <div class="flex justify-end gap-2">
+                                                <x-ui.button type="button" variant="outline" class="h-10 px-4 text-sm" @click="showReject = false">Batal</x-ui.button>
+                                                <x-ui.button type="submit" variant="reject" class="h-10 px-4 text-sm">Kirim</x-ui.button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
                             @endif
                         </div>
                     </div>
-
-                    <div class="space-y-3">
-                        @foreach ($review->details as $detail)
-                            @php
-                                $roleLabel =
-                                    $detail->role instanceof \App\Enums\MedicalStaffReviewRole
-                                        ? $detail->role->value
-                                        : (string) $detail->role;
-                            @endphp
-                            <div
-                                class="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-slate-100 p-4">
-                                <div>
-                                    <div class="flex items-center gap-2 font-semibold text-slate-900">
-                                        {{ $detail->medicalStaff->name ?? '-' }}
-                                        <span
-                                            class="text-xs uppercase tracking-wide text-slate-400">{{ $roleLabel }}</span>
-                                    </div>
-                                    <div class="text-sm text-slate-500">
-                                        {{ $detail->medicalStaff->profession->name ?? 'Profesi tidak tersedia' }}</div>
-                                    @if ($detail->comment)
-                                        <div class="text-sm text-slate-600 mt-2 leading-relaxed">{{ $detail->comment }}
-                                        </div>
-                                    @endif
-                                </div>
-                                <div class="text-right">
-                                    <div class="inline-flex items-center gap-1 text-amber-500 font-semibold text-lg">
-                                        {{ $detail->rating }}
-                                        <i class="fa-solid fa-star text-base"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-
-                    @if ($review->decision_note)
-                        @php
-                            $decidedAt = $review->decided_at?->timezone('Asia/Jakarta');
-                        @endphp
-                        <div
-                            class="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm text-slate-600 space-y-1">
-                            <div class="font-semibold text-slate-700">Catatan Keputusan</div>
-                            <div>{{ $review->decision_note }}</div>
-                            <div class="text-xs text-slate-500">
-                                Oleh {{ $review->decidedBy->name ?? 'Kepala Unit' }} pada
-                                {{ $decidedAt?->format('d M Y H:i') ?? '-' }}
-                            </div>
-                        </div>
-                    @endif
-
-                    @if ($isPending)
-                        <div class="border-t border-slate-100 pt-4" x-data="{ showReject: false }">
-                            <div class="flex flex-wrap items-start gap-4">
-                                <form method="POST" action="{{ route('kepala_unit.reviews.approve', $review) }}">
-                                    @csrf
-                                    <x-ui.button type="submit" variant="success" class="h-11 px-6 text-sm">
-                                        <i class="fa-solid fa-circle-check"></i> Approve
-                                    </x-ui.button>
-                                </form>
-
-                                <template x-if="!showReject">
-                                    <x-ui.button type="button" variant="outline" class="h-11 px-6 text-sm"
-                                        @click="showReject = true">
-                                        <i class="fa-solid fa-circle-xmark"></i> Reject
-                                    </x-ui.button>
-                                </template>
-
-                                <div class="flex-1 w-full" x-show="showReject" x-cloak>
-                                    <form method="POST" action="{{ route('kepala_unit.reviews.reject', $review) }}"
-                                        class="bg-rose-50 border border-rose-100 rounded-2xl p-4 space-y-3">
-                                        @csrf
-                                        <label class="block text-sm font-medium text-rose-900">Catatan Penolakan</label>
-                                        <textarea name="note" rows="3"
-                                            class="w-full rounded-xl border-rose-200 focus:ring-rose-400 focus:border-rose-400 text-sm"
-                                            placeholder="Alasan penolakan..." required></textarea>
-                                        <div class="flex gap-2 justify-end text-sm">
-                                            <button type="button" class="text-slate-500 hover:underline"
-                                                @click="showReject = false">Batal</button>
-                                            <button type="submit"
-                                                class="inline-flex items-center justify-center h-10 px-4 rounded-xl font-semibold text-white bg-rose-600 hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300">
-                                                Kirim
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    @endif
                 </div>
             @empty
                 <div

@@ -1,13 +1,30 @@
-<x-app-layout title="Detail Penilaian">
+<x-app-layout title="Detail Penilaian (Ariel)">
     <x-slot name="header">
         <div class="flex items-center justify-between gap-4">
-            <h1 class="text-2xl font-semibold text-slate-800">Detail Penilaian</h1>
-            <x-ui.button as="a" href="{{ route('pegawai_medis.assessments.index') }}" variant="outline" class="h-10 px-4">
-                Kembali
-            </x-ui.button>
+            <div class="space-y-1">
+                <h1 class="text-2xl font-semibold text-slate-800">Detail Penilaian (Ariel Debug)</h1>
+                <div class="text-xs text-slate-500">
+                    Halaman ini khusus untuk audit/periksa perhitungan. UI normal tetap ada terpisah.
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <x-ui.button as="a" href="{{ route('pegawai_medis.assessments.show', $assessment) }}" variant="outline" class="h-10 px-4">
+                    UI Normal
+                </x-ui.button>
+                <x-ui.button as="a" href="{{ route('pegawai_medis.assessments.index') }}" variant="outline" class="h-10 px-4">
+                    Kembali
+                </x-ui.button>
+            </div>
         </div>
     </x-slot>
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div class="font-semibold">Mode Debug</div>
+            <div class="text-xs text-amber-800">
+                Gunakan untuk menelusuri nilai N/R, basis, max/min dalam scope, kontribusi berbobot, dan sumber perhitungan.
+            </div>
+        </div>
+
         <div class="grid sm:grid-cols-2 gap-4 mb-4">
             <div class="p-4 rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
                 <div class="text-sm text-slate-500">Periode</div>
@@ -319,7 +336,7 @@
                                                     <span class="font-semibold text-slate-700">
                                                         {{ $type === 'cost'
                                                             ? ($minNorm !== null ? number_format($minNorm, 2) : '-')
-                                                            : ($maxNorm !== null ? number_format($maxNorm, 2) : '-') }}
+                                                            : ($maxNorm !== null ? number_format((float) $maxNorm, 2) : '-') }}
                                                     </span>
                                                 </div>
                                                 <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Nilai

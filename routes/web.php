@@ -388,6 +388,10 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
         Route::post('multi-rater/{assessment}', [\App\Http\Controllers\Web\MedicalStaff\MultiRaterSubmissionController::class, 'submit'])->name('multi_rater.submit');
 
         // Penilaian kinerja: hanya index & show (dibuat oleh sistem)
+        // Debug route: keep detailed UI accessible separately.
+        Route::get('assessments/ariel/{assessment}', [\App\Http\Controllers\Web\MedicalStaff\PerformanceAssessmentController::class, 'showAriel'])
+            ->name('assessments.show_ariel');
+
         Route::resource('assessments', \App\Http\Controllers\Web\MedicalStaff\PerformanceAssessmentController::class)
             ->only(['index','show']);
 

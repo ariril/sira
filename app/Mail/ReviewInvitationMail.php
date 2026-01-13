@@ -27,7 +27,7 @@ class ReviewInvitationMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Undangan Survei Kepuasan',
+            subject: 'Survei Kepuasan Pelayanan RSUD MGR. Gabriel Manek SVD Atambua',
         );
     }
 

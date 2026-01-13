@@ -108,6 +108,37 @@ class PerformanceAssessmentController extends Controller
         ));
     }
 
+    /**
+     * Debug view for inspecting why the UI scores look the way they do.
+     * Kept as a separate route so the normal UI can be simplified later.
+     */
+    public function showAriel(PerformanceAssessment $assessment): View
+    {
+        $this->authorizeSelf($assessment);
+        $assessment->load(['assessmentPeriod', 'details.performanceCriteria', 'user.unit', 'user.profession']);
+
+        $kinerja = $this->computeKinerjaViaService($assessment);
+        $rawMetrics = $this->buildRawMetrics($assessment, $kinerja);
+        $activeCriteriaIdSet = $kinerja['activeCriteriaIdSet'] ?? [];
+
+        $activeCriteria = $kinerja['activeCriteria'] ?? [];
+        $inactiveCriteria = $kinerja['inactiveCriteria'] ?? [];
+        $inactiveCriteriaRows = $kinerja['inactiveCriteriaRows'] ?? [];
+
+        $visibleDetails = $assessment->details;
+
+        return view('pegawai_medis.assessments.show_ariel', compact(
+            'assessment',
+            'rawMetrics',
+            'kinerja',
+            'visibleDetails',
+            'activeCriteria',
+            'inactiveCriteria',
+            'inactiveCriteriaRows',
+            'activeCriteriaIdSet'
+        ));
+    }
+
     private function computeKinerjaViaService(PerformanceAssessment $assessment): array
     {
         $period = $assessment->assessmentPeriod;
@@ -149,6 +180,7 @@ class PerformanceAssessmentController extends Controller
 
         $weights = (array) ($calc['weights'] ?? []);
         $maxByCriteria = (array) ($calc['max_by_criteria'] ?? []);
+        $minByCriteria = (array) ($calc['min_by_criteria'] ?? []);
         $sumRawByCriteria = (array) ($calc['sum_raw_by_criteria'] ?? []);
         $basisByCriteria = (array) ($calc['basis_by_criteria'] ?? []);
         $basisValueByCriteria = (array) ($calc['basis_value_by_criteria'] ?? []);
@@ -160,6 +192,7 @@ class PerformanceAssessmentController extends Controller
         $normalizationBasisByCriteria = [];
         $basisValueByCriteriaId = [];
         $maxNormalizedByCriteria = [];
+        $minNormalizedByCriteria = [];
         $weightByCriteria = [];
         $includedByCriteria = [];
         $rows = [];
@@ -191,6 +224,7 @@ class PerformanceAssessmentController extends Controller
             $basis = (string) (($r['normalization_basis'] ?? null) ?: ((string) ($basisByCriteria[$criteriaId] ?? 'total_unit')));
             $basisVal = (float) (($r['basis_value'] ?? null) ?? (float) ($basisValueByCriteria[$criteriaId] ?? 0.0));
             $maxNorm = (float) (($r['max_normalized_in_scope'] ?? null) ?? (float) ($maxByCriteria[$criteriaId] ?? 0.0));
+            $minNorm = (float) (($r['min_normalized_in_scope'] ?? null) ?? (float) ($minByCriteria[$criteriaId] ?? 0.0));
             $includedInWsm = (bool) ($r['included_in_wsm'] ?? false);
 
             $normalizedByCriteria[$criteriaId] = $norm;
@@ -198,6 +232,7 @@ class PerformanceAssessmentController extends Controller
             $normalizationBasisByCriteria[$criteriaId] = $basis;
             $basisValueByCriteriaId[$criteriaId] = $basisVal;
             $maxNormalizedByCriteria[$criteriaId] = $maxNorm;
+            $minNormalizedByCriteria[$criteriaId] = $minNorm;
             $weightByCriteria[$criteriaId] = $weight;
             $includedByCriteria[$criteriaId] = $includedInWsm;
             if ($raw !== null) {
@@ -253,9 +288,11 @@ class PerformanceAssessmentController extends Controller
             'rawByCriteria' => $rawByCriteria,
             'sumRawByCriteria' => $sumRawByCriteria,
             'maxByCriteria' => $maxByCriteria,
+            'minByCriteria' => $minByCriteria,
             'normalizationBasisByCriteria' => $normalizationBasisByCriteria,
             'basisValueByCriteria' => $basisValueByCriteriaId,
             'maxNormalizedByCriteria' => $maxNormalizedByCriteria,
+            'minNormalizedByCriteria' => $minNormalizedByCriteria,
             'customTargetByCriteria' => $customTargetByCriteria,
             'weightByCriteria' => $weightByCriteria,
             'includedByCriteria' => $includedByCriteria,
@@ -285,6 +322,7 @@ class PerformanceAssessmentController extends Controller
         $basisByCriteria = (array) ($kinerja['normalizationBasisByCriteria'] ?? []);
         $basisValueByCriteria = (array) ($kinerja['basisValueByCriteria'] ?? []);
         $maxNormByCriteria = (array) ($kinerja['maxNormalizedByCriteria'] ?? ($kinerja['maxByCriteria'] ?? []));
+        $minNormByCriteria = (array) ($kinerja['minNormalizedByCriteria'] ?? ($kinerja['minByCriteria'] ?? []));
         $relativeByCriteria = (array) ($kinerja['relativeByCriteria'] ?? []);
         $weightByCriteria = (array) ($kinerja['weightByCriteria'] ?? []);
         $sumWeight = (float) ($kinerja['sumWeight'] ?? 0.0);
@@ -303,6 +341,7 @@ class PerformanceAssessmentController extends Controller
             $basis = (string) (($basisByCriteria[$criteriaId] ?? null) ?: ((string) ($criteria?->normalization_basis ?? 'total_unit')));
             $basisValue = array_key_exists($criteriaId, $basisValueByCriteria) ? (float) $basisValueByCriteria[$criteriaId] : null;
             $maxNorm = array_key_exists($criteriaId, $maxNormByCriteria) ? (float) $maxNormByCriteria[$criteriaId] : null;
+            $minNorm = array_key_exists($criteriaId, $minNormByCriteria) ? (float) $minNormByCriteria[$criteriaId] : null;
             $relative = array_key_exists($criteriaId, $relativeByCriteria) ? (float) $relativeByCriteria[$criteriaId] : null;
             $weight = array_key_exists($criteriaId, $weightByCriteria) ? (float) $weightByCriteria[$criteriaId] : null;
             $included = (bool) ($includedByCriteria[$criteriaId] ?? false);
@@ -324,23 +363,19 @@ class PerformanceAssessmentController extends Controller
                 default => 'Pembanding = total raw seluruh pegawai dalam grup (unit+profesi+periode) untuk kriteria ini.',
             };
 
+            // NOTE: N (Nilai Normalisasi) di UI ini sengaja ditampilkan sebagai basis-percentage (raw/basis×100)
+            // untuk BENEFIT maupun COST. Penalti COST diterapkan pada Nilai Relatif (R).
             $formulaText = match ($basis) {
-                'total_unit' => $type === 'cost'
-                    ? 'N = (1 - (raw / Σraw_grup)) × 100 (jika Σraw_grup=0 ⇒ N=100)'
-                    : 'N = (raw / Σraw_grup) × 100 (jika Σraw_grup=0 ⇒ N=0)',
-                'max_unit' => $type === 'cost'
-                    ? 'N = (1 - (raw / max_raw_grup)) × 100 (jika max_raw_grup=0 ⇒ N=100)'
-                    : 'N = (raw / max_raw_grup) × 100 (jika max_raw_grup=0 ⇒ N=0)',
-                'average_unit' => $type === 'cost'
-                    ? 'N = MIN(100, (1 - (raw / avg_raw_grup)) × 100) (jika avg_raw_grup=0 ⇒ N=100)'
-                    : 'N = MIN(100, (raw / avg_raw_grup) × 100) (jika avg_raw_grup=0 ⇒ N=0)',
-                'custom_target' => $type === 'cost'
-                    ? 'N = MIN(100, (1 - (raw / target)) × 100) (jika target=0 ⇒ N=100)'
-                    : 'N = MIN(100, (raw / target) × 100) (jika target=0 ⇒ N=0)',
+                'total_unit' => 'N = (raw / Σraw_grup) × 100 (jika Σraw_grup=0 ⇒ N=0)',
+                'max_unit' => 'N = (raw / max_raw_grup) × 100 (jika max_raw_grup=0 ⇒ N=0)',
+                'average_unit' => 'N = MIN(100, (raw / avg_raw_grup) × 100) (jika avg_raw_grup=0 ⇒ N=0)',
+                'custom_target' => 'N = MIN(100, (raw / target) × 100) (jika target=0 ⇒ N=0)',
                 default => 'N dihitung dari basis kriteria.',
             };
 
-            $relativeText = 'R = IF(max(N)>0, (N / max(N)) × 100, 0)';
+            $relativeText = $type === 'cost'
+                ? 'R = IF(min(N)=0, IF(N=0, 100, 0), (min(N) / N) × 100)'
+                : 'R = IF(max(N)>0, (N / max(N)) × 100, 0)';
 
             $contributionWeightedAvg = null;
             if ($included && $sumWeight > 0.0 && $relative !== null && $weight !== null) {
@@ -360,7 +395,12 @@ class PerformanceAssessmentController extends Controller
                     'hint' => $denomHint,
                 ],
                 ['label' => 'Nilai Normalisasi (N)', 'value' => $normalized !== null ? number_format($normalized, 2) : '-'],
-                ['label' => 'Max N dalam scope', 'value' => $maxNorm !== null ? number_format($maxNorm, 2) : '-'],
+                [
+                    'label' => $type === 'cost' ? 'Min N dalam scope' : 'Max N dalam scope',
+                    'value' => ($type === 'cost'
+                        ? ($minNorm !== null ? number_format($minNorm, 2) : '-')
+                        : ($maxNorm !== null ? number_format($maxNorm, 2) : '-')),
+                ],
                 ['label' => 'Nilai Relatif (R)', 'value' => $relative !== null ? number_format($relative, 2) : '-'],
                 ['label' => 'Bobot', 'value' => $weight !== null ? number_format($weight, 2) : '-'],
                 [

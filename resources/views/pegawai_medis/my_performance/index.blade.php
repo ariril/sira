@@ -46,8 +46,20 @@
                             <th class="px-6 py-4 text-right whitespace-nowrap">Bobot</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
                             <th class="px-6 py-4 text-right whitespace-nowrap">
+                                <span>Nilai Mentah</span>
+                                <span class="ml-1 text-slate-400" title="Nilai asli sebelum disesuaikan/dirapikan untuk perbandingan.">
+                                    <i class="fa-solid fa-circle-exclamation"></i>
+                                </span>
+                            </th>
+                            <th class="px-6 py-4 text-right whitespace-nowrap">
                                 <span>Nilai (Normalisasi)</span>
-                                <span class="ml-1 text-slate-400" title="Nilai ini adalah hasil normalisasi sesuai basis (saat ini semua kriteria: total_unit).\nRumus: N = (nilai_raw / total_raw_grup) × 100.">
+                                <span class="ml-1 text-slate-400" title="Nilai yang sudah disesuaikan agar adil saat dibandingkan dengan pegawai lain dalam unit/scope yang sama.">
+                                    <i class="fa-solid fa-circle-exclamation"></i>
+                                </span>
+                            </th>
+                            <th class="px-6 py-4 text-right whitespace-nowrap">
+                                <span>Nilai (Relatif)</span>
+                                <span class="ml-1 text-slate-400" title="Nilai Relatif = skala ulang dari Nilai Normalisasi terhadap nilai tertinggi pada unit/scope (nilai tertinggi ditampilkan sebagai 100). Berlaku untuk basis total_unit dan Custom Target—mis. bila tidak ada yang mencapai target sehingga max normalisasi < 100, maka nilai tertinggi tersebut menjadi 100 di relatif. Untuk basis max_unit/rata-rata, umumnya Nilai Relatif sama dengan Nilai Normalisasi karena max normalisasi sudah 100.">
                                     <i class="fa-solid fa-circle-exclamation"></i>
                                 </span>
                             </th>
@@ -116,13 +128,24 @@
                             </td>
 
                             <td class="px-6 py-4 text-right">
+                                {{ number_format((float) ($r['raw'] ?? 0), 2) }}
+                            </td>
+
+                            <td class="px-6 py-4 text-right">
                                 {{ number_format((float) ($r['nilai_normalisasi'] ?? 0), 2) }}
-                                <div class="text-xs text-slate-400">Raw: {{ number_format((float) ($r['raw'] ?? 0), 2) }}</div>
+                            </td>
+
+                            <td class="px-6 py-4 text-right">
+                                @php
+                                    $basis = (string) (($r['normalization_basis'] ?? null) ?: '');
+                                    $rel = $basis === 'total_unit' ? ($r['nilai_relativ_unit'] ?? null) : null;
+                                @endphp
+                                {{ $rel !== null ? number_format((float) $rel, 2) : '-' }}
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="px-6 py-8 text-center text-slate-500">
+                            <td colspan="6" class="px-6 py-8 text-center text-slate-500">
                                 Data kinerja belum tersedia.
                             </td>
                         </tr>
