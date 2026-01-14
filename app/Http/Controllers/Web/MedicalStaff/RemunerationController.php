@@ -8,6 +8,8 @@ use App\Models\AssessmentPeriod;
 use App\Models\PerformanceAssessment;
 use App\Models\Remuneration;
 use App\Models\UnitRemunerationAllocation as Allocation;
+use App\Services\AssessmentApprovals\AssessmentApprovalDetailService;
+use App\Support\ProportionalAllocator;
 use App\Enums\AssessmentValidationStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,6 +18,129 @@ use Illuminate\View\View;
 
 class RemunerationController extends Controller
 {
+    /**
+     * Normalize calculation_details schema so the medical staff UI can render
+     * both legacy/demo payloads and the newer WSM-proportional payload.
+     *
+     * @param array<mixed> $calc
+     * @return array<string,mixed>
+     */
+    private function normalizeCalcDetails(array $calc, Remuneration $remuneration): array
+    {
+        // Legacy/demo seeder payload (demo_equal_split)
+        if (!empty($calc) && (isset($calc['policy']) || isset($calc['allocation_amount'])) && !isset($calc['allocation'])) {
+            $perUser = (float) ($calc['per_user_amount'] ?? ($remuneration->amount ?? 0));
+            $allocAmount = $calc['allocation_amount'] ?? null;
+
+            $calc = [
+                'method' => (string) ($calc['policy'] ?? 'legacy'),
+                'period_id' => (int) ($remuneration->assessment_period_id ?? 0),
+                'allocation' => [
+                    'unit_id' => (int) ($calc['unit_id'] ?? ($remuneration->user?->unit_id ?? 0)),
+                    'profession_id' => (int) ($calc['profession_id'] ?? ($remuneration->user?->profession_id ?? 0)),
+                    'published_amount' => $allocAmount,
+                    'line_amount' => $allocAmount,
+                ],
+                'komponen' => [
+                    'absensi' => ['jumlah' => null, 'nilai' => 0],
+                    'kedisiplinan' => ['jumlah' => null, 'nilai' => 0],
+                    'kontribusi_tambahan' => ['jumlah' => 0, 'nilai' => 0],
+                    // The UI needs a single nominal; legacy demo didn't split components.
+                    'pasien_ditangani' => ['jumlah' => null, 'nilai' => $perUser],
+                    'review_pelanggan' => ['jumlah' => 0, 'nilai' => 0],
+                ],
+            ];
+        }
+
+        // Ensure komponen keys exist to avoid lots of UI fallbacks.
+        $amount = (float) ($remuneration->amount ?? 0);
+        $komponen = (array) ($calc['komponen'] ?? []);
+        $komponen += [
+            'absensi' => ['jumlah' => null, 'nilai' => 0],
+            'kedisiplinan' => ['jumlah' => null, 'nilai' => 0],
+            'kontribusi_tambahan' => ['jumlah' => 0, 'nilai' => 0],
+            'pasien_ditangani' => ['jumlah' => null, 'nilai' => $amount],
+            'review_pelanggan' => ['jumlah' => 0, 'nilai' => 0],
+        ];
+        $calc['komponen'] = $komponen;
+
+        // Backfill allocation + WSM info from DB when missing.
+        $periodId = (int) ($remuneration->assessment_period_id ?? 0);
+        $unitId = (int) ($remuneration->user?->unit_id ?? data_get($calc, 'allocation.unit_id', 0));
+        $professionId = (int) ($remuneration->user?->profession_id ?? data_get($calc, 'allocation.profession_id', 0));
+
+        if ($periodId > 0 && $unitId > 0 && empty($calc['allocation'])) {
+            $alloc = Allocation::query()
+                ->where('assessment_period_id', $periodId)
+                ->where('unit_id', $unitId)
+                ->where(function ($q) use ($professionId) {
+                    // Prefer exact profession allocation; fall back to "all professions" allocation.
+                    $q->where('profession_id', $professionId)->orWhereNull('profession_id');
+                })
+                ->orderByRaw('profession_id is null')
+                ->first();
+
+            if ($alloc) {
+                $calc['allocation'] = [
+                    'unit_id' => (int) $alloc->unit_id,
+                    'unit_name' => $alloc->unit?->name,
+                    'profession_id' => $alloc->profession_id !== null ? (int) $alloc->profession_id : null,
+                    'published_amount' => (float) $alloc->amount,
+                    'line_amount' => (float) $alloc->amount,
+                ];
+            }
+        }
+
+        $allocUnitId = (int) data_get($calc, 'allocation.unit_id', 0);
+        $allocProfessionId = data_get($calc, 'allocation.profession_id');
+        if ($periodId > 0 && $allocUnitId > 0 && (empty($calc['wsm']) || !isset($calc['allocation']['unit_total_wsm']))) {
+            $userId = (int) $remuneration->user_id;
+
+            $userWsm = (float) (DB::table('performance_assessments')
+                ->where('assessment_period_id', $periodId)
+                ->where('user_id', $userId)
+                ->value('total_wsm_score') ?? 0);
+
+            $groupWsmQuery = DB::table('performance_assessments as pa')
+                ->join('users as u', 'u.id', '=', 'pa.user_id')
+                ->where('pa.assessment_period_id', $periodId)
+                ->where('u.unit_id', $allocUnitId);
+
+            if ($allocProfessionId !== null) {
+                $groupWsmQuery->where('u.profession_id', (int) $allocProfessionId);
+            }
+
+            $groupTotalWsm = (float) ($groupWsmQuery->sum('pa.total_wsm_score') ?? 0);
+            if ($groupTotalWsm <= 0) {
+                // Fallback: equal weights if no WSM.
+                $countQuery = DB::table('users')->where('unit_id', $allocUnitId);
+                if ($allocProfessionId !== null) {
+                    $countQuery->where('profession_id', (int) $allocProfessionId);
+                }
+                $groupCount = (int) ($countQuery->count() ?? 0);
+                $groupTotalWsm = max($groupCount, 1);
+                $userWsm = 1.0;
+            }
+
+            $sharePct = $groupTotalWsm > 0 ? ($userWsm / $groupTotalWsm) * 100.0 : null;
+
+            $calc['wsm'] = $calc['wsm'] ?? [];
+            $calc['wsm'] = array_merge((array) $calc['wsm'], [
+                'user_total' => round($userWsm, 2),
+                'unit_total' => round($groupTotalWsm, 2),
+                'source' => 'performance_assessments.total_wsm_score',
+            ]);
+
+            if (!empty($calc['allocation']) && is_array($calc['allocation'])) {
+                $calc['allocation']['unit_total_wsm'] = round($groupTotalWsm, 2);
+                $calc['allocation']['user_wsm_score'] = round($userWsm, 2);
+                $calc['allocation']['share_percent'] = $sharePct !== null ? round($sharePct, 6) : null;
+            }
+        }
+
+        return $calc;
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -201,11 +326,17 @@ class RemunerationController extends Controller
                 ->count();
         }
 
-        $calc = $remuneration->calculation_details ?? [];
+        $calc = $this->normalizeCalcDetails(($remuneration->calculation_details ?? []), $remuneration);
         $patientsHandled = data_get($calc, 'komponen.pasien_ditangani.jumlah');
-        $allocationAmount = data_get($calc, 'allocation')
-            ?? data_get($calc, 'allocation.published_amount')
-            ?? data_get($calc, 'allocation.line_amount');
+
+        $allocationAmount = data_get($calc, 'allocation.published_amount');
+        if ($allocationAmount === null) {
+            $allocationAmount = data_get($calc, 'allocation.line_amount');
+        }
+        if ($allocationAmount === null) {
+            // Legacy/demo key
+            $allocationAmount = data_get($calc, 'allocation_amount');
+        }
 
         $unitName = optional($remuneration->user?->unit)->name
             ?? data_get($calc, 'allocation.unit_name');
@@ -224,6 +355,54 @@ class RemunerationController extends Controller
             ['label' => 'Jumlah Review', 'value' => $reviewCount ?: data_get($calc, 'komponen.review_pelanggan.jumlah'), 'icon' => 'fa-star'],
         ];
 
+        // Per-kriteria nominal breakdown: split amount proportionally by each criteria's WSM contribution.
+        $criteriaAllocations = [];
+        $amount = $remuneration->amount !== null ? (float) $remuneration->amount : null;
+        if ($amount !== null && $amount > 0 && $period) {
+            $pa = PerformanceAssessment::query()
+                ->with(['assessmentPeriod', 'user'])
+                ->where('assessment_period_id', (int) $period->id)
+                ->where('user_id', (int) $remuneration->user_id)
+                ->first();
+
+            if ($pa) {
+                $breakdown = app(AssessmentApprovalDetailService::class)->getBreakdown($pa);
+                $totalWsm = (float) ($breakdown['total'] ?? 0.0);
+
+                if (!empty($breakdown['hasWeights']) && $totalWsm > 0 && !empty($breakdown['rows'])) {
+                    $weights = [];
+                    $meta = [];
+                    foreach ($breakdown['rows'] as $r) {
+                        $cid = (int) ($r['criteria_id'] ?? 0);
+                        if ($cid <= 0) continue;
+                        $w = (float) ($r['contribution'] ?? 0.0);
+                        if ($w < 0) $w = 0.0;
+                        $weights[$cid] = $w;
+                        $meta[$cid] = [
+                            'criteria_id' => $cid,
+                            'criteria_name' => (string) ($r['criteria_name'] ?? '-'),
+                            'weight' => (float) ($r['weight'] ?? 0.0),
+                            'score_wsm' => (float) ($r['score_wsm'] ?? 0.0),
+                            'contribution' => $w,
+                        ];
+                    }
+
+                    if (!empty($weights) && array_sum($weights) > 0) {
+                        $allocated = ProportionalAllocator::allocate((float) $amount, $weights);
+
+                        foreach ($allocated as $cid => $nominal) {
+                            $cid = (int) $cid;
+                            $m = $meta[$cid] ?? null;
+                            if (!$m) continue;
+                            $criteriaAllocations[] = $m + ['nominal' => (float) $nominal];
+                        }
+
+                        usort($criteriaAllocations, fn($a, $b) => ((float)($b['nominal'] ?? 0)) <=> ((float)($a['nominal'] ?? 0)));
+                    }
+                }
+            }
+        }
+
         return view('pegawai_medis.remunerations.show', [
             'item' => $remuneration,
             'reviewCount' => $reviewCount,
@@ -234,6 +413,7 @@ class RemunerationController extends Controller
             'unitName' => $unitName,
             'professionName' => $professionName,
             'quantities' => $quantities,
+            'criteriaAllocations' => $criteriaAllocations,
         ]);
     }
 }

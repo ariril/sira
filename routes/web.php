@@ -158,6 +158,7 @@ Route::middleware(['auth','verified','role:admin_rs'])
         // Proses & Publikasi Remunerasi
         Route::get('remunerations/calc',        [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'calcIndex'])->name('remunerations.calc.index');
         Route::post('remunerations/calc/run',   [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'runCalculation'])->name('remunerations.calc.run');
+        Route::post('remunerations/calc/audit', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'auditCalculation'])->name('remunerations.calc.audit');
         Route::post('remunerations/{remuneration}/publish', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'publish'])->name('remunerations.publish');
         Route::post('remunerations/publish-all', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'publishAll'])->name('remunerations.publish_all');
         Route::resource('remunerations', \App\Http\Controllers\Web\AdminHospital\RemunerationController::class)->only(['index','show','update']);

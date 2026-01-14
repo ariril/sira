@@ -65,27 +65,24 @@ class HomeController extends Controller
             return Schema::hasTable('users') ? User::count() : 0;
         });
 
-        // 3a) Rata-rata capaian (avg performance_assessments.total_wsm_score pada periode aktif)
-        $capaianKinerja = Cache::remember('stat.capaian_kinerja', 300, function () use ($periodeAktif) {
-            if (!$periodeAktif) return null;
-
-            return PerformanceAssessment::query()
-                ->where('assessment_period_id', $periodeAktif->id)
-                ->avg('total_wsm_score'); // decimal|null
-        });
-
-        // 3b) Tugas tambahan: jumlah klaim disetujui/selesai pada periode aktif
-        $tugasTambahan = Cache::remember('stat.tugas_tambahan', 300, function () use ($periodeAktif) {
-            if (!$periodeAktif) return 0;
-            if (!Schema::hasTable('additional_tasks') || !Schema::hasTable('additional_task_claims')) {
-                return 0;
+        // 3a) Rata-rata capaian (avg performance_assessments.total_wsm_score) untuk ALL data (tanpa filter periode/unit/profesi)
+        $capaianKinerja = Cache::remember('stat.capaian_kinerja_all', 300, function () {
+            if (!Schema::hasTable('performance_assessments')) {
+                return null;
             }
 
-            return (int) DB::table('additional_task_claims as c')
-                ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
-                ->where('t.assessment_period_id', $periodeAktif->id)
-                ->whereIn('c.status', ['approved', 'completed'])
-                ->count();
+            return PerformanceAssessment::query()->avg('total_wsm_score'); // decimal|null
+        });
+
+        // 3b) Tugas tambahan: COUNT ALL data tugas tambahan di DB (tanpa filter periode/status)
+        $tugasTambahan = Cache::remember('stat.tugas_tambahan_all', 300, function () {
+            if (Schema::hasTable('additional_task_claims')) {
+                return (int) DB::table('additional_task_claims')->count();
+            }
+            if (Schema::hasTable('additional_tasks')) {
+                return (int) DB::table('additional_tasks')->count();
+            }
+            return 0;
         });
 
             // Demo override untuk keperluan screenshot:

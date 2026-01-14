@@ -45,50 +45,47 @@ class DashboardController extends Controller
         $me = [
             'avg_rating_30d' => null,
             'total_review_30d' => 0,
-            'recent_reviews' => collect(),
             'remunerasi_terakhir' => null,
             'nilai_kinerja_terakhir' => null,
-            'jadwal_mendatang' => collect(),
         ];
 
-        if (Schema::hasTable('ulasan_items')) {
+        // Reviews (30d) — use current schema: reviews + review_details
+        if (Schema::hasTable('review_details') && Schema::hasTable('reviews')) {
             $from = now()->subDays(30);
-            $me['avg_rating_30d'] = DB::table('ulasan_items')
-                ->where('tenaga_medis_id',$userId)
-                ->where('created_at','>=',$from)
-                ->avg('rating');
 
-            $me['total_review_30d'] = DB::table('ulasan_items')
-                ->where('tenaga_medis_id',$userId)
-                ->where('created_at','>=',$from)
-                ->count();
+            $base = DB::table('review_details as rd')
+                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
+                ->where('rd.medical_staff_id', $userId)
+                ->whereNotNull('rd.rating')
+                // Count only approved reviews so KPI aligns with public/approved data.
+                ->where('r.status', 'approved')
+                ->where('r.created_at', '>=', $from);
 
-            $me['recent_reviews'] = DB::table('ulasan_items as ui')
-                ->join('ulasans as ul','ul.id','=','ui.ulasan_id')
-                ->select('ui.rating','ui.komentar','ul.created_at')
-                ->where('ui.tenaga_medis_id',$userId)
-                ->orderByDesc('ul.created_at')->limit(8)->get();
+            $me['avg_rating_30d'] = (clone $base)->avg('rd.rating');
+            $me['total_review_30d'] = (int) (clone $base)->count('rd.rating');
         }
 
-        if (Schema::hasTable('remunerasis')) {
-            $me['remunerasi_terakhir'] = DB::table('remunerasis')
-                ->where('user_id',$userId)
-                ->orderByDesc('id')->first();
+        // Remunerasi terakhir — use current schema: remunerations
+        if (Schema::hasTable('remunerations')) {
+            $me['remunerasi_terakhir'] = DB::table('remunerations as r')
+                ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'r.assessment_period_id')
+                ->where('r.user_id', $userId)
+                ->select('r.amount', 'r.payment_status', 'r.payment_date', 'r.assessment_period_id', 'ap.name as period_name', 'ap.start_date', 'ap.end_date')
+                ->orderByDesc('ap.start_date')
+                ->orderByDesc('r.assessment_period_id')
+                ->first();
         }
 
-        if (Schema::hasTable('penilaian_kinerjas')) {
-            $me['nilai_kinerja_terakhir'] = DB::table('penilaian_kinerjas')
-                ->where('user_id', $userId)
-                ->orderByDesc('id')
-                ->value('skor_total_wsm');
-        }
-
-        if (Schema::hasTable('jadwal_dokters')) {
-            $me['jadwal_mendatang'] = DB::table('jadwal_dokters')
-                ->where('user_id',$userId)
-                ->where('tanggal','>=', now()->toDateString())
-                ->orderBy('tanggal')->orderBy('jam_mulai')
-                ->limit(10)->get();
+        // Skor kinerja terakhir — use current schema: performance_assessments
+        if (Schema::hasTable('performance_assessments')) {
+            $me['nilai_kinerja_terakhir'] = DB::table('performance_assessments as pa')
+                ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'pa.assessment_period_id')
+                ->where('pa.user_id', $userId)
+                ->whereNotNull('pa.total_wsm_score')
+                ->orderByDesc('ap.start_date')
+                ->orderByDesc('pa.assessment_date')
+                ->orderByDesc('pa.assessment_period_id')
+                ->value('pa.total_wsm_score');
         }
 
         // One-time banner: latest assessment fully approved (Level 3)
@@ -142,12 +139,15 @@ class DashboardController extends Controller
         }
 
         // Latest criteria weight change by unit head (per unit)
+        // IMPORTANT: only show this notice when there is an ACTIVE period and the weights are ACTIVE for that period.
         $unitId = optional(Auth::user())->unit_id;
-        if ($unitId && Schema::hasTable('unit_criteria_weights') && Schema::hasTable('assessment_periods')) {
+        if ($unitId && $activePeriod && Schema::hasTable('unit_criteria_weights') && Schema::hasTable('assessment_periods')) {
             $criteriaNotice = DB::table('unit_criteria_weights as w')
                 ->join('assessment_periods as ap', 'ap.id', '=', 'w.assessment_period_id')
                 ->select('w.id', 'w.updated_at', 'ap.name as period_name')
                 ->where('w.unit_id', $unitId)
+                ->where('w.assessment_period_id', (int) $activePeriod->id)
+                ->where('w.status', 'active')
                 ->orderByDesc('w.updated_at')
                 ->first();
 

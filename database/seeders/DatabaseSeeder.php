@@ -539,15 +539,6 @@ class DatabaseSeeder extends Seeder
             // Periode bulanan (sesuai kebutuhan remunerasi per-bulan)
             $periods = [
                 [
-                    'name' => 'September 2025',
-                    'start_date' => '2025-09-01',
-                    'end_date' => '2025-09-30',
-                    'status' => AssessmentPeriod::STATUS_CLOSED,
-                    'locked_at' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                [
                     'name' => 'Oktober 2025',
                     'start_date' => '2025-10-01',
                     'end_date' => '2025-10-31',
@@ -599,7 +590,6 @@ class DatabaseSeeder extends Seeder
                     ]
                 );
             }
-            $periodSeptId = DB::table('assessment_periods')->where('name', 'September 2025')->value('id');
             $periodOctId = DB::table('assessment_periods')->where('name', 'Oktober 2025')->value('id');
             $periodNovId = DB::table('assessment_periods')->where('name', 'November 2025')->value('id');
 

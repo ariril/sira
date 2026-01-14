@@ -21,6 +21,15 @@ class UnitRemunerationAllocation extends Model
         'revised_by',
     ];
 
+    protected $casts = [
+        'assessment_period_id' => 'integer',
+        'unit_id' => 'integer',
+        'profession_id' => 'integer',
+        'amount' => 'float',
+        'published_at' => 'datetime',
+        'revised_by' => 'integer',
+    ];
+
     // Relasi
     public function period()
     {

@@ -57,11 +57,10 @@
                 <div class="p-6 space-y-4">
                     <div class="flex items-start justify-between gap-4">
                         <div>
-                            <div class="text-xs uppercase tracking-wide text-slate-500">Detail Perhitungan</div>
-                            <div class="text-lg font-semibold text-slate-900">DETAIL Skor Kinerja</div>
+                            <div class="text-lg font-semibold text-slate-900">Rincian Skor Kinerja</div>
                             <div class="text-sm text-slate-600">Total:
                                 {{ number_format((float) ($kinerja['total'] ?? 0), 2) }}</div>
-                            <div class="mt-1 flex flex-wrap items-center gap-2">
+                            <div class="mt-2 flex flex-wrap items-center gap-2">
                                 @php
                                     $src = (string) (($kinerja['calculationSource'] ?? null) ?: 'live');
                                 @endphp
@@ -72,15 +71,23 @@
                                     <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700"
                                         title="Periode belum frozen; skor mengikuti konfigurasi kriteria terbaru.">Live</span>
                                 @endif
-
-                                @if (!empty($kinerja['scope']))
-                                    <span class="text-xs text-slate-500">
-                                        Scope pembanding: Periode {{ $kinerja['scope']['period'] ?? '-' }},
-                                        Unit {{ $kinerja['scope']['unit'] ?? '-' }},
-                                        Profesi {{ $kinerja['scope']['profession'] ?? '-' }}.
-                                    </span>
-                                @endif
                             </div>
+
+                            @php
+                                $scope = (array) ($kinerja['scope'] ?? []);
+                                $scopePeriod = (string) (($scope['period'] ?? null) ?: '');
+                                $scopeUnit = (string) (($scope['unit'] ?? null) ?: '');
+                                $scopeProfession = (string) (($scope['profession'] ?? null) ?: '');
+                                $hasScope = trim($scopePeriod . $scopeUnit . $scopeProfession) !== '';
+                            @endphp
+                            @if ($hasScope)
+                                <div class="mt-1 text-xs text-slate-500">
+                                    Scope pembanding:
+                                    Periode <span class="font-semibold text-slate-700">{{ $scopePeriod !== '' ? $scopePeriod : '-' }}</span>,
+                                    Unit <span class="font-semibold text-slate-700">{{ $scopeUnit !== '' ? $scopeUnit : '-' }}</span>,
+                                    Profesi <span class="font-semibold text-slate-700">{{ $scopeProfession !== '' ? $scopeProfession : '-' }}</span>.
+                                </div>
+                            @endif
                             @if (!empty($kinerja['groupTotalWsm']) && isset($kinerja['sharePct']) && $kinerja['sharePct'] !== null)
                                 <div class="text-xs text-slate-500">
                                     Porsi (share) = {{ number_format((float) ($kinerja['sharePct'] ?? 0) * 100, 2) }}%
@@ -101,16 +108,6 @@
                             periode penilaian dan digunakan sebagai dasar pembagian remunerasi.
                         </div>
 
-                        <div class="text-sm text-slate-700">
-                            <div class="font-semibold">Catatan Normalisasi vs Relatif</div>
-                            <div class="text-xs text-slate-600">
-                                N (Nilai Normalisasi) untuk basis <span class="font-semibold">total_unit</span> dan tipe <span class="font-semibold">benefit</span>
-                                secara konsep akan berjumlah 100 jika dijumlahkan across users dalam satu scope.
-                                Untuk <span class="font-semibold">Custom Target</span>, N bisa saja tidak ada yang mencapai 100 bila tidak ada yang mencapai target.
-                                R (Nilai Relatif) adalah skala terhadap max(N) sehingga max(R)=100 dan <span class="font-semibold">tidak</span> harus sum=100.
-                            </div>
-                        </div>
-
                         <div>
                             <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Kriteria dihitung (Aktif
                                 pada Periode)</div>
@@ -126,9 +123,8 @@
                                         <tr>
                                             <th class="px-4 py-2 text-left">Kriteria</th>
                                             <th class="px-4 py-2 text-right">Bobot</th>
-                                            <th class="px-4 py-2 text-right" title="Nilai relatif (0–100) yang dipakai untuk total skor kinerja">Nilai Relatif</th>
-                                            <th class="px-4 py-2 text-right" title="Kontribusi = (bobot/ΣBobotAktif)×Nilai Relatif">Kontribusi
-                                            </th>
+                                            <th class="px-4 py-2 text-right" title="Nilai kinerja untuk kriteria ini (0–100)">Nilai (0–100)</th>
+                                            <th class="px-4 py-2 text-right" title="Seberapa besar kriteria ini memengaruhi total skor">Kontribusi</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -141,7 +137,8 @@
                                                 <td class="px-4 py-2 text-right">
                                                     {{ number_format((float) ($r['score_wsm'] ?? 0), 2) }}</td>
                                                 <td class="px-4 py-2 text-right">
-                                                    {{ number_format((float) ($r['contribution'] ?? 0), 2) }}</td>
+                                                    {{ number_format(((float) ($r['score_wsm'] ?? 0) * (float) ($r['weight'] ?? 0)) / 100, 2) }}
+                                                </td>
                                             </tr>
                                         @empty
                                             <tr>
@@ -152,16 +149,13 @@
                                 </table>
                             </div>
                             <div class="text-xs text-slate-500 mt-2">
-                                ΣBobotAktif = {{ number_format((float) ($kinerja['sumWeight'] ?? 0), 2) }}.
-                            </div>
-                            <div class="text-xs text-slate-500">
-                                Total skor kinerja = Σ(bobot×nilai relatif) / Σ(bobot) (hanya kriteria aktif).
+                                Total bobot kriteria aktif: {{ number_format((float) ($kinerja['sumWeight'] ?? 0), 2) }}.
                             </div>
                         </div>
 
                         <div>
-                            <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Kriteria ditampilkan saja
-                                (Tidak dihitung)</div>
+                            <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Kriteria nonaktif (tidak
+                                masuk skor)</div>
                             <div class="space-y-1">
                                 @forelse(($inactiveCriteriaRows ?? []) as $r)
                                     <div
@@ -170,11 +164,8 @@
                                         <div class="flex items-center gap-2">
                                             <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700"
                                                 title="Tidak dihitung ke Skor Kinerja">Tidak dihitung</span>
-                                            <span class="text-slate-600" title="Nilai relatif unit (0–100)">
+                                            <span class="text-slate-600" title="Nilai kinerja (0–100)">
                                                 {{ number_format((float) ($r['score_wsm'] ?? 0), 2) }}
-                                            </span>
-                                            <span class="text-slate-400" title="Nilai normalisasi">
-                                                ({{ number_format((float) ($r['score_normalisasi'] ?? 0), 2) }})
                                             </span>
                                         </div>
                                     </div>
@@ -189,12 +180,15 @@
         @endif
 
         <x-section title="Detail Kriteria" class="overflow-hidden">
+            @php
+                $kinerjaRowByCriteriaId = collect($kinerja['rows'] ?? [])->keyBy('criteria_id');
+            @endphp
             <x-ui.table min-width="760px">
                 <x-slot name="head">
                     <tr>
                         <th class="text-left px-4 py-3 whitespace-nowrap">Kriteria</th>
                         <th class="text-left px-4 py-3 whitespace-nowrap">Tipe</th>
-                        <th class="text-left px-4 py-3 whitespace-nowrap">Nilai Kinerja (Relatif Unit)</th>
+                        <th class="text-left px-4 py-3 whitespace-nowrap">Nilai Kinerja (0–100)</th>
                         <th class="text-left px-4 py-3 whitespace-nowrap">Detail</th>
                     </tr>
                 </x-slot>
@@ -202,8 +196,30 @@
                     @php
                         $raw = $rawMetrics[$d->performance_criteria_id] ?? null;
                         $rel = $kinerja['relativeByCriteria'][(int) $d->performance_criteria_id] ?? null;
-                        $norm = $kinerja['normalizedByCriteria'][(int) $d->performance_criteria_id] ?? null;
                         $isActive = isset($activeCriteriaIdSet[(int) $d->performance_criteria_id]);
+                        $row = $kinerjaRowByCriteriaId[(int) $d->performance_criteria_id] ?? null;
+                        $weight = is_array($row) ? ($row['weight'] ?? null) : null;
+                        $simpleContribution = ($weight !== null && $rel !== null)
+                            ? (((float) $rel * (float) $weight) / 100)
+                            : null;
+
+                        $criteriaId = (int) $d->performance_criteria_id;
+                        $criteria = $d->performanceCriteria;
+                        $criteriaType = optional($criteria?->type)->value ?? (string) (($criteria?->type ?? null) ?: 'benefit');
+                        $criteriaType = $criteriaType === 'cost' ? 'cost' : 'benefit';
+
+                        // These are internal values used to derive the displayed 0–100 score.
+                        // We present them in a user-friendly way (no technical terms).
+                        $yourBaseValue = $kinerja['normalizedByCriteria'][$criteriaId] ?? null;
+                        $yourBaseValue = $yourBaseValue !== null ? (float) $yourBaseValue : null;
+
+                        $bestBaseValue = null;
+                        if ($criteriaType === 'cost') {
+                            $bestBaseValue = $kinerja['minNormalizedByCriteria'][$criteriaId] ?? ($kinerja['minByCriteria'][$criteriaId] ?? null);
+                        } else {
+                            $bestBaseValue = $kinerja['maxNormalizedByCriteria'][$criteriaId] ?? ($kinerja['maxByCriteria'][$criteriaId] ?? null);
+                        }
+                        $bestBaseValue = $bestBaseValue !== null ? (float) $bestBaseValue : null;
                     @endphp
 
                     <tr>
@@ -226,26 +242,30 @@
                             @if ($raw)
                                 <button type="button"
                                     class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 text-slate-600 hover:border-emerald-500 hover:text-emerald-700"
-                                    x-data @click="$dispatch('open-modal', 'raw-{{ $d->id }}')"
-                                    title="Lihat data mentah">
+                                    x-data @click="$dispatch('open-modal', 'nilai-mentah-{{ $d->id }}')"
+                                    title="Lihat nilai mentah">
                                     <i class="fa-solid fa-eye"></i>
                                 </button>
 
-                                <x-modal name="raw-{{ $d->id }}" maxWidth="lg">
+                                <x-modal name="nilai-mentah-{{ $d->id }}" maxWidth="lg">
                                     <div class="p-6 space-y-4">
                                         <div class="flex items-start justify-between gap-4">
                                             <div>
-                                                <div class="text-xs uppercase tracking-wide text-slate-500">Kriteria
-                                                </div>
                                                 <div class="text-lg font-semibold text-slate-900">
                                                     {{ $d->performanceCriteria->name ?? '-' }}</div>
                                                 <div class="text-sm text-slate-600">
-                                                    Nilai Kinerja (Relatif Unit):
+                                                    Nilai Kinerja (0–100):
                                                     {{ $rel !== null ? number_format((float) $rel, 2) : '-' }}
                                                 </div>
-                                                <div class="text-sm text-slate-600">
-                                                    Nilai Normalisasi: {{ $norm !== null ? number_format((float) $norm, 2) : '-' }}
-                                                </div>
+                                                @if ($isActive)
+                                                    <div class="mt-2 space-y-1 text-xs text-slate-600">
+                                                        @if ($weight !== null)
+                                                            <div>
+                                                                Bobot: <span class="font-semibold text-slate-800">{{ number_format((float) $weight, 2) }}</span>
+                                                            </div>
+                                                        @endif
+                                                    </div>
+                                                @endif
 
                                                 @if (!$isActive)
                                                     <div class="mt-1 inline-flex">
@@ -258,104 +278,196 @@
                                             </div>
 
                                             <button type="button" class="text-slate-400 hover:text-slate-600"
-                                                @click="$dispatch('close-modal', 'raw-{{ $d->id }}')">
+                                                @click="$dispatch('close-modal', 'nilai-mentah-{{ $d->id }}')">
                                                 <i class="fa-solid fa-xmark text-lg"></i>
                                             </button>
                                         </div>
 
                                         <div class="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
-                                            <div class="text-sm font-semibold text-slate-800">
-                                                {{ $raw['title'] ?? 'Data mentah' }}</div>
+                                            @php
+                                                $rawTitle = (string) ($raw['title'] ?? 'Rincian');
+                                                if (mb_strtolower($rawTitle) === 'detail perhitungan') {
+                                                    $rawTitle = 'Rincian';
+                                                }
+                                            @endphp
+                                            <div class="text-sm font-semibold text-slate-800">{{ $rawTitle }}</div>
 
-                                            @foreach ($raw['lines'] ?? [] as $line)
-                                                <div class="flex items-start justify-between gap-3">
-                                                    <div>
-                                                        <div class="text-sm text-slate-700 font-medium">
-                                                            {{ $line['label'] ?? '-' }}</div>
-                                                        @if (!empty($line['hint']))
-                                                            <div class="text-xs text-slate-500">{{ $line['hint'] }}
-                                                            </div>
-                                                        @endif
-                                                    </div>
-                                                    <div class="text-sm font-semibold text-slate-900 text-right">
-                                                        {{ $line['value'] ?? '-' }}</div>
-                                                </div>
-                                            @endforeach
+                                            @if ($rel !== null && $yourBaseValue !== null && $bestBaseValue !== null)
+                                                @php
+                                                    $parseNumber = function ($v): ?float {
+                                                        if ($v === null) {
+                                                            return null;
+                                                        }
+                                                        $s = trim((string) $v);
+                                                        if ($s === '' || $s === '-') {
+                                                            return null;
+                                                        }
+                                                        // Keep digits, dot, comma, minus.
+                                                        $s = preg_replace('/[^0-9,\.\-]/', '', $s);
+                                                        $s = trim((string) $s);
+                                                        if ($s === '' || $s === '-' || $s === '.' || $s === ',') {
+                                                            return null;
+                                                        }
+                                                        // If both separators exist, assume comma is thousands separator.
+                                                        if (str_contains($s, ',') && str_contains($s, '.')) {
+                                                            $s = str_replace(',', '', $s);
+                                                        } elseif (str_contains($s, ',') && !str_contains($s, '.')) {
+                                                            // Treat comma as decimal separator.
+                                                            $s = str_replace(',', '.', $s);
+                                                        }
+                                                        if (!is_numeric($s)) {
+                                                            return null;
+                                                        }
+                                                        return (float) $s;
+                                                    };
 
-                                            @if (!empty($raw['formula']))
-                                                <div class="pt-3 mt-2 border-t border-slate-200 space-y-2">
-                                                    <div class="text-xs uppercase tracking-wide text-slate-500">
-                                                        Rumus (teks)
-                                                    </div>
-                                                    @if (!empty($raw['formula']['normalization_text']))
-                                                        <div class="text-sm text-slate-800 font-semibold">
-                                                            {{ $raw['formula']['normalization_text'] }}
+                                                    $rawIndividuVal = null;
+                                                    $pembandingVal = null;
+                                                    foreach (($raw['lines'] ?? []) as $__line) {
+                                                        $lbl = mb_strtolower((string) ($__line['label'] ?? ''));
+                                                        if ($rawIndividuVal === null && (str_contains($lbl, 'raw individu') || str_contains($lbl, 'nilai mentah individu'))) {
+                                                            $rawIndividuVal = $parseNumber($__line['value'] ?? null);
+                                                        }
+                                                        if ($pembandingVal === null && str_contains($lbl, 'pembanding')) {
+                                                            $pembandingVal = $parseNumber($__line['value'] ?? null);
+                                                        }
+                                                    }
+
+                                                    $derivedBaseValue = null;
+                                                    if ($rawIndividuVal !== null && $pembandingVal !== null && (float) $pembandingVal != 0.0) {
+                                                        $derivedBaseValue = ((float) $rawIndividuVal / (float) $pembandingVal) * 100.0;
+                                                    }
+                                                @endphp
+                                                <div class="rounded-lg bg-white border border-slate-200 px-3 py-2">
+                                                    <div class="text-xs uppercase tracking-wide text-slate-500">Cara nilai 0–100 dihitung</div>
+                                                    @if ($derivedBaseValue !== null)
+                                                        <div class="mt-1 text-xs text-slate-600">
+                                                            Nilai Anda di unit (dari data):
+                                                            <span class="font-semibold text-slate-800">{{ number_format((float) $rawIndividuVal, 2) }}</span>
+                                                            /
+                                                            <span class="font-semibold text-slate-800">{{ number_format((float) $pembandingVal, 2) }}</span>
+                                                            × 100
+                                                            = <span class="font-semibold text-slate-800">{{ number_format((float) $yourBaseValue, 2) }}</span>
                                                         </div>
+                                                    @else
+                                                    <div class="mt-1 text-xs text-slate-600">
+                                                        Nilai Anda di unit: <span class="font-semibold text-slate-800">{{ number_format((float) $yourBaseValue, 2) }}</span>
+                                                    </div>
                                                     @endif
-                                                    @if (!empty($raw['formula']['relative_text']))
-                                                        <div class="text-sm text-slate-700">
-                                                            {{ $raw['formula']['relative_text'] }}
+                                                    <div class="text-xs text-slate-600">
+                                                        {{ $criteriaType === 'cost' ? 'Nilai terbaik di unit (terendah):' : 'Nilai tertinggi di unit:' }}
+                                                        <span class="font-semibold text-slate-800">{{ number_format((float) $bestBaseValue, 2) }}</span>
+                                                    </div>
+                                                    @if ($criteriaType === 'cost')
+                                                        @if ((float) $yourBaseValue > 0)
+                                                            <div class="mt-1 text-sm text-slate-700">
+                                                                {{ number_format((float) $bestBaseValue, 2) }} /
+                                                                {{ number_format((float) $yourBaseValue, 2) }} × 100
+                                                                = <span class="font-semibold text-slate-900">{{ number_format((float) $rel, 2) }}</span>
+                                                            </div>
+                                                        @else
+                                                            <div class="mt-1 text-sm text-slate-500">-</div>
+                                                        @endif
+                                                    @else
+                                                        <div class="mt-1 text-sm text-slate-700">
+                                                            {{ number_format((float) $yourBaseValue, 2) }} /
+                                                            {{ number_format((float) $bestBaseValue, 2) }} × 100
+                                                            = <span class="font-semibold text-slate-900">{{ number_format((float) $rel, 2) }}</span>
                                                         </div>
                                                     @endif
                                                 </div>
                                             @endif
 
-                                            @php
-                                                $criteriaId = (int) $d->performance_criteria_id;
-                                                $criteria = $d->performanceCriteria;
-                                                $type = optional($criteria?->type)->value ?? (string) (($criteria?->type ?? null) ?: 'benefit');
-                                                $type = $type === 'cost' ? 'cost' : 'benefit';
+                                            @foreach ($raw['lines'] ?? [] as $line)
+                                                @php
+                                                    $label = (string) ($line['label'] ?? '-');
+                                                    $labelLower = mb_strtolower($label);
+                                                    $skipLine = false;
+                                                    $isSimpleContribution = false;
+                                                    $isWeightedContribution = false;
+                                                    $isRelativeLine = false;
+                                                    $isWeightLine = false;
 
-                                                $maxNorm = $kinerja['maxNormalizedByCriteria'][$criteriaId] ?? ($kinerja['maxByCriteria'][$criteriaId] ?? null);
-                                                $maxNorm = $maxNorm !== null ? (float) $maxNorm : null;
+                                                    // Normalize the label a bit for matching.
+                                                    $labelLowerNorm = str_replace([' ', '×', '*'], ['', 'x', 'x'], $labelLower);
+                                                    $isSimpleContribution = str_contains($labelLowerNorm, 'kontribusi') && str_contains($labelLowerNorm, 'rxbobot/100');
+                                                    $isWeightedContribution = str_contains($labelLower, 'kontribusi') && str_contains($labelLower, 'berbobot');
+                                                    $isRelativeLine = str_contains($labelLower, 'nilai relatif');
+                                                    $isWeightLine = trim($labelLower) === 'bobot';
 
-                                                $minNorm = $kinerja['minNormalizedByCriteria'][$criteriaId] ?? ($kinerja['minByCriteria'][$criteriaId] ?? null);
-                                                $minNorm = $minNorm !== null ? (float) $minNorm : null;
-                                            @endphp
+                                                    foreach (['normalisasi', 'normalization', 'max', 'min', 'rumus', 'formula'] as $needle) {
+                                                        if (str_contains($labelLower, $needle)) {
+                                                            $skipLine = true;
+                                                            break;
+                                                        }
+                                                    }
 
-                                            <div class="pt-3 mt-2 border-t border-slate-200">
-                                                <div class="text-xs text-slate-500 mb-2">
-                                                    {{ $type === 'cost' ? 'Min nilai normalisasi (N) dalam scope:' : 'Max nilai normalisasi (N) dalam scope:' }}
-                                                    <span class="font-semibold text-slate-700">
-                                                        {{ $type === 'cost'
-                                                            ? ($minNorm !== null ? number_format($minNorm, 2) : '-')
-                                                            : ($maxNorm !== null ? number_format($maxNorm, 2) : '-') }}
-                                                    </span>
-                                                </div>
-                                                <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Nilai
-                                                    Kinerja Relatif (0–100)</div>
-                                                @if ($rel !== null)
-                                                    @if ($norm === null)
-                                                        <div class="text-sm text-slate-500">-</div>
-                                                    @elseif ($type === 'cost')
-                                                        @if ($minNorm !== null && $minNorm <= 0)
-                                                            <div class="text-sm text-slate-800 font-semibold">
-                                                                min(N)=0 ⇒ R = IF(N=0, 100, 0) = {{ number_format((float) $rel, 2) }}
-                                                            </div>
-                                                        @elseif ($minNorm !== null && $minNorm > 0 && (float) $norm > 0)
-                                                            <div class="text-sm text-slate-800 font-semibold">
-                                                                {{ number_format((float) $minNorm, 2) }} /
-                                                                {{ number_format((float) $norm, 2) }} × 100
-                                                                = {{ number_format((float) $rel, 2) }}
-                                                            </div>
-                                                        @else
-                                                            <div class="text-sm text-slate-500">-</div>
-                                                        @endif
-                                                    @else
-                                                        @if ($maxNorm !== null && $maxNorm > 0)
-                                                            <div class="text-sm text-slate-800 font-semibold">
-                                                                {{ number_format((float) $norm, 2) }} /
-                                                                {{ number_format((float) $maxNorm, 2) }} × 100
-                                                                = {{ number_format((float) $rel, 2) }}
-                                                            </div>
-                                                        @else
-                                                            <div class="text-sm text-slate-500">-</div>
-                                                        @endif
-                                                    @endif
-                                                @else
-                                                    <div class="text-sm text-slate-500">-</div>
+                                                    // Remove technical repeats inside the modal (already shown on header).
+                                                    if ($isRelativeLine || $isWeightLine || $isWeightedContribution) {
+                                                        $skipLine = true;
+                                                    }
+
+                                                    // Keep only the simple contribution form.
+                                                    if (str_contains($labelLower, 'kontribusi') && !$isSimpleContribution && !$isWeightedContribution) {
+                                                        $skipLine = true;
+                                                    }
+
+                                                    if (str_contains($labelLower, 'pembanding')) {
+                                                        $skipLine = false;
+                                                    }
+
+                                                    if ($isSimpleContribution) {
+                                                        $displayLabel = 'Kontribusi';
+                                                    } else {
+                                                        $displayLabel = preg_replace('/\s*\([^)]*basis[^)]*\)\s*/i', '', $label);
+                                                        $displayLabel = trim((string) $displayLabel);
+
+                                                        // Label untuk user: tampilkan "Nilai mentah".
+                                                        if (preg_match('/^raw\b/i', $displayLabel)) {
+                                                            $displayLabel = preg_replace('/^raw\b/i', 'Nilai mentah', $displayLabel);
+                                                        }
+                                                    }
+                                                @endphp
+                                                @if ($skipLine)
+                                                    @continue
                                                 @endif
-                                            </div>
+
+                                                <div class="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <div class="text-sm text-slate-700 font-medium">
+                                                            {{ $displayLabel !== '' ? $displayLabel : ($line['label'] ?? '-') }}
+                                                        </div>
+                                                        @if (!empty($line['hint']))
+                                                            @php
+                                                                $hintLower = mb_strtolower((string) $line['hint']);
+                                                                $skipHint = false;
+                                                                // Hide technical hints.
+                                                                if (str_contains($labelLower, 'kontribusi')) {
+                                                                    $skipHint = true;
+                                                                }
+                                                                foreach (['normalisasi', 'normalization', 'max', 'min', 'rumus', 'formula', 'bobotaktif', 'Σ', 'sigma'] as $needle) {
+                                                                    if (str_contains($hintLower, $needle)) {
+                                                                        $skipHint = true;
+                                                                        break;
+                                                                    }
+                                                                }
+                                                            @endphp
+                                                            @if (!$skipHint)
+                                                                <div class="text-xs text-slate-500">{{ $line['hint'] }}</div>
+                                                            @endif
+                                                        @endif
+
+                                                        @if ($isSimpleContribution && $simpleContribution !== null && $rel !== null && $weight !== null)
+                                                            <div class="text-xs text-slate-500">
+                                                                {{ number_format((float) $rel, 2) }} × {{ number_format((float) $weight, 2) }} / 100
+                                                            </div>
+                                                        @endif
+                                                    </div>
+                                                    <div class="text-sm font-semibold text-slate-900 text-right">
+                                                        {{ $line['value'] ?? '-' }}
+                                                    </div>
+                                                </div>
+                                            @endforeach
                                         </div>
                                     </div>
                                 </x-modal>

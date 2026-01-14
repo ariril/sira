@@ -29,7 +29,7 @@ class SummaryService
                     ->where('assessment_period_id', (int) $selectedPeriod->id)
                     ->where('unit_id', $unitId)
                     ->where('assessee_profession_id', $professionId)
-                    ->where('status', 'active')
+                    ->whereIn('status', ['active', 'archived'])
                     ->get(['performance_criteria_id', 'assessor_type', 'weight']);
             }
 
@@ -75,22 +75,32 @@ class SummaryService
                     ];
                     $weights = array_merge($defaults, $weightMap[(int) $criteria->id] ?? []);
 
-                    $final = 0.0;
-                    $hasAny = false;
+                    $weightedSum = 0.0;
+                    $weightSum = 0.0;
                     foreach (['self', 'supervisor', 'peer', 'subordinate'] as $assessorType) {
-                        if (array_key_exists($assessorType, $avgs)) {
-                            $hasAny = true;
+                        if (!array_key_exists($assessorType, $avgs)) {
+                            continue;
                         }
+
                         $avg = (float) ($avgs[$assessorType] ?? 0.0);
                         $w = (float) ($weights[$assessorType] ?? 0.0);
-                        $final += $avg * ($w / 100.0);
+                        if ($w <= 0) {
+                            continue;
+                        }
+
+                        $weightedSum += $avg * ($w / 100.0);
+                        $weightSum += $w;
                     }
+
+                    $final = $weightSum > 0.0
+                        ? ($weightedSum / ($weightSum / 100.0))
+                        : null;
                     return [
                         'id' => $criteria->id,
                         'name' => $criteria->name,
                         'type' => $type,
                         'type_label' => $type === 'cost' ? 'Cost' : 'Benefit',
-                        'avg_score' => $hasAny ? round($final, 2) : null,
+                        'avg_score' => is_null($final) ? null : round($final, 2),
                     ];
                 })
                 ->filter(fn ($row) => !is_null($row['avg_score']))

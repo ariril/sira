@@ -10,6 +10,7 @@ use App\Models\PerformanceAssessmentDetail;
 use App\Models\PerformanceCriteria;
 use App\Models\User;
 use App\Services\CriteriaEngine\CriteriaRegistry;
+use App\Services\MultiRater\RaterWeightResolver;
 use App\Services\PerformanceScore\PerformanceScoreService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -125,6 +126,7 @@ class PeriodPerformanceAssessmentService
                     [
                         'assessment_date' => $period->end_date ?? now()->toDateString(),
                         'total_wsm_score' => 0,
+                        'total_wsm_value_score' => 0,
                         'validation_status' => 'Menunggu Validasi',
                         'supervisor_comment' => 'Dihitung otomatis dari data tabel.',
                     ]
@@ -148,6 +150,7 @@ class PeriodPerformanceAssessmentService
             if ($period->isFrozen() && Schema::hasTable('performance_assessment_snapshots')) {
                 $now = now();
                 $snapRows = [];
+                $membershipRows = [];
 
                 foreach ($userIds as $uid) {
                     $uid = (int) $uid;
@@ -171,6 +174,9 @@ class PeriodPerformanceAssessmentService
                                 'basis_by_criteria' => (array) ($calc['basis_by_criteria'] ?? []),
                                 'basis_value_by_criteria' => (array) ($calc['basis_value_by_criteria'] ?? []),
                                 'custom_target_by_criteria' => (array) ($calc['custom_target_by_criteria'] ?? []),
+                                // Explicit totals to make downstream consumers (e.g., remuneration) consistent.
+                                'total_wsm_relative' => $userRow['total_wsm_relative'] ?? ($userRow['total_wsm'] ?? null),
+                                'total_wsm_value' => $userRow['total_wsm_value'] ?? null,
                                 'user' => $userRow,
                             ],
                         ], JSON_UNESCAPED_UNICODE),
@@ -178,11 +184,27 @@ class PeriodPerformanceAssessmentService
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];
+
+                    if (Schema::hasTable('assessment_period_user_membership_snapshots')) {
+                        $membershipRows[] = [
+                            'assessment_period_id' => (int) $period->id,
+                            'user_id' => $uid,
+                            'unit_id' => (int) $unitId,
+                            'profession_id' => $professionId === null ? null : (int) $professionId,
+                            'snapshotted_at' => $now,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
                 }
 
                 if (!empty($snapRows)) {
                     // Insert-only for stability (don't overwrite existing snapshots).
                     DB::table('performance_assessment_snapshots')->insertOrIgnore($snapRows);
+                }
+
+                if (!empty($membershipRows) && Schema::hasTable('assessment_period_user_membership_snapshots')) {
+                    DB::table('assessment_period_user_membership_snapshots')->insertOrIgnore($membershipRows);
                 }
             }
 
@@ -193,14 +215,18 @@ class PeriodPerformanceAssessmentService
                 }
 
                 $userRow = $calc['users'][(int) $uid] ?? null;
-                $totalWsm = $userRow ? ($userRow['total_wsm'] ?? null) : null;
+                $totalWsmRelative = $userRow ? ($userRow['total_wsm_relative'] ?? ($userRow['total_wsm'] ?? null)) : null;
+                $totalWsmValue = $userRow ? ($userRow['total_wsm_value'] ?? null) : null;
 
                 PerformanceAssessment::query()
                     ->where('id', $assessmentId)
                     ->update([
                         'assessment_date' => $period->end_date ?? now()->toDateString(),
-                        'total_wsm_score' => $totalWsm === null ? null : round((float) $totalWsm, 2),
-                        'supervisor_comment' => ($totalWsm === null)
+                        // Keep legacy column as RELATIVE score for TOTAL_UNIT + ranking/UI.
+                        'total_wsm_score' => $totalWsmRelative === null ? null : round((float) $totalWsmRelative, 2),
+                        // New VALUE score for ATTACHED payout% (Excel v5).
+                        'total_wsm_value_score' => $totalWsmValue === null ? null : round((float) $totalWsmValue, 2),
+                        'supervisor_comment' => ($totalWsmRelative === null)
                             ? 'Belum ada bobot kriteria AKTIF untuk unit ini pada periode ini.'
                             : 'Dihitung otomatis dari data tabel.',
                     ]);
@@ -342,10 +368,10 @@ class PeriodPerformanceAssessmentService
 
         // 360: Ambil rata-rata dari multi_rater_assessment_details (status submitted).
         if (!empty($criteriaIds['kedisiplinan'])) {
-            $raw['kedisiplinan'] = $this->collect360Avg($period->id, (int) $criteriaIds['kedisiplinan'], $userIds);
+            $raw['kedisiplinan'] = $this->collect360Avg($period->id, (int) $criteriaIds['kedisiplinan'], $userIds, $unitId);
         }
         if (!empty($criteriaIds['kerjasama'])) {
-            $raw['kerjasama'] = $this->collect360Avg($period->id, (int) $criteriaIds['kerjasama'], $userIds);
+            $raw['kerjasama'] = $this->collect360Avg($period->id, (int) $criteriaIds['kerjasama'], $userIds, $unitId);
         }
 
         // Tugas Tambahan (kontribusi):
@@ -462,20 +488,92 @@ class PeriodPerformanceAssessmentService
      * @param array<int> $userIds
      * @return array<int,float>
      */
-    private function collect360Avg(int $periodId, int $criteriaId, array $userIds): array
+    private function collect360Avg(int $periodId, int $criteriaId, array $userIds, ?int $unitId = null): array
     {
-        $fromSubmitted = DB::table('multi_rater_assessment_details as d')
+        $userIds = array_values(array_unique(array_map('intval', $userIds)));
+        $criteriaId = (int) $criteriaId;
+        $periodId = (int) $periodId;
+        $unitId = $unitId === null ? null : (int) $unitId;
+
+        if (empty($userIds) || $criteriaId <= 0 || $periodId <= 0) {
+            return [];
+        }
+
+        // AVG per assessee + assessor_type
+        $avgRows = DB::table('multi_rater_assessment_details as d')
             ->join('multi_rater_assessments as mra', 'mra.id', '=', 'd.multi_rater_assessment_id')
-            ->selectRaw('mra.assessee_id as user_id, AVG(d.score) as avg_score')
+            ->selectRaw('mra.assessee_id as user_id, mra.assessor_type as assessor_type, AVG(d.score) as avg_score')
             ->where('mra.assessment_period_id', $periodId)
             ->where('mra.status', 'submitted')
             ->whereIn('mra.assessee_id', $userIds)
             ->where('d.performance_criteria_id', $criteriaId)
-            ->groupBy('mra.assessee_id')
-            ->pluck('avg_score', 'user_id')
-            ->map(fn($v) => (float) $v)
+            ->groupBy('mra.assessee_id', 'mra.assessor_type')
+            ->get();
+
+        $avgMap = [];
+        foreach ($avgRows as $row) {
+            $uid = (int) ($row->user_id ?? 0);
+            $type = (string) ($row->assessor_type ?? '');
+            if ($uid <= 0 || $type === '') {
+                continue;
+            }
+            $avgMap[$uid][$type] = (float) ($row->avg_score ?? 0.0);
+        }
+
+        // Resolve assessee profession_id to choose the correct weight set.
+        $professionByUserId = DB::table('users')
+            ->whereIn('id', $userIds)
+            ->pluck('profession_id', 'id')
+            ->map(fn($v) => $v === null ? null : (int) $v)
             ->all();
 
-        return $fromSubmitted;
+        $professionIds = [];
+        foreach ($professionByUserId as $pid) {
+            if (is_int($pid) && $pid > 0) {
+                $professionIds[$pid] = true;
+            }
+        }
+        $professionIds = array_keys($professionIds);
+
+        $resolvedWeightsByProfession = [];
+        if ($unitId !== null && $unitId > 0) {
+            $resolvedWeightsByProfession = RaterWeightResolver::resolveForCriteria($periodId, $unitId, $criteriaId, $professionIds);
+        }
+        $defaults = RaterWeightResolver::defaults();
+
+        $out = [];
+        foreach ($userIds as $uid) {
+            $uid = (int) $uid;
+            $avgs = $avgMap[$uid] ?? [];
+            if (empty($avgs)) {
+                $out[$uid] = 0.0;
+                continue;
+            }
+
+            $professionId = $professionByUserId[$uid] ?? null;
+            $weights = $defaults;
+            if (is_int($professionId) && $professionId > 0 && isset($resolvedWeightsByProfession[$professionId])) {
+                $weights = array_merge($weights, (array) $resolvedWeightsByProfession[$professionId]);
+            }
+
+            $weightedSum = 0.0;
+            $weightSum = 0.0;
+            foreach (['self', 'supervisor', 'peer', 'subordinate'] as $assessorType) {
+                if (!array_key_exists($assessorType, $avgs)) {
+                    continue;
+                }
+                $avg = (float) ($avgs[$assessorType] ?? 0.0);
+                $w = (float) ($weights[$assessorType] ?? 0.0);
+                if ($w <= 0.0) {
+                    continue;
+                }
+                $weightedSum += $avg * ($w / 100.0);
+                $weightSum += $w;
+            }
+
+            $out[$uid] = $weightSum > 0.0 ? (float) ($weightedSum / ($weightSum / 100.0)) : 0.0;
+        }
+
+        return $out;
     }
 }

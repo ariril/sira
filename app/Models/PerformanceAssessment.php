@@ -15,6 +15,7 @@ class PerformanceAssessment extends Model
         'assessment_period_id',
         'assessment_date',
         'total_wsm_score',
+        'total_wsm_value_score',
         'validation_status',
         'supervisor_comment',
     ];
@@ -22,6 +23,7 @@ class PerformanceAssessment extends Model
     protected $casts = [
         'assessment_date'   => 'date',
         'total_wsm_score'   => 'decimal:2',
+        'total_wsm_value_score' => 'decimal:2',
         'validation_status' => AssessmentValidationStatus::class,
     ];
 

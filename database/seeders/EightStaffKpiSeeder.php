@@ -378,7 +378,8 @@ class EightStaffKpiSeeder extends Seeder
                 staff: $staff,
                 actedAt: Carbon::create(2025, 11, 30),
                 now: $now,
-                note: 'Seeder auto-approve (Nov 2025 demo).'
+                note: 'Seeder auto-approve (Nov 2025 demo).',
+                maxLevelApproved: 3,
             );
 
             $this->seedDemoRemunerationsForPeriod(
@@ -492,7 +493,8 @@ class EightStaffKpiSeeder extends Seeder
                 staff: $staff,
                 actedAt: Carbon::create(2025, 12, 31),
                 now: $now,
-                note: 'Seeder auto-approve (Dec 2025 demo).'
+                note: 'Seeder auto-approve (Dec 2025 demo).',
+                maxLevelApproved: 1,
             );
 
             $this->seedDemoRemunerationsForPeriod(
@@ -681,9 +683,14 @@ class EightStaffKpiSeeder extends Seeder
         }
     }
 
-    private function seedAssessmentApprovalsForPeriod(int $periodId, array $staff, Carbon $actedAt, Carbon $now, string $note): void
+    private function seedAssessmentApprovalsForPeriod(int $periodId, array $staff, Carbon $actedAt, Carbon $now, string $note, int $maxLevelApproved = 1): void
     {
         if (!Schema::hasTable('assessment_approvals') || !Schema::hasTable('performance_assessments')) {
+            return;
+        }
+
+        $maxLevelApproved = max(0, min(3, (int) $maxLevelApproved));
+        if ($maxLevelApproved === 0) {
             return;
         }
 
@@ -693,12 +700,13 @@ class EightStaffKpiSeeder extends Seeder
             return;
         }
 
+        $adminRsId = (int) (DB::table('users')->where('email', 'admin.rs@rsud.local')->value('id') ?? 0);
+
         $kepalaUmumId = (int) ($staff['kepala_umum']['id'] ?? 0);
         $kepalaGigiId = (int) ($staff['kepala_gigi']['id'] ?? 0);
 
         $assessments = DB::table('performance_assessments')
             ->where('assessment_period_id', $periodId)
-            ->whereIn('user_id', collect($staff)->pluck('id')->map(fn($v) => (int) $v)->all())
             ->get(['id', 'user_id']);
 
         foreach ($assessments as $a) {
@@ -717,20 +725,69 @@ class EightStaffKpiSeeder extends Seeder
                 $approverId = ($userId === $kepalaGigiId) ? $kepalaPoliklinikId : $kepalaGigiId;
             }
 
-            DB::table('assessment_approvals')->updateOrInsert(
-                [
-                    'performance_assessment_id' => $assessmentId,
-                    'level' => 1,
-                ],
-                [
-                    'approver_id' => $approverId,
-                    'status' => 'approved',
-                    'note' => $note,
-                    'acted_at' => $actedAt,
-                    'updated_at' => $now,
-                    'created_at' => $now,
-                ]
-            );
+            // Level 1 approval (Kepala Unit / fallback Kepala Poliklinik)
+            if ($maxLevelApproved >= 1) {
+                DB::table('assessment_approvals')->updateOrInsert(
+                    [
+                        'performance_assessment_id' => $assessmentId,
+                        'level' => 1,
+                    ],
+                    [
+                        'approver_id' => $approverId,
+                        'status' => 'approved',
+                        'note' => $note,
+                        'acted_at' => $actedAt,
+                        'updated_at' => $now,
+                        'created_at' => $now,
+                    ]
+                );
+            }
+
+            // Level 2 approval (Kepala Poliklinik)
+            if ($maxLevelApproved >= 2) {
+                DB::table('assessment_approvals')->updateOrInsert(
+                    [
+                        'performance_assessment_id' => $assessmentId,
+                        'level' => 2,
+                    ],
+                    [
+                        'approver_id' => $kepalaPoliklinikId,
+                        'status' => 'approved',
+                        'note' => $note,
+                        'acted_at' => $actedAt,
+                        'updated_at' => $now,
+                        'created_at' => $now,
+                    ]
+                );
+            }
+
+            // Level 3 approval (Admin RS). If Admin RS user is missing, fall back to Kepala Poliklinik.
+            if ($maxLevelApproved >= 3) {
+                DB::table('assessment_approvals')->updateOrInsert(
+                    [
+                        'performance_assessment_id' => $assessmentId,
+                        'level' => 3,
+                    ],
+                    [
+                        'approver_id' => $adminRsId > 0 ? $adminRsId : $kepalaPoliklinikId,
+                        'status' => 'approved',
+                        'note' => $note,
+                        'acted_at' => $actedAt,
+                        'updated_at' => $now,
+                        'created_at' => $now,
+                    ]
+                );
+            }
+
+            // Keep performance_assessments.validation_status in sync with approvals for demo.
+            if ($maxLevelApproved >= 3 && Schema::hasColumn('performance_assessments', 'validation_status')) {
+                DB::table('performance_assessments')
+                    ->where('id', $assessmentId)
+                    ->update([
+                        'validation_status' => 'Tervalidasi',
+                        'updated_at' => $now,
+                    ]);
+            }
         }
     }
 
@@ -746,6 +803,17 @@ class EightStaffKpiSeeder extends Seeder
         }
         if ($periodId <= 0) {
             return;
+        }
+
+        $periodRow = DB::table('assessment_periods')->where('id', $periodId)->first(['name', 'start_date']);
+        $periodName = $periodRow?->name ? (string) $periodRow->name : '';
+        $isNovember = str_contains(strtolower($periodName), 'november');
+        if (!$isNovember && !empty($periodRow?->start_date)) {
+            try {
+                $isNovember = Carbon::parse($periodRow->start_date)->month === 11;
+            } catch (\Throwable $e) {
+                // ignore
+            }
         }
 
         $users = DB::table('users')
@@ -771,7 +839,28 @@ class EightStaffKpiSeeder extends Seeder
             }
 
             $allocationAmount = round($count * $perUserAmount, 2);
-            $perUser = round($allocationAmount / $count, 2);
+
+            // Distribute proportionally to WSM (Excel logic): porsi = user_wsm / group_total_wsm
+            $wsmTotals = DB::table('performance_assessments')
+                ->where('assessment_period_id', $periodId)
+                ->whereIn('user_id', $groupUsers->pluck('id')->map(fn($v) => (int) $v)->all())
+                ->pluck('total_wsm_score', 'user_id')
+                ->map(fn($v) => (float) $v)
+                ->all();
+
+            $groupTotalWsm = array_sum($wsmTotals);
+            if ($groupTotalWsm <= 0) {
+                $groupTotalWsm = max(1, $count);
+                $wsmTotals = array_fill_keys($groupUsers->pluck('id')->map(fn($v) => (int) $v)->all(), 1.0);
+            }
+
+            $weightsByUserId = [];
+            foreach ($groupUsers as $u) {
+                $uid = (int) $u->id;
+                $weightsByUserId[$uid] = (float) ($wsmTotals[$uid] ?? 0.0);
+            }
+
+            $allocatedAmounts = \App\Support\ProportionalAllocator::allocate((float) $allocationAmount, $weightsByUserId);
 
             DB::table('unit_profession_remuneration_allocations')->updateOrInsert(
                 [
@@ -790,22 +879,50 @@ class EightStaffKpiSeeder extends Seeder
             );
 
             foreach ($groupUsers as $u) {
+                $uid = (int) $u->id;
+                $userWsm = (float) ($wsmTotals[$uid] ?? 0.0);
+                $sharePct = $groupTotalWsm > 0 ? ($userWsm / $groupTotalWsm) * 100.0 : 0.0;
+                $perUser = (float) ($allocatedAmounts[$uid] ?? 0.0);
+
                 DB::table('remunerations')->updateOrInsert(
                     [
-                        'user_id' => (int) $u->id,
+                        'user_id' => $uid,
                         'assessment_period_id' => $periodId,
                     ],
                     [
                         'amount' => $perUser,
-                        'payment_date' => null,
-                        'payment_status' => 'Belum Dibayar',
+                        'payment_date' => $isNovember ? $now->toDateString() : null,
+                        'payment_status' => $isNovember ? 'Dibayar' : 'Belum Dibayar',
                         'calculation_details' => json_encode([
-                            'policy' => 'demo_equal_split',
-                            'allocation_amount' => $allocationAmount,
-                            'split_count' => $count,
-                            'per_user_amount' => $perUser,
-                            'unit_id' => $unitId,
-                            'profession_id' => $professionId,
+                            'method' => 'demo_unit_profession_wsm_proportional',
+                            'period_id' => $periodId,
+                            'generated' => $now->toDateTimeString(),
+                            'allocation' => [
+                                'unit_id' => $unitId,
+                                'profession_id' => $professionId,
+                                'published_amount' => $allocationAmount,
+                                'line_amount' => $allocationAmount,
+                                'unit_total_wsm' => round((float) $groupTotalWsm, 2),
+                                'user_wsm_score' => round((float) $userWsm, 2),
+                                'share_percent' => round((float) $sharePct, 6),
+                                'rounding' => [
+                                    'method' => 'largest_remainder_cents',
+                                    'precision' => 2,
+                                ],
+                            ],
+                            'wsm' => [
+                                'user_total' => round((float) $userWsm, 2),
+                                'unit_total' => round((float) $groupTotalWsm, 2),
+                                'source' => 'performance_assessments.total_wsm_score',
+                            ],
+                            // UI expects komponen.*.nilai; for WSM method we keep the nominal in one bucket.
+                            'komponen' => [
+                                'absensi' => ['jumlah' => null, 'nilai' => 0],
+                                'kedisiplinan' => ['jumlah' => null, 'nilai' => 0],
+                                'kontribusi_tambahan' => ['jumlah' => 0, 'nilai' => 0],
+                                'pasien_ditangani' => ['jumlah' => null, 'nilai' => $perUser],
+                                'review_pelanggan' => ['jumlah' => 0, 'nilai' => 0],
+                            ],
                         ], JSON_UNESCAPED_UNICODE),
                         'published_at' => $now,
                         'calculated_at' => $now,
@@ -1552,63 +1669,140 @@ class EightStaffKpiSeeder extends Seeder
             }
 
             // 2) 360: kedisiplinan + kerjasama (mentah di multi_rater_assessments + details)
-            $assessorId = 0;
+            // Seed richer data so:
+            // - Each assessee has multiple assessor types (self/supervisor/peer, and subordinate for unit heads)
+            // - Peer has >1 assessor so the summary uses AVG within the type
+            // - Criteria follow the criteria_rater_rules seeded by DatabaseSeeder:
+            //   - Kedisiplinan (360): supervisor, self
+            //   - Kerjasama (360): supervisor, peer, subordinate, self
+
+            $unitSlug = (string) ($staff[$key]['unit_slug'] ?? '');
+            $sameUnitIds = [];
             foreach ($staff as $otherKey => $other) {
-                if ($otherKey === $key) {
+                $cid = (int) ($other['id'] ?? 0);
+                if ($cid <= 0 || $cid === $userId) {
                     continue;
                 }
-                if (($other['unit_slug'] ?? null) !== ($staff[$key]['unit_slug'] ?? null)) {
+                if (($other['unit_slug'] ?? null) !== $unitSlug) {
                     continue;
                 }
-                $candidate = (int) ($other['id'] ?? 0);
-                if ($candidate > 0 && $candidate !== $userId) {
-                    $assessorId = $candidate;
+                $sameUnitIds[] = $cid;
+            }
+
+            $kepalaPoliklinikId = (int) (DB::table('users')->where('email', 'kepala.poliklinik@rsud.local')->value('id') ?? 0);
+            $unitHeadId = 0;
+            foreach ($staff as $otherKey => $other) {
+                if (($other['unit_slug'] ?? null) !== $unitSlug) {
+                    continue;
+                }
+                if (str_starts_with((string) $otherKey, 'kepala_')) {
+                    $unitHeadId = (int) ($other['id'] ?? 0);
                     break;
                 }
             }
-            if ($assessorId <= 0) {
-                foreach ($staff as $otherKey => $other) {
-                    if ($otherKey === $key) {
-                        continue;
-                    }
-                    $candidate = (int) ($other['id'] ?? 0);
-                    if ($candidate > 0 && $candidate !== $userId) {
-                        $assessorId = $candidate;
-                        break;
-                    }
+
+            $isUnitHeadAssessee = str_starts_with((string) $key, 'kepala_');
+
+            // Pick assessors.
+            $supervisorIds = [];
+            if ($isUnitHeadAssessee && $kepalaPoliklinikId > 0) {
+                $supervisorIds[] = $kepalaPoliklinikId;
+            } elseif ($unitHeadId > 0 && $unitHeadId !== $userId) {
+                $supervisorIds[] = $unitHeadId;
+            } elseif (!empty($sameUnitIds)) {
+                $supervisorIds[] = $sameUnitIds[0];
+            }
+
+            $peerIds = array_values(array_slice($sameUnitIds, 0, 2));
+
+            $subordinateIds = [];
+            if ($isUnitHeadAssessee) {
+                $subordinateIds = array_values(array_slice($sameUnitIds, 0, 2));
+            }
+
+            $baseDiscipline = (float) ($row['discipline_360'] ?? 0);
+            $baseTeamwork = (float) ($row['teamwork_360'] ?? 0);
+
+            $clamp = function (float $v): float {
+                return max(0.0, min(100.0, $v));
+            };
+
+            $insertAssessment = function (int $assesseeId, int $assessorId, string $assessorType, array $details) use ($period, $assessmentDate, $now) {
+                $mraId = DB::table('multi_rater_assessments')->insertGetId([
+                    'assessee_id' => $assesseeId,
+                    'assessor_id' => $assessorId,
+                    'assessor_type' => $assessorType,
+                    'assessment_period_id' => $period->id,
+                    'status' => 'submitted',
+                    'submitted_at' => $assessmentDate,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                foreach ($details as &$d) {
+                    $d['multi_rater_assessment_id'] = $mraId;
+                    $d['created_at'] = $now;
+                    $d['updated_at'] = $now;
                 }
-            }
-            if ($assessorId <= 0) {
-                $assessorId = $userId;
-            }
-            $mraId = DB::table('multi_rater_assessments')->insertGetId([
-                'assessee_id' => $userId,
-                'assessor_id' => $assessorId,
-                'assessor_type' => 'supervisor',
-                'assessment_period_id' => $period->id,
-                'status' => 'submitted',
-                'submitted_at' => $assessmentDate,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-            DB::table('multi_rater_assessment_details')->insert([
+
+                if (!empty($details)) {
+                    DB::table('multi_rater_assessment_details')->insert($details);
+                }
+            };
+
+            // Self: both criteria allowed.
+            $insertAssessment($userId, $userId, 'self', [
                 [
-                    'multi_rater_assessment_id' => $mraId,
                     'performance_criteria_id' => $kedis360Id,
-                    'score' => (float) ($row['discipline_360'] ?? 0),
-                    'comment' => 'Seeder 360: kedisiplinan',
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'score' => $clamp($baseDiscipline - 2.0),
+                    'comment' => 'Seeder 360 (self): kedisiplinan',
                 ],
                 [
-                    'multi_rater_assessment_id' => $mraId,
                     'performance_criteria_id' => $kerjasama360Id,
-                    'score' => (float) ($row['teamwork_360'] ?? 0),
-                    'comment' => 'Seeder 360: kerjasama',
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'score' => $clamp($baseTeamwork - 1.0),
+                    'comment' => 'Seeder 360 (self): kerjasama',
                 ],
             ]);
+
+            // Supervisor: both criteria allowed.
+            foreach (array_slice($supervisorIds, 0, 1) as $sid) {
+                $insertAssessment($userId, (int) $sid, 'supervisor', [
+                    [
+                        'performance_criteria_id' => $kedis360Id,
+                        'score' => $clamp($baseDiscipline + 0.0),
+                        'comment' => 'Seeder 360 (supervisor): kedisiplinan',
+                    ],
+                    [
+                        'performance_criteria_id' => $kerjasama360Id,
+                        'score' => $clamp($baseTeamwork + 0.0),
+                        'comment' => 'Seeder 360 (supervisor): kerjasama',
+                    ],
+                ]);
+            }
+
+            // Peer: only teamwork allowed.
+            foreach ($peerIds as $i => $pid) {
+                $delta = ($i % 2 === 0) ? -2.0 : 1.0;
+                $insertAssessment($userId, (int) $pid, 'peer', [
+                    [
+                        'performance_criteria_id' => $kerjasama360Id,
+                        'score' => $clamp($baseTeamwork + $delta),
+                        'comment' => 'Seeder 360 (peer): kerjasama',
+                    ],
+                ]);
+            }
+
+            // Subordinate: only teamwork allowed (seed only for unit heads).
+            foreach ($subordinateIds as $i => $subId) {
+                $delta = ($i % 2 === 0) ? -3.0 : -1.0;
+                $insertAssessment($userId, (int) $subId, 'subordinate', [
+                    [
+                        'performance_criteria_id' => $kerjasama360Id,
+                        'score' => $clamp($baseTeamwork + $delta),
+                        'comment' => 'Seeder 360 (subordinate): kerjasama',
+                    ],
+                ]);
+            }
 
             // 3) Tugas tambahan seeded above via additional_tasks + additional_task_claims.
 

@@ -29,7 +29,7 @@ class RaterWeight extends Model
     ];
 
     protected $casts = [
-        'weight' => 'integer',
+        'weight' => 'float',
         'status' => RaterWeightStatus::class,
         'decided_at' => 'datetime',
         'assessor_level' => 'integer',

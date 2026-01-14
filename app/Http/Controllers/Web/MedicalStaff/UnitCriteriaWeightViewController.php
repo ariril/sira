@@ -34,14 +34,19 @@ class UnitCriteriaWeightViewController extends Controller
         }
 
         $items = collect();
-        if ($unitId && Schema::hasTable('unit_criteria_weights')) {
-            $q = DB::table('unit_criteria_weights as w')
-                ->join('performance_criterias as pc','pc.id','=','w.performance_criteria_id')
-                ->selectRaw('pc.name as criteria_name, pc.type as criteria_type, w.weight')
+        // IMPORTANT: only show weights when an active period exists AND weights are ACTIVE (approved).
+        // Otherwise the page should be empty (matches UI expectation).
+        if ($unitId && $activePeriodId && Schema::hasTable('unit_criteria_weights')) {
+            $items = DB::table('unit_criteria_weights as w')
+                ->join('performance_criterias as pc', 'pc.id', '=', 'w.performance_criteria_id')
                 ->where('w.unit_id', $unitId)
-                ->where('w.status','active');
-            if ($activePeriodId) $q->where('w.assessment_period_id', $activePeriodId);
-            $items = $q->orderBy('pc.name')->get();
+                ->where('w.assessment_period_id', $activePeriodId)
+                ->where('w.status', 'active')
+                // Defensive: if duplicates exist in seed/legacy data, collapse to 1 row per criteria.
+                ->groupBy('pc.id', 'pc.name', 'pc.type')
+                ->selectRaw('pc.name as criteria_name, pc.type as criteria_type, MAX(w.weight) as weight')
+                ->orderBy('pc.name')
+                ->get();
         }
 
         // 360 rater weights summary for the staff's own profession (assessee_profession_id)

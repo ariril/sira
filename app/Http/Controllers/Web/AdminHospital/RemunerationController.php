@@ -16,15 +16,382 @@ use App\Models\UnitRemunerationAllocation as Allocation;
 use App\Models\User;
 use App\Models\Unit;
 use App\Models\Profession;
+use App\Support\AttachedRemunerationCalculator;
 use App\Support\ProportionalAllocator;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class RemunerationController extends Controller
 {
+    private const DISTRIBUTION_MODE_TOTAL_UNIT = 'total_unit_proportional';
+    private const DISTRIBUTION_MODE_ATTACHED = 'attached_per_employee';
+
+    /**
+     * Decide how remuneration should be distributed for a unit+period.
+     *
+     * Rule (Stage 1):
+     * - If ALL active weighted criteria use normalization_basis=total_unit => TOTAL_UNIT proportional (existing).
+     * - If ANY active weighted criteria uses average_unit/max_unit/custom_target => ATTACHED per-employee.
+     */
+    private function resolveDistributionMode(int $periodId, int $unitId, ?AssessmentPeriod $period = null, ?int $professionId = null): string
+    {
+        $periodId = (int) $periodId;
+        $unitId = (int) $unitId;
+        if ($periodId <= 0 || $unitId <= 0) {
+            return self::DISTRIBUTION_MODE_TOTAL_UNIT;
+        }
+
+        // Frozen period: prefer snapshots so decision stays stable even if admins
+        // later change active weights/criteria configuration.
+        if ($period && $period->isFrozen()) {
+            $snapshotMode = $this->tryResolveDistributionModeFromSnapshot($period, $unitId, $professionId);
+            if ($snapshotMode !== null) {
+                return $snapshotMode;
+            }
+        }
+
+        // Use active weights for the period as the definition of "configured WSM criteria".
+        $bases = DB::table('unit_criteria_weights as ucw')
+            ->join('performance_criterias as pc', 'pc.id', '=', 'ucw.performance_criteria_id')
+            ->where('ucw.assessment_period_id', $periodId)
+            ->where('ucw.unit_id', $unitId)
+            ->where('ucw.status', 'active')
+            ->where('pc.is_active', 1)
+            ->distinct()
+            ->pluck('pc.normalization_basis')
+            ->map(fn ($v) => (string) ($v ?? 'total_unit'))
+            ->filter(fn ($v) => $v !== '')
+            ->values()
+            ->all();
+
+        if (empty($bases)) {
+            return self::DISTRIBUTION_MODE_TOTAL_UNIT;
+        }
+
+        return $this->determineDistributionModeFromBases($bases);
+    }
+
+    /**
+     * @param array<int,string> $bases
+     */
+    private function determineDistributionModeFromBases(array $bases): string
+    {
+        foreach ($bases as $b) {
+            if (in_array((string) $b, ['average_unit', 'max_unit', 'custom_target'], true)) {
+                return self::DISTRIBUTION_MODE_ATTACHED;
+            }
+        }
+        return self::DISTRIBUTION_MODE_TOTAL_UNIT;
+    }
+
+    private function tryResolveDistributionModeFromSnapshot(AssessmentPeriod $period, int $unitId, ?int $professionId): ?string
+    {
+        if (!$period->isFrozen()) {
+            return null;
+        }
+
+        if (!Schema::hasTable('assessment_period_user_membership_snapshots')) {
+            return null;
+        }
+
+        if (!Schema::hasTable('performance_assessment_snapshots')) {
+            return null;
+        }
+
+        $periodId = (int) $period->id;
+        if ($periodId <= 0 || $unitId <= 0) {
+            return null;
+        }
+
+        $q = DB::table('assessment_period_user_membership_snapshots')
+            ->where('assessment_period_id', $periodId)
+            ->where('unit_id', (int) $unitId);
+
+        // If allocation is per-profession, pick a user from that profession.
+        if ($professionId !== null) {
+            $q->where('profession_id', (int) $professionId);
+        }
+
+        $sampleUserId = $q->orderBy('user_id')->value('user_id');
+        if (!$sampleUserId) {
+            return null;
+        }
+
+        $payload = DB::table('performance_assessment_snapshots')
+            ->where('assessment_period_id', $periodId)
+            ->where('user_id', (int) $sampleUserId)
+            ->value('payload');
+
+        if ($payload === null) {
+            return null;
+        }
+
+        $decoded = is_string($payload) ? json_decode($payload, true) : (array) $payload;
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        $calc = (array) ($decoded['calc'] ?? []);
+        $bases = array_values((array) ($calc['basis_by_criteria'] ?? []));
+        $bases = array_values(array_filter(array_map(fn ($v) => (string) ($v ?? ''), $bases), fn ($v) => $v !== ''));
+        if (empty($bases)) {
+            return null;
+        }
+
+        return $this->determineDistributionModeFromBases($bases);
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function resolveRecipientUserIds(AssessmentPeriod $period, int $periodId, int $unitId, ?int $professionId): array
+    {
+        if ($period->isFrozen() && Schema::hasTable('assessment_period_user_membership_snapshots')) {
+            $q = DB::table('assessment_period_user_membership_snapshots')
+                ->where('assessment_period_id', (int) $periodId)
+                ->where('unit_id', (int) $unitId);
+
+            if ($professionId !== null) {
+                $q->where('profession_id', (int) $professionId);
+            }
+
+            return $q->pluck('user_id')->map(fn ($v) => (int) $v)->all();
+        }
+
+        return User::query()
+            ->where('unit_id', (int) $unitId)
+            ->when($professionId !== null, fn ($q) => $q->where('profession_id', (int) $professionId))
+            ->role(User::ROLE_PEGAWAI_MEDIS)
+            ->pluck('id')
+            ->map(fn ($v) => (int) $v)
+            ->all();
+    }
+
+    /**
+     * @param array<int> $userIds
+     * @return array{relative: array<int,?float>, value: array<int,?float>}|null
+     */
+    private function tryLoadSnapshotWsmScores(int $periodId, array $userIds): ?array
+    {
+        if ($periodId <= 0 || empty($userIds)) {
+            return null;
+        }
+
+        if (!Schema::hasTable('performance_assessment_snapshots')) {
+            return null;
+        }
+
+        $rows = DB::table('performance_assessment_snapshots')
+            ->where('assessment_period_id', (int) $periodId)
+            ->whereIn('user_id', array_map('intval', $userIds))
+            ->get(['user_id', 'payload']);
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+
+        $relative = [];
+        $value = [];
+        foreach ($rows as $r) {
+            $uid = (int) $r->user_id;
+            $payload = is_string($r->payload) ? json_decode($r->payload, true) : (array) $r->payload;
+            if (!is_array($payload)) {
+                continue;
+            }
+
+            $calc = (array) ($payload['calc'] ?? []);
+            $rel = $calc['total_wsm_relative'] ?? null;
+            $val = $calc['total_wsm_value'] ?? null;
+
+            // Backward compat with older snapshot shapes where totals live under calc.user.
+            if ($rel === null) {
+                $rel = $calc['user']['total_wsm_relative'] ?? ($calc['user']['total_wsm'] ?? null);
+            }
+            if ($val === null) {
+                $val = $calc['user']['total_wsm_value'] ?? null;
+            }
+
+            $relative[$uid] = $rel === null ? null : (float) $rel;
+            $value[$uid] = $val === null ? null : (float) $val;
+        }
+
+        foreach ($userIds as $uid) {
+            $uid = (int) $uid;
+            if (!array_key_exists($uid, $relative) || !array_key_exists($uid, $value)) {
+                return null;
+            }
+        }
+
+        return ['relative' => $relative, 'value' => $value];
+    }
+
+    /**
+     * Audit calculation inputs/outputs for a period (alokasi vs WSM vs remunerations stored).
+     * This is a web equivalent of the artisan debug command.
+     */
+    public function auditCalculation(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'period_id' => ['required','integer','exists:assessment_periods,id'],
+        ]);
+
+        $periodId = (int) $data['period_id'];
+        $period = AssessmentPeriod::findOrFail($periodId);
+
+        $allocations = Allocation::query()
+            ->with(['unit:id,name', 'profession:id,name'])
+            ->where('assessment_period_id', $periodId)
+            ->whereNotNull('published_at')
+            ->orderBy('unit_id')
+            ->orderBy('profession_id')
+            ->get();
+
+        if ($allocations->isEmpty()) {
+            return back()->with('danger', 'Audit: tidak ada alokasi remunerasi yang sudah dipublish untuk periode ini.');
+        }
+
+        $rows = [];
+        $hasIssue = false;
+
+        foreach ($allocations as $alloc) {
+            $users = $this->resolveRecipientUserIds($period, $periodId, (int) $alloc->unit_id, $alloc->profession_id === null ? null : (int) $alloc->profession_id);
+
+            $userCount = count($users);
+            if ($userCount === 0) {
+                $hasIssue = true;
+                $rows[] = [
+                    'unit' => $alloc->unit?->name ?? ('Unit#' . (string) $alloc->unit_id),
+                    'profession' => $alloc->profession?->name ?? ($alloc->profession_id ? ('Profesi#' . (string) $alloc->profession_id) : 'Semua'),
+                    'allocation' => (float) $alloc->amount,
+                    'mode' => null,
+                    'users' => 0,
+                    'wsm_total' => 0.0,
+                    'wsm_null' => 0,
+                    'sum_expected' => 0.0,
+                    'sum_actual' => 0.0,
+                    'sum_diff' => 0.0,
+                    'diff_users' => 0,
+                ];
+                continue;
+            }
+
+            $wsmRelative = [];
+            $wsmValue = [];
+
+            $snapWsm = $period->isFrozen() ? $this->tryLoadSnapshotWsmScores($periodId, $users) : null;
+            if ($snapWsm !== null) {
+                $wsmRelative = (array) ($snapWsm['relative'] ?? []);
+                $wsmValue = (array) ($snapWsm['value'] ?? []);
+            } else {
+                $wsmRows = DB::table('performance_assessments')
+                    ->where('assessment_period_id', $periodId)
+                    ->whereIn('user_id', $users)
+                    ->get(['user_id', 'total_wsm_score', 'total_wsm_value_score']);
+
+                foreach ($wsmRows as $r) {
+                    $uid = (int) $r->user_id;
+                    $wsmRelative[$uid] = $r->total_wsm_score === null ? null : (float) $r->total_wsm_score;
+                    $wsmValue[$uid] = $r->total_wsm_value_score === null ? null : (float) $r->total_wsm_value_score;
+                }
+            }
+
+            $weights = [];
+            $nullCount = 0;
+            $groupTotal = 0.0;
+
+            foreach ($users as $uid) {
+                $val = array_key_exists($uid, $wsmRelative) ? $wsmRelative[$uid] : null;
+                if ($val === null) {
+                    $nullCount++;
+                    $w = 0.0;
+                } else {
+                    $w = (float) $val;
+                }
+                $weights[$uid] = $w;
+                $groupTotal += $w;
+            }
+
+            $mode = $this->resolveDistributionMode($periodId, (int) $alloc->unit_id, $period, $alloc->profession_id === null ? null : (int) $alloc->profession_id);
+            if ($mode === self::DISTRIBUTION_MODE_TOTAL_UNIT) {
+                $expected = $groupTotal > 0
+                    ? ProportionalAllocator::allocate((float) $alloc->amount, $weights)
+                    : [];
+            } else {
+                // Attached mode: expected sum may be < allocation and leftover is NOT redistributed.
+                $payoutPct = [];
+                foreach ($users as $uid) {
+                    $payoutPct[(int) $uid] = (float) (($wsmValue[(int) $uid] ?? null) ?? 0.0);
+                }
+                $calc = AttachedRemunerationCalculator::calculate((float) $alloc->amount, $payoutPct, 2);
+                $expected = (array) ($calc['amounts'] ?? []);
+            }
+
+            $actualByUser = Remuneration::query()
+                ->where('assessment_period_id', $periodId)
+                ->whereIn('user_id', $users)
+                ->pluck('amount', 'user_id')
+                ->map(fn($v) => $v === null ? null : (float) $v)
+                ->all();
+
+            $sumExpected = 0.0;
+            $sumActual = 0.0;
+            $diffUsers = 0;
+
+            foreach ($users as $uid) {
+                $e = (float) ($expected[$uid] ?? 0.0);
+                $a = $actualByUser[$uid] ?? null;
+                $sumExpected += $e;
+                $sumActual += (float) ($a ?? 0.0);
+
+                if ($a === null || abs(((float) $a) - $e) >= 0.01) {
+                    $diffUsers++;
+                }
+            }
+
+            // Group is considered problematic only when:
+            // - some WSM values are NULL (incomplete inputs), OR
+            // - in TOTAL_UNIT mode the group total WSM is <= 0 (cannot distribute), OR
+            // - expected vs actual totals do not match (nominal mismatch).
+            // Per-user diffs can exist due to rounding/adjustments; keep it informational.
+            $sumDiff = $sumExpected - $sumActual;
+            $nominalMismatch = abs($sumDiff) >= 0.01;
+            $groupHasIssue = $nullCount > 0
+                || ($mode === self::DISTRIBUTION_MODE_TOTAL_UNIT && $groupTotal <= 0)
+                || $nominalMismatch;
+
+            if ($groupHasIssue) {
+                $hasIssue = true;
+            }
+
+            $rows[] = [
+                'unit' => $alloc->unit?->name ?? ('Unit#' . (string) $alloc->unit_id),
+                'profession' => $alloc->profession?->name ?? ($alloc->profession_id ? ('Profesi#' . (string) $alloc->profession_id) : 'Semua'),
+                'allocation' => (float) $alloc->amount,
+                'mode' => $mode,
+                'users' => $userCount,
+                'wsm_total' => round($groupTotal, 2),
+                'wsm_null' => $nullCount,
+                'sum_expected' => round($sumExpected, 2),
+                'sum_actual' => round($sumActual, 2),
+                'sum_diff' => round($sumDiff, 2),
+                'diff_users' => $diffUsers,
+            ];
+        }
+
+        $msg = $hasIssue
+            ? 'Audit selesai: ada grup yang bermasalah (WSM NULL/0 atau nominal belum sesuai). Lihat tabel audit di bawah.'
+            : 'Audit selesai: semua grup konsisten (alokasi = total remunerasi terhitung, tanpa selisih).';
+
+        return back()
+            ->with($hasIssue ? 'danger' : 'status', $msg)
+            ->with('auditPeriodId', $periodId)
+            ->with('auditRows', $rows);
+    }
+
     /**
      * Purpose: Calculation workspace. Pick a period, run calculation,
      * and review summary of remunerations generated for that period.
@@ -65,11 +432,19 @@ class RemunerationController extends Controller
             $assessmentCount = (int) PerformanceAssessment::query()
                 ->where('assessment_period_id', $periodId)
                 ->count();
+            $wsmFilledCount = (int) PerformanceAssessment::query()
+                ->where('assessment_period_id', $periodId)
+                ->whereNotNull('total_wsm_score')
+                ->count();
+            $wsmNullCount = max($assessmentCount - $wsmFilledCount, 0);
             $validatedCount = (int) PerformanceAssessment::query()
                 ->where('assessment_period_id', $periodId)
                 ->where('validation_status', AssessmentValidationStatus::VALIDATED->value)
                 ->count();
             $allValidated = $assessmentCount > 0 && $assessmentCount === $validatedCount;
+
+            // WSM must exist for ALL assessments to fairly distribute (Excel porsi needs totals).
+            $allWsmReady = $assessmentCount > 0 && $wsmFilledCount === $assessmentCount;
 
             $allocTotal = (int) Allocation::query()->where('assessment_period_id', $periodId)->count();
             $allocPublished = (int) Allocation::query()->where('assessment_period_id', $periodId)->whereNotNull('published_at')->count();
@@ -89,6 +464,13 @@ class RemunerationController extends Controller
                         : 'Belum ada data penilaian pada periode ini.',
                 ],
                 [
+                    'label' => 'Skor WSM tersedia (total_wsm_score terisi)',
+                    'ok' => $allWsmReady,
+                    'detail' => $assessmentCount > 0
+                        ? ("Terisi: {$wsmFilledCount} / {$assessmentCount}" . ($wsmNullCount > 0 ? " (NULL: {$wsmNullCount})" : ''))
+                        : 'Belum ada data penilaian pada periode ini.',
+                ],
+                [
                     'label' => 'Semua alokasi remunerasi unit sudah dipublish',
                     'ok' => $allAllocPublished,
                     'detail' => $allocTotal > 0
@@ -97,7 +479,7 @@ class RemunerationController extends Controller
                 ],
             ];
 
-            $canRun = $isLocked && $allValidated && $allAllocPublished;
+            $canRun = $isLocked && $allValidated && $allWsmReady && $allAllocPublished;
             $needsRecalcConfirm = Remuneration::query()
                 ->where('assessment_period_id', $periodId)
                 ->whereNull('published_at')
@@ -147,12 +529,45 @@ class RemunerationController extends Controller
 
         // Hard gate: all assessments must be finally validated
         $assessmentCount = (int) PerformanceAssessment::query()->where('assessment_period_id', $periodId)->count();
+        $wsmFilledCount = (int) PerformanceAssessment::query()
+            ->where('assessment_period_id', $periodId)
+            ->whereNotNull('total_wsm_score')
+            ->count();
         $validatedCount = (int) PerformanceAssessment::query()
             ->where('assessment_period_id', $periodId)
             ->where('validation_status', AssessmentValidationStatus::VALIDATED->value)
             ->count();
         if ($assessmentCount === 0 || $assessmentCount !== $validatedCount) {
             return back()->with('danger', 'Tidak dapat menjalankan perhitungan: masih ada penilaian yang belum tervalidasi final.');
+        }
+
+        if ($wsmFilledCount !== $assessmentCount) {
+            return back()->with('danger', 'Tidak dapat menjalankan perhitungan: skor WSM belum siap (total_wsm_score masih kosong). Pastikan bobot kriteria ACTIVE sudah tersedia, lalu recalculate penilaian.');
+        }
+
+        // If any allocation for this period uses ATTACHED mode, require VALUE WSM to be filled too.
+        $allocationsForModeCheck = Allocation::query()
+            ->where('assessment_period_id', $periodId)
+            ->whereNotNull('published_at')
+            ->get(['unit_id', 'profession_id']);
+
+        $needsValueWsm = false;
+        foreach ($allocationsForModeCheck as $a) {
+            if ($this->resolveDistributionMode($periodId, (int) $a->unit_id, $period, $a->profession_id === null ? null : (int) $a->profession_id) === self::DISTRIBUTION_MODE_ATTACHED) {
+                $needsValueWsm = true;
+                break;
+            }
+        }
+
+        if ($needsValueWsm) {
+            $wsmValueFilledCount = (int) PerformanceAssessment::query()
+                ->where('assessment_period_id', $periodId)
+                ->whereNotNull('total_wsm_value_score')
+                ->count();
+
+            if ($wsmValueFilledCount !== $assessmentCount) {
+                return back()->with('danger', 'Tidak dapat menjalankan perhitungan: skor WSM VALUE belum siap (total_wsm_value_score masih kosong). Jalankan recalculate penilaian (WSM) setelah update sistem.');
+            }
         }
 
         // Hard gate: all allocations must be published (not partial)
@@ -168,9 +583,10 @@ class RemunerationController extends Controller
             ->get();
 
         $actorId = (int) Auth::id();
-        DB::transaction(function () use ($allocations, $period, $periodId, $actorId) {
+        $skipped = [];
+        DB::transaction(function () use ($allocations, $period, $periodId, $actorId, &$skipped) {
             foreach ($allocations as $alloc) {
-                $this->distributeAllocation(
+                $res = $this->distributeAllocation(
                     $alloc,
                     $period,
                     $periodId,
@@ -178,11 +594,24 @@ class RemunerationController extends Controller
                     (float) $alloc->amount,
                     $actorId
                 );
+
+                if (!($res['ok'] ?? true)) {
+                    $skipped[] = (string) ($res['message'] ?? 'Alokasi dilewati.');
+                }
             }
 
             // Apply penalty dari klaim batal terlambat (potong remunerasi) - idempotent
             $this->applyCancelledClaimPenalties($periodId);
         });
+
+        if (!empty($skipped)) {
+            $msg = "Perhitungan selesai, tetapi ada alokasi yang dilewati karena data WSM grup tidak valid.\n- " . implode("\n- ", array_slice($skipped, 0, 10));
+            if (count($skipped) > 10) {
+                $msg .= "\n(dan " . (count($skipped) - 10) . " lainnya)";
+            }
+            return redirect()->route('admin_rs.remunerations.calc.index', ['period_id' => $periodId])
+                ->with('danger', $msg);
+        }
 
         return redirect()->route('admin_rs.remunerations.calc.index', ['period_id' => $periodId])
             ->with('status', 'Perhitungan selesai (berdasarkan skor kinerja terkonfigurasi).');
@@ -291,50 +720,111 @@ class RemunerationController extends Controller
         }
     }
 
-    private function distributeAllocation(Allocation $alloc, $period, int $periodId, ?int $professionId = null, ?float $overrideAmount = null, ?int $actorId = null): void
+    /**
+     * @return array{ok:bool,message?:string}
+     */
+    private function distributeAllocation(Allocation $alloc, $period, int $periodId, ?int $professionId = null, ?float $overrideAmount = null, ?int $actorId = null): array
     {
-        $users = User::query()
-            ->where('unit_id', $alloc->unit_id)
-            ->when($professionId, fn($q) => $q->where('profession_id', $professionId))
-            ->role(User::ROLE_PEGAWAI_MEDIS)
-            ->pluck('id');
+        if (!($period instanceof AssessmentPeriod)) {
+            $period = AssessmentPeriod::findOrFail($periodId);
+        }
 
-        if ($users->isEmpty()) {
-            return;
+        $userIds = $this->resolveRecipientUserIds($period, $periodId, (int) $alloc->unit_id, $professionId);
+        if (empty($userIds)) {
+            return ['ok' => true];
         }
 
         $amount = $overrideAmount ?? (float) $alloc->amount;
         if ($amount <= 0) {
-            return;
+            return ['ok' => true];
         }
 
-        // Ambil WSM yang sudah dihitung di performance_assessments (per periode) dan distribusikan proporsional di profesi + unit yang sama.
-        $wsmTotals = DB::table('performance_assessments')
-            ->where('assessment_period_id', $periodId)
-            ->whereIn('user_id', $users)
-            ->pluck('total_wsm_score', 'user_id')
-            ->map(fn($v) => (float)$v)
-            ->all();
+        // Load BOTH WSM types:
+        // - RELATIVE (legacy) in total_wsm_score
+        // - VALUE (new) in total_wsm_value_score
+        $wsmRelativeByUserId = [];
+        $wsmValueByUserId = [];
 
-        $unitTotal = array_sum($wsmTotals);
-        if ($unitTotal <= 0) {
-            $unitTotal = max(count($wsmTotals), 1);
-            $wsmTotals = array_fill_keys($users->all(), 1.0);
+        $snapWsm = $period->isFrozen() ? $this->tryLoadSnapshotWsmScores($periodId, $userIds) : null;
+        if ($snapWsm !== null) {
+            $wsmRelativeByUserId = (array) ($snapWsm['relative'] ?? []);
+            $wsmValueByUserId = (array) ($snapWsm['value'] ?? []);
+        } else {
+            $wsmRows = DB::table('performance_assessments')
+                ->where('assessment_period_id', $periodId)
+                ->whereIn('user_id', $userIds)
+                ->get(['user_id', 'total_wsm_score', 'total_wsm_value_score']);
+
+            foreach ($wsmRows as $r) {
+                $uid = (int) $r->user_id;
+                $wsmRelativeByUserId[$uid] = $r->total_wsm_score === null ? null : (float) $r->total_wsm_score;
+                $wsmValueByUserId[$uid] = $r->total_wsm_value_score === null ? null : (float) $r->total_wsm_value_score;
+            }
+        }
+
+        // TOTAL_UNIT distribution basis: RELATIVE WSM.
+        $unitTotal = 0.0;
+        foreach ($userIds as $userId) {
+            $uid = (int) $userId;
+            $unitTotal += (float) (($wsmRelativeByUserId[$uid] ?? null) ?? 0.0);
+        }
+        $mode = $this->resolveDistributionMode($periodId, (int) $alloc->unit_id, $period, $professionId);
+
+        if ($mode === self::DISTRIBUTION_MODE_TOTAL_UNIT && $unitTotal <= 0) {
+            // TOTAL_UNIT logic cannot compute shares if group total is 0.
+            // Do NOT fall back to equal split; that hides configuration/data issues.
+            $unitName = $alloc->unit?->name ?? ('Unit#' . (string) $alloc->unit_id);
+            $profLabel = $professionId ? ('Profesi#' . (string) $professionId) : 'Semua profesi';
+            return [
+                'ok' => false,
+                'message' => "{$unitName} ({$profLabel}): Total WSM grup = 0. Pastikan bobot kriteria ACTIVE tersedia dan total_wsm_score sudah terhitung.",
+            ];
         }
 
         $weightsByUserId = [];
-        foreach ($users as $userId) {
+        foreach ($userIds as $userId) {
             $uid = (int) $userId;
-            $weightsByUserId[$uid] = (float) ($wsmTotals[$uid] ?? 0.0);
+            $weightsByUserId[$uid] = (float) (($wsmRelativeByUserId[$uid] ?? null) ?? 0.0);
         }
 
-        // Allocate in cents with Largest Remainder so total distributed equals allocation amount.
-        $allocatedAmounts = ProportionalAllocator::allocate((float) $amount, $weightsByUserId);
+        if ($mode === self::DISTRIBUTION_MODE_TOTAL_UNIT) {
+            // TOTAL_UNIT mode: allocate in cents with Largest Remainder so total distributed equals allocation amount.
+            $allocatedAmounts = ProportionalAllocator::allocate((float) $amount, $weightsByUserId);
+            $attachedMeta = null;
+        } else {
+            // ATTACHED mode: remunMax=headcount-based, payout%=WSM_VALUE, leftover is NOT redistributed.
+            // Headcount must follow the dataset being calculated (this group) and should not count missing assessments.
+            $payoutPctByUser = [];
+            $missingValue = 0;
+            foreach ($userIds as $userId) {
+                $uid = (int) $userId;
+                if (!array_key_exists($uid, $wsmValueByUserId) || $wsmValueByUserId[$uid] === null) {
+                    $missingValue++;
+                    $payoutPctByUser[$uid] = 0.0;
+                } else {
+                    $payoutPctByUser[$uid] = (float) $wsmValueByUserId[$uid];
+                }
+            }
 
-        foreach ($users as $userId) {
+            if ($missingValue > 0) {
+                $unitName = $alloc->unit?->name ?? ('Unit#' . (string) $alloc->unit_id);
+                $profLabel = $professionId ? ('Profesi#' . (string) $professionId) : 'Semua profesi';
+                return [
+                    'ok' => false,
+                    'message' => "{$unitName} ({$profLabel}): total_wsm_value_score belum terisi untuk {$missingValue} pegawai. Jalankan recalculate penilaian (WSM) sebelum kalkulasi remunerasi.",
+                ];
+            }
+
+            $attachedMeta = AttachedRemunerationCalculator::calculate((float) $amount, $payoutPctByUser, 2);
+            $allocatedAmounts = (array) ($attachedMeta['amounts'] ?? []);
+        }
+
+        foreach ($userIds as $userId) {
             $userId = (int) $userId;
-            $userScore = (float) ($wsmTotals[$userId] ?? 0.0);
-            $sharePct = $unitTotal > 0 ? $userScore / $unitTotal : (1 / max($users->count(), 1));
+            $userScoreRelative = (float) (($wsmRelativeByUserId[$userId] ?? null) ?? 0.0);
+            $userScoreValue = (float) (($wsmValueByUserId[$userId] ?? null) ?? 0.0);
+
+            $sharePct = $unitTotal > 0 ? ($userScoreRelative / $unitTotal) : (1 / max(count($userIds), 1));
             $final = (float) ($allocatedAmounts[$userId] ?? 0.0);
 
             $rem = Remuneration::firstOrNew([
@@ -352,28 +842,74 @@ class RemunerationController extends Controller
             if ($actorId) {
                 $rem->revised_by = $actorId;
             }
-            $rem->calculation_details = [
-                'method'    => 'unit_profession_wsm_proportional',
-                'period_id' => $periodId,
-                'generated' => now()->toDateTimeString(),
-                'allocation' => [
-                    'unit_id' => $alloc->unit_id,
-                    'unit_name' => $alloc->unit->name ?? null,
-                    'profession_id' => $professionId,
-                    'published_amount' => (float) $alloc->amount,
-                    'line_amount' => $amount,
-                    'unit_total_wsm' => $unitTotal,
-                    'user_wsm_score' => $userScore,
+
+            $allocationDetails = [
+                'unit_id' => $alloc->unit_id,
+                'unit_name' => $alloc->unit->name ?? null,
+                'profession_id' => $professionId,
+                'published_amount' => (float) $alloc->amount,
+                'line_amount' => $amount,
+                'recipients_source' => $period->isFrozen() && Schema::hasTable('assessment_period_user_membership_snapshots') ? 'snapshot_membership' : 'live_users',
+                'wsm_source' => $period->isFrozen() && $snapWsm !== null ? 'snapshot' : 'performance_assessments',
+                // Keep legacy keys for existing UI/debug consumers.
+                'unit_total_wsm' => $unitTotal,
+                'user_wsm_score' => $userScoreRelative,
+                // New explicit fields.
+                'unit_total_wsm_relative' => $unitTotal,
+                'user_wsm_score_relative' => $userScoreRelative,
+                'user_wsm_score_value' => $userScoreValue,
+            ];
+
+            if ($mode === self::DISTRIBUTION_MODE_TOTAL_UNIT) {
+                $allocationDetails += [
+                    'distribution_mode' => self::DISTRIBUTION_MODE_TOTAL_UNIT,
                     'share_percent' => round($sharePct * 100, 6),
                     'rounding' => [
                         'method' => 'largest_remainder_cents',
                         'precision' => 2,
                     ],
-                ],
+                ];
+            } else {
+                $remunMax = (float) (($attachedMeta['remuneration_max_per_employee'] ?? 0.0) ?: 0.0);
+                $leftover = (float) (($attachedMeta['leftover_amount'] ?? 0.0) ?: 0.0);
+                $headcount = (int) (($attachedMeta['headcount'] ?? 0) ?: 0);
+
+                $payoutPct = max(0.0, min(100.0, (float) $userScoreValue));
+
+                // Backward-compat: UI expects share_percent. In attached mode, share_percent is NOT used as amount source.
+                // We set it equal to payout_percent (WSM_VALUE) to keep a meaningful percent on screen.
+                $allocationDetails += [
+                    'distribution_mode' => self::DISTRIBUTION_MODE_ATTACHED,
+                    'headcount' => $headcount,
+                    'remuneration_max_per_employee' => $remunMax,
+                    'payout_percent' => round($payoutPct, 6),
+                    'amount_final' => round($final, 2),
+                    'leftover_amount' => round($leftover, 2),
+                    'share_percent' => round($payoutPct, 6),
+                    'rounding' => [
+                        'method' => 'round',
+                        'precision' => 2,
+                        'note' => 'No remainder redistribution (leftover kept)',
+                    ],
+                ];
+            }
+
+            $rem->calculation_details = [
+                'method'    => $mode === self::DISTRIBUTION_MODE_TOTAL_UNIT
+                    ? 'unit_profession_wsm_proportional'
+                    : 'unit_profession_attached_percent',
+                'period_id' => $periodId,
+                'generated' => now()->toDateTimeString(),
+                'allocation' => $allocationDetails,
                 'wsm' => [
-                    'user_total' => $userScore,
+                    // Keep legacy fields as RELATIVE.
+                    'user_total' => $userScoreRelative,
                     'unit_total' => $unitTotal,
                     'source' => 'performance_assessments.total_wsm_score',
+                    // New explicit fields.
+                    'user_total_relative' => $userScoreRelative,
+                    'user_total_value' => $userScoreValue,
+                    'source_value' => 'performance_assessments.total_wsm_value_score',
                 ],
                 // Komponen sederhana agar layar pegawai menampilkan rincian tanpa gaji dasar
                 'komponen' => [
@@ -394,6 +930,8 @@ class RemunerationController extends Controller
             ];
             $rem->save();
         }
+
+        return ['ok' => true];
     }
 
     /** Mark a remuneration as published */

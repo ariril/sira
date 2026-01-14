@@ -18,7 +18,7 @@
                 <div class="text-lg font-semibold">{{ $item->amount !== null ? 'Rp '.number_format($item->amount,0,',','.') : '-' }}</div>
             </div>
             <div class="p-4 rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
-                <div class="text-sm text-slate-500">Alokasi!</div>
+                <div class="text-sm text-slate-500">Alokasi</div>
                 <div class="text-lg font-semibold">{{ isset($allocationAmount) ? 'Rp '.number_format((float)$allocationAmount,0,',','.') : '-' }}</div>
                 <div class="text-xs text-slate-500 mt-1">{{ $allocationLabel ?? 'Alokasi profesi-unit' }}</div>
             </div>
@@ -47,61 +47,75 @@
                 $calc = $calc ?? ($item->calculation_details ?? []);
             @endphp
 
-            @if(isset($quantities) && count($quantities))
-                @foreach(array_chunk($quantities, 3) as $chunk)
-                    <div class="grid gap-4 sm:grid-cols-3 mb-4">
-                        @foreach($chunk as $q)
-                            @php
-                                $icon = $q['icon'] ?? 'fa-user-injured';
-                                $val = $q['value'];
-                            @endphp
-                            <div class="p-4 rounded-2xl bg-white shadow-sm ring-1 ring-slate-100 flex items-center gap-3">
-                                <div class="w-12 h-12 rounded-xl grid place-content-center text-white bg-gradient-to-tr from-cyan-500 to-sky-600">
-                                    <i class="fa-solid {{ $icon }}"></i>
-                                </div>
-                                <div>
-                                    <div class="text-xl font-semibold">{{ is_numeric($val) ? number_format((float)$val, (floor($val) != $val) ? 1 : 0) : ($val ?? '-') }}</div>
-                                    <div class="text-slate-500 text-sm">{{ $q['label'] }}</div>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                @endforeach
-            @endif
-
             @php
-                $money = function($v){ return 'Rp '.number_format((float)($v ?? 0),0,',','.'); };
-                $rows = [
-                    ['label' => 'Kehadiran (Absensi)', 'path' => 'komponen.absensi'],
-                    ['label' => 'Kedisiplinan (360)', 'path' => 'komponen.kedisiplinan'],
-                    ['label' => 'Tugas Tambahan', 'path' => 'komponen.kontribusi_tambahan'],
-                    ['label' => 'Pasien Ditangani', 'path' => 'komponen.pasien_ditangani'],
-                    ['label' => 'Ulasan Pasien (Rating)', 'path' => 'komponen.review_pelanggan'],
-                ];
-                $totalComp = 0;
+                $userWsm = data_get($calc, 'wsm.user_total');
+                if ($userWsm === null) $userWsm = data_get($calc, 'allocation.user_wsm_score');
+
+                $groupWsm = data_get($calc, 'wsm.unit_total');
+                if ($groupWsm === null) $groupWsm = data_get($calc, 'allocation.unit_total_wsm');
+
+                $sharePct = data_get($calc, 'allocation.share_percent');
+                $allocation = $allocationAmount ?? null;
+
+                $computed = null;
+                if (is_numeric($allocation) && is_numeric($userWsm) && is_numeric($groupWsm) && (float) $groupWsm > 0) {
+                    $computed = (float) $allocation * ((float) $userWsm / (float) $groupWsm);
+                }
             @endphp
+
+            @if(is_numeric($allocation) || is_numeric($userWsm) || is_numeric($groupWsm) || is_numeric($sharePct))
+                <div class="mb-5 rounded-2xl bg-white shadow-sm ring-1 ring-slate-100 p-4">
+                    <div class="text-sm font-semibold text-slate-800">Dasar Perhitungan (sesuai Excel)</div>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-3">
+                        <div class="text-sm">
+                            <div class="text-slate-500">Total Kinerja Anda</div>
+                            <div class="font-semibold">{{ is_numeric($userWsm) ? number_format((float)$userWsm, 2) : '-' }}</div>
+                        </div>
+                        <div class="text-sm">
+                            <div class="text-slate-500 inline-flex items-center">
+                                Total Kinerja Grup
+                                <i class="fa-solid fa-circle-exclamation ml-1 text-slate-400" title="Dikelompokkan berdasarkan {{ ($professionName ?? '-') }} di {{ ($unitName ?? '-') }}"></i>
+                            </div>
+                            <div class="font-semibold">{{ is_numeric($groupWsm) ? number_format((float)$groupWsm, 2) : '-' }}</div>
+                        </div>
+                        <div class="text-sm">
+                            <div class="text-slate-500">Porsi (share)</div>
+                            <div class="font-semibold">{{ is_numeric($sharePct) ? number_format((float)$sharePct, 2).'%' : '-' }}</div>
+                        </div>
+                    </div>
+                </div>
+            @endif
 
             <x-ui.table min-width="520px">
                 <x-slot name="head">
                     <tr>
-                        <th class="text-left px-4 py-3 whitespace-nowrap">Komponen</th>
+                        <th class="text-left px-4 py-3 whitespace-nowrap">Ringkasan Nominal</th>
                         <th class="text-right px-4 py-3 whitespace-nowrap">Nilai</th>
                     </tr>
                 </x-slot>
-                @foreach($rows as $r)
-                    @php
-                        $nilai = data_get($calc, $r['path'].'.nilai', 0);
-                        $totalComp += (float)$nilai;
-                    @endphp
-                    <tr>
-                        <td class="px-4 py-3">{{ $r['label'] }}</td>
-                        <td class="px-4 py-3 text-right">{{ $money($nilai) }}</td>
+                @php
+                    $criteriaAllocations = $criteriaAllocations ?? [];
+                @endphp
+
+                @if(!empty($criteriaAllocations))
+                    @foreach($criteriaAllocations as $ca)
+                        <tr>
+                            <td class="px-4 py-3">{{ $ca['criteria_name'] ?? '-' }}</td>
+                            <td class="px-4 py-3 text-right">{{ 'Rp '.number_format((float)($ca['nominal'] ?? 0),0,',','.') }}</td>
+                        </tr>
+                    @endforeach
+                    <tr class="font-semibold">
+                        <td class="px-4 py-3">Total</td>
+                        <td class="px-4 py-3 text-right">{{ $item->amount !== null ? 'Rp '.number_format($item->amount,0,',','.') : '-' }}</td>
                     </tr>
-                @endforeach
-                <tr class="font-semibold">
-                    <td class="px-4 py-3">Total Komponen</td>
-                    <td class="px-4 py-3 text-right">{{ $money($totalComp) }}</td>
-                </tr>
+                @endif
+
+                @if(data_get($calc, 'penalty.total') !== null)
+                    <tr>
+                        <td class="px-4 py-3">Potongan (penalty)</td>
+                        <td class="px-4 py-3 text-right">{{ 'Rp '.number_format((float) data_get($calc, 'penalty.total'),0,',','.') }}</td>
+                    </tr>
+                @endif
             </x-ui.table>
         </x-section>
     </div>

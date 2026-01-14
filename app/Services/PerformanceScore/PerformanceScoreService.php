@@ -225,7 +225,8 @@ class PerformanceScoreService
 
             $rows = [];
             $sumWeightIncluded = 0.0;
-            $sumWeighted = 0.0;
+            $sumWeightedRelative = 0.0;
+            $sumWeightedValue = 0.0;
 
             foreach ($criteriaIds as $criteriaId) {
                 $criteriaId = (int) $criteriaId;
@@ -269,7 +270,9 @@ class PerformanceScoreService
                     $sumWeightIncluded += $activeWeight;
                     // Excel/UI expectation: total WSM is based on relative score (0–100),
                     // while normalized score remains visible in details.
-                    $sumWeighted += ($activeWeight * $relative);
+                    $sumWeightedRelative += ($activeWeight * $relative);
+                    // Attached-mode payout% expectation: based on normalized score (0–100).
+                    $sumWeightedValue += ($activeWeight * $normalized);
                 }
 
                 $rows[] = [
@@ -293,11 +296,15 @@ class PerformanceScoreService
                 ];
             }
 
-            $totalWsm = $sumWeightIncluded > 0.0 ? ($sumWeighted / $sumWeightIncluded) : null;
+            $totalWsmRelative = $sumWeightIncluded > 0.0 ? ($sumWeightedRelative / $sumWeightIncluded) : null;
+            $totalWsmValue = $sumWeightIncluded > 0.0 ? ($sumWeightedValue / $sumWeightIncluded) : null;
 
             $usersOut[$uid] = [
                 'criteria' => $rows,
-                'total_wsm' => $totalWsm !== null ? round($totalWsm, 6) : null,
+                // Backward compatible field (legacy callers expect total_wsm).
+                'total_wsm' => $totalWsmRelative !== null ? round($totalWsmRelative, 6) : null,
+                'total_wsm_relative' => $totalWsmRelative !== null ? round($totalWsmRelative, 6) : null,
+                'total_wsm_value' => $totalWsmValue !== null ? round($totalWsmValue, 6) : null,
                 'sum_weight' => round($sumWeightIncluded, 6),
             ];
         }
@@ -504,7 +511,8 @@ class PerformanceScoreService
 
             $rows = [];
             $sumWeightIncluded = 0.0;
-            $sumWeighted = 0.0;
+            $sumWeightedRelative = 0.0;
+            $sumWeightedValue = 0.0;
 
             foreach ($criteriaIds as $criteriaId) {
                 $criteriaId = (int) $criteriaId;
@@ -541,7 +549,8 @@ class PerformanceScoreService
 
                 if ($included) {
                     $sumWeightIncluded += $activeWeight;
-                    $sumWeighted += ($activeWeight * $relative);
+                    $sumWeightedRelative += ($activeWeight * $relative);
+                    $sumWeightedValue += ($activeWeight * $normalized);
                 }
 
                 $rows[] = [
@@ -564,11 +573,14 @@ class PerformanceScoreService
                 ];
             }
 
-            $totalWsm = $sumWeightIncluded > 0.0 ? ($sumWeighted / $sumWeightIncluded) : null;
+            $totalWsmRelative = $sumWeightIncluded > 0.0 ? ($sumWeightedRelative / $sumWeightIncluded) : null;
+            $totalWsmValue = $sumWeightIncluded > 0.0 ? ($sumWeightedValue / $sumWeightIncluded) : null;
 
             $usersOut[$uid] = [
                 'criteria' => $rows,
-                'total_wsm' => $totalWsm !== null ? round($totalWsm, 6) : null,
+                'total_wsm' => $totalWsmRelative !== null ? round($totalWsmRelative, 6) : null,
+                'total_wsm_relative' => $totalWsmRelative !== null ? round($totalWsmRelative, 6) : null,
+                'total_wsm_value' => $totalWsmValue !== null ? round($totalWsmValue, 6) : null,
                 'sum_weight' => round($sumWeightIncluded, 6),
             ];
         }

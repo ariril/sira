@@ -141,6 +141,22 @@ class UnitRemunerationAllocationController extends Controller
         $allocation->amount = $group->sum('amount');
         $allocation->published_at = $group->max('published_at');
 
+        // Ensure IDs are intact even if the route model came from an aggregated listing row.
+        if ($group->isNotEmpty()) {
+            $allocation->assessment_period_id = (int) $group->first()->assessment_period_id;
+            $allocation->unit_id = (int) $group->first()->unit_id;
+        }
+
+        // Load related names for SHOW mode (published/read-only).
+        $allocation->loadMissing([
+            'period:id,name',
+            'unit:id,name',
+        ]);
+
+        // Lines for SHOW mode (do not depend on current users mapping).
+        $lines = $group->whereNotNull('profession_id')->values();
+        $lines->load('profession:id,name');
+
         return view('admin_rs.unit_remuneration_allocations.edit', [
             'item'    => $allocation,
             'periods' => AssessmentPeriod::orderByDesc('start_date')->get(['id','name']),
@@ -148,6 +164,7 @@ class UnitRemunerationAllocationController extends Controller
             'professions' => Profession::orderBy('name')->get(['id','name']),
             'unitProfessionMap' => $this->unitProfessions(),
             'lineMap' => $lineMap,
+            'lines'   => $lines,
         ]);
     }
 

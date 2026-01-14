@@ -121,6 +121,7 @@ class BackfillPerformanceAssessmentSnapshots extends Command
 
                 $now = now();
                 $rows = [];
+                $membershipRows = [];
                 foreach ($userIds as $uid) {
                     $uid = (int) $uid;
                     $userRow = $calc['users'][$uid] ?? null;
@@ -149,6 +150,18 @@ class BackfillPerformanceAssessmentSnapshots extends Command
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];
+
+                    if (\Illuminate\Support\Facades\Schema::hasTable('assessment_period_user_membership_snapshots')) {
+                        $membershipRows[] = [
+                            'assessment_period_id' => (int) $period->id,
+                            'user_id' => $uid,
+                            'unit_id' => (int) $unitId,
+                            'profession_id' => $professionId === null ? null : (int) $professionId,
+                            'snapshotted_at' => $now,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
                 }
 
                 if (empty($rows)) {
@@ -162,6 +175,11 @@ class BackfillPerformanceAssessmentSnapshots extends Command
                 }
 
                 DB::table('performance_assessment_snapshots')->insertOrIgnore($rows);
+
+                if (!empty($membershipRows) && \Illuminate\Support\Facades\Schema::hasTable('assessment_period_user_membership_snapshots')) {
+                    DB::table('assessment_period_user_membership_snapshots')->insertOrIgnore($membershipRows);
+                }
+
                 $insertedNow = DB::table('performance_assessment_snapshots')
                     ->where('assessment_period_id', (int) $period->id)
                     ->whereIn('user_id', array_map('intval', $userIds))
