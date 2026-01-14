@@ -23,6 +23,9 @@ return new class extends Migration
             $table->string('title');
             $table->text('description')->nullable();
 
+            // Optional PDF attachment for additional policy/terms.
+            $table->string('policy_doc_path')->nullable();
+
             $table->date('due_date');
             $table->time('due_time')->default('23:59:00');
 

@@ -17,6 +17,7 @@
             <form
                 method="POST"
                 action="{{ route('kepala_unit.additional-tasks.store') }}"
+                enctype="multipart/form-data"
                 class="grid md:grid-cols-2 gap-5"
             >
                 @csrf
@@ -37,6 +38,11 @@
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Deskripsi</label>
                     <x-ui.textarea name="description" rows="4" />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Ketentuan Tambahan (PDF)</label>
+                    <input type="file" name="policy_doc" accept="application/pdf" class="mt-1 block w-full text-sm text-slate-700" />
+                    <p class="mt-1 text-xs text-slate-500">Opsional. Maks 10MB. Format: PDF.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Tanggal Jatuh Tempo</label>

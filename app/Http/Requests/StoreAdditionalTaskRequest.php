@@ -14,6 +14,7 @@ class StoreAdditionalTaskRequest extends FormRequest
         return [
             'title'       => ['required','string','max:200'],
             'description' => ['nullable','string','max:2000'],
+            'policy_doc'  => ['nullable','file','max:10240','mimes:pdf'],
             'due_date'    => ['required','date'],
             'due_time'    => ['nullable','date_format:H:i'],
             'points'      => ['required','numeric','min:0'],

@@ -10,6 +10,7 @@
             <form
                 method="POST"
                 action="{{ route('kepala_unit.additional-tasks.update', $item->id) }}"
+                enctype="multipart/form-data"
                 class="grid md:grid-cols-2 gap-5"
             >
                 @csrf
@@ -25,6 +26,23 @@
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Deskripsi</label>
                     <x-ui.textarea name="description" rows="4" :value="$item->description" />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Ketentuan Tambahan (PDF)</label>
+                    @if(!empty($item->policy_doc_path))
+                        <div class="mb-2 text-sm">
+                            <a class="text-sky-700 hover:underline" target="_blank" href="{{ asset('storage/' . ltrim($item->policy_doc_path, '/')) }}">
+                                Lihat PDF saat ini
+                            </a>
+                        </div>
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-700 mb-2">
+                            <input type="checkbox" name="remove_policy_doc" value="1" class="rounded border-slate-300" />
+                            Hapus PDF saat ini
+                        </label>
+                    @endif
+
+                    <input type="file" name="policy_doc" accept="application/pdf" class="mt-1 block w-full text-sm text-slate-700" />
+                    <p class="mt-1 text-xs text-slate-500">Opsional. Upload file baru untuk mengganti. Maks 10MB. Format: PDF.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Tanggal Jatuh Tempo</label>

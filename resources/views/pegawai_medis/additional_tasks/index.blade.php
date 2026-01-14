@@ -58,6 +58,14 @@
                                 @if($task->description)
                                     <div class="mt-2 text-sm text-slate-600">{{ $task->description }}</div>
                                 @endif
+
+                                @if(!empty($task->policy_doc_url))
+                                    <div class="mt-2 text-sm">
+                                        <a class="text-sky-700 hover:underline" target="_blank" href="{{ $task->policy_doc_url }}">
+                                            Ketentuan Tambahan (PDF)
+                                        </a>
+                                    </div>
+                                @endif
                             </div>
 
                             <div class="text-right">

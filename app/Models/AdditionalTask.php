@@ -20,6 +20,7 @@ class AdditionalTask extends Model
         'assessment_period_id',
         'title',
         'description',
+        'policy_doc_path',
         'due_date',
         'due_time',
         'points',
@@ -33,6 +34,16 @@ class AdditionalTask extends Model
         'due_time'     => 'string',
         'points'       => 'decimal:2',
     ];
+
+    public function getPolicyDocUrlAttribute(): ?string
+    {
+        $path = (string) ($this->policy_doc_path ?? '');
+        if ($path === '') {
+            return null;
+        }
+
+        return asset('storage/' . ltrim($path, '/'));
+    }
 
     /* ============================================================
      |  RELASI

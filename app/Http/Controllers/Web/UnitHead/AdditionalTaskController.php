@@ -18,6 +18,7 @@ use App\Models\AssessmentPeriod;
 use App\Support\AssessmentPeriodGuard;
 use App\Support\AssessmentPeriodAudit;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class AdditionalTaskController extends Controller
 {
@@ -175,6 +176,11 @@ class AdditionalTaskController extends Controller
             'created_by' => $me->id,
         ]);
 
+        if ($request->hasFile('policy_doc')) {
+            $storedPath = Storage::disk('public')->putFile('additional_task_policies/' . (int) $task->id, $request->file('policy_doc'));
+            $task->update(['policy_doc_path' => $storedPath]);
+        }
+
         $task->refreshLifecycleStatus();
         $task->refresh();
 
@@ -240,6 +246,20 @@ class AdditionalTaskController extends Controller
             'points' => $data['points'],
             'max_claims' => $data['max_claims'] ?? 1,
         ]);
+
+        // Policy doc handling (optional)
+        $removePolicy = (bool) ($data['remove_policy_doc'] ?? false);
+        if ($request->hasFile('policy_doc')) {
+            if (!empty($task->policy_doc_path)) {
+                Storage::disk('public')->delete($task->policy_doc_path);
+            }
+            $storedPath = Storage::disk('public')->putFile('additional_task_policies/' . (int) $task->id, $request->file('policy_doc'));
+            $task->update(['policy_doc_path' => $storedPath]);
+        } elseif ($removePolicy && !empty($task->policy_doc_path)) {
+            Storage::disk('public')->delete($task->policy_doc_path);
+            $task->update(['policy_doc_path' => null]);
+        }
+
         $task->refreshLifecycleStatus();
 
         if ($task->period && (string) ($task->period->status ?? '') === AssessmentPeriod::STATUS_REVISION) {
@@ -265,6 +285,10 @@ class AdditionalTaskController extends Controller
 
         $task->loadMissing('period');
         AssessmentPeriodGuard::requireActiveOrRevision($task->period, 'Hapus Tugas Tambahan');
+
+        if (!empty($task->policy_doc_path)) {
+            Storage::disk('public')->delete($task->policy_doc_path);
+        }
 
         $task->delete();
 
