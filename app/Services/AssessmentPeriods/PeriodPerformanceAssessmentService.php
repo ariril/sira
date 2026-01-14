@@ -419,13 +419,18 @@ class PeriodPerformanceAssessmentService
         // Pasien: SUM imported_criteria_values.value_numeric for "Jumlah Pasien Ditangani" criteria
         if (!empty($criteriaIds['pasien'])) {
             $pid = (int) $criteriaIds['pasien'];
-            $raw['pasien'] = DB::table('imported_criteria_values')
+            $q = DB::table('imported_criteria_values')
                 ->selectRaw('user_id, COALESCE(SUM(value_numeric),0) as total_value')
                 ->where('assessment_period_id', $period->id)
                 ->where('performance_criteria_id', $pid)
                 ->whereIn('user_id', $userIds)
-                ->groupBy('user_id')
-                ->pluck('total_value', 'user_id')
+                ->groupBy('user_id');
+
+            if (Schema::hasColumn('imported_criteria_values', 'is_active')) {
+                $q->where('is_active', 1);
+            }
+
+            $raw['pasien'] = $q->pluck('total_value', 'user_id')
                 ->map(fn($v) => (float) $v)
                 ->all();
         }
@@ -433,13 +438,18 @@ class PeriodPerformanceAssessmentService
         // Komplain: SUM imported_criteria_values.value_numeric for "Jumlah Komplain Pasien" criteria
         if (!empty($criteriaIds['komplain'])) {
             $cid = (int) $criteriaIds['komplain'];
-            $raw['komplain'] = DB::table('imported_criteria_values')
+            $q = DB::table('imported_criteria_values')
                 ->selectRaw('user_id, COALESCE(SUM(value_numeric),0) as total_value')
                 ->where('assessment_period_id', $period->id)
                 ->where('performance_criteria_id', $cid)
                 ->whereIn('user_id', $userIds)
-                ->groupBy('user_id')
-                ->pluck('total_value', 'user_id')
+                ->groupBy('user_id');
+
+            if (Schema::hasColumn('imported_criteria_values', 'is_active')) {
+                $q->where('is_active', 1);
+            }
+
+            $raw['komplain'] = $q->pluck('total_value', 'user_id')
                 ->map(fn($v) => (float) $v)
                 ->all();
         }

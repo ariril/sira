@@ -242,6 +242,10 @@ class RemunerationController extends Controller
         $periodId = (int) $data['period_id'];
         $period = AssessmentPeriod::findOrFail($periodId);
 
+        if (method_exists($period, 'isRejectedApproval') && $period->isRejectedApproval()) {
+            return back()->with('danger', 'Audit tidak dapat dijalankan: periode sedang DITOLAK (approval rejected).');
+        }
+
         $allocations = Allocation::query()
             ->with(['unit:id,name', 'profession:id,name'])
             ->where('assessment_period_id', $periodId)
@@ -412,6 +416,8 @@ class RemunerationController extends Controller
         if ($periodId) {
             $selectedPeriod = AssessmentPeriod::find($periodId);
 
+            $isRejected = $selectedPeriod && method_exists($selectedPeriod, 'isRejectedApproval') && $selectedPeriod->isRejectedApproval();
+
             $remunerations = Remuneration::with('user:id,name,unit_id')
                 ->where('assessment_period_id', $periodId)
                 ->orderBy('user_id')
@@ -427,7 +433,9 @@ class RemunerationController extends Controller
             ];
 
             // Prerequisites
-            $isLocked = $selectedPeriod && in_array($selectedPeriod->status, [AssessmentPeriod::STATUS_LOCKED, AssessmentPeriod::STATUS_APPROVAL, AssessmentPeriod::STATUS_CLOSED], true);
+            $isLocked = $selectedPeriod
+                && in_array($selectedPeriod->status, [AssessmentPeriod::STATUS_LOCKED, AssessmentPeriod::STATUS_APPROVAL, AssessmentPeriod::STATUS_CLOSED], true)
+                && !$isRejected;
 
             $assessmentCount = (int) PerformanceAssessment::query()
                 ->where('assessment_period_id', $periodId)
@@ -451,6 +459,11 @@ class RemunerationController extends Controller
             $allAllocPublished = $allocTotal > 0 && $allocTotal === $allocPublished;
 
             $prerequisites = [
+                [
+                    'label' => 'Periode tidak sedang DITOLAK',
+                    'ok' => !$isRejected,
+                    'detail' => $isRejected ? 'Periode status APPROVAL namun ditandai DITOLAK. Buka REVISION terlebih dahulu.' : null,
+                ],
                 [
                     'label' => 'Periode status = LOCKED',
                     'ok' => $isLocked,
@@ -520,6 +533,10 @@ class RemunerationController extends Controller
         ]);
         $periodId = (int) $data['period_id'];
         $period = AssessmentPeriod::findOrFail($periodId);
+
+        if (method_exists($period, 'isRejectedApproval') && $period->isRejectedApproval()) {
+            return back()->with('danger', 'Perhitungan tidak dapat dijalankan: periode sedang DITOLAK (approval rejected).');
+        }
 
         // Hard gate: do not allow calculation while period is ACTIVE/DRAFT
         $isLocked = in_array($period->status, [AssessmentPeriod::STATUS_LOCKED, AssessmentPeriod::STATUS_APPROVAL, AssessmentPeriod::STATUS_CLOSED], true);
@@ -832,6 +849,10 @@ class RemunerationController extends Controller
     /** Mark a remuneration as published */
     public function publish(Remuneration $remuneration): RedirectResponse
     {
+        $period = AssessmentPeriod::query()->find((int) $remuneration->assessment_period_id);
+        if ($period && method_exists($period, 'isRejectedApproval') && $period->isRejectedApproval()) {
+            return back()->with('danger', 'Tidak dapat publish remunerasi: periode sedang DITOLAK (approval rejected).');
+        }
         $remuneration->update(['published_at' => now()]);
         return back()->with('status','Remunerasi dipublish.');
     }
@@ -910,6 +931,12 @@ class RemunerationController extends Controller
         ]);
 
         $periodId = (int) $data['period_id'];
+
+        $period = AssessmentPeriod::query()->findOrFail($periodId);
+        if (method_exists($period, 'isRejectedApproval') && $period->isRejectedApproval()) {
+            return back()->with('danger', 'Tidak dapat publish: periode sedang DITOLAK (approval rejected).');
+        }
+
         $unitId = (int) ($data['unit_id'] ?? 0);
         $professionId = (int) ($data['profession_id'] ?? 0);
         $paymentStatus = $data['payment_status'] ?? null;

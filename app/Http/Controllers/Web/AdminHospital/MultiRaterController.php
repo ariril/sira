@@ -67,7 +67,8 @@ class MultiRaterController extends Controller
             'end_date' => ['required','date','after_or_equal:start_date'],
         ]);
         $period = AssessmentPeriod::findOrFail($data['assessment_period_id']);
-        AssessmentPeriodGuard::requireActive($period, 'Buka Jadwal Penilaian 360');
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Buka Jadwal Penilaian 360');
+        AssessmentPeriodGuard::requireActiveOrRevision($period, 'Buka Jadwal Penilaian 360');
         $pStart = $period->getRawOriginal('start_date');
         $pEnd   = $period->getRawOriginal('end_date');
         $today  = now()->toDateString();
@@ -111,9 +112,15 @@ class MultiRaterController extends Controller
     public function closeWindow(Request $request)
     {
         $request->validate(['assessment_period_id' => ['required','integer','exists:assessment_periods,id']]);
-        Assessment360Window::where('assessment_period_id', (int)$request->assessment_period_id)
+        $periodId = (int) $request->assessment_period_id;
+        $period = AssessmentPeriod::query()->findOrFail($periodId);
+
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Tutup Jadwal Penilaian 360');
+        AssessmentPeriodGuard::requireActiveOrRevision($period, 'Tutup Jadwal Penilaian 360');
+
+        Assessment360Window::where('assessment_period_id', $periodId)
             ->where('is_active', true)->update(['is_active' => false]);
-        return redirect()->route('admin_rs.multi_rater.index', ['assessment_period_id' => (int)$request->assessment_period_id])
+        return redirect()->route('admin_rs.multi_rater.index', ['assessment_period_id' => $periodId])
             ->with('status', 'Jadwal penilaian 360 ditutup.');
     }
 
@@ -122,7 +129,8 @@ class MultiRaterController extends Controller
         $request->validate(['assessment_period_id' => 'required|integer|exists:assessment_periods,id']);
         $periodId = (int)$request->assessment_period_id;
         $period = AssessmentPeriod::query()->find($periodId);
-        AssessmentPeriodGuard::requireActive($period, 'Generate Undangan 360');
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Generate Undangan 360');
+        AssessmentPeriodGuard::requireActiveOrRevision($period, 'Generate Undangan 360');
         $window = Assessment360Window::where('assessment_period_id', $periodId)->where('is_active', true)->first();
         if (!$window) return back()->with('error','Buka jadwal 360 terlebih dahulu.');
 

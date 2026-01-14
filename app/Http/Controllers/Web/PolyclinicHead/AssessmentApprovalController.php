@@ -8,6 +8,7 @@ use App\Models\AssessmentApproval;
 use App\Services\AssessmentApprovals\AssessmentApprovalFlow;
 use App\Services\AssessmentApprovals\AssessmentApprovalDetailService;
 use App\Services\AssessmentApprovals\AssessmentApprovalService;
+use App\Support\AssessmentPeriodGuard;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -77,6 +78,10 @@ class AssessmentApprovalController extends Controller
                 ->selectRaw('aa.id, aa.status, aa.level, aa.note, aa.created_at, aa.acted_at, u.name as user_name, ap.name as period_name, pa.total_wsm_score')
                 ->orderByDesc('aa.id');
 
+            // Only show current attempt approvals + not invalidated
+            $builder->whereNull('aa.invalidated_at')
+                ->whereRaw('aa.attempt = COALESCE(ap.approval_attempt, 1)');
+
             // Scope to units under Poliklinik Head
             if ($scopeUnitIds->isNotEmpty()) {
                 $builder->whereIn('u.unit_id', $scopeUnitIds);
@@ -122,6 +127,11 @@ class AssessmentApprovalController extends Controller
     public function approve(Request $request, AssessmentApproval $assessment, AssessmentApprovalService $svc): RedirectResponse
     {
         $this->authorizeAccess();
+
+        $assessment->loadMissing('performanceAssessment.assessmentPeriod');
+        $period = $assessment->performanceAssessment?->assessmentPeriod;
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Setujui Penilaian');
+
         try {
             $svc->approve($assessment, Auth::user(), (string) $request->input('note'));
             return back()->with('status', 'Penilaian disetujui.');
@@ -135,6 +145,11 @@ class AssessmentApprovalController extends Controller
     {
         $this->authorizeAccess();
         $request->validate(['note' => ['required','string','max:500']]);
+
+        $assessment->loadMissing('performanceAssessment.assessmentPeriod');
+        $period = $assessment->performanceAssessment?->assessmentPeriod;
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Tolak Penilaian');
+
         try {
             $svc->reject($assessment, Auth::user(), (string) $request->input('note'));
             return back()->with('status', 'Penilaian ditolak.');
@@ -189,6 +204,8 @@ class AssessmentApprovalController extends Controller
                         $sub->select(DB::raw(1))
                             ->from('assessment_approvals as aa2')
                             ->whereColumn('aa2.performance_assessment_id', 'aa.performance_assessment_id')
+                            ->whereColumn('aa2.attempt', 'aa.attempt')
+                            ->whereNull('aa2.invalidated_at')
                             ->where('aa2.level', 2)
                             ->where('aa2.status', 'approved');
                     });

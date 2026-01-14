@@ -70,7 +70,14 @@
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Dikunci</span>
                                 @break
                             @case(\App\Models\AssessmentPeriod::STATUS_APPROVAL)
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">Persetujuan</span>
+                                @if(!empty($it->rejected_at))
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-100">Persetujuan (DITOLAK)</span>
+                                @else
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">Persetujuan</span>
+                                @endif
+                                @break
+                            @case(\App\Models\AssessmentPeriod::STATUS_REVISION)
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100">Revisi</span>
                                 @break
                             @case(\App\Models\AssessmentPeriod::STATUS_CLOSED)
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-200 text-slate-700 border border-slate-300">Ditutup</span>
@@ -104,6 +111,26 @@
                                 <form method="POST" action="{{ route('admin_rs.assessment_periods.start_approval', $it) }}">
                                     @csrf
                                     <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Mulai Persetujuan</x-ui.button>
+                                </form>
+                            @endif
+
+                            @if($it->status === \App\Models\AssessmentPeriod::STATUS_APPROVAL && !empty($it->rejected_at))
+                                <form method="POST" action="{{ route('admin_rs.assessment_periods.open_revision', $it) }}" class="flex items-center gap-2" onsubmit="return confirm('Buka mode revisi untuk periode ini? Approval akan diulang dari Level 1 setelah resubmit.');">
+                                    @csrf
+                                    <input type="text" name="reason" required maxlength="800"
+                                           class="h-9 px-3 rounded-lg border border-slate-300 text-xs w-52"
+                                           placeholder="Alasan Open Revision" />
+                                    <x-ui.button type="submit" variant="warning" class="h-9 px-3 text-xs">Open Revision</x-ui.button>
+                                </form>
+                            @endif
+
+                            @if($it->status === \App\Models\AssessmentPeriod::STATUS_REVISION)
+                                <form method="POST" action="{{ route('admin_rs.assessment_periods.resubmit_from_revision', $it) }}" class="flex items-center gap-2" onsubmit="return confirm('Ajukan ulang periode ini ke tahap persetujuan? Proses approval akan mulai ulang dari Level 1.');">
+                                    @csrf
+                                    <input type="text" name="note" maxlength="800"
+                                           class="h-9 px-3 rounded-lg border border-slate-300 text-xs w-52"
+                                           placeholder="Catatan (opsional)" />
+                                    <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Resubmit</x-ui.button>
                                 </form>
                             @endif
                         </div>

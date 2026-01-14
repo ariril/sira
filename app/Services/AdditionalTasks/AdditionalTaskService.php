@@ -28,7 +28,7 @@ class AdditionalTaskService
     {
         $task->loadMissing('period');
         if ($task->period) {
-            AssessmentPeriodGuard::requireActive($task->period, 'Submit Hasil Tugas Tambahan');
+            AssessmentPeriodGuard::requireActiveOrRevision($task->period, 'Submit Hasil Tugas Tambahan');
         }
 
         if ($task->status !== 'open') {
@@ -114,7 +114,7 @@ class AdditionalTaskService
     {
         $claim->loadMissing('task.period');
         if ($claim->task?->period) {
-            AssessmentPeriodGuard::requireActive($claim->task->period, 'Review Klaim Tugas Tambahan');
+            AssessmentPeriodGuard::requireActiveOrRevision($claim->task->period, 'Review Klaim Tugas Tambahan');
         }
 
         if ($claim->status !== 'submitted') {

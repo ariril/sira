@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\PerformanceScore\PerformanceScoreService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AssessmentApprovalDetailService
 {
@@ -90,11 +91,18 @@ class AssessmentApprovalDetailService
             return collect();
         }
 
-        return DB::table('imported_criteria_values as v')
+        $q = DB::table('imported_criteria_values as v')
             ->leftJoin('performance_criterias as c', 'c.id', '=', 'v.performance_criteria_id')
             ->leftJoin('metric_import_batches as b', 'b.id', '=', 'v.import_batch_id')
             ->where('v.user_id', $userId)
             ->where('v.assessment_period_id', $periodId)
+            ;
+
+        if (Schema::hasColumn('imported_criteria_values', 'is_active')) {
+            $q->where('v.is_active', 1);
+        }
+
+        return $q
             ->orderBy('v.performance_criteria_id')
             ->select([
                 'v.performance_criteria_id',

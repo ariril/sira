@@ -13,6 +13,16 @@ final class AssessmentPeriodGuard
             abort(403, $actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
         }
 
+        $status = (string) ($period->status ?? '');
+        if ($status !== AssessmentPeriod::STATUS_ACTIVE) {
+            $msg = sprintf(
+                '%s hanya dapat dilakukan ketika status periode = AKTIF. Status periode saat ini: %s.',
+                $actionLabel,
+                $status !== '' ? strtoupper($status) : '-'
+            );
+            abort(403, $msg);
+        }
+
         if (!$period->isCurrentlyActive()) {
             $msg = sprintf(
                 '%s hanya dapat dilakukan ketika periode sedang berjalan (hari ini berada pada rentang tanggal periode). Status periode saat ini: %s.',
@@ -23,9 +33,54 @@ final class AssessmentPeriodGuard
         }
     }
 
+    public static function requireActiveOrRevision(?AssessmentPeriod $period, string $actionLabel = 'Aksi'): void
+    {
+        if (!$period) {
+            abort(403, $actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
+        }
+
+        $status = (string) ($period->status ?? '');
+
+        if ($status === AssessmentPeriod::STATUS_REVISION) {
+            return;
+        }
+
+        self::requireActive($period, $actionLabel);
+    }
+
+    public static function forbidWhenApprovalRejected(?AssessmentPeriod $period, string $actionLabel = 'Aksi'): void
+    {
+        if (!$period) {
+            return;
+        }
+
+        if (method_exists($period, 'isRejectedApproval') && $period->isRejectedApproval()) {
+            abort(403, $actionLabel . ' tidak dapat dilakukan: periode sedang DITOLAK (approval rejected).');
+        }
+    }
+
     public static function requireLocked(?AssessmentPeriod $period, string $actionLabel = 'Aksi'): void
     {
         self::requireStatus($period, AssessmentPeriod::STATUS_LOCKED, $actionLabel, 'LOCKED');
+    }
+
+    public static function requireLockedOrRevision(?AssessmentPeriod $period, string $actionLabel = 'Aksi'): void
+    {
+        if (!$period) {
+            abort(403, $actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
+        }
+
+        $status = (string) ($period->status ?? '');
+        if (in_array($status, [AssessmentPeriod::STATUS_LOCKED, AssessmentPeriod::STATUS_REVISION], true)) {
+            return;
+        }
+
+        $msg = sprintf(
+            '%s hanya dapat dilakukan ketika periode LOCKED atau REVISION. Status periode saat ini: %s.',
+            $actionLabel,
+            $status !== '' ? strtoupper($status) : '-'
+        );
+        abort(403, $msg);
     }
 
     public static function resolveById(?int $periodId): ?AssessmentPeriod
@@ -58,7 +113,10 @@ final class AssessmentPeriodGuard
             AssessmentPeriod::syncByNow();
         }
 
-        return AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
+        return AssessmentPeriod::query()
+            ->where('status', AssessmentPeriod::STATUS_ACTIVE)
+            ->orderByDesc('start_date')
+            ->first();
     }
 
     public static function resolveLatestLocked(): ?AssessmentPeriod

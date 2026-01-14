@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\DB;
+use App\Support\AssessmentPeriodGuard;
 
 class UnitRemunerationAllocationController extends Controller
 {
@@ -94,6 +95,9 @@ class UnitRemunerationAllocationController extends Controller
         $data = $this->validateData($request);
         $lineAmounts = $this->validatedLines($request);
 
+        $period = AssessmentPeriod::query()->findOrFail((int) $data['assessment_period_id']);
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Atur Alokasi Remunerasi');
+
         if ($this->groupPublished($data['assessment_period_id'], $data['unit_id'])) {
             return back()->withInput()->with('danger', 'Alokasi sudah dipublish dan tidak dapat diubah.');
         }
@@ -132,6 +136,9 @@ class UnitRemunerationAllocationController extends Controller
     /** Edit form */
     public function edit(Allocation $allocation): View
     {
+        $period = AssessmentPeriod::query()->find((int) $allocation->assessment_period_id);
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Atur Alokasi Remunerasi');
+
         $group = Allocation::query()
             ->where('assessment_period_id', $allocation->assessment_period_id)
             ->where('unit_id', $allocation->unit_id)
@@ -171,6 +178,9 @@ class UnitRemunerationAllocationController extends Controller
     /** Update or publish toggle */
     public function update(Request $request, Allocation $allocation): RedirectResponse
     {
+        $period = AssessmentPeriod::query()->find((int) $allocation->assessment_period_id);
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Atur Alokasi Remunerasi');
+
         if ($this->groupPublished($allocation->assessment_period_id, $allocation->unit_id)) {
             return back()->with('danger', 'Alokasi sudah dipublish dan tidak dapat diubah.');
         }
@@ -188,6 +198,9 @@ class UnitRemunerationAllocationController extends Controller
         $data = $this->validateData($request, isUpdate: true);
         $lineAmounts = $this->validatedLines($request);
         $publishedAt = $request->boolean('publish_now') ? now() : null;
+
+        $period = AssessmentPeriod::query()->findOrFail((int) $data['assessment_period_id']);
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Atur Alokasi Remunerasi');
 
         if ($this->groupPublished($data['assessment_period_id'], $data['unit_id'])) {
             return back()->withInput()->with('danger', 'Alokasi sudah dipublish dan tidak dapat diubah.');
@@ -221,6 +234,9 @@ class UnitRemunerationAllocationController extends Controller
     /** Delete allocation */
     public function destroy(Allocation $allocation): RedirectResponse
     {
+        $period = AssessmentPeriod::query()->find((int) $allocation->assessment_period_id);
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Hapus Alokasi Remunerasi');
+
         if ($this->groupPublished($allocation->assessment_period_id, $allocation->unit_id)) {
             return back()->with('danger', 'Alokasi sudah dipublish dan tidak dapat diubah.');
         }

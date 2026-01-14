@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\UnitCriteriaWeight as Weight;
 use App\Enums\UnitCriteriaWeightStatus as UCWStatus;
 use App\Models\AssessmentPeriod;
+use App\Support\AssessmentPeriodGuard;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -123,6 +124,12 @@ class UnitCriteriaApprovalController extends Controller
             ->where('status', UCWStatus::PENDING)
             ->when($q !== '', fn($w) => $w->whereHas('performanceCriteria', fn($pc)=>$pc->where('name','like',"%$q%")));
 
+        $periodIds = (clone $pendingQuery)->select('assessment_period_id')->distinct()->pluck('assessment_period_id')->filter()->values();
+        foreach ($periodIds as $pid) {
+            $period = AssessmentPeriod::query()->find((int) $pid);
+            AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Setujui Bobot Kriteria Unit');
+        }
+
         $count = (clone $pendingQuery)->count();
         if ($count === 0) {
             return back()->with('status', 'Tidak ada bobot pending untuk disetujui pada unit ini.');
@@ -175,6 +182,12 @@ class UnitCriteriaApprovalController extends Controller
             ->where('status', UCWStatus::PENDING)
             ->when($q !== '', fn($w) => $w->whereHas('performanceCriteria', fn($pc)=>$pc->where('name','like',"%$q%")));
 
+        $periodIds = (clone $pendingQuery)->select('assessment_period_id')->distinct()->pluck('assessment_period_id')->filter()->values();
+        foreach ($periodIds as $pid) {
+            $period = AssessmentPeriod::query()->find((int) $pid);
+            AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Tolak Bobot Kriteria Unit');
+        }
+
         $count = (clone $pendingQuery)->count();
         if ($count === 0) {
             return back()->with('status', 'Tidak ada bobot pending untuk ditolak pada unit ini.');
@@ -200,6 +213,9 @@ class UnitCriteriaApprovalController extends Controller
         // IU: Sesuai kebutuhan saat ini, Kepala Poliklinik dapat menyetujui semua unit
         $me = Auth::user();
 
+        $period = AssessmentPeriod::query()->find((int) ($weight->assessment_period_id ?? 0));
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Setujui Bobot Kriteria Unit');
+
         $weight->status = UCWStatus::ACTIVE;
         $weight->decided_by = $me->id;
         $weight->decided_at = now();
@@ -222,6 +238,9 @@ class UnitCriteriaApprovalController extends Controller
         }
 
         $me = Auth::user();
+
+        $period = AssessmentPeriod::query()->find((int) ($weight->assessment_period_id ?? 0));
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Tolak Bobot Kriteria Unit');
 
         $weight->status = UCWStatus::REJECTED;
         $weight->decided_by = $me->id;
@@ -258,6 +277,12 @@ class UnitCriteriaApprovalController extends Controller
                         ->orWhereHas('performanceCriteria', fn($pc) => $pc->where('name', 'like', "%$q%"));
                 });
             });
+
+        $periodIds = (clone $pendingQuery)->select('assessment_period_id')->distinct()->pluck('assessment_period_id')->filter()->values();
+        foreach ($periodIds as $pid) {
+            $period = AssessmentPeriod::query()->find((int) $pid);
+            AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Setujui Bobot Kriteria Unit');
+        }
 
         $count = (clone $pendingQuery)->count();
 

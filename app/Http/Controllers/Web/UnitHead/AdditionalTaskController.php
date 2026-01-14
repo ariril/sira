@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 use App\Models\AssessmentPeriod;
 use App\Support\AssessmentPeriodGuard;
+use App\Support\AssessmentPeriodAudit;
 use Illuminate\Support\Carbon;
 
 class AdditionalTaskController extends Controller
@@ -116,7 +117,11 @@ class AdditionalTaskController extends Controller
         $this->authorizeAccess();
         $activePeriod = null;
         if (Schema::hasTable('assessment_periods')) {
-            $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('id')->first();
+            $activePeriod = AssessmentPeriod::query()
+                ->whereIn('status', [AssessmentPeriod::STATUS_ACTIVE, AssessmentPeriod::STATUS_REVISION])
+                ->orderByDesc(DB::raw("status = 'active'"))
+                ->orderByDesc('id')
+                ->first();
         }
 
         return view('kepala_unit.additional_tasks.create', ['activePeriod' => $activePeriod]);
@@ -132,7 +137,11 @@ class AdditionalTaskController extends Controller
         if (Schema::hasTable('assessment_periods')) {
             // Pastikan periode aktif up-to-date
             AssessmentPeriod::syncByNow();
-            $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('id')->first();
+            $activePeriod = AssessmentPeriod::query()
+                ->whereIn('status', [AssessmentPeriod::STATUS_ACTIVE, AssessmentPeriod::STATUS_REVISION])
+                ->orderByDesc(DB::raw("status = 'active'"))
+                ->orderByDesc('id')
+                ->first();
         }
         if (!$activePeriod) {
             return back()->withErrors([
@@ -140,7 +149,7 @@ class AdditionalTaskController extends Controller
             ])->withInput();
         }
 
-        AssessmentPeriodGuard::requireActive($activePeriod, 'Buat Tugas Tambahan');
+        AssessmentPeriodGuard::requireActiveOrRevision($activePeriod, 'Buat Tugas Tambahan');
 
         $tz = config('app.timezone');
         $data = $request->validated();
@@ -168,6 +177,12 @@ class AdditionalTaskController extends Controller
 
         $task->refreshLifecycleStatus();
         $task->refresh();
+
+        if ((string) ($activePeriod->status ?? '') === AssessmentPeriod::STATUS_REVISION) {
+            AssessmentPeriodAudit::log((int) $activePeriod->id, (int) $me->id, 'revision_additional_task_created', null, [
+                'task_id' => (int) $task->id,
+            ]);
+        }
 
         return redirect()->route('kepala_unit.additional-tasks.index')->with('status', 'Tugas dibuat.');
     }
@@ -205,12 +220,12 @@ class AdditionalTaskController extends Controller
         if ((int) $task->unit_id !== (int) $me->unit_id) abort(403);
 
         $task->loadMissing('period');
-        AssessmentPeriodGuard::requireActive($task->period, 'Ubah Tugas Tambahan');
+        AssessmentPeriodGuard::requireActiveOrRevision($task->period, 'Ubah Tugas Tambahan');
 
         $data = $request->validated();
 
         $targetPeriod = AssessmentPeriod::query()->find((int) $data['assessment_period_id']);
-        AssessmentPeriodGuard::requireActive($targetPeriod, 'Ubah Tugas Tambahan');
+        AssessmentPeriodGuard::requireActiveOrRevision($targetPeriod, 'Ubah Tugas Tambahan');
 
         $tz = config('app.timezone');
         $dueTime = $data['due_time'] ?? ($task->due_time ? substr((string) $task->due_time, 0, 5) : '23:59');
@@ -226,6 +241,12 @@ class AdditionalTaskController extends Controller
             'max_claims' => $data['max_claims'] ?? 1,
         ]);
         $task->refreshLifecycleStatus();
+
+        if ($task->period && (string) ($task->period->status ?? '') === AssessmentPeriod::STATUS_REVISION) {
+            AssessmentPeriodAudit::log((int) $task->period->id, (int) $me->id, 'revision_additional_task_updated', null, [
+                'task_id' => (int) $task->id,
+            ]);
+        }
 
         return redirect()->route('kepala_unit.additional-tasks.index')->with('status', 'Tugas diperbarui.');
     }
@@ -243,9 +264,15 @@ class AdditionalTaskController extends Controller
         }
 
         $task->loadMissing('period');
-        AssessmentPeriodGuard::requireActive($task->period, 'Hapus Tugas Tambahan');
+        AssessmentPeriodGuard::requireActiveOrRevision($task->period, 'Hapus Tugas Tambahan');
 
         $task->delete();
+
+        if ($task->period && (string) ($task->period->status ?? '') === AssessmentPeriod::STATUS_REVISION) {
+            AssessmentPeriodAudit::log((int) $task->period->id, (int) $me->id, 'revision_additional_task_deleted', null, [
+                'task_id' => (int) $task->id,
+            ]);
+        }
 
         return back()->with('status', 'Tugas dihapus.');
     }
@@ -269,7 +296,7 @@ class AdditionalTaskController extends Controller
         if ((int) $task->unit_id !== (int) $me->unit_id) abort(403);
 
         $task->loadMissing('period');
-        AssessmentPeriodGuard::requireActive($task->period, 'Ubah Status Tugas Tambahan');
+        AssessmentPeriodGuard::requireActiveOrRevision($task->period, 'Ubah Status Tugas Tambahan');
 
         $current = $task->status;
         $tz = config('app.timezone');
@@ -299,6 +326,13 @@ class AdditionalTaskController extends Controller
         $task->update(['status' => $status]);
         if ($status === 'open') {
             $task->refreshLifecycleStatus();
+        }
+
+        if ($task->period && (string) ($task->period->status ?? '') === AssessmentPeriod::STATUS_REVISION) {
+            AssessmentPeriodAudit::log((int) $task->period->id, (int) $me->id, 'revision_additional_task_status_changed', null, [
+                'task_id' => (int) $task->id,
+                'status' => $status,
+            ]);
         }
 
         return back()->with('status', 'Status tugas diubah menjadi ' . $status . '.');

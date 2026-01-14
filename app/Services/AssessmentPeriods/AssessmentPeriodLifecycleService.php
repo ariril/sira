@@ -38,6 +38,7 @@ class AssessmentPeriodLifecycleService
         $frozenStatuses = [
             AssessmentPeriod::STATUS_LOCKED,
             AssessmentPeriod::STATUS_APPROVAL,
+            AssessmentPeriod::STATUS_REVISION,
             AssessmentPeriod::STATUS_CLOSED,
             AssessmentPeriod::STATUS_ARCHIVED,
         ];

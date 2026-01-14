@@ -48,6 +48,8 @@
 
     @include('partials.global-notification')
 
+    @include('partials.period_state_banner', ['period' => $periodStateBannerPeriod ?? null])
+
     {{-- Konten utama --}}
     <main class="py-6 flex-1"> {{-- flex-1 pushes footer to bottom when content is short --}}
         @hasSection('content')

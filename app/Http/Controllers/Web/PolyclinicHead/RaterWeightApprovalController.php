@@ -8,6 +8,7 @@ use App\Models\AssessmentPeriod;
 use App\Models\PerformanceCriteria;
 use App\Models\Profession;
 use App\Models\RaterWeight;
+use App\Support\AssessmentPeriodGuard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -136,6 +137,9 @@ class RaterWeightApprovalController extends Controller
     {
         abort_unless($raterWeight->status === RaterWeightStatus::PENDING, 403);
 
+        $period = AssessmentPeriod::query()->find((int) ($raterWeight->assessment_period_id ?? 0));
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Approve Bobot Penilai 360');
+
         DB::transaction(function () use ($raterWeight) {
             $this->archiveActiveFor($raterWeight);
 
@@ -176,6 +180,12 @@ class RaterWeightApprovalController extends Controller
             return back()->with('status', 'Tidak ada bobot pending untuk disetujui pada unit ini.');
         }
 
+        $periodIds = $pendingItems->pluck('assessment_period_id')->filter()->unique()->values();
+        foreach ($periodIds as $pid) {
+            $period = AssessmentPeriod::query()->find((int) $pid);
+            AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Approve Bobot Penilai 360');
+        }
+
         DB::transaction(function () use ($pendingItems) {
             foreach ($pendingItems as $item) {
                 $this->archiveActiveFor($item);
@@ -194,6 +204,9 @@ class RaterWeightApprovalController extends Controller
     public function reject(Request $request, RaterWeight $raterWeight): RedirectResponse
     {
         abort_unless($raterWeight->status === RaterWeightStatus::PENDING, 403);
+
+        $period = AssessmentPeriod::query()->find((int) ($raterWeight->assessment_period_id ?? 0));
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Reject Bobot Penilai 360');
 
         $data = $request->validate([
             'comment' => ['required', 'string', 'max:1000'],
@@ -235,6 +248,12 @@ class RaterWeightApprovalController extends Controller
 
         if ($count === 0) {
             return back()->with('status', 'Tidak ada bobot pending untuk ditolak pada unit ini.');
+        }
+
+        $periodIds = (clone $pendingQuery)->select('assessment_period_id')->distinct()->pluck('assessment_period_id')->filter()->values();
+        foreach ($periodIds as $pid) {
+            $period = AssessmentPeriod::query()->find((int) $pid);
+            AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Reject Bobot Penilai 360');
         }
 
         DB::transaction(function () use ($pendingQuery, $data) {

@@ -27,6 +27,20 @@ class MultiRaterSubmissionController extends Controller
         $window = Assessment360Window::where('is_active', true)
             ->whereDate('end_date', '>=', now()->toDateString())
             ->orderByDesc('end_date')->first();
+
+        if (!$window) {
+            $revisionPeriod = AssessmentPeriod::query()
+                ->where('status', AssessmentPeriod::STATUS_REVISION)
+                ->orderByDesc('start_date')
+                ->first();
+
+            if ($revisionPeriod) {
+                $window = Assessment360Window::query()
+                    ->where('assessment_period_id', (int) $revisionPeriod->id)
+                    ->orderByDesc('end_date')
+                    ->first();
+            }
+        }
         if ($window) {
             $window->loadMissing('period');
         }
@@ -50,7 +64,13 @@ class MultiRaterSubmissionController extends Controller
                 $windowIsActive = now()->between($windowStartsAt, $windowEndsAt, true);
             }
             $activePeriod = $window->period;
-            $canSubmit = $windowIsActive && ($activePeriod?->status === AssessmentPeriod::STATUS_ACTIVE);
+            $periodStatus = (string) ($activePeriod?->status ?? '');
+            if ($periodStatus === AssessmentPeriod::STATUS_REVISION) {
+                $canSubmit = true;
+                $windowIsActive = true;
+            } else {
+                $canSubmit = $windowIsActive && $periodStatus === AssessmentPeriod::STATUS_ACTIVE;
+            }
             $assessments = MultiRaterAssessment::where('assessor_id', Auth::id())
                 ->where('assessment_period_id', $window->assessment_period_id)
                 ->whereIn('status', ['invited','in_progress'])
@@ -181,15 +201,24 @@ class MultiRaterSubmissionController extends Controller
     {
         abort_unless($assessment->assessor_id === Auth::id(), 403);
         $period = AssessmentPeriod::query()->find((int) $assessment->assessment_period_id);
-        $window = Assessment360Window::where('assessment_period_id', $assessment->assessment_period_id)
-            ->where('is_active', true)
-            ->whereDate('end_date', '>=', now()->toDateString())
-            ->first();
-        if (!$window) return redirect()->route('kepala_poliklinik.multi_rater.index')->with('error','Penilaian 360 belum dibuka.');
+
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Penilaian 360');
+
+        $windowQuery = Assessment360Window::where('assessment_period_id', $assessment->assessment_period_id)->orderByDesc('id');
+        if ((string) ($period?->status ?? '') === AssessmentPeriod::STATUS_ACTIVE) {
+            $windowQuery->where('is_active', true)->whereDate('end_date', '>=', now()->toDateString());
+        }
+        $window = $windowQuery->first();
+        if (!$window) {
+            return redirect()->route('kepala_poliklinik.multi_rater.index')->with('error','Penilaian 360 belum dibuka.');
+        }
+
         $windowStartsAt = optional($window->start_date)?->copy()->startOfDay();
         $windowEndsAt = optional($window->end_date)?->copy()->endOfDay();
         $windowIsActive = $windowStartsAt && $windowEndsAt ? now()->between($windowStartsAt, $windowEndsAt, true) : false;
-        $canSubmit = $windowIsActive && ($period?->status === AssessmentPeriod::STATUS_ACTIVE);
+        $canSubmit = ((string) ($period?->status ?? '') === AssessmentPeriod::STATUS_ACTIVE)
+            ? ($windowIsActive && (bool) ($window->is_active ?? false))
+            : ((string) ($period?->status ?? '') === AssessmentPeriod::STATUS_REVISION);
         $criterias = PerformanceCriteria::where('is_360', true)->where('is_active', true)->get();
         $details = $assessment->details()->get()->keyBy('performance_criteria_id');
         return view('kepala_poli.multi_rater.show', compact('assessment','criterias','details','window','canSubmit'));
@@ -199,7 +228,26 @@ class MultiRaterSubmissionController extends Controller
     {
         abort_unless($assessment->assessor_id === Auth::id(), 403);
         $period = AssessmentPeriod::query()->find((int) $assessment->assessment_period_id);
-        AssessmentPeriodGuard::requireActive($period, 'Penilaian 360');
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Penilaian 360');
+        AssessmentPeriodGuard::requireActiveOrRevision($period, 'Penilaian 360');
+
+        if ($period && (string) ($period->status ?? '') === AssessmentPeriod::STATUS_ACTIVE) {
+            $window = Assessment360Window::query()
+                ->where('assessment_period_id', (int) $period->id)
+                ->where('is_active', true)
+                ->whereDate('end_date', '>=', now()->toDateString())
+                ->orderByDesc('end_date')
+                ->first();
+
+            $windowStartsAt = optional($window?->start_date)?->copy()->startOfDay();
+            $windowEndsAt = optional($window?->end_date)?->copy()->endOfDay();
+            $windowIsActive = $windowStartsAt && $windowEndsAt ? now()->between($windowStartsAt, $windowEndsAt, true) : false;
+
+            if (!$window || !$windowIsActive) {
+                return back()->with('error', 'Penilaian 360 tidak dapat disubmit: window penilaian tidak aktif.');
+            }
+        }
+
         $payload = $request->validate([
             'scores' => 'required|array',
             'scores.*' => 'nullable|numeric|min:0|max:100',

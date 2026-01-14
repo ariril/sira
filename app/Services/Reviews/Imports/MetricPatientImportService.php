@@ -11,7 +11,9 @@ use App\Services\Imports\EmployeeNumberNormalizer;
 use App\Services\Imports\TabularFileReader;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use App\Support\AssessmentPeriodAudit;
 
 class MetricPatientImportService
 {
@@ -33,9 +35,14 @@ class MetricPatientImportService
         bool $replaceExisting = false,
         int $expiresDays = 7,
     ): array {
-        if (($period->status ?? null) !== AssessmentPeriod::STATUS_LOCKED) {
-            $status = strtoupper((string) ($period->status ?? '-'));
-            throw new \RuntimeException("Import metrics hanya dapat dilakukan ketika periode LOCKED. Status periode saat ini: {$status}.");
+        $periodStatus = (string) ($period->status ?? '');
+        if (!in_array($periodStatus, [AssessmentPeriod::STATUS_LOCKED, AssessmentPeriod::STATUS_REVISION], true)) {
+            $status = strtoupper($periodStatus !== '' ? $periodStatus : '-');
+            throw new \RuntimeException("Import metrics hanya dapat dilakukan ketika periode LOCKED atau REVISION. Status periode saat ini: {$status}.");
+        }
+
+        if (method_exists($period, 'isRejectedApproval') && $period->isRejectedApproval()) {
+            throw new \RuntimeException('Import metrics tidak dapat dilakukan: periode sedang DITOLAK (approval rejected).');
         }
 
         if (($criteria->input_method ?? null) !== 'import') {
@@ -46,26 +53,70 @@ class MetricPatientImportService
             throw new \RuntimeException('Import ini hanya untuk kriteria dengan source=metric_import.');
         }
 
-        $batch = MetricImportBatch::create([
+        $supportsSoftHistory = Schema::hasColumn('imported_criteria_values', 'is_active')
+            && Schema::hasColumn('metric_import_batches', 'is_superseded');
+
+        $prevActiveBatchId = null;
+        if ($supportsSoftHistory) {
+            $prevActiveBatchId = (int) (MetricImportBatch::query()
+                ->where('assessment_period_id', (int) $period->id)
+                ->where('is_superseded', false)
+                ->orderByDesc('id')
+                ->value('id') ?? 0);
+            if ($prevActiveBatchId > 0) {
+                // Free unique(active_period_key) for the new batch.
+                MetricImportBatch::query()
+                    ->where('id', $prevActiveBatchId)
+                    ->update(['is_superseded' => true]);
+
+                AssessmentPeriodAudit::log(
+                    (int) $period->id,
+                    $importedBy,
+                    'metric_import_superseded',
+                    'Supersede previous batch',
+                    ['previous_batch_id' => $prevActiveBatchId]
+                );
+            }
+        }
+
+        $batch = MetricImportBatch::create(array_filter([
             'file_name' => $file->getClientOriginalName(),
             'assessment_period_id' => $period->id,
             'imported_by' => $importedBy,
             'status' => 'pending',
-        ]);
+            'previous_batch_id' => ($supportsSoftHistory && $prevActiveBatchId > 0) ? $prevActiveBatchId : null,
+        ], fn($v) => $v !== null));
 
         try {
-            return DB::transaction(function () use ($file, $criteria, $period, $batch, $replaceExisting) {
+            return DB::transaction(function () use ($file, $criteria, $period, $batch, $replaceExisting, $importedBy, $prevActiveBatchId, $supportsSoftHistory) {
+                $supportsSoftHistory = Schema::hasColumn('imported_criteria_values', 'is_active');
+
                 if (!$replaceExisting) {
-                    $exists = CriteriaMetric::query()
+                    $qExists = CriteriaMetric::query()
                         ->where('assessment_period_id', $period->id)
-                        ->where('performance_criteria_id', $criteria->id)
-                        ->exists();
-                    if ($exists) {
+                        ->where('performance_criteria_id', $criteria->id);
+                    if ($supportsSoftHistory) {
+                        $qExists->where('is_active', true);
+                    }
+                    if ($qExists->exists()) {
                         throw new \RuntimeException('Data untuk periode dan kriteria ini sudah ada. Centang "Timpa" untuk mengganti.');
                     }
                 }
 
-                if ($replaceExisting) {
+                if ($replaceExisting && $supportsSoftHistory) {
+                    CriteriaMetric::query()
+                        ->where('assessment_period_id', $period->id)
+                        ->where('performance_criteria_id', $criteria->id)
+                        ->where('is_active', true)
+                        ->update([
+                            'is_active' => false,
+                            'superseded_at' => now(),
+                            'superseded_by_batch_id' => (int) $batch->id,
+                            'updated_at' => now(),
+                        ]);
+                }
+
+                if ($replaceExisting && !$supportsSoftHistory) {
                     CriteriaMetric::query()
                         ->where('assessment_period_id', $period->id)
                         ->where('performance_criteria_id', $criteria->id)
@@ -159,7 +210,7 @@ class MetricPatientImportService
                         continue;
                     }
 
-                    $valueRowsByUserId[$user->id] = [
+                    $rowPayload = [
                         'import_batch_id' => $batch->id,
                         'user_id' => (int) $user->id,
                         'assessment_period_id' => $period->id,
@@ -170,18 +221,45 @@ class MetricPatientImportService
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];
+
+                    if ($supportsSoftHistory) {
+                        $rowPayload['is_active'] = true;
+                    }
+
+                    $valueRowsByUserId[$user->id] = $rowPayload;
                 }
 
                 $valueRows = array_values($valueRowsByUserId);
                 if ($valueRows) {
-                    DB::table('imported_criteria_values')->upsert(
-                        $valueRows,
-                        ['user_id', 'assessment_period_id', 'performance_criteria_id'],
-                        ['import_batch_id', 'value_numeric', 'value_datetime', 'value_text', 'updated_at']
-                    );
+                    if (Schema::hasColumn('imported_criteria_values', 'is_active')) {
+                        // Insert new active rows; old active rows (if any) were deactivated above.
+                        DB::table('imported_criteria_values')->insert($valueRows);
+                    } else {
+                        DB::table('imported_criteria_values')->upsert(
+                            $valueRows,
+                            ['user_id', 'assessment_period_id', 'performance_criteria_id'],
+                            ['import_batch_id', 'value_numeric', 'value_datetime', 'value_text', 'updated_at']
+                        );
+                    }
                 }
 
                 $batch->update(['status' => 'processed']);
+
+                AssessmentPeriodAudit::log(
+                    (int) $period->id,
+                    $importedBy,
+                    'metric_import_completed',
+                    $replaceExisting ? 'Replace existing metrics' : null,
+                    [
+                        'batch_id' => (int) $batch->id,
+                        'criteria_id' => (int) $criteria->id,
+                        'criteria_name' => (string) ($criteria->name ?? ''),
+                        'file_name' => (string) ($file->getClientOriginalName() ?? ''),
+                        'replace_existing' => (bool) $replaceExisting,
+                        'soft_history' => (bool) $supportsSoftHistory,
+                        'previous_batch_id' => ($supportsSoftHistory && $prevActiveBatchId && $prevActiveBatchId > 0) ? (int) $prevActiveBatchId : null,
+                    ]
+                );
 
                 return [
                     'batch_id' => $batch->id,
@@ -206,6 +284,20 @@ class MetricPatientImportService
             });
         } catch (\Throwable $e) {
             $batch->update(['status' => 'failed']);
+
+            AssessmentPeriodAudit::log(
+                (int) $period->id,
+                $importedBy,
+                'metric_import_failed',
+                $e->getMessage(),
+                [
+                    'batch_id' => (int) $batch->id,
+                    'criteria_id' => (int) $criteria->id,
+                    'criteria_name' => (string) ($criteria->name ?? ''),
+                    'file_name' => (string) ($file->getClientOriginalName() ?? ''),
+                ]
+            );
+
             throw $e;
         }
     }

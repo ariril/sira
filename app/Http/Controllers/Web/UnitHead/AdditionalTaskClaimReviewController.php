@@ -47,7 +47,7 @@ class AdditionalTaskClaimReviewController extends Controller
         if ($claim->task?->unit_id !== $me->unit_id) abort(403);
 
         $claim->loadMissing('task.period');
-        AssessmentPeriodGuard::requireActive($claim->task?->period, 'Review Klaim Tugas Tambahan');
+        AssessmentPeriodGuard::requireActiveOrRevision($claim->task?->period, 'Review Klaim Tugas Tambahan');
 
         $action = (string) ($request->validated()['action'] ?? '');
         $comment = $request->validated()['comment'] ?? null;

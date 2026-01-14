@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Unit;
 use App\Enums\AttendanceStatus;
+use App\Models\AssessmentPeriod;
+use App\Support\AssessmentPeriodGuard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -66,6 +68,8 @@ class AttendanceController extends Controller
 
     public function update(Request $request, Attendance $attendance): RedirectResponse
     {
+        $this->forbidIfAffectsRejectedApprovalPeriod($attendance);
+
         $data = $request->validate([
             'attendance_status' => ['required','string'],
             'overtime_note'     => ['nullable','string','max:255'],
@@ -78,7 +82,33 @@ class AttendanceController extends Controller
 
     public function destroy(Attendance $attendance): RedirectResponse
     {
+        $this->forbidIfAffectsRejectedApprovalPeriod($attendance);
+
         $attendance->delete();
         return back()->with('status','Data absensi dihapus.');
+    }
+
+    private function forbidIfAffectsRejectedApprovalPeriod(Attendance $attendance): void
+    {
+        $date = $attendance->attendance_date;
+        if (!$date) {
+            return;
+        }
+
+        $dateString = (is_object($date) && method_exists($date, 'format'))
+            ? $date->format('Y-m-d')
+            : (string) $date;
+
+        $period = AssessmentPeriod::query()
+            ->where('status', AssessmentPeriod::STATUS_APPROVAL)
+            ->whereNotNull('rejected_at')
+            ->whereDate('start_date', '<=', $dateString)
+            ->whereDate('end_date', '>=', $dateString)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($period) {
+            AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ubah Data Absensi');
+        }
     }
 }

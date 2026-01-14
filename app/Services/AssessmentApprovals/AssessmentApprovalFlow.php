@@ -16,8 +16,11 @@ class AssessmentApprovalFlow
         if ($nextLevel > 3) { return; }
 
         $assessmentId = $current->performance_assessment_id;
+        $attempt = (int) ($current->attempt ?? 1);
         if (AssessmentApproval::where('performance_assessment_id', $assessmentId)
+                ->where('attempt', $attempt)
                 ->where('level', $nextLevel)
+                ->whereNull('invalidated_at')
                 ->exists()) {
             return;
         }
@@ -32,17 +35,26 @@ class AssessmentApprovalFlow
             'performance_assessment_id' => $assessmentId,
             'approver_id' => $approverId, // boleh null
             'level' => $nextLevel,
+            'attempt' => $attempt,
             'status' => AssessmentApprovalStatus::PENDING->value,
             'note' => null,
             'acted_at' => null,
         ]);
     }
 
-    public static function removeFutureLevels(AssessmentApproval $current): void
+    public static function invalidateFutureLevels(AssessmentApproval $current, ?int $actorId = null, ?string $reason = null): void
     {
+        $attempt = (int) ($current->attempt ?? 1);
+
         AssessmentApproval::where('performance_assessment_id', $current->performance_assessment_id)
+            ->where('attempt', $attempt)
             ->where('level', '>', (int) $current->level)
-            ->delete();
+            ->whereNull('invalidated_at')
+            ->update([
+                'invalidated_at' => now(),
+                'invalidated_by_id' => $actorId,
+                'invalidated_reason' => $reason,
+            ]);
     }
 
     protected static function resolveApproverId(int $level, PerformanceAssessment $assessment): ?int

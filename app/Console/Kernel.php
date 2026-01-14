@@ -26,6 +26,8 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\ActivateUnitCriteriaWeightsForPeriod::class,
         \App\Console\Commands\BackfillHolidayAttendanceStatus::class,
         \App\Console\Commands\DebugRemunerationPeriod::class,
+        \App\Console\Commands\DebugAssessmentPeriodState::class,
+        \App\Console\Commands\DebugAssessmentPeriodApprovals::class,
     ];
 
     protected function schedule(Schedule $schedule): void

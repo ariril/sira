@@ -39,6 +39,7 @@ class CriteriaMetricsController extends Controller
         $latestLockedPeriod = AssessmentPeriodGuard::resolveLatestLocked();
 
         $items = CriteriaMetric::query()
+            ->when(Schema::hasColumn('imported_criteria_values', 'is_active'), fn($w) => $w->where('is_active', true))
             ->when($periodId, fn($w) => $w->where('assessment_period_id', $periodId))
             ->when($criteriaId, fn($w) => $w->where('performance_criteria_id', $criteriaId))
             ->when($q !== '', function ($w) use ($q) {
@@ -58,7 +59,7 @@ class CriteriaMetricsController extends Controller
 
         $periods = AssessmentPeriod::orderByDesc('start_date')->pluck('name','id');
         $importPeriods = AssessmentPeriod::query()
-            ->where('status', AssessmentPeriod::STATUS_LOCKED)
+            ->whereIn('status', [AssessmentPeriod::STATUS_LOCKED, AssessmentPeriod::STATUS_REVISION])
             ->orderByDesc('start_date')
             ->pluck('name', 'id');
 
@@ -127,7 +128,7 @@ class CriteriaMetricsController extends Controller
         }
 
         $targetPeriod = AssessmentPeriod::query()->findOrFail((int) $validated['period_id']);
-        AssessmentPeriodGuard::requireLocked($targetPeriod, 'Import Metrics');
+        AssessmentPeriodGuard::requireLockedOrRevision($targetPeriod, 'Import Metrics');
 
         try {
             $result = $this->metricPatientImportService->import(
@@ -214,7 +215,7 @@ class CriteriaMetricsController extends Controller
             return back()->withErrors(['performance_criteria_id' => 'Template ini hanya tersedia untuk kriteria dengan source=metric_import.']);
         }
         $period = AssessmentPeriod::findOrFail((int) $data['period_id']);
-        AssessmentPeriodGuard::requireLocked($period, 'Generate Template Metrics');
+        AssessmentPeriodGuard::requireLockedOrRevision($period, 'Generate Template Metrics');
 
         $built = $this->criteriaMetricsTemplateBuilder->build($criteria, $period);
         return response()->download($built['tmpPath'], $built['fileName'])->deleteFileAfterSend(true);

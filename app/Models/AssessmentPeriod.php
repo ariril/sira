@@ -21,6 +21,14 @@ class AssessmentPeriod extends Model
         'locked_at',
         'closed_at',
         'notes',
+        'rejected_level',
+        'rejected_by_id',
+        'rejected_at',
+        'rejected_reason',
+        'revision_opened_by_id',
+        'revision_opened_at',
+        'revision_opened_reason',
+        'approval_attempt',
     ];
 
     protected $casts = [
@@ -28,6 +36,8 @@ class AssessmentPeriod extends Model
         'end_date'   => 'date',
         'locked_at'  => 'datetime',
         'closed_at'  => 'datetime',
+        'rejected_at' => 'datetime',
+        'revision_opened_at' => 'datetime',
     ];
 
     /*
@@ -52,6 +62,7 @@ class AssessmentPeriod extends Model
     */
     public const STATUS_DRAFT   = 'draft';
     public const STATUS_ACTIVE  = 'active';
+    public const STATUS_REVISION = 'revision';
     public const STATUS_LOCKED  = 'locked';
     public const STATUS_APPROVAL = 'approval';
     public const STATUS_CLOSED  = 'closed';
@@ -64,6 +75,7 @@ class AssessmentPeriod extends Model
     public const STATUSES = [
         self::STATUS_DRAFT,
         self::STATUS_ACTIVE,
+        self::STATUS_REVISION,
         self::STATUS_LOCKED,
         self::STATUS_APPROVAL,
         self::STATUS_CLOSED,
@@ -71,6 +83,7 @@ class AssessmentPeriod extends Model
 
     public const NON_DELETABLE_STATUSES = [
         self::STATUS_ACTIVE,
+        self::STATUS_REVISION,
         self::STATUS_LOCKED,
         self::STATUS_APPROVAL,
         self::STATUS_CLOSED,
@@ -81,10 +94,26 @@ class AssessmentPeriod extends Model
         return [
             self::STATUS_DRAFT => 'Draft',
             self::STATUS_ACTIVE => 'Aktif',
+            self::STATUS_REVISION => 'Revisi',
             self::STATUS_LOCKED => 'Dikunci',
             self::STATUS_APPROVAL => 'Persetujuan',
             self::STATUS_CLOSED => 'Ditutup',
         ];
+    }
+
+    public function isRejectedApproval(): bool
+    {
+        return (string) ($this->status ?? '') === self::STATUS_APPROVAL && $this->rejected_at !== null;
+    }
+
+    public function isInRevision(): bool
+    {
+        return (string) ($this->status ?? '') === self::STATUS_REVISION;
+    }
+
+    public function currentApprovalAttempt(): int
+    {
+        return (int) ($this->approval_attempt ?? 1);
     }
 
     public static function statusLabel(string $status): string
@@ -128,6 +157,7 @@ class AssessmentPeriod extends Model
         return in_array($status, [
             self::STATUS_LOCKED,
             self::STATUS_APPROVAL,
+            self::STATUS_REVISION,
             self::STATUS_CLOSED,
             self::STATUS_ARCHIVED,
         ], true);
@@ -145,7 +175,7 @@ class AssessmentPeriod extends Model
     public static function syncByNow(): void
     {
         $today = Carbon::today()->toDateString();
-        $protected = [self::STATUS_LOCKED, self::STATUS_APPROVAL, self::STATUS_CLOSED];
+        $protected = [self::STATUS_LOCKED, self::STATUS_APPROVAL, self::STATUS_REVISION, self::STATUS_CLOSED];
 
         // Auto-lock past periods that are not yet locked/approval/closed
         $toLock = self::query()

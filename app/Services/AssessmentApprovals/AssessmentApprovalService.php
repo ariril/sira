@@ -5,16 +5,29 @@ namespace App\Services\AssessmentApprovals;
 use App\Enums\AssessmentApprovalStatus;
 use App\Enums\AssessmentValidationStatus;
 use App\Models\AssessmentApproval;
+use App\Models\AssessmentPeriod;
 use App\Models\PerformanceAssessment;
 use App\Models\User;
+use App\Services\AssessmentPeriods\AssessmentPeriodRevisionService;
 use Illuminate\Support\Facades\DB;
 
 class AssessmentApprovalService
 {
+    public function __construct(
+        private readonly AssessmentPeriodRevisionService $periodRevisionService,
+    ) {
+    }
+
     public function approve(AssessmentApproval $approval, User $actor, ?string $note = null): void
     {
         DB::transaction(function () use ($approval, $actor, $note) {
             $approval->refresh();
+
+            $assessment = $approval->performanceAssessment()->with('assessmentPeriod')->firstOrFail();
+            $period = $assessment->assessmentPeriod;
+
+            $this->assertPeriodAllowsApprovalActions($period);
+            $this->assertApprovalIsCurrentAttempt($approval, $period);
 
             $this->assertActorCanActOnApproval($approval, $actor);
             $this->assertPending($approval);
@@ -37,6 +50,12 @@ class AssessmentApprovalService
         DB::transaction(function () use ($approval, $actor, $note) {
             $approval->refresh();
 
+            $assessment = $approval->performanceAssessment()->with('assessmentPeriod')->firstOrFail();
+            $period = $assessment->assessmentPeriod;
+
+            $this->assertPeriodAllowsApprovalActions($period);
+            $this->assertApprovalIsCurrentAttempt($approval, $period);
+
             $note = trim($note);
             if ($note === '') {
                 throw new \RuntimeException('Catatan penolakan wajib diisi.');
@@ -52,9 +71,19 @@ class AssessmentApprovalService
                 'acted_at' => now(),
             ]);
 
-            AssessmentApprovalFlow::removeFutureLevels($approval);
+            AssessmentApprovalFlow::invalidateFutureLevels($approval, (int) $actor->id, 'Penolakan pada level ' . (int) ($approval->level ?? 0));
 
             $this->syncAssessmentValidationStatus($approval->performanceAssessment()->firstOrFail());
+
+            // Period-level rejected state (status tetap approval; rejected_* metadata diisi)
+            if ($period && (string) ($period->status ?? '') === AssessmentPeriod::STATUS_APPROVAL) {
+                $this->periodRevisionService->markRejectedFromApproval(
+                    $period,
+                    $actor,
+                    (int) ($approval->level ?? 0),
+                    $note
+                );
+            }
         });
     }
 
@@ -67,8 +96,20 @@ class AssessmentApprovalService
 
             $assessment = $anyApprovalForAssessment->performanceAssessment()->firstOrFail();
 
+            // NOTE: New workflow uses period-level revision/resubmit.
+            // Keep this method for legacy manual resets, but disallow when period is in rejected-approval/revision.
+            $period = $assessment->assessmentPeriod()->first();
+            if ($period && (method_exists($period, 'isRejectedApproval') && $period->isRejectedApproval())) {
+                throw new \RuntimeException('Tidak dapat ajukan ulang individual: periode sedang DITOLAK. Gunakan Open Revision + Resubmit periode.');
+            }
+            if ($period && (string) ($period->status ?? '') === AssessmentPeriod::STATUS_REVISION) {
+                throw new \RuntimeException('Tidak dapat ajukan ulang individual ketika periode sedang revision.');
+            }
+
             $approvals = AssessmentApproval::query()
                 ->where('performance_assessment_id', $assessment->id)
+                ->where('attempt', (int) ($period?->approval_attempt ?? 1))
+                ->whereNull('invalidated_at')
                 ->orderBy('level')
                 ->get();
 
@@ -88,6 +129,8 @@ class AssessmentApprovalService
             AssessmentApproval::query()
                 ->where('performance_assessment_id', $assessment->id)
                 ->where('level', '>=', $resetFromLevel)
+                ->where('attempt', (int) ($period?->approval_attempt ?? 1))
+                ->whereNull('invalidated_at')
                 ->update([
                     'status' => AssessmentApprovalStatus::PENDING->value,
                     'note' => null,
@@ -100,8 +143,13 @@ class AssessmentApprovalService
 
     public function syncAssessmentValidationStatus(PerformanceAssessment $assessment): void
     {
+        $period = $assessment->assessmentPeriod()->first();
+        $attempt = (int) ($period?->approval_attempt ?? 1);
+
         $approvals = AssessmentApproval::query()
             ->where('performance_assessment_id', $assessment->id)
+            ->where('attempt', $attempt)
+            ->whereNull('invalidated_at')
             ->get(['level', 'status']);
 
         $hasRejected = $approvals->contains(fn ($a) => $a->status === AssessmentApprovalStatus::REJECTED);
@@ -126,6 +174,34 @@ class AssessmentApprovalService
         }
 
         $assessment->update(['validation_status' => AssessmentValidationStatus::PENDING->value]);
+    }
+
+    private function assertPeriodAllowsApprovalActions(?AssessmentPeriod $period): void
+    {
+        if (!$period) {
+            throw new \RuntimeException('Periode penilaian tidak ditemukan.');
+        }
+
+        if ((string) ($period->status ?? '') !== AssessmentPeriod::STATUS_APPROVAL) {
+            $status = strtoupper((string) ($period->status ?? '-'));
+            throw new \RuntimeException("Approval hanya dapat diproses saat status periode = APPROVAL. Status periode saat ini: {$status}.");
+        }
+
+        if (method_exists($period, 'isRejectedApproval') && $period->isRejectedApproval()) {
+            throw new \RuntimeException('Periode sedang DITOLAK. Semua modul bersifat read-only sampai Admin RS membuka revisi.');
+        }
+    }
+
+    private function assertApprovalIsCurrentAttempt(AssessmentApproval $approval, AssessmentPeriod $period): void
+    {
+        $currentAttempt = (int) ($period->approval_attempt ?? 1);
+        $approvalAttempt = (int) ($approval->attempt ?? 1);
+        if ($approvalAttempt !== $currentAttempt) {
+            throw new \RuntimeException('Approval ini bukan attempt yang aktif untuk periode ini.');
+        }
+        if ($approval->invalidated_at !== null) {
+            throw new \RuntimeException('Approval ini sudah tidak berlaku (invalidated).');
+        }
     }
 
     public function assertCanViewPerformanceAssessment(User $actor, PerformanceAssessment $assessment): void
@@ -231,9 +307,13 @@ class AssessmentApprovalService
             return;
         }
 
+        $attempt = (int) ($approval->attempt ?? 1);
+
         $requiredLevels = range(1, $level - 1);
         $approvedLevels = AssessmentApproval::query()
             ->where('performance_assessment_id', $approval->performance_assessment_id)
+            ->where('attempt', $attempt)
+            ->whereNull('invalidated_at')
             ->whereIn('level', $requiredLevels)
             ->where('status', AssessmentApprovalStatus::APPROVED->value)
             ->pluck('level')

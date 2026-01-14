@@ -9,7 +9,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\{DB, Log, View, Cache, Schema, Blade, Event};
-use App\Models\{Profession, SiteSetting, AboutPage};
+use App\Models\{Profession, SiteSetting, AboutPage, AssessmentPeriod};
 use App\Listeners\LogMailMessageSent;
 use App\Support\Mail\LastMailSendStore;
 
@@ -156,6 +156,41 @@ class AppServiceProvider extends ServiceProvider
 
             $view->with('site', $site);
             $view->with('profilPages', $profilPages);
+        });
+
+        // Global banner for period state (REVISION or APPROVAL+REJECTED)
+        View::composer(['layouts.app', 'partials.*'], function ($view) {
+            $period = null;
+
+            try {
+                if (Schema::hasTable('assessment_periods') && Schema::hasColumn('assessment_periods', 'status')) {
+                    $period = Cache::remember('ui.period_state_banner', 30, function () {
+                        // Prefer REVISION if present.
+                        $revision = AssessmentPeriod::query()
+                            ->where('status', AssessmentPeriod::STATUS_REVISION)
+                            ->orderByDesc('start_date')
+                            ->first();
+                        if ($revision) {
+                            return $revision;
+                        }
+
+                        // Next, show APPROVAL period that is marked rejected (metadata).
+                        if (!Schema::hasColumn('assessment_periods', 'rejected_at')) {
+                            return null;
+                        }
+
+                        return AssessmentPeriod::query()
+                            ->where('status', AssessmentPeriod::STATUS_APPROVAL)
+                            ->whereNotNull('rejected_at')
+                            ->orderByDesc('start_date')
+                            ->first();
+                    });
+                }
+            } catch (\Throwable $e) {
+                $period = null;
+            }
+
+            $view->with('periodStateBannerPeriod', $period);
         });
     }
 

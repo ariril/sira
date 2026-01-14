@@ -23,6 +23,7 @@ use App\Services\Attendances\Imports\AttendanceImportTemplateBuilder;
 use App\Models\AssessmentPeriod;
 use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use App\Support\AssessmentPeriodGuard;
+use App\Support\AssessmentPeriodAudit;
 
 class AttendanceImportController extends Controller
 {
@@ -79,11 +80,11 @@ class AttendanceImportController extends Controller
             }
 
             $period = AssessmentPeriodGuard::resolveById((int) $periodId);
-            if (!$period || $period->status !== AssessmentPeriod::STATUS_LOCKED) {
+            if (!$period || !in_array((string) $period->status, [AssessmentPeriod::STATUS_LOCKED, AssessmentPeriod::STATUS_REVISION], true)) {
                 $status = $period ? strtoupper((string) $period->status) : '-';
                 return response()->json([
                     'ok' => false,
-                    'message' => "Import absensi hanya dapat dilakukan untuk periode LOCKED. Periode file: {$periodText} (status: {$status}).",
+                    'message' => "Import absensi hanya dapat dilakukan untuk periode LOCKED atau REVISION. Periode file: {$periodText} (status: {$status}).",
                 ], 422);
             }
 
@@ -172,6 +173,8 @@ class AttendanceImportController extends Controller
 
         $batch = null;
         $importPeriodId = null;
+        $importPeriod = null;
+        $prevActiveBatchId = null;
         $success = 0; $failed = 0; $total = 0;
         $reasonCounts = [
             'no_user'   => 0,
@@ -197,10 +200,11 @@ class AttendanceImportController extends Controller
             $importPeriodId = (int) $periodId;
 
             $period = AssessmentPeriodGuard::resolveById((int) $periodId);
-            if (!$period || $period->status !== AssessmentPeriod::STATUS_LOCKED) {
+            if (!$period || !in_array((string) $period->status, [AssessmentPeriod::STATUS_LOCKED, AssessmentPeriod::STATUS_REVISION], true)) {
                 $status = $period ? strtoupper((string) $period->status) : '-';
-                throw new \RuntimeException("Import absensi hanya dapat dilakukan untuk periode LOCKED. Periode file: {$periodText} (status: {$status}).");
+                throw new \RuntimeException("Import absensi hanya dapat dilakukan untuk periode LOCKED atau REVISION. Periode file: {$periodText} (status: {$status}).");
             }
+            $importPeriod = $period;
 
             if ($prevActive && !($validated['replace_existing'] ?? false)) {
                 $info = sprintf('Periode %s sudah memiliki import sebelumnya (total=%d, berhasil=%d, gagal=%d). Centang kotak "Timpa import periode ini" untuk menimpa.',
@@ -211,6 +215,7 @@ class AttendanceImportController extends Controller
             // Jika menimpa, tandai batch sebelumnya superseded TERLEBIH DAHULU
             // agar tidak melanggar unique (assessment_period_id, is_superseded=false)
             if ($prevActive) {
+                $prevActiveBatchId = (int) $prevActive->id;
                 $prevActive->update(['is_superseded' => true]);
             }
 
@@ -270,6 +275,26 @@ class AttendanceImportController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             return back()->withErrors(['file' => 'Import gagal: '.$e->getMessage()])->withInput();
+        }
+
+        if ($importPeriod && $batch) {
+            $meta = [
+                'batch_id' => (int) $batch->id,
+                'file_name' => (string) ($original ?? ''),
+                'total_rows' => (int) $total,
+                'success_rows' => (int) $success,
+                'failed_rows' => (int) $failed,
+                'replaced_previous' => $prevActiveBatchId !== null,
+                'previous_batch_id' => $prevActiveBatchId,
+            ];
+
+            AssessmentPeriodAudit::log(
+                (int) $importPeriod->id,
+                Auth::id(),
+                'attendance_import_completed',
+                $prevActiveBatchId !== null ? 'Supersede previous batch' : null,
+                $meta
+            );
         }
 
         // Update Penilaian Saya after import (scores depend on attendance-derived criteria).

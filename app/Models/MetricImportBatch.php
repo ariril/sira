@@ -18,6 +18,8 @@ class MetricImportBatch extends Model
         'assessment_period_id',
         'imported_by',
         'status',
+        'is_superseded',
+        'previous_batch_id',
     ];
 
     public function period(): BelongsTo

@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use App\Services\RaterWeights\RaterWeightGenerator;
+use App\Support\AssessmentPeriodGuard;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -223,6 +224,10 @@ class UnitCriteriaWeightController extends Controller
             return back()->withErrors(['assessment_period_id' => 'Tidak ada periode aktif. Hubungi Admin RS.'])->withInput();
         }
         $data['assessment_period_id'] = $activePeriodId;
+
+            $period = AssessmentPeriod::query()->find((int) $data['assessment_period_id']);
+            AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Tambah Bobot Kriteria Unit');
+            AssessmentPeriodGuard::requireActive($period, 'Tambah Bobot Kriteria Unit');
         // Ensure criteria is active
         $isActive = DB::table('performance_criterias')->where('id', $data['performance_criteria_id'])->value('is_active');
         if (!$isActive) return back()->withErrors(['performance_criteria_id' => 'Kriteria tidak aktif'])->withInput();
@@ -324,6 +329,10 @@ class UnitCriteriaWeightController extends Controller
         $row = DB::table('unit_criteria_weights')->where('id', $id)->first();
         if (!$row) abort(404);
         if ((int)$row->unit_id !== (int)$me->unit_id) abort(403);
+
+            $period = AssessmentPeriod::query()->find((int) ($row->assessment_period_id ?? 0));
+            AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ubah Bobot Kriteria Unit');
+            AssessmentPeriodGuard::requireActive($period, 'Ubah Bobot Kriteria Unit');
         if (!in_array((string)$row->status, ['draft','rejected'], true)) {
             if ($request->expectsJson()) {
                 return response()->json(['ok' => false, 'message' => 'Hanya draft/ditolak yang bisa diedit.'], 422);
@@ -367,6 +376,10 @@ class UnitCriteriaWeightController extends Controller
         $row = DB::table('unit_criteria_weights')->where('id', $id)->first();
         if (!$row) abort(404);
         if ((int)$row->unit_id !== (int)$me->unit_id) abort(403);
+
+            $period = AssessmentPeriod::query()->find((int) ($row->assessment_period_id ?? 0));
+            AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Hapus Bobot Kriteria Unit');
+            AssessmentPeriodGuard::requireActive($period, 'Hapus Bobot Kriteria Unit');
         if (!in_array((string)$row->status, ['draft','rejected'], true)) {
             return back()->withErrors(['status' => 'Hanya draft/ditolak yang bisa dihapus.']);
         }
@@ -380,6 +393,10 @@ class UnitCriteriaWeightController extends Controller
         $this->authorizeAccess();
         $me = Auth::user();
         if ((int)$weight->unit_id !== (int)$me->unit_id) abort(403);
+
+            $period = AssessmentPeriod::query()->find((int) ($weight->assessment_period_id ?? 0));
+            AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ajukan Bobot Kriteria Unit');
+            AssessmentPeriodGuard::requireActive($period, 'Ajukan Bobot Kriteria Unit');
         // Perbaikan enum: gunakan ->value
         if (!in_array($weight->status->value, ['draft','rejected'], true)) {
             return back()->withErrors(['status' => 'Hanya draft/ditolak yang bisa diajukan.']);
@@ -408,6 +425,10 @@ class UnitCriteriaWeightController extends Controller
         if (!$periodId) {
             return back()->withErrors(['period_id' => 'Tidak ada periode aktif untuk diajukan.']);
         }
+
+        $period = AssessmentPeriod::query()->find((int) $periodId);
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ajukan Bobot Kriteria Unit');
+        AssessmentPeriodGuard::requireActive($period, 'Ajukan Bobot Kriteria Unit');
 
         $query = UnitCriteriaWeight::query()
             ->where('unit_id', $unitId)
@@ -474,6 +495,10 @@ class UnitCriteriaWeightController extends Controller
         if (!$periodId) {
             return back()->withErrors(['period_id' => 'Tidak ada periode aktif untuk diajukan ulang.']);
         }
+
+        $period = AssessmentPeriod::query()->find((int) $periodId);
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ajukan Perubahan Bobot Kriteria Unit');
+        AssessmentPeriodGuard::requireActive($period, 'Ajukan Perubahan Bobot Kriteria Unit');
 
         $activeRows = DB::table('unit_criteria_weights')
             ->where('unit_id', $unitId)
@@ -543,6 +568,10 @@ class UnitCriteriaWeightController extends Controller
 
         $activePeriod = DB::table('assessment_periods')->where('status', AssessmentPeriod::STATUS_ACTIVE)->first();
         if (!$activePeriod) return back()->withErrors(['status' => 'Tidak ada periode aktif.']);
+
+        $period = AssessmentPeriod::query()->find((int) ($activePeriod->id ?? 0));
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Salin Bobot Kriteria Unit');
+        AssessmentPeriodGuard::requireActive($period, 'Salin Bobot Kriteria Unit');
 
         $previousPeriod = $this->previousPeriod($activePeriod, $unitId);
         if (!$previousPeriod) return back()->withErrors(['status' => 'Tidak ada periode sebelumnya untuk disalin.']);

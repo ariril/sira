@@ -18,6 +18,7 @@ use Carbon\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
+use App\Services\AssessmentPeriods\AssessmentPeriodRevisionService;
 use App\Support\AssessmentPeriodGuard;
 
 class AssessmentPeriodController extends Controller
@@ -171,6 +172,15 @@ class AssessmentPeriodController extends Controller
         $updates = [
             'status' => AssessmentPeriod::STATUS_APPROVAL,
         ];
+        if (Schema::hasColumn('assessment_periods', 'approval_attempt')) {
+            $updates['approval_attempt'] = (int) ($period->approval_attempt ?? 1);
+        }
+        if (Schema::hasColumn('assessment_periods', 'rejected_at')) {
+            $updates['rejected_level'] = null;
+            $updates['rejected_by_id'] = null;
+            $updates['rejected_at'] = null;
+            $updates['rejected_reason'] = null;
+        }
         if (Schema::hasColumn('assessment_periods', 'closed_at')) {
             $updates['closed_at'] = null;
         }
@@ -180,6 +190,34 @@ class AssessmentPeriodController extends Controller
         $period->update($updates);
 
         return back()->with('status','Periode masuk tahap persetujuan. Semua penilaian dikirim ke alur approval.');
+    }
+
+    public function openRevision(Request $request, AssessmentPeriod $period, AssessmentPeriodRevisionService $svc): RedirectResponse
+    {
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'max:800'],
+        ]);
+
+        try {
+            $svc->openRevision($period, $request->user(), (string) $data['reason']);
+            return back()->with('status', 'Periode masuk mode revisi (terbatas).');
+        } catch (\Throwable $e) {
+            return back()->withErrors(['status' => $e->getMessage()]);
+        }
+    }
+
+    public function resubmitFromRevision(Request $request, AssessmentPeriod $period, AssessmentPeriodRevisionService $svc): RedirectResponse
+    {
+        $data = $request->validate([
+            'note' => ['nullable', 'string', 'max:800'],
+        ]);
+
+        try {
+            $svc->resubmitFromRevision($period, $request->user(), $data['note'] ?? null);
+            return back()->with('status', 'Periode diajukan ulang ke tahap persetujuan. Approval dimulai ulang dari Level 1.');
+        } catch (\Throwable $e) {
+            return back()->withErrors(['status' => $e->getMessage()]);
+        }
     }
 
     public function close(AssessmentPeriod $period): RedirectResponse
@@ -286,12 +324,14 @@ class AssessmentPeriodController extends Controller
 
         $adminApprover = User::query()->role(User::ROLE_ADMINISTRASI)->orderBy('id')->value('id');
         $pending = AssessmentApprovalStatus::PENDING->value;
+        $attempt = (int) ($period->approval_attempt ?? 1);
 
         foreach ($assessments as $assessment) {
             AssessmentApproval::firstOrCreate(
                 [
                     'performance_assessment_id' => $assessment->id,
                     'level' => 1,
+                    'attempt' => $attempt,
                 ],
                 [
                     'approver_id' => $adminApprover,

@@ -11,6 +11,7 @@ use App\Models\Profession;
 use App\Models\RaterWeight;
 use App\Services\RaterWeights\RaterWeightGenerator;
 use App\Services\RaterWeights\RaterWeightSummaryService;
+use App\Support\AssessmentPeriodGuard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,8 +63,10 @@ class RaterWeightController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
-        $activePeriodId = (int) ($activePeriod?->id ?? 0);
+        $revisionPeriod = AssessmentPeriod::query()->where('status', AssessmentPeriod::STATUS_REVISION)->orderByDesc('id')->first();
+        $activePeriod = AssessmentPeriod::query()->where('status', AssessmentPeriod::STATUS_ACTIVE)->orderByDesc('start_date')->first();
+        $workingPeriod = $revisionPeriod ?: $activePeriod;
+        $activePeriodId = (int) ($workingPeriod?->id ?? 0);
         $this->archiveNonActivePeriods($unitId, $activePeriodId);
 
         // Working period is the active period only (unless user explicitly filters a period for browsing).
@@ -380,10 +383,15 @@ class RaterWeightController extends Controller
             return back()->withErrors(['status' => 'Tabel periode atau bobot penilai belum tersedia.']);
         }
 
-        $activePeriod = AssessmentPeriod::query()->active()->orderByDesc('start_date')->first();
+        $revisionPeriod = AssessmentPeriod::query()->where('status', AssessmentPeriod::STATUS_REVISION)->orderByDesc('id')->first();
+        $activePeriod = AssessmentPeriod::query()->where('status', AssessmentPeriod::STATUS_ACTIVE)->orderByDesc('start_date')->first();
+        $activePeriod = $revisionPeriod ?: $activePeriod;
         if (!$activePeriod) {
-            return back()->withErrors(['status' => 'Tidak ada periode aktif.']);
+            return back()->withErrors(['status' => 'Tidak ada periode aktif/revisi.']);
         }
+
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($activePeriod, 'Salin Bobot Penilai 360');
+        AssessmentPeriodGuard::requireActiveOrRevision($activePeriod, 'Salin Bobot Penilai 360');
 
         $previousPeriod = $this->previousPeriodWithRaterWeights($activePeriod, $unitId);
         if (!$previousPeriod) {
@@ -499,6 +507,10 @@ class RaterWeightController extends Controller
         $this->authorizeOwnedByUnit($raterWeight);
         $this->authorizeDraftOrRejected($raterWeight);
 
+        $period = AssessmentPeriod::query()->find((int) $raterWeight->assessment_period_id);
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ubah Bobot Penilai 360');
+        AssessmentPeriodGuard::requireActiveOrRevision($period, 'Ubah Bobot Penilai 360');
+
         $data = $request->validate([
             'weight' => ['nullable', 'integer', 'min:0', 'max:100'],
         ]);
@@ -570,11 +582,18 @@ class RaterWeightController extends Controller
 
         $periodId = (int) ($request->input('assessment_period_id') ?: 0);
         if ($periodId <= 0) {
-            $periodId = (int) (AssessmentPeriod::query()->active()->orderByDesc('start_date')->value('id') ?? 0);
+            $revisionId = (int) (AssessmentPeriod::query()->where('status', AssessmentPeriod::STATUS_REVISION)->orderByDesc('id')->value('id') ?? 0);
+            $periodId = $revisionId > 0
+                ? $revisionId
+                : (int) (AssessmentPeriod::query()->where('status', AssessmentPeriod::STATUS_ACTIVE)->orderByDesc('start_date')->value('id') ?? 0);
         }
         if ($periodId <= 0) {
-            return back()->withErrors(['assessment_period_id' => 'Tidak ada periode aktif.']);
+            return back()->withErrors(['assessment_period_id' => 'Tidak ada periode aktif/revisi.']);
         }
+
+        $period = AssessmentPeriod::query()->find((int) $periodId);
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ajukan Bobot Penilai 360');
+        AssessmentPeriodGuard::requireActiveOrRevision($period, 'Ajukan Bobot Penilai 360');
 
         $criteriaIds = $this->resolveRelevant360CriteriaIdsForUnit($unitId, $periodId);
         if (empty($criteriaIds)) {
@@ -692,6 +711,13 @@ class RaterWeightController extends Controller
             ->whereIn('id', $ids)
             ->get();
 
+        $periodIds = $rows->pluck('assessment_period_id')->filter()->unique()->values();
+        foreach ($periodIds as $pid) {
+            $period = AssessmentPeriod::query()->find((int) $pid);
+            AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ubah Bobot Penilai 360');
+            AssessmentPeriodGuard::requireActiveOrRevision($period, 'Ubah Bobot Penilai 360');
+        }
+
         // Fail fast if user attempts to update rows outside the allowed set.
         if ($rows->count() !== count($ids)) {
             abort(403);
@@ -796,7 +822,7 @@ class RaterWeightController extends Controller
             ->where('unit_rater_weights.unit_id', $unitId)
             ->where('unit_rater_weights.status', '!=', RaterWeightStatus::ARCHIVED->value)
             ->where('unit_rater_weights.assessment_period_id', '!=', $activePeriodId)
-            ->where('ap.status', '!=', AssessmentPeriod::STATUS_ACTIVE)
+            ->whereNotIn('ap.status', [AssessmentPeriod::STATUS_ACTIVE, AssessmentPeriod::STATUS_REVISION])
             ->update(array_filter([
                 'unit_rater_weights.status' => RaterWeightStatus::ARCHIVED->value,
                 'unit_rater_weights.was_active_before' => $hasWasActiveBefore

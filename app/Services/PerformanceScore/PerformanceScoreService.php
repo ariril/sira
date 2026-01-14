@@ -140,11 +140,17 @@ class PerformanceScoreService
             // there is data for THIS GROUP of userIds, otherwise the criterion would dilute weights
             // (e.g., contribute 9.09 when ΣBobotAktif=110 but 1 criterion has no data for the profession).
             if (str_starts_with($key, 'metric:')) {
-                $groupCount = (int) DB::table('imported_criteria_values')
+                $qCount = DB::table('imported_criteria_values')
                     ->where('assessment_period_id', (int) $period->id)
                     ->where('performance_criteria_id', (int) $criteriaId)
                     ->whereIn('user_id', $userIds)
-                    ->count();
+                    ;
+
+                if (Schema::hasColumn('imported_criteria_values', 'is_active')) {
+                    $qCount->where('is_active', 1);
+                }
+
+                $groupCount = (int) $qCount->count();
 
                 if ($groupCount <= 0) {
                     $status = 'missing_data';
@@ -430,11 +436,16 @@ class PerformanceScoreService
 
             // Keep readiness aligned with the scoring scope.
             if (str_starts_with($key, 'metric:')) {
-                $groupCount = (int) DB::table('imported_criteria_values')
+                $groupCountQuery = DB::table('imported_criteria_values')
                     ->where('assessment_period_id', (int) $period->id)
                     ->where('performance_criteria_id', (int) $criteriaId)
-                    ->whereIn('user_id', $userIds)
-                    ->count();
+                    ->whereIn('user_id', $userIds);
+
+                if (Schema::hasColumn('imported_criteria_values', 'is_active')) {
+                    $groupCountQuery->where('is_active', true);
+                }
+
+                $groupCount = (int) $groupCountQuery->count();
 
                 if ($groupCount <= 0) {
                     $status = 'missing_data';
@@ -694,10 +705,6 @@ class PerformanceScoreService
     private function resolveUnitWeightsForPeriod(int $unitId, AssessmentPeriod $period): array
     {
         $periodId = (int) $period->id;
-        if ($unitId <= 0 || $periodId <= 0) {
-            return ['weights_all' => [], 'weights_active' => [], 'status_by_criteria' => []];
-        }
-
         $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
         $select = ['performance_criteria_id', 'weight', 'status'];
         if ($hasWasActiveBefore) {

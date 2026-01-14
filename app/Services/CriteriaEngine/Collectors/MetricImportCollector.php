@@ -6,6 +6,7 @@ use App\Models\AssessmentPeriod;
 use App\Models\PerformanceCriteria;
 use App\Services\CriteriaEngine\Contracts\CriteriaCollector;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class MetricImportCollector implements CriteriaCollector
 {
@@ -40,25 +41,36 @@ class MetricImportCollector implements CriteriaCollector
             return [];
         }
 
-        return DB::table('imported_criteria_values')
+        $q = DB::table('imported_criteria_values')
             ->selectRaw('user_id, COALESCE(SUM(value_numeric),0) as total_value')
             ->where('assessment_period_id', (int) $period->id)
             ->where('performance_criteria_id', (int) $this->criteria->id)
             ->whereIn('user_id', $userIds)
-            ->groupBy('user_id')
-            ->pluck('total_value', 'user_id')
+            ->groupBy('user_id');
+
+        if (Schema::hasColumn('imported_criteria_values', 'is_active')) {
+            $q->where('is_active', 1);
+        }
+
+        return $q->pluck('total_value', 'user_id')
             ->map(fn($v) => (float) $v)
             ->all();
     }
 
     public function readiness(AssessmentPeriod $period, int $unitId): array
     {
-        $count = DB::table('imported_criteria_values as cm')
+        $q = DB::table('imported_criteria_values as cm')
             ->join('users as u', 'u.id', '=', 'cm.user_id')
             ->where('cm.assessment_period_id', (int) $period->id)
             ->where('cm.performance_criteria_id', (int) $this->criteria->id)
             ->where('u.unit_id', $unitId)
-            ->count();
+            ;
+
+        if (Schema::hasColumn('imported_criteria_values', 'is_active')) {
+            $q->where('cm.is_active', 1);
+        }
+
+        $count = $q->count();
 
         return $count > 0
             ? ['status' => 'ready', 'message' => null]

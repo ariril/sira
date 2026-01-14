@@ -16,6 +16,7 @@ use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use App\Services\MultiRater\CriteriaResolver;
 use App\Services\MultiRater\AssessorTypeResolver;
 use App\Services\MultiRater\AssessorProfessionResolver;
+use App\Support\AssessmentPeriodGuard;
 
 class StoreController extends Controller
 {
@@ -53,10 +54,13 @@ class StoreController extends Controller
         $raterRole = (string) ($validated['rater_role'] ?? 'pegawai_medis');
 
         $period = AssessmentPeriod::query()->find($periodId);
-        if (!$period || $period->status !== AssessmentPeriod::STATUS_ACTIVE) {
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Penilaian 360');
+        try {
+            AssessmentPeriodGuard::requireActiveOrRevision($period, 'Penilaian 360');
+        } catch (\Throwable $e) {
             return response()->json([
                 'ok' => false,
-                'message' => 'Penilaian 360 hanya dapat dilakukan ketika periode ACTIVE.',
+                'message' => $e->getMessage(),
             ], 422);
         }
 
@@ -91,13 +95,26 @@ class StoreController extends Controller
         $window = Assessment360Window::where('assessment_period_id', $periodId)
             ->where('is_active', true)
             ->first();
-        $start = optional($window?->start_date)?->copy()->startOfDay();
-        $end = optional($window?->end_date)?->copy()->endOfDay();
-        if (!$window || !$start || !$end || now()->lt($start) || now()->gt($end)) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'Periode penilaian sudah ditutup.',
-            ], 422);
+
+        // During ACTIVE: strictly require an active window and date range.
+        // During REVISION: allow fixes even if the window is already closed.
+        if ((string) ($period?->status ?? '') === AssessmentPeriod::STATUS_ACTIVE) {
+            $start = optional($window?->start_date)?->copy()->startOfDay();
+            $end = optional($window?->end_date)?->copy()->endOfDay();
+            if (!$window || !$start || !$end || now()->lt($start) || now()->gt($end)) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Periode penilaian sudah ditutup.',
+                ], 422);
+            }
+        } else {
+            $anyWindow = Assessment360Window::where('assessment_period_id', $periodId)->exists();
+            if (!$anyWindow) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Jadwal penilaian 360 belum dibuka untuk periode ini.',
+                ], 422);
+            }
         }
 
         $criteriaOptions = CriteriaResolver::forUnit($unitId, $periodId);

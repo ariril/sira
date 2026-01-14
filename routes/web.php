@@ -213,6 +213,8 @@ Route::middleware(['auth','verified','role:admin_rs'])
             ->parameters(['assessment-periods' => 'period']);
         Route::post('assessment-periods/{period}/lock',     [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'lock'])->name('assessment_periods.lock');
         Route::post('assessment-periods/{period}/start-approval', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'startApproval'])->name('assessment_periods.start_approval');
+        Route::post('assessment-periods/{period}/open-revision', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'openRevision'])->name('assessment_periods.open_revision');
+        Route::post('assessment-periods/{period}/resubmit-from-revision', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'resubmitFromRevision'])->name('assessment_periods.resubmit_from_revision');
         Route::post('assessment-periods/{period}/close',    [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'close'])->name('assessment_periods.close');
 
         // Bobot Kriteria Unit (setup awal/push draft per unit)
