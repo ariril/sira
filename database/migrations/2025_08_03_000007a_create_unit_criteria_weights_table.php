@@ -30,6 +30,8 @@ return new class extends Migration
             $table->enum('status', ['draft','pending','active','rejected','archived'])
                 ->default('draft');
 
+            $table->boolean('was_active_before')->default(false);
+
             $table->string('policy_doc_path')->nullable();
             $table->text('policy_note')->nullable();
 

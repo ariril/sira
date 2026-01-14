@@ -21,6 +21,7 @@ return new class extends Migration
 
             $table->date('assessment_date');// tanggal_penilaian
             $table->decimal('total_wsm_score', 8, 2)->nullable(); // skor_total_wsm
+            $table->decimal('total_wsm_value_score', 8, 2)->nullable();
 
             $table->enum('validation_status', [  // status_validasi
                 'Menunggu Validasi',

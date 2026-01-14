@@ -19,6 +19,7 @@ return new class extends Migration
             $table->unsignedInteger('assessor_level')->nullable();
             $table->decimal('weight', 5, 2); // percent (stored decimal, entered as integer)
             $table->enum('status', ['draft', 'pending', 'active', 'rejected', 'archived'])->default('draft');
+            $table->boolean('was_active_before')->default(false);
             $table->foreignId('proposed_by')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('decided_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('decided_at')->nullable();

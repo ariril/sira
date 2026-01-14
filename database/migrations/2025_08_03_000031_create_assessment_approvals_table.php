@@ -19,6 +19,7 @@ return new class extends Migration {
                 ->cascadeOnDelete();
 
             $table->unsignedSmallInteger('level');
+            $table->unsignedSmallInteger('attempt')->default(1);
 
             $table->enum('status', ['pending','approved','rejected'])
                 ->default('pending');
@@ -26,9 +27,13 @@ return new class extends Migration {
             $table->text('note')->nullable();
             $table->timestamp('acted_at')->nullable();
 
+            $table->timestamp('invalidated_at')->nullable();
+            $table->foreignId('invalidated_by_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->text('invalidated_reason')->nullable();
+
             $table->timestamps();
 
-            $table->unique(['performance_assessment_id', 'level'], 'uniq_assessment_level');
+            $table->unique(['performance_assessment_id', 'level', 'attempt'], 'uniq_assessment_level_attempt');
         });
     }
 

@@ -21,9 +21,20 @@ return new class extends Migration {
                 ->nullOnDelete();
 
             $table->enum('status', ['pending', 'processed', 'failed'])->default('pending');
+
+            $table->boolean('is_superseded')->default(false);
+            $table->foreignId('previous_batch_id')
+                ->nullable()
+                ->constrained('metric_import_batches')
+                ->nullOnDelete();
+
+            $table->unsignedBigInteger('active_period_key')->nullable()
+                ->storedAs('(case when (is_superseded = 0) then assessment_period_id else null end)');
+
             $table->timestamps();
 
             $table->index(['assessment_period_id', 'status'], 'idx_metric_batch_period_status');
+            $table->unique(['active_period_key'], 'uniq_metric_active_period_key');
         });
 
         Schema::create('imported_criteria_values', function (Blueprint $table) {
@@ -49,10 +60,17 @@ return new class extends Migration {
             $table->dateTime('value_datetime')->nullable();
             $table->text('value_text')->nullable();
 
+            $table->boolean('is_active')->default(true);
+            $table->timestamp('superseded_at')->nullable();
+            $table->foreignId('superseded_by_batch_id')
+                ->nullable()
+                ->constrained('metric_import_batches')
+                ->nullOnDelete();
+
             $table->timestamps();
 
-            $table->unique(['user_id','assessment_period_id','performance_criteria_id'], 'uniq_imported_value_per_period');
-            $table->index(['assessment_period_id'], 'idx_imported_values_period');
+            $table->unique(['user_id','assessment_period_id','performance_criteria_id','is_active'], 'uniq_imported_value_active');
+            $table->index(['assessment_period_id','is_active'], 'idx_imported_values_period_active');
             $table->index(['performance_criteria_id'], 'idx_imported_values_criteria');
         });
     }
