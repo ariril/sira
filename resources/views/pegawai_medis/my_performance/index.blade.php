@@ -100,7 +100,7 @@
                             <td class="px-6 py-4">
                                 <div class="flex flex-wrap items-center gap-2">
                                     @if($weightActive)
-                                        <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700" title="Dihitung ke Skor Kinerja (WSM).">Dihitung</span>
+                                        <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700" title="Dihitung ke Skor Kinerja.">Dihitung</span>
                                     @else
                                         <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700" title="Ditampilkan saja (tidak dihitung ke Skor Kinerja).">Tidak dihitung</span>
                                         @if($whyNotText !== '')

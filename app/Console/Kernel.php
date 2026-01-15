@@ -23,6 +23,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\BackfillPerformanceAssessmentSnapshots::class,
         \App\Console\Commands\VerifyPerformanceAssessmentSnapshots::class,
         \App\Console\Commands\RebuildPerformanceAssessmentSnapshots::class,
+        \App\Console\Commands\ActivateUnitCriteriaWeightsForPeriod::class,
         \App\Console\Commands\BackfillHolidayAttendanceStatus::class,
         \App\Console\Commands\DebugRemunerationPeriod::class,
     ];
