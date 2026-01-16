@@ -259,7 +259,100 @@ class NovemberRaterWeightSeeder extends Seeder
 
                 $pname = (string) ($period->name ?? '');
             }
+
+            // Backfill approval metadata for demo/history periods (Nov/Dec): decided_by/decided_at + was_active_before.
+            $deciderId = $this->resolveDeciderId();
+            $decidedAt = $this->resolveDecidedAt($periodId);
+            if ($deciderId > 0) {
+                DB::table('unit_rater_weights')
+                    ->where('assessment_period_id', $periodId)
+                    ->whereIn('status', ['active', 'archived'])
+                    ->where(function ($q) {
+                        $q->whereNull('decided_by')
+                          ->orWhereNull('decided_at');
+                    })
+                    ->update([
+                        'decided_by' => $deciderId,
+                        'decided_at' => $decidedAt,
+                        'updated_at' => now(),
+                    ]);
+
+                DB::table('unit_criteria_weights')
+                    ->where('assessment_period_id', $periodId)
+                    ->whereIn('status', ['active', 'archived'])
+                    ->where(function ($q) {
+                        $q->whereNull('decided_by')
+                          ->orWhereNull('decided_at');
+                    })
+                    ->update([
+                        'decided_by' => $deciderId,
+                        'decided_at' => $decidedAt,
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            if (Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
+                DB::table('unit_rater_weights')
+                    ->where('assessment_period_id', $periodId)
+                    ->where('status', 'archived')
+                    ->where('was_active_before', 0)
+                    ->where(function ($q) {
+                        $q->whereNotNull('decided_by')
+                          ->orWhereNotNull('decided_at');
+                    })
+                    ->update([
+                        'was_active_before' => 1,
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            if (Schema::hasColumn('unit_criteria_weights', 'was_active_before')) {
+                DB::table('unit_criteria_weights')
+                    ->where('assessment_period_id', $periodId)
+                    ->where('status', 'archived')
+                    ->where('was_active_before', 0)
+                    ->where(function ($q) {
+                        $q->whereNotNull('decided_by')
+                          ->orWhereNotNull('decided_at');
+                    })
+                    ->update([
+                        'was_active_before' => 1,
+                        'updated_at' => now(),
+                    ]);
+            }
         }
+    }
+
+    private function resolveDeciderId(): int
+    {
+        if (!Schema::hasTable('users')) {
+            return 0;
+        }
+
+        if (Schema::hasColumn('users', 'role')) {
+            $id = (int) (DB::table('users')->where('role', 'kepala_unit')->value('id') ?? 0);
+            if ($id > 0) {
+                return $id;
+            }
+        }
+
+        if (Schema::hasColumn('users', 'last_role')) {
+            $id = (int) (DB::table('users')->where('last_role', 'kepala_unit')->value('id') ?? 0);
+            if ($id > 0) {
+                return $id;
+            }
+        }
+
+        return (int) (DB::table('users')->orderBy('id')->value('id') ?? 0);
+    }
+
+    private function resolveDecidedAt(int $periodId): string
+    {
+        $endDate = Schema::hasTable('assessment_periods')
+            ? (string) (DB::table('assessment_periods')->where('id', $periodId)->value('end_date') ?? '')
+            : '';
+
+        return $endDate !== '' ? ($endDate . ' 23:59:59') : now()->toDateTimeString();
     }
 
     /**

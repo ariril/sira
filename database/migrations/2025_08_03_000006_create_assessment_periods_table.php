@@ -26,7 +26,7 @@ return new class extends Migration
             $table->timestamp('revision_opened_at')->nullable();
             $table->text('revision_opened_reason')->nullable();
 
-            $table->unsignedSmallInteger('approval_attempt')->default(1);
+            $table->unsignedSmallInteger('approval_attempt')->default(0);
 
             $table->timestamp('locked_at')->nullable();
             $table->timestamp('closed_at')->nullable();
@@ -61,31 +61,10 @@ return new class extends Migration
                 ->references('id')->on('professions')->nullOnDelete();
         });
 
-        Schema::create('assessment_period_audit_logs', function (Blueprint $table) {
-            $table->id();
-
-            $table->foreignId('assessment_period_id')
-                ->constrained('assessment_periods')
-                ->cascadeOnDelete();
-
-            $table->foreignId('actor_id')
-                ->nullable()
-                ->constrained('users')
-                ->nullOnDelete();
-
-            $table->string('action', 80);
-            $table->text('reason')->nullable();
-            $table->json('meta')->nullable();
-
-            $table->timestamp('created_at')->useCurrent();
-
-            $table->index(['assessment_period_id', 'action'], 'idx_period_audit_action');
-        });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('assessment_period_audit_logs');
         Schema::dropIfExists('assessment_period_user_membership_snapshots');
         Schema::dropIfExists('assessment_periods');
     }

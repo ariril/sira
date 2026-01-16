@@ -69,28 +69,37 @@
         @if(!empty($statusCard))
             <x-section title="Status Proses Penilaian & Remunerasi" class="mt-4">
                 @if(($statusCard['mode'] ?? null) === 'active')
-                    <div class="flex items-start justify-between rounded-xl ring-1 ring-slate-100 p-4">
-                        <div>
-                            <div class="font-medium">Periode {{ $statusCard['period_name'] ?? '-' }}</div>
-                            <div class="mt-1 text-sm">
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+                        <div class="flex flex-col gap-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="text-base font-semibold text-slate-800">Periode {{ $statusCard['period_name'] ?? '-' }}</div>
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-100">Periode Berjalan</span>
                             </div>
-                            <div class="mt-2 text-sm text-slate-600">{{ $statusCard['message'] ?? '' }}</div>
+                            <div class="text-sm text-slate-600">{{ $statusCard['message'] ?? '' }}</div>
                         </div>
                     </div>
                 @else
-                    <div class="flex items-center justify-between rounded-xl ring-1 ring-slate-100 p-3">
-                        <div>
-                            <div class="font-medium">Periode {{ $statusCard['period_name'] ?? '-' }}</div>
-                            <div class="text-sm text-slate-600">
-                                Level disetujui: {{ $statusCard['highestApproved'] ?? 0 }} • Status saat ini:
-                                @php $st = $statusCard['currentStatus'] ?? 'pending'; @endphp
-                                @if($st === 'approved')
-                                    <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700">Approved</span>
-                                @elseif($st === 'rejected')
-                                    <span class="px-2 py-0.5 rounded text-xs bg-rose-100 text-rose-700">Rejected</span>
-                                @else
-                                    <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">Pending</span>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+                        <div class="flex flex-col gap-4">
+                            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                <div>
+                                    <div class="text-base font-semibold text-slate-800">Periode {{ $statusCard['period_name'] ?? '-' }}</div>
+                                    <div class="mt-1 text-sm text-slate-600">
+                                        Level disetujui: <span class="font-medium text-slate-800">{{ $statusCard['highestApproved'] ?? 0 }}</span>
+                                        <span class="mx-1">•</span>
+                                        Status saat ini:
+                                        @php $st = $statusCard['currentStatus'] ?? 'pending'; @endphp
+                                        @if($st === 'approved')
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700">Approved</span>
+                                        @elseif($st === 'rejected')
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">Rejected</span>
+                                        @else
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">Pending</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                @if(!empty($statusCard['assessment_id']))
+                                    <a href="{{ route('pegawai_medis.assessments.show', $statusCard['assessment_id']) }}" class="inline-flex items-center justify-center px-3.5 py-2 rounded-lg ring-1 ring-slate-200 text-slate-700 hover:bg-slate-50">Detail Penilaian</a>
                                 @endif
                             </div>
 
@@ -98,7 +107,7 @@
                                 $levels = collect($statusCard['levels'] ?? []);
                                 $byLevel = $levels->keyBy(fn($lv) => (int)($lv->level ?? 0));
                             @endphp
-                            <div class="mt-3 overflow-auto rounded-xl border border-slate-200">
+                            <div class="overflow-auto rounded-xl border border-slate-200">
                                 <table class="min-w-[520px] w-full text-sm">
                                     <thead class="bg-slate-50">
                                         <tr>
@@ -117,11 +126,11 @@
                                                 <td class="px-4 py-2 font-medium">Level {{ $i }}</td>
                                                 <td class="px-4 py-2">
                                                     @if($st === 'approved')
-                                                        <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700">Approved</span>
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700">Approved</span>
                                                     @elseif($st === 'rejected')
-                                                        <span class="px-2 py-0.5 rounded text-xs bg-rose-100 text-rose-700">Rejected</span>
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">Rejected</span>
                                                     @elseif($st === 'pending')
-                                                        <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">Pending</span>
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">Pending</span>
                                                     @else
                                                         <span class="text-slate-500">-</span>
                                                     @endif
@@ -136,9 +145,6 @@
                                 </table>
                             </div>
                         </div>
-                        @if(!empty($statusCard['assessment_id']))
-                            <a href="{{ route('pegawai_medis.assessments.show', $statusCard['assessment_id']) }}" class="px-3 py-1.5 rounded-md ring-1 ring-slate-200 text-slate-700 hover:bg-slate-50">Detail Penilaian</a>
-                        @endif
                     </div>
                 @endif
             </x-section>

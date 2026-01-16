@@ -7,8 +7,8 @@ use Illuminate\Support\Carbon;
 
 class AdditionalTaskStatusService
 {
-    // Claims that consume quota (submitted + approved)
-    public const ACTIVE_STATUSES = ['submitted', 'approved'];
+    // Claims that consume quota (active + submitted + approved)
+    public const ACTIVE_STATUSES = ['active', 'submitted', 'approved'];
 
     // Klaim yang masih menunggu tindakan kepala unit
     public const REVIEW_WAITING_STATUSES = ['submitted'];

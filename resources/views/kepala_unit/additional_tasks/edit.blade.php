@@ -41,7 +41,12 @@
                         </label>
                     @endif
 
-                    <input type="file" name="policy_doc" accept="application/pdf" class="mt-1 block w-full text-sm text-slate-700" />
+                    <input
+                        type="file"
+                        name="policy_doc"
+                        accept="application/pdf"
+                        class="mt-1 block w-full text-sm text-slate-700 border border-slate-200 rounded-xl bg-white p-2 focus:outline-none focus:ring-2 focus:ring-sky-200 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"
+                    />
                     <p class="mt-1 text-xs text-slate-500">Opsional. Upload file baru untuk mengganti. Maks 10MB. Format: PDF.</p>
                 </div>
                 <div>

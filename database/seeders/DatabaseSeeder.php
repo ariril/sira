@@ -192,26 +192,26 @@ class DatabaseSeeder extends Seeder
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
-                [
-                    'employee_number' => '17',
-                    'name' => 'dr. Charles Saputra',
-                    'start_date' => '2023-01-10',
-                    'gender' => 'Laki-laki',
-                    'nationality' => 'Indonesia',
-                    'address' => 'Atambua',
-                    'phone' => '0812-0000-0017',
-                    'email' => 'dokter.umum2@rsud.local',
-                    'last_education' => 'S.Ked',
-                    'position' => 'Dokter Umum',
-                    'unit_id' => $unitId('poliklinik-umum'),
-                    'profession_id' => $professionId('DOK-UM'),
-                    'password' => Hash::make('password'),
-                    'last_role' => 'pegawai_medis',
-                    'email_verified_at' => $now,
-                    'remember_token' => Str::random(10),
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
+                // [
+                //     'employee_number' => '17',
+                //     'name' => 'dr. Charles Saputra',
+                //     'start_date' => '2023-01-10',
+                //     'gender' => 'Laki-laki',
+                //     'nationality' => 'Indonesia',
+                //     'address' => 'Atambua',
+                //     'phone' => '0812-0000-0017',
+                //     'email' => 'dokter.umum2@rsud.local',
+                //     'last_education' => 'S.Ked',
+                //     'position' => 'Dokter Umum',
+                //     'unit_id' => $unitId('poliklinik-umum'),
+                //     'profession_id' => $professionId('DOK-UM'),
+                //     'password' => Hash::make('password'),
+                //     'last_role' => 'pegawai_medis',
+                //     'email_verified_at' => $now,
+                //     'remember_token' => Str::random(10),
+                //     'created_at' => $now,
+                //     'updated_at' => $now,
+                // ],
                 [
                     'employee_number' => '197203302006042019',
                     'name' => 'Fransisca Tjitra N. Seran, SE',
@@ -357,7 +357,7 @@ class DatabaseSeeder extends Seeder
             // helper ids (8 akun demo mudah)
             $unitHeadUmumId = $userId('kepala.umum@rsud.local');
             $doctorUmum1Id = $userId('dokter.umum1@rsud.local');
-            $doctorUmum2Id = $userId('dokter.umum2@rsud.local');
+            // $doctorUmum2Id = $userId('dokter.umum2@rsud.local'); // dibekukan sementara
             $nurse1Id = $userId('perawat1@rsud.local');
             $nurse2Id = $userId('perawat2@rsud.local');
             $unitHeadGigiId = $userId('kepala.gigi@rsud.local');
@@ -375,7 +375,7 @@ class DatabaseSeeder extends Seeder
                 'kepala.poliklinik@rsud.local' => $userId('kepala.poliklinik@rsud.local'),
                 'kepala.umum@rsud.local' => $unitHeadUmumId,
                 'dokter.umum1@rsud.local' => $doctorUmum1Id,
-                'dokter.umum2@rsud.local' => $doctorUmum2Id,
+                // 'dokter.umum2@rsud.local' => $doctorUmum2Id, // dibekukan sementara
                 'perawat1@rsud.local' => $nurse1Id,
                 'perawat2@rsud.local' => $nurse2Id,
                 'kepala.gigi@rsud.local' => $unitHeadGigiId,
@@ -417,7 +417,7 @@ class DatabaseSeeder extends Seeder
                 $adminRsId,
                 $unitHeadUmumId,
                 $doctorUmum1Id,
-                $doctorUmum2Id,
+                // $doctorUmum2Id, // dibekukan sementara
                 $nurse1Id,
                 $nurse2Id,
                 $doctorSpes1Id,
@@ -432,7 +432,7 @@ class DatabaseSeeder extends Seeder
             $attach($polyclinicHeadId, ['kepala_poliklinik']);
             $attach($adminRsId, ['admin_rs']);
             $attach($doctorUmum1Id, ['pegawai_medis']);
-            $attach($doctorUmum2Id, ['pegawai_medis']);
+            // $attach($doctorUmum2Id, ['pegawai_medis']); // dibekukan sementara
             $attach($nurse1Id, ['pegawai_medis']);
             $attach($nurse2Id, ['pegawai_medis']);
             $attach($doctorSpes1Id, ['pegawai_medis']);
@@ -909,6 +909,7 @@ class DatabaseSeeder extends Seeder
         $this->call(NovemberRaterWeightSeeder::class);
         $this->call(DecemberRaterWeightSeeder::class);
         $this->call(DummyAdditionalTaskUsageSeeder::class);
+        $this->call(January2026PoliUmumDokterUmumSeeder::class);
         
     }
 

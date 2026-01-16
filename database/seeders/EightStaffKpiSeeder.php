@@ -113,7 +113,7 @@ class EightStaffKpiSeeder extends Seeder
         $emails = [
             'kepala.umum@rsud.local',
             'dokter.umum1@rsud.local',
-            'dokter.umum2@rsud.local',
+            // 'dokter.umum2@rsud.local', // dibekukan sementara
             'perawat1@rsud.local',
             'perawat2@rsud.local',
             'kepala.gigi@rsud.local',
@@ -125,7 +125,7 @@ class EightStaffKpiSeeder extends Seeder
             // Poli Umum
             'kepala_umum' => ['id' => (int) ($userId('kepala.umum@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-umum', 'profession' => 'DOK-UM'],
             'dokter_umum1' => ['id' => (int) ($userId('dokter.umum1@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-umum', 'profession' => 'DOK-UM'],
-            'dokter_umum2' => ['id' => (int) ($userId('dokter.umum2@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-umum', 'profession' => 'DOK-UM'],
+            // 'dokter_umum2' => ['id' => (int) ($userId('dokter.umum2@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-umum', 'profession' => 'DOK-UM'], // dibekukan sementara
             'perawat1' => ['id' => (int) ($userId('perawat1@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-umum', 'profession' => 'PRW'],
             'perawat2' => ['id' => (int) ($userId('perawat2@rsud.local') ?? 0), 'unit_slug' => 'poliklinik-umum', 'profession' => 'PRW'],
 
@@ -284,7 +284,7 @@ class EightStaffKpiSeeder extends Seeder
             // Poli Umum (DOK-UM)
             'kepala_umum' => ['attendance_days' => 25, 'late_minutes' => 40, 'work_minutes' => 9000, 'overtime_days' => 3, 'discipline_360' => 87, 'teamwork_360' => 84, 'contrib' => 10, 'patients' => 205, 'complaints' => 4, 'rating_avg' => 4.6, 'rating_count' => 10, 'rating_sum' => 46],
             'dokter_umum1' => ['attendance_days' => 24, 'late_minutes' => 65, 'work_minutes' => 8700, 'overtime_days' => 2, 'discipline_360' => 82, 'teamwork_360' => 80, 'contrib' => 9, 'patients' => 150, 'complaints' => 6, 'rating_avg' => 4.5, 'rating_count' => 10, 'rating_sum' => 45],
-            'dokter_umum2' => ['attendance_days' => 23, 'late_minutes' => 30, 'work_minutes' => 8800, 'overtime_days' => 4, 'discipline_360' => 84, 'teamwork_360' => 83, 'contrib' => 9, 'patients' => 165, 'complaints' => 3, 'rating_avg' => 4.6, 'rating_count' => 10, 'rating_sum' => 46],
+            // 'dokter_umum2' => ['attendance_days' => 23, 'late_minutes' => 30, 'work_minutes' => 8800, 'overtime_days' => 4, 'discipline_360' => 84, 'teamwork_360' => 83, 'contrib' => 9, 'patients' => 165, 'complaints' => 3, 'rating_avg' => 4.6, 'rating_count' => 10, 'rating_sum' => 46], // dibekukan sementara
 
             // Poli Umum (PRW)
             'perawat1' => ['attendance_days' => 24, 'late_minutes' => 40,  'work_minutes' => 11880, 'overtime_days' => 3, 'discipline_360' => 88, 'teamwork_360' => 90, 'contrib' => 8,  'patients' => 0,   'complaints' => 0, 'rating_avg' => 4.5, 'rating_count' => 2, 'rating_sum' => 9],
@@ -404,7 +404,7 @@ class EightStaffKpiSeeder extends Seeder
                 // Poli Umum (DOK-UM)
                 'kepala_umum' => ['attendance_days' => 24, 'late_minutes' => 35, 'work_minutes' => 11880, 'overtime_days' => 3, 'discipline_360' => 88, 'teamwork_360' => 85, 'contrib' => 10, 'patients' => 210, 'complaints' => 3, 'rating_avg' => 4.7, 'rating_count' => 10, 'rating_sum' => 47],
                 'dokter_umum1' => ['attendance_days' => 23, 'late_minutes' => 80, 'work_minutes' => 11385, 'overtime_days' => 2, 'discipline_360' => 81, 'teamwork_360' => 79, 'contrib' => 8, 'patients' => 155, 'complaints' => 5, 'rating_avg' => 4.5, 'rating_count' => 10, 'rating_sum' => 45],
-                'dokter_umum2' => ['attendance_days' => 24, 'late_minutes' => 25, 'work_minutes' => 12060, 'overtime_days' => 4, 'discipline_360' => 85, 'teamwork_360' => 84, 'contrib' => 9, 'patients' => 170, 'complaints' => 2, 'rating_avg' => 4.6, 'rating_count' => 10, 'rating_sum' => 46],
+                // 'dokter_umum2' => ['attendance_days' => 24, 'late_minutes' => 25, 'work_minutes' => 12060, 'overtime_days' => 4, 'discipline_360' => 85, 'teamwork_360' => 84, 'contrib' => 9, 'patients' => 170, 'complaints' => 2, 'rating_avg' => 4.6, 'rating_count' => 10, 'rating_sum' => 46], // dibekukan sementara
 
                 // Poli Umum (PRW)
                 'perawat1' => ['attendance_days' => 24, 'late_minutes' => 30, 'work_minutes' => 13200, 'overtime_days' => 3, 'discipline_360' => 89, 'teamwork_360' => 91, 'contrib' => 8, 'patients' => 0, 'complaints' => 0, 'rating_avg' => 4.5, 'rating_count' => 2, 'rating_sum' => 9],

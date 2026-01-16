@@ -164,30 +164,37 @@ class AssessmentPeriodController extends Controller
             ]);
         }
 
-        // Safety: ensure Penilaian Saya exists (and latest computed) before sending to approval.
-        $perfSvc->initializeForPeriod($period);
+        DB::transaction(function () use ($period, $perfSvc) {
+            $period->refresh();
 
-        $this->createApprovalsForPeriod($period);
+            $supportsAttempt = Schema::hasColumn('assessment_periods', 'approval_attempt');
+            $attempt = $supportsAttempt ? max(1, (int) ($period->approval_attempt ?? 0)) : 1;
 
-        $updates = [
-            'status' => AssessmentPeriod::STATUS_APPROVAL,
-        ];
-        if (Schema::hasColumn('assessment_periods', 'approval_attempt')) {
-            $updates['approval_attempt'] = (int) ($period->approval_attempt ?? 1);
-        }
-        if (Schema::hasColumn('assessment_periods', 'rejected_at')) {
-            $updates['rejected_level'] = null;
-            $updates['rejected_by_id'] = null;
-            $updates['rejected_at'] = null;
-            $updates['rejected_reason'] = null;
-        }
-        if (Schema::hasColumn('assessment_periods', 'closed_at')) {
-            $updates['closed_at'] = null;
-        }
-        if (Schema::hasColumn('assessment_periods', 'closed_by_id')) {
-            $updates['closed_by_id'] = null;
-        }
-        $period->update($updates);
+            $updates = [
+                'status' => AssessmentPeriod::STATUS_APPROVAL,
+            ];
+            if ($supportsAttempt) {
+                $updates['approval_attempt'] = $attempt;
+            }
+            if (Schema::hasColumn('assessment_periods', 'rejected_at')) {
+                $updates['rejected_level'] = null;
+                $updates['rejected_by_id'] = null;
+                $updates['rejected_at'] = null;
+                $updates['rejected_reason'] = null;
+            }
+            if (Schema::hasColumn('assessment_periods', 'closed_at')) {
+                $updates['closed_at'] = null;
+            }
+            if (Schema::hasColumn('assessment_periods', 'closed_by_id')) {
+                $updates['closed_by_id'] = null;
+            }
+            $period->update($updates);
+
+            // Safety: ensure Penilaian Saya exists (and latest computed) before sending to approval.
+            $perfSvc->initializeForPeriod($period);
+
+            $this->createApprovalsForPeriod($period, $attempt);
+        });
 
         return back()->with('status','Periode masuk tahap persetujuan. Semua penilaian dikirim ke alur approval.');
     }
@@ -312,7 +319,7 @@ class AssessmentPeriodController extends Controller
         return $validator->validate();
     }
 
-    private function createApprovalsForPeriod(AssessmentPeriod $period): void
+    private function createApprovalsForPeriod(AssessmentPeriod $period, int $attempt): void
     {
         $assessments = PerformanceAssessment::query()
             ->where('assessment_period_id', $period->id)
@@ -324,7 +331,8 @@ class AssessmentPeriodController extends Controller
 
         $adminApprover = User::query()->role(User::ROLE_ADMINISTRASI)->orderBy('id')->value('id');
         $pending = AssessmentApprovalStatus::PENDING->value;
-        $attempt = (int) ($period->approval_attempt ?? 1);
+
+        $attempt = max(1, (int) $attempt);
 
         foreach ($assessments as $assessment) {
             AssessmentApproval::firstOrCreate(

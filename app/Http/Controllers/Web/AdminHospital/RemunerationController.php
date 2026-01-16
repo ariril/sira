@@ -18,6 +18,8 @@ use App\Models\Unit;
 use App\Models\Profession;
 use App\Support\AttachedRemunerationCalculator;
 use App\Support\ProportionalAllocator;
+use App\Services\Remuneration\RemunerationCalculationService;
+use Dompdf\Dompdf;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -534,102 +536,37 @@ class RemunerationController extends Controller
         $periodId = (int) $data['period_id'];
         $period = AssessmentPeriod::findOrFail($periodId);
 
-        if (method_exists($period, 'isRejectedApproval') && $period->isRejectedApproval()) {
-            return back()->with('danger', 'Perhitungan tidak dapat dijalankan: periode sedang DITOLAK (approval rejected).');
-        }
+        $svc = app(RemunerationCalculationService::class);
+            $result = $svc->runForPeriod($period, (int) Auth::id(), false, false);
 
-        // Hard gate: do not allow calculation while period is ACTIVE/DRAFT
-        $isLocked = in_array($period->status, [AssessmentPeriod::STATUS_LOCKED, AssessmentPeriod::STATUS_APPROVAL, AssessmentPeriod::STATUS_CLOSED], true);
-        if (!$isLocked) {
-            return back()->with('danger', 'Perhitungan hanya bisa dijalankan setelah periode ditutup (LOCKED).');
-        }
-
-        // Hard gate: all assessments must be finally validated
-        $assessmentCount = (int) PerformanceAssessment::query()->where('assessment_period_id', $periodId)->count();
-        $wsmFilledCount = (int) PerformanceAssessment::query()
-            ->where('assessment_period_id', $periodId)
-            ->whereNotNull('total_wsm_score')
-            ->count();
-        $validatedCount = (int) PerformanceAssessment::query()
-            ->where('assessment_period_id', $periodId)
-            ->where('validation_status', AssessmentValidationStatus::VALIDATED->value)
-            ->count();
-        if ($assessmentCount === 0 || $assessmentCount !== $validatedCount) {
-            return back()->with('danger', 'Tidak dapat menjalankan perhitungan: masih ada penilaian yang belum tervalidasi final.');
-        }
-
-        if ($wsmFilledCount !== $assessmentCount) {
-            return back()->with('danger', 'Tidak dapat menjalankan perhitungan: skor WSM belum siap (total_wsm_score masih kosong). Pastikan bobot kriteria ACTIVE sudah tersedia, lalu recalculate penilaian.');
-        }
-
-        // If any allocation for this period uses ATTACHED mode, require VALUE WSM to be filled too.
-        $allocationsForModeCheck = Allocation::query()
-            ->where('assessment_period_id', $periodId)
-            ->whereNotNull('published_at')
-            ->get(['unit_id', 'profession_id']);
-
-        $needsValueWsm = false;
-        foreach ($allocationsForModeCheck as $a) {
-            if ($this->resolveDistributionMode($periodId, (int) $a->unit_id, $period, $a->profession_id === null ? null : (int) $a->profession_id) === self::DISTRIBUTION_MODE_ATTACHED) {
-                $needsValueWsm = true;
-                break;
-            }
-        }
-
-        if ($needsValueWsm) {
-            $wsmValueFilledCount = (int) PerformanceAssessment::query()
-                ->where('assessment_period_id', $periodId)
-                ->whereNotNull('total_wsm_value_score')
-                ->count();
-
-            if ($wsmValueFilledCount !== $assessmentCount) {
-                return back()->with('danger', 'Tidak dapat menjalankan perhitungan: skor WSM VALUE belum siap (total_wsm_value_score masih kosong). Jalankan recalculate penilaian (WSM) setelah update sistem.');
-            }
-        }
-
-        // Hard gate: all allocations must be published (not partial)
-        $allocTotal = (int) Allocation::query()->where('assessment_period_id', $periodId)->count();
-        $allocPublished = (int) Allocation::query()->where('assessment_period_id', $periodId)->whereNotNull('published_at')->count();
-        if ($allocTotal === 0 || $allocTotal !== $allocPublished) {
-            return back()->with('danger', 'Tidak dapat menjalankan perhitungan: alokasi remunerasi unit belum dipublish semua.');
-        }
-
-        $allocations = Allocation::with(['unit:id,name'])
-            ->where('assessment_period_id', $periodId)
-            ->whereNotNull('published_at')
-            ->get();
-
-        $actorId = (int) Auth::id();
-        $skipped = [];
-        DB::transaction(function () use ($allocations, $period, $periodId, $actorId, &$skipped) {
-            foreach ($allocations as $alloc) {
-                $res = $this->distributeAllocation(
-                    $alloc,
-                    $period,
-                    $periodId,
-                    $alloc->profession_id,
-                    (float) $alloc->amount,
-                    $actorId
-                );
-
-                if (!($res['ok'] ?? true)) {
-                    $skipped[] = (string) ($res['message'] ?? 'Alokasi dilewati.');
-                }
-            }
-
-        });
-
-        if (!empty($skipped)) {
-            $msg = "Perhitungan selesai, tetapi ada alokasi yang dilewati karena data WSM grup tidak valid.\n- " . implode("\n- ", array_slice($skipped, 0, 10));
-            if (count($skipped) > 10) {
-                $msg .= "\n(dan " . (count($skipped) - 10) . " lainnya)";
-            }
+        if (!($result['ok'] ?? false)) {
             return redirect()->route('admin_rs.remunerations.calc.index', ['period_id' => $periodId])
-                ->with('danger', $msg);
+                ->with('danger', (string) ($result['message'] ?? 'Perhitungan remunerasi gagal.'));
         }
 
         return redirect()->route('admin_rs.remunerations.calc.index', ['period_id' => $periodId])
-            ->with('status', 'Perhitungan selesai (berdasarkan skor kinerja terkonfigurasi).');
+            ->with('status', (string) ($result['message'] ?? 'Perhitungan selesai.'));
+    }
+
+    /** Force calculation with zero fallback for missing data */
+    public function forceCalculation(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'period_id' => ['required','integer','exists:assessment_periods,id'],
+        ]);
+        $periodId = (int) $data['period_id'];
+        $period = AssessmentPeriod::findOrFail($periodId);
+
+        $svc = app(RemunerationCalculationService::class);
+        $result = $svc->runForPeriod($period, (int) Auth::id(), false, true);
+
+        if (!($result['ok'] ?? false)) {
+            return redirect()->route('admin_rs.remunerations.calc.index', ['period_id' => $periodId])
+                ->with('danger', (string) ($result['message'] ?? 'Perhitungan remunerasi gagal.'));
+        }
+
+        return redirect()->route('admin_rs.remunerations.calc.index', ['period_id' => $periodId])
+            ->with('status', (string) ($result['message'] ?? 'Perhitungan paksa selesai.'));
     }
 
     /**
@@ -961,6 +898,77 @@ class RemunerationController extends Controller
         $q->update(['published_at' => now()]);
 
         return back()->with('status', "{$count} remunerasi dipublish.");
+    }
+
+    /** Export remunerations to PDF (full table, simple and user-friendly) */
+    public function exportPdf(Request $request)
+    {
+        $data = $request->validate([
+            'period_id'      => ['nullable','integer','exists:assessment_periods,id'],
+            'unit_id'        => ['nullable','integer','exists:units,id'],
+            'profession_id'  => ['nullable','integer','exists:professions,id'],
+            'published'      => ['nullable','in:yes,no'],
+            'payment_status' => ['nullable','in:' . implode(',', array_map(fn($e) => $e->value, RemunerationPaymentStatus::cases()))],
+        ]);
+
+        $periodId = (int) ($data['period_id'] ?? 0);
+        $unitId = (int) ($data['unit_id'] ?? 0);
+        $professionId = (int) ($data['profession_id'] ?? 0);
+        $published = $data['published'] ?? null;
+        $paymentStatus = $data['payment_status'] ?? null;
+
+        $query = Remuneration::query()
+            ->with([
+                'user:id,name,unit_id,profession_id',
+                'user.unit:id,name',
+                'user.profession:id,name',
+                'assessmentPeriod:id,name',
+            ])
+            ->when($periodId, fn($w) => $w->where('assessment_period_id', $periodId))
+            ->when($published === 'yes', fn($w) => $w->whereNotNull('published_at'))
+            ->when($published === 'no', fn($w) => $w->whereNull('published_at'))
+            ->when($paymentStatus, fn($w) => $w->where('payment_status', $paymentStatus))
+            ->when($unitId || $professionId, function ($w) use ($unitId, $professionId) {
+                $w->whereHas('user', function ($u) use ($unitId, $professionId) {
+                    if ($unitId) $u->where('unit_id', $unitId);
+                    if ($professionId) $u->where('profession_id', $professionId);
+                });
+            })
+            ->orderByDesc('id');
+
+        $items = $query->get();
+
+        $periodName = $periodId ? (AssessmentPeriod::find($periodId)?->name ?? '-') : 'Semua Periode';
+        $unitName = $unitId ? (Unit::find($unitId)?->name ?? '-') : 'Semua Unit';
+        $professionName = $professionId ? (Profession::find($professionId)?->name ?? '-') : 'Semua Profesi';
+
+        $filters = [
+            'period' => $periodName,
+            'unit' => $unitName,
+            'profession' => $professionName,
+            'published' => $published === 'yes' ? 'Dipublikasikan' : ($published === 'no' ? 'Draft' : 'Semua'),
+            'payment_status' => $paymentStatus ?: 'Semua',
+        ];
+
+        $html = view('admin_rs.remunerations.export_pdf', [
+            'items' => $items,
+            'filters' => $filters,
+            'printedAt' => now(),
+        ])->render();
+
+        $dompdf = new Dompdf([
+            'isRemoteEnabled' => true,
+            'defaultFont' => 'DejaVu Sans',
+        ]);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('a4', 'landscape');
+        $dompdf->render();
+
+        $fileName = 'remunerasi-' . now()->format('Ymd-His') . '.pdf';
+        return response($dompdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+        ]);
     }
 
     /**

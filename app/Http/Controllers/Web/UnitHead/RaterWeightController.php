@@ -939,7 +939,24 @@ class RaterWeightController extends Controller
             return null;
         }
 
-        $periodStatuses = ['active', 'locked', 'approval', 'closed'];
+        // Backfill legacy archived rows: if a row was approved (decided_by set), it used to be active.
+        // This makes the "Salin periode sebelumnya" button appear even for older data.
+        if (Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
+            DB::table('unit_rater_weights')
+                ->where('unit_id', $unitId)
+                ->where('status', 'archived')
+                ->where('was_active_before', 0)
+                ->where(function ($q) {
+                    $q->whereNotNull('decided_by')
+                      ->orWhereNotNull('decided_at');
+                })
+                ->update([
+                    'was_active_before' => 1,
+                    'updated_at' => now(),
+                ]);
+        }
+
+        $periodStatuses = ['active', 'locked', 'approval', 'closed', 'archived'];
 
         $query = DB::table('assessment_periods')
             ->where('id', '!=', (int) $activePeriod->id)
@@ -953,24 +970,22 @@ class RaterWeightController extends Controller
                 ->orderByDesc('id');
         }
 
-        // Find the closest previous period that has rater weights for this unit (active/archived).
+        // Find the closest previous period that has rater weights for this unit.
+        // If was_active_before exists, use it as the definitive signal.
+        $hasWasActiveBefore = Schema::hasColumn('unit_rater_weights', 'was_active_before');
+
         return $query
-            ->whereExists(function ($sub) use ($unitId) {
+            ->whereExists(function ($sub) use ($unitId, $hasWasActiveBefore) {
                 $sub->select(DB::raw(1))
                     ->from('unit_rater_weights')
                     ->whereColumn('unit_rater_weights.assessment_period_id', 'assessment_periods.id')
                     ->where('unit_rater_weights.unit_id', $unitId);
 
-                // Prioritaskan bobot yang memang pernah aktif.
-                $sub->where(function ($q) {
-                    $q->where('unit_rater_weights.status', 'active')
-                        ->orWhere(function ($q) {
-                            $q->where('unit_rater_weights.status', 'archived');
-                            if (Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
-                                $q->where('unit_rater_weights.was_active_before', 1);
-                            }
-                        });
-                });
+                if ($hasWasActiveBefore) {
+                    $sub->where('unit_rater_weights.was_active_before', 1);
+                } else {
+                    $sub->whereIn('unit_rater_weights.status', ['active', 'archived']);
+                }
             })
             ->first();
     }

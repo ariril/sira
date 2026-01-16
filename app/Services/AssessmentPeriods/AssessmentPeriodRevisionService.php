@@ -73,7 +73,7 @@ class AssessmentPeriodRevisionService
             $this->invalidateApprovalsForPeriodAttempt($period, $actor->id, 'Open revision: approval harus diulang dari Level 1.');
 
             AssessmentPeriodAudit::log((int) $period->id, (int) $actor->id, 'revision_opened', $reason, [
-                'attempt' => (int) ($period->approval_attempt ?? 1),
+            'attempt' => max(1, (int) ($period->approval_attempt ?? 0)),
             ]);
         });
     }
@@ -95,7 +95,8 @@ class AssessmentPeriodRevisionService
                 throw new \RuntimeException('Periode tidak valid untuk resubmit.');
             }
 
-            $nextAttempt = (int) (($period->approval_attempt ?? 1) + 1);
+            $currentAttempt = max(1, (int) ($period->approval_attempt ?? 0));
+            $nextAttempt = $currentAttempt + 1;
 
             $period->update([
                 'status' => AssessmentPeriod::STATUS_APPROVAL,
@@ -154,7 +155,7 @@ class AssessmentPeriodRevisionService
             return;
         }
 
-        $attempt = (int) ($period->approval_attempt ?? 1);
+        $attempt = max(1, (int) ($period->approval_attempt ?? 0));
 
         DB::table('assessment_approvals as aa')
             ->join('performance_assessments as pa', 'pa.id', '=', 'aa.performance_assessment_id')

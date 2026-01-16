@@ -11,6 +11,14 @@
                             <i class="fa-solid fa-magnifying-glass mr-2"></i> Audit
                         </x-ui.button>
                     </form>
+                    <form method="POST" action="{{ route('admin_rs.remunerations.calc.force') }}"
+                        onsubmit="return confirm('Jalankan perhitungan paksa? Sistem akan mengisi nilai 0 untuk WSM kosong dan alokasi yang belum dipublish.');">
+                        @csrf
+                        <input type="hidden" name="period_id" value="{{ $selectedId }}" />
+                        <x-ui.button type="submit" variant="danger" class="h-12 px-6 text-base">
+                            <i class="fa-solid fa-bolt mr-2"></i> Lakukan Perhitungan
+                        </x-ui.button>
+                    </form>
 
                 </div>
             @endif

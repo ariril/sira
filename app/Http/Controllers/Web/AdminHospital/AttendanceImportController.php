@@ -24,6 +24,7 @@ use App\Models\AssessmentPeriod;
 use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use App\Support\AssessmentPeriodGuard;
 use App\Support\AssessmentPeriodAudit;
+use Illuminate\Validation\ValidationException;
 
 class AttendanceImportController extends Controller
 {
@@ -47,9 +48,24 @@ class AttendanceImportController extends Controller
     // Preview 5 first rows (for client-side warning before import)
     public function preview(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt,xls,xlsx', 'max:5120'],
-        ]);
+        try {
+            $validated = $request->validate([
+                'file' => ['required', 'file', 'mimes:csv,txt,xls,xlsx', 'max:5120'],
+            ]);
+        } catch (ValidationException $e) {
+            $first = 'Validasi file gagal.';
+            foreach ($e->errors() as $messages) {
+                if (!empty($messages[0])) {
+                    $first = (string) $messages[0];
+                    break;
+                }
+            }
+            return response()->json([
+                'ok' => false,
+                'message' => $first,
+                'errors' => $e->errors(),
+            ], 422);
+        }
 
         $file = $validated['file'];
 

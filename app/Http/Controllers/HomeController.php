@@ -54,10 +54,18 @@ class HomeController extends Controller
             if (!Schema::hasTable('assessment_periods')) {
                 return null;
             }
-            return AssessmentPeriod::query()
-                ->where('status', 'active')
+
+            $period = AssessmentPeriod::query()
+                ->where('status', AssessmentPeriod::STATUS_ACTIVE)
                 ->orderByDesc('id')
                 ->first();
+
+            // Guard against stale/incorrect active status (e.g., cached old data)
+            if (!$period || !$period->isCurrentlyActive()) {
+                return null;
+            }
+
+            return $period;
         });
 
         // 3) Quick stats
@@ -109,10 +117,7 @@ class HomeController extends Controller
             ],
             [
                 'icon'  => 'fa-calendar-days',
-                'value' => $periodeAktif
-                    ? ($periodeAktif->name
-                        ?: ($this->formatBulanTahun($periodeAktif->start_date ?: $periodeAktif->end_date)))
-                    : '—',
+                'value' => $periodeAktif?->name ?: '—',
                 'label' => 'Periode Aktif',
             ],
             [

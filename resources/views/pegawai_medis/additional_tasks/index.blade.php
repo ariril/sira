@@ -1,132 +1,487 @@
-<x-app-layout title="Tugas Tambahan">
+<x-app-layout title="Kontribusi Tambahan">
     <x-slot name="header">
-        <h1 class="text-2xl font-semibold text-slate-800">Tugas Tambahan (Poin)</h1>
+        <h1 class="text-2xl font-semibold text-slate-800">Kontribusi Tambahan</h1>
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
         @unless($activePeriod)
-            <div class="rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
-                <div class="font-semibold">Periode penilaian tidak aktif.</div>
-                <div>Tugas tanpa periode masih bisa tampil; tugas berperiode membutuhkan periode aktif.</div>
+            <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
+                <div class="font-semibold">Tidak ada periode yang aktif saat ini.</div>
+                <div>Hubungi Admin RS untuk mengaktifkan periode penilaian terlebih dahulu.</div>
             </div>
         @endunless
 
         @php
             $statusLabels = [
+                'active' => 'Dalam Proses',
                 'submitted' => 'Menunggu Review',
                 'approved' => 'Disetujui',
                 'rejected' => 'Ditolak',
             ];
             $statusClasses = [
+                'active' => 'bg-cyan-100 text-cyan-800',
                 'submitted' => 'bg-amber-100 text-amber-800',
                 'approved' => 'bg-emerald-100 text-emerald-800',
                 'rejected' => 'bg-rose-100 text-rose-800',
             ];
+            $statusHelp = [
+                'active' => 'Tugas sudah diklaim. Silakan unggah hasil untuk dikirim ke kepala unit.',
+                'submitted' => 'Hasil sudah dikirim, menunggu validasi kepala unit.',
+                'approved' => 'Klaim disetujui; nilai/bonus akan dihitung.',
+                'rejected' => 'Klaim ditolak; periksa catatan/revisi jika ada.',
+            ];
         @endphp
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+        {{-- CARD: Tugas Tersedia --}}
+        <div id="tugas-tersedia" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div class="flex items-center justify-between mb-4">
                 <div>
-                    <p class="text-xs uppercase tracking-wide text-slate-500">Daftar</p>
-                    <h2 class="text-xl font-semibold text-slate-800">Tugas Open</h2>
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Daftar Tugas</p>
+                    <h2 class="text-xl font-semibold text-slate-800">Tugas Tersedia</h2>
                 </div>
+                <a href="#tugas-tersedia" class="text-sm text-slate-500 hover:underline">#</a>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                @forelse($availableTasks as $t)
+                    <div class="rounded-2xl ring-1 ring-slate-100 p-5 bg-white h-full flex flex-col shadow-[0_10px_25px_-20px_rgba(15,23,42,0.35)]" x-data="{ showDetail: false }">
+                        @php
+                            $availableTime = $t->due_time ?? '23:59';
+                            $availableDate = $t->due_date ? \Illuminate\Support\Carbon::parse($t->due_date)->toDateString() : null;
+                            try {
+                                $availableDue = $availableDate
+                                    ? \Illuminate\Support\Carbon::parse($availableDate.' '.$availableTime, 'Asia/Jakarta')->format('d M Y H:i')
+                                    : '-';
+                            } catch (\Exception $e) {
+                                $availableDue = $availableDate ? $availableDate.' '.$availableTime : '-';
+                            }
+                        @endphp
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="font-semibold text-slate-900 text-lg">{{ $t->title }}</div>
+                            </div>
+                            <div class="text-right text-base">
+                                <div class="text-sm text-slate-500">Poin: <span class="font-semibold text-slate-900">{{ $t->points ?? '-' }}</span></div>
+                            </div>
+                        </div>
+                        <div class="mt-3 flex items-center justify-between text-base text-slate-600">
+                            <span>Klaim: {{ $t->claims_used }} / {{ $t->max_claims ?? '∞' }}</span>
+                            <span class="text-sm text-slate-500">Status: {{ $t->available ? 'Slot tersedia' : 'Kuota penuh' }}</span>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                            <div></div>
+                            <div class="flex items-center gap-3">
+                                @if($t->my_claim_status)
+                                    <span class="px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$t->my_claim_status] ?? 'bg-slate-200 text-slate-700' }}">
+                                        {{ $statusLabels[$t->my_claim_status] ?? strtoupper($t->my_claim_status) }}
+                                    </span>
+                                @elseif(($activePeriod ?? null) && $t->available)
+                                    <form method="POST" action="{{ route('pegawai_medis.additional_tasks.claim', $t->id) }}">
+                                        @csrf
+                                        <button class="px-4 py-2 rounded-xl text-white text-sm font-semibold bg-gradient-to-r from-sky-400 to-blue-600 shadow-sm hover:brightness-110 focus:ring-2 focus:ring-offset-1 focus:ring-sky-200">
+                                            Klaim
+                                        </button>
+                                    </form>
+                                @elseif(!($activePeriod ?? null))
+                                    <span class="text-xs text-slate-500">Periode tidak aktif</span>
+                                @else
+                                    <span class="text-xs text-rose-600">Kuota habis</span>
+                                @endif
+                                <button type="button" class="px-4 py-2 rounded-xl text-sm font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 ring-1 ring-sky-100" @click="showDetail = !showDetail">
+                                    Detail
+                                </button>
+                            </div>
+                        </div>
+                        <div x-cloak x-show="showDetail" class="mt-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-4 text-sm text-slate-600 space-y-3">
+                            <div>
+                                <p class="text-xs uppercase tracking-wide text-slate-500">Deskripsi Lengkap</p>
+                                <p class="mt-1 leading-relaxed">{{ $t->description ?? 'Tidak ada deskripsi.' }}</p>
+                            </div>
+                            <div class="flex flex-wrap gap-3 text-sm">
+                                <span>Periode: <span class="font-medium text-slate-800">{{ $t->period_name ?? '-' }}</span></span>
+                                <span>Jatuh tempo: <span class="font-medium text-slate-800">{{ $availableDue }}</span></span>
+                            </div>
+                            @if(!empty($t->policy_doc_path))
+                                <a href="{{ asset('storage/'.ltrim($t->policy_doc_path,'/')) }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm">
+                                    <i class="fa-solid fa-file-lines text-sky-500"></i> Dokumen Instruksi
+                                </a>
+                            @endif
+
+                            <p class="text-xs text-slate-500">Untuk mengirim hasil, klaim dulu tugasnya. Setelah itu akan muncul di bagian <span class="font-medium text-slate-700">Progress Klaim Saya</span>.</p>
+                        </div>
+                    </div>
+                @empty
+                    <div class="text-sm text-slate-500">Belum ada tugas yang tersedia.</div>
+                @endforelse
+            </div>
+        </div>
+
+        {{-- CARD: Progress Klaim --}}
+        <div id="klaim-aktif" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6" x-data="{ activeDetail: null }">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Klaim Berjalan</p>
+                    <h2 class="text-xl font-semibold text-slate-800">Progress Klaim Saya</h2>
+                </div>
+                <a href="#klaim-aktif" class="text-sm text-slate-500 hover:underline">#</a>
+            </div>
+            <div class="overflow-x-auto">
+                <x-ui.table min-width="780px">
+                    <x-slot name="head">
+                        <tr>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Tugas</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">
+                                Status
+                                <span class="inline-block ml-1 text-amber-600 cursor-help" title="Alur: Dalam Proses → Menunggu Review → Disetujui / Ditolak.">!</span>
+                            </th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Klaim Pada</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Dikirim Pada</th>
+                            <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
+                        </tr>
+                    </x-slot>
+                    @forelse($currentClaims as $claim)
+                        <tr class="align-top hover:bg-slate-50">
+                            <td class="px-6 py-4 text-base">
+                                <div class="font-semibold text-slate-900">{{ $claim->task?->title ?? '-' }}</div>
+                            </td>
+                            <td class="px-6 py-4 text-base">
+                                <span class="px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$claim->status] ?? 'bg-slate-200 text-slate-700' }} cursor-help" title="{{ $statusHelp[$claim->status] ?? '' }}">
+                                    {{ $statusLabels[$claim->status] ?? strtoupper($claim->status) }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-base font-medium">{{ optional($claim->created_at?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}</td>
+                            <td class="px-6 py-4 text-base font-medium">
+                                @if($claim->status === 'active')
+                                    -
+                                @else
+                                    {{ optional($claim->submitted_at?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                <div class="flex items-center justify-end gap-2 flex-wrap">
+                                    <button type="button"
+                                        class="px-5 py-2.5 rounded-xl text-white text-sm font-semibold bg-gradient-to-r from-sky-400 to-blue-600 shadow-sm hover:brightness-110"
+                                        @click="activeDetail = activeDetail === '{{ $claim->id }}' ? null : '{{ $claim->id }}'">
+                                        {{ __('Detail') }}
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-slate-500">Belum ada klaim aktif.</td>
+                        </tr>
+                    @endforelse
+                </x-ui.table>
             </div>
 
-            <div class="space-y-4">
-                @forelse($tasks as $task)
-                    @php
-                        $claim = $myClaimsByTaskId->get($task->id);
-                        $dueTime = $task->due_time ?: '23:59:59';
-                        $dueDate = $task->due_date ? \Illuminate\Support\Carbon::parse($task->due_date)->toDateString() : null;
-                        $due = $dueDate ? \Illuminate\Support\Carbon::parse($dueDate.' '.$dueTime, config('app.timezone'))->format('d M Y H:i') : '-';
-                        $claimsUsed = (int) ($task->claims_used ?? 0);
-                        $maxClaims = $task->max_claims;
-                        $quotaText = empty($maxClaims) ? $claimsUsed.' / ∞' : $claimsUsed.' / '.(int)$maxClaims;
-                    @endphp
+            @foreach($currentClaims as $claim)
+                @php
+                    $detailTime = $claim->task?->due_time ?? '23:59';
+                    $detailDate = $claim->task?->due_date ? \Illuminate\Support\Carbon::parse($claim->task->due_date)->toDateString() : null;
+                    try {
+                        $detailDue = $detailDate
+                            ? \Illuminate\Support\Carbon::parse($detailDate.' '.$detailTime, 'Asia/Jakarta')->format('d M Y H:i')
+                            : '-';
+                    } catch (\Exception $e) {
+                        $detailDue = $detailDate ? $detailDate.' '.$detailTime : '-';
+                    }
+                    $periodName = $claim->task?->period?->name ?? '-';
+                    $instructionUrl = $claim->task?->policy_doc_path
+                        ? asset('storage/'.ltrim($claim->task->policy_doc_path,'/'))
+                        : null;
+                    $resultUrl = $claim->result_file_path
+                        ? asset('storage/'.ltrim($claim->result_file_path,'/'))
+                        : null;
+                @endphp
+                <div x-cloak x-show="activeDetail === '{{ $claim->id }}'" class="mt-6 rounded-2xl border border-slate-100 shadow-sm bg-slate-50/70 p-6">
+                    <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-slate-500">Detail Klaim</p>
+                            <h3 class="text-xl font-semibold text-slate-900">{{ $claim->task?->title ?? '-' }}</h3>
+                            <p class="text-sm text-slate-500">Periode {{ $periodName }} &bull; Jatuh tempo {{ $detailDue }}</p>
+                        </div>
+                        <button type="button" class="text-sm text-slate-500 hover:text-slate-700" @click="activeDetail = null">
+                            Tutup
+                        </button>
+                    </div>
 
-                    <div class="rounded-2xl border border-slate-100 p-5" x-data="{ open: false }">
-                        <div class="flex items-start justify-between gap-4">
-                            <div>
-                                <div class="text-lg font-semibold text-slate-900">{{ $task->title }}</div>
-                                <div class="mt-1 text-sm text-slate-500">
-                                    <span>Periode: <span class="font-medium text-slate-700">{{ $task->period?->name ?? '-' }}</span></span>
-                                    <span class="mx-2">•</span>
-                                    <span>Jatuh tempo: <span class="font-medium text-slate-700">{{ $due }}</span></span>
-                                    <span class="mx-2">•</span>
-                                    <span>Kuota: <span class="font-medium text-slate-700">{{ $quotaText }}</span></span>
-                                </div>
-                                @if($task->description)
-                                    <div class="mt-2 text-sm text-slate-600">{{ $task->description }}</div>
-                                @endif
+                    <div class="mt-4 grid gap-4 md:grid-cols-4">
+                        <div class="p-4 rounded-xl bg-white border border-slate-100">
+                            <p class="text-xs text-slate-500">Status Saat Ini</p>
+                            <p class="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$claim->status] ?? 'bg-slate-200 text-slate-700' }}">
+                                {{ $statusLabels[$claim->status] ?? strtoupper($claim->status) }}
+                            </p>
+                        </div>
+                        <div class="p-4 rounded-xl bg-white border border-slate-100">
+                            <p class="text-xs text-slate-500">Waktu</p>
+                            <p class="mt-2 text-sm font-medium text-slate-800">Klaim: {{ optional($claim->created_at?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}</p>
+                            <p class="text-xs text-slate-500">Submit: {{ $claim->status === 'active' ? '-' : (optional($claim->submitted_at?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-') }}</p>
+                            <p class="text-xs text-slate-500">Review: {{ optional($claim->reviewed_at?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}</p>
+                        </div>
+                        <div class="p-4 rounded-xl bg-white border border-slate-100">
+                            <p class="text-xs text-slate-500">Poin</p>
+                            <p class="mt-2 text-sm font-medium text-slate-800">Poin tugas: {{ $claim->task?->points ?? '-' }}</p>
+                            <p class="text-xs text-slate-500">Poin diberikan: {{ $claim->awarded_points ?? '-' }}</p>
+                        </div>
+                        <div class="p-4 rounded-xl bg-white border border-slate-100">
+                            <p class="text-xs text-slate-500">Catatan Review</p>
+                            <p class="mt-2 text-sm font-medium text-slate-800">{{ $claim->review_comment ?? 'Belum ada.' }}</p>
+                        </div>
+                    </div>
 
-                                @if(!empty($task->policy_doc_url))
-                                    <div class="mt-2 text-sm">
-                                        <a class="text-sky-700 hover:underline" target="_blank" href="{{ $task->policy_doc_url }}">
-                                            Ketentuan Tambahan (PDF)
+                    <div class="mt-6 grid gap-6 md:grid-cols-2">
+                        <div class="bg-white rounded-2xl border border-dashed border-slate-200 p-5">
+                            <p class="text-sm font-semibold text-slate-800 mb-2">Dokumen</p>
+                            <div class="space-y-2 text-sm">
+                                <div>
+                                    <p class="text-xs text-slate-500">Instruksi</p>
+                                    @if($instructionUrl)
+                                        <a href="{{ $instructionUrl }}" target="_blank" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sky-800 hover:bg-sky-50 text-sm font-medium">
+                                            <i class="fa-solid fa-file-word text-sky-500"></i>
+                                            Dokumen Pendukung
                                         </a>
-                                    </div>
-                                @endif
-                            </div>
-
-                            <div class="text-right">
-                                <div class="text-sm text-slate-500">Poin</div>
-                                <div class="text-xl font-semibold text-slate-900">{{ rtrim(rtrim(number_format((float)$task->points, 2, ',', '.'),'0'),',') }}</div>
-
-                                <div class="mt-2">
-                                    @if($claim)
-                                        <span class="px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$claim->status] ?? 'bg-slate-200 text-slate-700' }}">
-                                            {{ $statusLabels[$claim->status] ?? strtoupper($claim->status) }}
-                                        </span>
                                     @else
-                                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">Belum submit</span>
+                                        <span class="text-slate-400">Tidak ada lampiran.</span>
+                                    @endif
+                                </div>
+                                <div>
+                                    <p class="text-xs text-slate-500">File Hasil</p>
+                                    @if($resultUrl)
+                                        <a href="{{ $resultUrl }}" target="_blank" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-emerald-100 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-sm font-medium">
+                                            <i class="fa-solid fa-file-lines text-emerald-500"></i>
+                                            File Hasil
+                                        </a>
+                                    @else
+                                        <span class="text-slate-400">Belum ada file.</span>
                                     @endif
                                 </div>
                             </div>
                         </div>
 
-                        @if($claim)
-                            <div class="mt-4 text-sm text-slate-600">
-                                <div>Submit: <span class="font-medium text-slate-800">{{ optional($claim->submitted_at?->timezone(config('app.timezone')))->format('d M Y H:i') ?? '-' }}</span></div>
-                                <div>Review: <span class="font-medium text-slate-800">{{ optional($claim->reviewed_at?->timezone(config('app.timezone')))->format('d M Y H:i') ?? '-' }}</span></div>
-                                @if($claim->review_comment)
-                                    <div class="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                                        <div class="text-xs uppercase tracking-wide text-slate-500">Catatan Reviewer</div>
-                                        <div class="mt-1">{{ $claim->review_comment }}</div>
-                                    </div>
-                                @endif
-                            </div>
-                        @else
-                            <div class="mt-4 flex items-center justify-end gap-3">
-                                <button type="button" class="px-4 py-2 rounded-xl text-sm font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 ring-1 ring-sky-100" @click="open = !open">
-                                    Submit hasil
-                                </button>
-                            </div>
-
-                            <div x-cloak x-show="open" class="mt-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                                <form method="POST" action="{{ route('pegawai_medis.additional_tasks.submit', $task->id) }}" enctype="multipart/form-data" class="space-y-3">
+                        <div class="bg-white rounded-2xl border border-slate-100 p-5">
+                            @if($claim->status === 'active')
+                                <p class="text-sm font-semibold text-slate-800">Unggah Hasil Tugas</p>
+                                <form method="POST" action="{{ route('pegawai_medis.additional_tasks.submit', $claim->task?->id) }}" enctype="multipart/form-data" class="mt-3 space-y-3" x-data="{ fileName: '' }">
                                     @csrf
-                                    <div>
-                                        <label class="block text-sm font-medium text-slate-700">Catatan</label>
-                                        <textarea name="note" rows="3" class="mt-1 w-full rounded-xl border-slate-200 focus:border-sky-400 focus:ring-sky-200" placeholder="Tuliskan ringkas hasil pekerjaan (opsional)">{{ old('note') }}</textarea>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-slate-700">File (opsional)</label>
-                                        <input type="file" name="result_file" class="mt-1 block w-full text-sm text-slate-700" />
-                                        <p class="mt-1 text-xs text-slate-500">Maks 10MB. Format: doc/docx/xls/xlsx/ppt/pptx/pdf.</p>
-                                    </div>
-                                    <div class="flex items-center justify-end gap-3">
-                                        <button type="submit" class="px-4 py-2 rounded-xl text-white text-sm font-semibold bg-gradient-to-r from-sky-400 to-blue-600 shadow-sm hover:brightness-110 focus:ring-2 focus:ring-offset-1 focus:ring-sky-200">
-                                            Kirim
-                                        </button>
-                                    </div>
+                                    <label class="block rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 text-center py-6 cursor-pointer transition-colors hover:border-sky-300"
+                                        :class="fileName ? 'border-sky-400 bg-gradient-to-r from-sky-100 to-blue-100 text-sky-900' : ''">
+                                        <template x-if="!fileName">
+                                            <div>
+                                                <p class="text-sm font-medium text-slate-700">Klik untuk pilih atau tarik &amp; lepas</p>
+                                                <p class="text-xs text-slate-500">.doc, .xls, .ppt, .pdf &bull; Maks. 10 MB</p>
+                                            </div>
+                                        </template>
+                                        <template x-if="fileName">
+                                            <div class="text-sm font-semibold">
+                                                File siap diunggah:<br>
+                                                <span x-text="fileName"></span>
+                                            </div>
+                                        </template>
+                                        <input type="file" name="result_file" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf" class="hidden" required @change="fileName = $event.target.files.length ? $event.target.files[0].name : ''">
+                                    </label>
+                                    <textarea name="note" rows="3" class="w-full border border-slate-200 rounded-xl p-3 text-[15px]" placeholder="Catatan untuk kepala unit (opsional)"></textarea>
+                                    <button class="w-full h-11 rounded-xl text-white font-semibold bg-gradient-to-r from-sky-400 to-blue-600 hover:brightness-110">Kirim untuk Review</button>
                                 </form>
-                            </div>
-                        @endif
+                            @else
+                                <p class="text-sm font-semibold text-slate-800">Catatan</p>
+                                <div class="mt-2 space-y-2 text-sm text-slate-600">
+                                    <div>
+                                        <p class="text-xs text-slate-500">Catatan Anda</p>
+                                        <p class="mt-1">{{ $claim->result_note ?? 'Tidak ada catatan.' }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-slate-500">Catatan Reviewer</p>
+                                        <p class="mt-1">{{ $claim->review_comment ?? 'Belum ada.' }}</p>
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
                     </div>
-                @empty
-                    <div class="text-sm text-slate-500">Belum ada tugas open untuk unit Anda.</div>
-                @endforelse
+                </div>
+            @endforeach
+        </div>
+
+        {{-- CARD: Riwayat Klaim --}}
+        <div id="tugas-selesai" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6" x-data="{ historyDetail: null }">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Riwayat</p>
+                    <h2 class="text-xl font-semibold text-slate-800">Riwayat Klaim</h2>
+                </div>
+                <a href="#tugas-selesai" class="text-sm text-slate-500 hover:underline">#</a>
+            </div>
+            <div class="overflow-x-auto">
+                <x-ui.table min-width="720px">
+                    <x-slot name="head">
+                        <tr>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Tugas</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">
+                                Status
+                                <span class="inline-block ml-1 text-amber-600 cursor-help" title="Status riwayat: Disetujui/Selesai/Dibatalkan/Ditolak.">!</span>
+                            </th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Selesai / Update</th>
+                            <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
+                        </tr>
+                    </x-slot>
+                    @forelse($historyClaims as $claim)
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-6 py-4 text-base">
+                                <div class="font-medium text-slate-900">{{ $claim->task?->title ?? '-' }}</div>
+                            </td>
+                            <td class="px-6 py-4 text-base">
+                                <span class="px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$claim->status] ?? 'bg-slate-200 text-slate-700' }} cursor-help" title="{{ $statusHelp[$claim->status] ?? '' }}">
+                                    {{ $statusLabels[$claim->status] ?? strtoupper($claim->status) }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-base">
+                                @php
+                                    $historyTime = ($claim->reviewed_at ?: $claim->submitted_at ?: $claim->updated_at)?->timezone('Asia/Jakarta');
+                                @endphp
+                                {{ $historyTime ? $historyTime->format('d M Y H:i') : '-' }}
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                <button type="button" class="px-5 py-2.5 rounded-xl text-white text-sm font-semibold bg-gradient-to-r from-sky-400 to-blue-600 shadow-sm hover:brightness-110" @click="historyDetail = historyDetail === '{{ $claim->id }}' ? null : '{{ $claim->id }}'">
+                                    Detail
+                                </button>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="4" class="px-6 py-8 text-center text-slate-500">Belum ada riwayat klaim.</td>
+                        </tr>
+                    @endforelse
+                </x-ui.table>
+            </div>
+
+            @foreach($historyClaims as $claim)
+                @php
+                    $instructionUrl = $claim->task?->policy_doc_path ? asset('storage/'.ltrim($claim->task->policy_doc_path,'/')) : null;
+                    $resultUrl = $claim->result_file_path ? asset('storage/'.ltrim($claim->result_file_path,'/')) : null;
+                    $note = $claim->result_note;
+                @endphp
+                <div x-cloak x-show="historyDetail === '{{ $claim->id }}'" class="mt-6 rounded-2xl border border-slate-100 bg-slate-50/70 p-5 space-y-4">
+                    <div class="flex items-start justify-between flex-wrap gap-3">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-slate-500">Ringkasan Klaim</p>
+                            <h3 class="text-xl font-semibold text-slate-900">{{ $claim->task?->title ?? '-' }}</h3>
+                            <p class="text-sm text-slate-500">Periode {{ $claim->task?->period?->name ?? '-' }}</p>
+                        </div>
+                        <button type="button" class="text-sm text-slate-500 hover:text-slate-700" @click="historyDetail = null">Tutup</button>
+                    </div>
+                    <div class="grid gap-4 md:grid-cols-4">
+                        <div class="p-4 rounded-xl bg-white border border-slate-100">
+                            <p class="text-xs text-slate-500">Status Akhir</p>
+                            <p class="mt-2 inline-flex px-3 py-1 rounded-full text-xs font-medium {{ $statusClasses[$claim->status] ?? 'bg-slate-200 text-slate-700' }}">
+                                {{ $statusLabels[$claim->status] ?? strtoupper($claim->status) }}
+                            </p>
+                        </div>
+                        <div class="p-4 rounded-xl bg-white border border-slate-100">
+                            <p class="text-xs text-slate-500">Tanggal Perubahan</p>
+                            <p class="mt-2 text-sm font-medium text-slate-800">{{ optional(($claim->reviewed_at ?: $claim->submitted_at ?: $claim->updated_at)?->timezone('Asia/Jakarta'))->format('d M Y H:i') ?? '-' }}</p>
+                        </div>
+                        <div class="p-4 rounded-xl bg-white border border-slate-100">
+                            <p class="text-xs text-slate-500">Poin</p>
+                            <p class="mt-2 text-sm font-medium text-slate-800">Poin tugas: {{ $claim->task?->points ?? '-' }}</p>
+                            <p class="text-xs text-slate-500">Poin diberikan: {{ $claim->awarded_points ?? '-' }}</p>
+                        </div>
+                        <div class="p-4 rounded-xl bg-white border border-slate-100">
+                            <p class="text-xs text-slate-500">Catatan Reviewer</p>
+                            <p class="mt-2 text-sm font-medium text-slate-800">{{ $claim->review_comment ?? 'Tidak ada catatan.' }}</p>
+                        </div>
+                    </div>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="p-4 rounded-xl bg-white border border-dashed border-slate-200">
+                            <p class="text-sm font-semibold text-slate-800">Dokumen</p>
+                            <div class="mt-2 space-y-1 text-sm">
+                                <div>
+                                    <span class="text-xs text-slate-500">Instruksi</span>
+                                    @if($instructionUrl)
+                                        <a href="{{ $instructionUrl }}" target="_blank" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sky-800 hover:bg-sky-50 text-sm font-medium ml-2">
+                                            <i class="fa-solid fa-file-word text-sky-500"></i>
+                                            Dokumen Pendukung
+                                        </a>
+                                    @else
+                                        <span class="ml-2 text-slate-400">Tidak ada file.</span>
+                                    @endif
+                                </div>
+                                <div>
+                                    <span class="text-xs text-slate-500">File Hasil</span>
+                                    @if($resultUrl)
+                                        <a href="{{ $resultUrl }}" target="_blank" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-emerald-100 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-sm font-medium ml-2">
+                                            <i class="fa-solid fa-file-lines text-emerald-500"></i>
+                                            File Hasil
+                                        </a>
+                                    @else
+                                        <span class="ml-2 text-slate-400">Belum ada file.</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4 rounded-xl bg-white border border-slate-100">
+                            <p class="text-sm font-semibold text-slate-800">Catatan</p>
+                            <p class="mt-2 text-sm text-slate-600">{{ $note ?? 'Tidak ada catatan.' }}</p>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+
+        {{-- CARD: Tugas Tidak Terklaim --}}
+        <div id="tugas-tidak-terklaim" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Evaluasi</p>
+                    <h2 class="text-xl font-semibold text-slate-800">Tugas yang Pernah Diberikan (Tidak Diklaim)</h2>
+                </div>
+                <a href="#tugas-tidak-terklaim" class="text-sm text-slate-500 hover:underline">#</a>
+            </div>
+            <div class="overflow-x-auto">
+                <x-ui.table min-width="860px">
+                    <x-slot name="head">
+                        <tr>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Tugas</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Jatuh Tempo</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Poin</th>
+                            <th class="px-6 py-4 text-right whitespace-nowrap">Dokumen</th>
+                        </tr>
+                    </x-slot>
+                    @forelse($missedTasks as $t)
+                        @php
+                            $missedDue = $t->due_date
+                                ? \Illuminate\Support\Carbon::parse($t->due_date)->format('d M Y')
+                                : '-';
+                            $supportingUrl = $t->policy_doc_path
+                                ? asset('storage/'.ltrim($t->policy_doc_path,'/'))
+                                : null;
+                        @endphp
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-6 py-4 text-base">
+                                <div class="font-medium text-slate-900">{{ $t->title }}</div>
+                            </td>
+                            <td class="px-6 py-4 text-base">{{ $t->period?->name ?? '-' }}</td>
+                            <td class="px-6 py-4 text-base">{{ $missedDue }}</td>
+                            <td class="px-6 py-4 text-base">
+                                <span class="text-slate-500">Poin: <span class="font-medium text-slate-900">{{ $t->points ?? '-' }}</span></span>
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                @if($supportingUrl)
+                                    <a href="{{ $supportingUrl }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm">
+                                        <i class="fa-solid fa-file-lines text-sky-500"></i> Dokumen
+                                    </a>
+                                @else
+                                    <span class="text-sm text-slate-400">-</span>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-slate-500">Belum ada data tugas yang terlewat.</td>
+                        </tr>
+                    @endforelse
+                </x-ui.table>
             </div>
         </div>
     </div>
+
 </x-app-layout>

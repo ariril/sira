@@ -11,6 +11,7 @@ use App\Models\UnitRemunerationAllocation as Allocation;
 use App\Services\AssessmentApprovals\AssessmentApprovalDetailService;
 use App\Support\ProportionalAllocator;
 use App\Enums\AssessmentValidationStatus;
+use Dompdf\Dompdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -230,11 +231,11 @@ class RemunerationController extends Controller
                     'highestApproved' => $highestApproved,
                     'currentStatus' => $current,
                     'levels' => $levels,
-                    'validation_status' => (string) ($pendingAssessment->validation_status ?? ''),
+                    'validation_status' => $pendingAssessment->validation_status?->value ?? '',
                 ];
 
                 // Banners (prerequisites)
-                if ((string) ($pendingAssessment->validation_status ?? '') !== AssessmentValidationStatus::VALIDATED->value) {
+                if (($pendingAssessment->validation_status?->value ?? '') !== AssessmentValidationStatus::VALIDATED->value) {
                     $banners[] = [
                         'type' => 'warning',
                         'message' => 'Penilaian Anda belum tervalidasi final. Remunerasi akan tersedia setelah proses validasi selesai.',
@@ -403,6 +404,17 @@ class RemunerationController extends Controller
             }
         }
 
+        $additionalTaskNominal = data_get($calc, 'komponen.kontribusi_tambahan.nilai');
+        if (!empty($criteriaAllocations)) {
+            foreach ($criteriaAllocations as $row) {
+                $name = strtolower((string) ($row['criteria_name'] ?? ''));
+                if (str_contains($name, 'tugas tambahan') || str_contains($name, 'kontribusi tambahan')) {
+                    $additionalTaskNominal = (float) ($row['nominal'] ?? 0);
+                    break;
+                }
+            }
+        }
+
         return view('pegawai_medis.remunerations.show', [
             'item' => $remuneration,
             'reviewCount' => $reviewCount,
@@ -414,6 +426,146 @@ class RemunerationController extends Controller
             'professionName' => $professionName,
             'quantities' => $quantities,
             'criteriaAllocations' => $criteriaAllocations,
+            'additionalTaskNominal' => $additionalTaskNominal,
+        ]);
+    }
+
+    /** Export remuneration detail to PDF for the current medical staff */
+    public function exportPdf(Remuneration $id)
+    {
+        $remuneration = $id; // implicit model binding
+        abort_unless($remuneration->user_id === Auth::id(), 403);
+        $remuneration->load(['assessmentPeriod','user.unit','user.profession']);
+
+        $period = $remuneration->assessmentPeriod;
+        $userId = Auth::id();
+
+        $reviewCount = 0;
+        if ($period && $period->start_date && $period->end_date) {
+            $reviewCount = DB::table('review_details as rd')
+                ->join('reviews as r', 'r.id', '=', 'rd.review_id')
+                ->where('rd.medical_staff_id', $userId)
+                ->where('r.status', ReviewStatus::APPROVED->value)
+                ->whereBetween('r.created_at', [
+                    $period->start_date . ' 00:00:00',
+                    $period->end_date   . ' 23:59:59',
+                ])
+                ->count();
+        }
+
+        $calc = $this->normalizeCalcDetails(($remuneration->calculation_details ?? []), $remuneration);
+        $patientsHandled = data_get($calc, 'komponen.pasien_ditangani.jumlah');
+
+        $allocationAmount = data_get($calc, 'allocation.published_amount');
+        if ($allocationAmount === null) {
+            $allocationAmount = data_get($calc, 'allocation.line_amount');
+        }
+        if ($allocationAmount === null) {
+            $allocationAmount = data_get($calc, 'allocation_amount');
+        }
+
+        $unitName = optional($remuneration->user?->unit)->name
+            ?? data_get($calc, 'allocation.unit_name');
+        $professionName = optional($remuneration->user?->profession)->name
+            ?? data_get($calc, 'allocation.profession_name')
+            ?? data_get($calc, 'allocation.profession');
+
+        $allocationLabel = $unitName && $professionName
+            ? 'Alokasi untuk ' . $professionName . ' di ' . $unitName
+            : 'Alokasi profesi-unit';
+
+        $quantities = [
+            ['label' => 'Kehadiran (Absensi) (hari)', 'value' => data_get($calc, 'komponen.absensi.jumlah')],
+            ['label' => 'Kedisiplinan 360', 'value' => data_get($calc, 'komponen.kedisiplinan.jumlah')],
+            ['label' => 'Pasien Ditangani', 'value' => $patientsHandled ?? data_get($calc, 'komponen.pasien_ditangani.jumlah')],
+            ['label' => 'Jumlah Review', 'value' => $reviewCount ?: data_get($calc, 'komponen.review_pelanggan.jumlah')],
+        ];
+
+        $criteriaAllocations = [];
+        $amount = $remuneration->amount !== null ? (float) $remuneration->amount : null;
+        if ($amount !== null && $amount > 0 && $period) {
+            $pa = PerformanceAssessment::query()
+                ->with(['assessmentPeriod', 'user'])
+                ->where('assessment_period_id', (int) $period->id)
+                ->where('user_id', (int) $remuneration->user_id)
+                ->first();
+
+            if ($pa) {
+                $breakdown = app(AssessmentApprovalDetailService::class)->getBreakdown($pa);
+                $totalWsm = (float) ($breakdown['total'] ?? 0.0);
+
+                if (!empty($breakdown['hasWeights']) && $totalWsm > 0 && !empty($breakdown['rows'])) {
+                    $weights = [];
+                    $meta = [];
+                    foreach ($breakdown['rows'] as $r) {
+                        $cid = (int) ($r['criteria_id'] ?? 0);
+                        if ($cid <= 0) continue;
+                        $w = (float) ($r['contribution'] ?? 0.0);
+                        if ($w < 0) $w = 0.0;
+                        $weights[$cid] = $w;
+                        $meta[$cid] = [
+                            'criteria_id' => $cid,
+                            'criteria_name' => (string) ($r['criteria_name'] ?? '-'),
+                            'weight' => (float) ($r['weight'] ?? 0.0),
+                            'score_wsm' => (float) ($r['score_wsm'] ?? 0.0),
+                            'contribution' => $w,
+                        ];
+                    }
+
+                    if (!empty($weights) && array_sum($weights) > 0) {
+                        $allocated = ProportionalAllocator::allocate((float) $amount, $weights);
+
+                        foreach ($allocated as $cid => $nominal) {
+                            $cid = (int) $cid;
+                            $m = $meta[$cid] ?? null;
+                            if (!$m) continue;
+                            $criteriaAllocations[] = $m + ['nominal' => (float) $nominal];
+                        }
+
+                        usort($criteriaAllocations, fn($a, $b) => ((float)($b['nominal'] ?? 0)) <=> ((float)($a['nominal'] ?? 0)));
+                    }
+                }
+            }
+        }
+
+        $additionalTaskNominal = data_get($calc, 'komponen.kontribusi_tambahan.nilai');
+        if (!empty($criteriaAllocations)) {
+            foreach ($criteriaAllocations as $row) {
+                $name = strtolower((string) ($row['criteria_name'] ?? ''));
+                if (str_contains($name, 'tugas tambahan') || str_contains($name, 'kontribusi tambahan')) {
+                    $additionalTaskNominal = (float) ($row['nominal'] ?? 0);
+                    break;
+                }
+            }
+        }
+
+        $html = view('pegawai_medis.remunerations.export_pdf', [
+            'item' => $remuneration,
+            'reviewCount' => $reviewCount,
+            'patientsHandled' => $patientsHandled,
+            'calc' => $calc,
+            'allocationAmount' => $allocationAmount,
+            'allocationLabel' => $allocationLabel,
+            'unitName' => $unitName,
+            'professionName' => $professionName,
+            'quantities' => $quantities,
+            'criteriaAllocations' => $criteriaAllocations,
+            'additionalTaskNominal' => $additionalTaskNominal,
+            'printedAt' => now(),
+        ])->render();
+
+        $dompdf = new Dompdf([
+            'isRemoteEnabled' => true,
+            'defaultFont' => 'DejaVu Sans',
+        ]);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('a4', 'portrait');
+        $dompdf->render();
+
+        $fileName = 'remunerasi-saya-' . now()->format('Ymd-His') . '.pdf';
+        return response($dompdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
         ]);
     }
 }

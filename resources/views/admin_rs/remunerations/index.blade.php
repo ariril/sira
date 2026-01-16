@@ -16,6 +16,17 @@
                 <x-ui.button as="a" href="{{ route('admin_rs.remunerations.calc.index') }}" variant="success" class="h-12 px-6 text-base">
                     <i class="fa-solid fa-calculator mr-2"></i> Ke Perhitungan
                 </x-ui.button>
+                <x-ui.button as="a"
+                    href="{{ route('admin_rs.remunerations.export.pdf', [
+                        'period_id' => $periodId,
+                        'unit_id' => $filters['unit_id'] ?? null,
+                        'profession_id' => $filters['profession_id'] ?? null,
+                        'published' => $filters['published'] ?? null,
+                        'payment_status' => $filters['payment_status'] ?? null,
+                    ]) }}"
+                    variant="outline" class="h-12 px-6 text-base">
+                    <i class="fa-solid fa-file-pdf mr-2"></i> Export PDF
+                </x-ui.button>
             </div>
         </div>
     </x-slot>

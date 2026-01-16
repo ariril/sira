@@ -158,7 +158,9 @@ Route::middleware(['auth','verified','role:admin_rs'])
         // Proses & Publikasi Remunerasi
         Route::get('remunerations/calc',        [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'calcIndex'])->name('remunerations.calc.index');
         Route::post('remunerations/calc/run',   [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'runCalculation'])->name('remunerations.calc.run');
+        Route::post('remunerations/calc/force', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'forceCalculation'])->name('remunerations.calc.force');
         Route::post('remunerations/calc/audit', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'auditCalculation'])->name('remunerations.calc.audit');
+        Route::get('remunerations/export/pdf',  [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'exportPdf'])->name('remunerations.export.pdf');
         Route::post('remunerations/{remuneration}/publish', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'publish'])->name('remunerations.publish');
         Route::post('remunerations/publish-all', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'publishAll'])->name('remunerations.publish_all');
         Route::resource('remunerations', \App\Http\Controllers\Web\AdminHospital\RemunerationController::class)->only(['index','show','update']);
@@ -399,11 +401,13 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
 
         // Klaim & tugas tambahan
         Route::get('additional-tasks', [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskController::class, 'index'])->name('additional_tasks.index');
+        Route::post('additional-tasks/{task}/claim', [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'claim'])->name('additional_tasks.claim');
         Route::post('additional-tasks/{task}/submit', [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'submit'])->name('additional_tasks.submit');
 
         // Lihat remunerasi pribadi
         Route::get('remunerations',       [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'index'])->name('remunerations.index');
         Route::get('remunerations/{id}',  [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'show'])->name('remunerations.show');
+        Route::get('remunerations/{id}/export/pdf',  [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'exportPdf'])->name('remunerations.export.pdf');
 
         // Lihat kriteria & bobot aktif untuk unit sendiri pada periode aktif
         Route::get('unit-criteria-weights', [\App\Http\Controllers\Web\MedicalStaff\UnitCriteriaWeightViewController::class, 'index'])->name('unit_criteria_weights.index');

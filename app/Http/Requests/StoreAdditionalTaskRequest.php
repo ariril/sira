@@ -12,6 +12,7 @@ class StoreAdditionalTaskRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'assessment_period_id' => ['required','integer','exists:assessment_periods,id'],
             'title'       => ['required','string','max:200'],
             'description' => ['nullable','string','max:2000'],
             'policy_doc'  => ['nullable','file','max:10240','mimes:pdf'],

@@ -84,6 +84,7 @@ class MultiRaterCollector implements CriteriaCollector
 
         $resolvedWeightsByProfession = RaterWeightResolver::resolveForCriteria($periodId, $unitId, $criteriaId, $professionIds);
         $defaults = RaterWeightResolver::defaults();
+        $zeroWeights = array_fill_keys(array_keys($defaults), 0.0);
 
         $out = [];
         foreach ($userIds as $uid) {
@@ -97,7 +98,7 @@ class MultiRaterCollector implements CriteriaCollector
             $professionId = $professionByUserId[$uid] ?? null;
             $weights = $defaults;
             if (is_int($professionId) && $professionId > 0 && isset($resolvedWeightsByProfession[$professionId])) {
-                $weights = array_merge($weights, (array) $resolvedWeightsByProfession[$professionId]);
+                $weights = array_merge($zeroWeights, (array) $resolvedWeightsByProfession[$professionId]);
             }
 
             $weightedSum = 0.0;

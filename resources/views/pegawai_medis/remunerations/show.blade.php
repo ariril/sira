@@ -2,9 +2,14 @@
     <x-slot name="header">
         <div class="flex items-center justify-between gap-4">
             <h1 class="text-2xl font-semibold text-slate-800">Detail Remunerasi</h1>
-            <x-ui.button as="a" href="{{ route('pegawai_medis.remunerations.index') }}" variant="outline" class="h-10 px-4">
-                Kembali
-            </x-ui.button>
+            <div class="flex items-center gap-2">
+                <x-ui.button as="a" href="{{ route('pegawai_medis.remunerations.export.pdf', $item->id) }}" variant="outline" class="h-10 px-4">
+                    <i class="fa-solid fa-file-pdf mr-2"></i> Export PDF
+                </x-ui.button>
+                <x-ui.button as="a" href="{{ route('pegawai_medis.remunerations.index') }}" variant="outline" class="h-10 px-4">
+                    Kembali
+                </x-ui.button>
+            </div>
         </div>
     </x-slot>
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -37,8 +42,10 @@
             </div>
             <div class="p-4 rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
                 <div class="text-sm text-slate-500">Tugas Tambahan Periode Ini</div>
-                <div class="text-lg font-semibold">{{ data_get($calc ?? ($item->calculation_details ?? []), 'komponen.kontribusi_tambahan.jumlah', 0) }}</div>
-                <div class="text-xs text-slate-500 mt-1">Jumlah tugas tambahan yang dihitung dalam periode ini.</div>
+                <div class="text-lg font-semibold">
+                    {{ is_numeric($additionalTaskNominal ?? null) ? 'Rp '.number_format((float)$additionalTaskNominal,0,',','.') : '-' }}
+                </div>
+                <div class="text-xs text-slate-500 mt-1">Nilai tugas tambahan yang dihitung pada periode ini.</div>
             </div>
         </div>
 

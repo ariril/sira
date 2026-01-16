@@ -113,7 +113,7 @@ class AssessmentPeriod extends Model
 
     public function currentApprovalAttempt(): int
     {
-        return (int) ($this->approval_attempt ?? 1);
+        return (int) ($this->approval_attempt ?? 0);
     }
 
     public static function statusLabel(string $status): string

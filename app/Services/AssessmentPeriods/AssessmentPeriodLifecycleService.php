@@ -4,6 +4,7 @@ namespace App\Services\AssessmentPeriods;
 
 use App\Enums\AssessmentValidationStatus;
 use App\Models\AssessmentPeriod;
+use App\Services\Remuneration\RemunerationCalculationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -90,6 +91,23 @@ class AssessmentPeriodLifecycleService
                 ->whereIn('assessment_period_id', $periodIds)
                 ->where('status', '!=', 'archived')
                 ->update($updates);
+
+            // Backfill legacy archived rows that were approved/active before this flag existed.
+            // Heuristic: a row with decided_by is an approved row (i.e., had been active).
+            if (Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
+                DB::table('unit_rater_weights')
+                    ->whereIn('assessment_period_id', $periodIds)
+                    ->where('status', 'archived')
+                    ->where('was_active_before', 0)
+                    ->where(function ($q) {
+                        $q->whereNotNull('decided_by')
+                          ->orWhereNotNull('decided_at');
+                    })
+                    ->update([
+                        'was_active_before' => 1,
+                        'updated_at' => now(),
+                    ]);
+            }
         }
     }
 
@@ -201,6 +219,16 @@ class AssessmentPeriodLifecycleService
                     'closed_at' => now(),
                     'updated_at' => now(),
                 ]);
+
+            // Auto-calculate remuneration after period is closed (best-effort).
+            try {
+                $closedPeriod = AssessmentPeriod::query()->find($periodId);
+                if ($closedPeriod) {
+                    app(RemunerationCalculationService::class)->runForPeriod($closedPeriod, null, true);
+                }
+            } catch (\Throwable $e) {
+                // Do not block lifecycle sync if remuneration calc fails.
+            }
         }
     }
 }

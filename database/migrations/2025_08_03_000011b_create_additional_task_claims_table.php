@@ -19,11 +19,11 @@ return new class extends Migration {
             ->constrained('users')
                 ->cascadeOnDelete();
 
-            $table->enum('status', ['submitted', 'approved', 'rejected'])
-                ->default('submitted')
+            $table->enum('status', ['active','submitted', 'approved', 'rejected'])
+                ->default('active')
                 ->index();
 
-            $table->timestamp('submitted_at')->useCurrent()->index();
+            $table->timestamp('submitted_at')->nullable()->index();
 
             $table->string('result_file_path')->nullable();
             $table->text('result_note')->nullable();

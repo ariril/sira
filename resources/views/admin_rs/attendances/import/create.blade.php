@@ -150,14 +150,31 @@
 
                                     fetch('{{ route('admin_rs.attendances.import.preview') }}', {
                                         method: 'POST',
+                                        credentials: 'same-origin',
+                                        headers: {
+                                            'Accept': 'application/json',
+                                            'X-Requested-With': 'XMLHttpRequest',
+                                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                        },
                                         body: formData,
                                     })
                                     .then(async (res) => {
-                                        const data = await res.json().catch(() => null);
+                                        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+                                        const isJson = contentType.includes('application/json');
+                                        const data = isJson ? await res.json().catch(() => null) : null;
+
                                         if (!res.ok) {
-                                            const msg = data && data.message ? data.message : 'Gagal memuat preview.';
+                                            const msg = data && data.message
+                                                ? data.message
+                                                : `Gagal memuat preview. (HTTP ${res.status})`;
                                             throw new Error(msg);
                                         }
+
+                                        // If server returns non-JSON for some reason, fail fast with a helpful message.
+                                        if (!data) {
+                                            throw new Error('Preview gagal: server tidak mengembalikan JSON.');
+                                        }
+
                                         return data;
                                     })
                                     .then((data) => {

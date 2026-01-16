@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 use App\Support\AssessmentPeriodGuard;
 use Illuminate\Database\Eloquent\Builder;
+use App\Models\AssessmentPeriod;
 
 class AdditionalTaskController extends Controller
 {
@@ -23,6 +24,10 @@ class AdditionalTaskController extends Controller
 
         $tasks = collect();
         $myClaimsByTaskId = collect();
+        $availableTasks = collect();
+        $currentClaims = collect();
+        $historyClaims = collect();
+        $missedTasks = collect();
 
         if (
             Schema::hasTable('additional_tasks') &&
@@ -71,12 +76,69 @@ class AdditionalTaskController extends Controller
                     ->groupBy('additional_task_id')
                     ->map(fn ($items) => $items->first());
             }
+
+            // UI lama: daftar tugas tersedia + status klaim saya per tugas
+            $availableTasks = $tasks->map(function ($t) use ($myClaimsByTaskId) {
+                $claim = $myClaimsByTaskId->get($t->id);
+                $t->setAttribute('my_claim_status', $claim?->status);
+                $t->setAttribute('period_name', $t->period?->name);
+                $max = $t->max_claims;
+                $used = (int) ($t->claims_used ?? 0);
+                $available = empty($max) ? true : ($used < (int) $max);
+                $t->setAttribute('available', $available);
+                return $t;
+            });
+
+            // Klaim saya (berjalan = active/submitted, riwayat = approved/rejected)
+            $currentClaims = AdditionalTaskClaim::query()
+                ->with(['task.period:id,name,status'])
+                ->where('user_id', $me->id)
+                ->whereIn('status', ['active', 'submitted'])
+                ->whereHas('task', fn (Builder $q) => $q->where('unit_id', (int) $me->unit_id))
+                ->orderByDesc('submitted_at')
+                ->orderByDesc('created_at')
+                ->get();
+
+            $historyClaims = AdditionalTaskClaim::query()
+                ->with(['task.period:id,name,status'])
+                ->where('user_id', $me->id)
+                ->whereIn('status', ['approved', 'rejected'])
+                ->whereHas('task', fn (Builder $q) => $q->where('unit_id', (int) $me->unit_id))
+                ->orderByDesc('reviewed_at')
+                ->orderByDesc('submitted_at')
+                ->get();
+
+            // Tugas yang pernah diberikan tetapi tidak disubmit oleh user
+            if ($activePeriod?->id) {
+                $missedTasks = AdditionalTask::query()
+                    ->with(['period:id,name,status'])
+                    ->withCount([
+                        'claims as claims_used' => function (Builder $q) {
+                            $q->whereIn('status', AdditionalTaskStatusService::ACTIVE_STATUSES);
+                        },
+                    ])
+                    ->forUnit($me->unit_id)
+                    ->where('assessment_period_id', (int) $activePeriod->id)
+                    ->where('status', 'closed')
+                    ->excludeCreator($me->id)
+                    ->whereDoesntHave('claims', fn (Builder $q) => $q->where('user_id', $me->id))
+                    ->orderByDesc('id')
+                    ->limit(100)
+                    ->get();
+            }
         }
 
         return view('pegawai_medis.additional_tasks.index', [
             'activePeriod' => $activePeriod,
+            // keep for compatibility
             'tasks' => $tasks,
             'myClaimsByTaskId' => $myClaimsByTaskId,
+
+            // UI lama
+            'availableTasks' => $availableTasks,
+            'currentClaims' => $currentClaims,
+            'historyClaims' => $historyClaims,
+            'missedTasks' => $missedTasks,
         ]);
     }
 }

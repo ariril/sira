@@ -117,15 +117,24 @@ class AdditionalTaskController extends Controller
     {
         $this->authorizeAccess();
         $activePeriod = null;
+        $periods = collect();
         if (Schema::hasTable('assessment_periods')) {
-            $activePeriod = AssessmentPeriod::query()
+            // Pastikan periode aktif up-to-date
+            AssessmentPeriod::syncByNow();
+
+            $periods = AssessmentPeriod::query()
                 ->whereIn('status', [AssessmentPeriod::STATUS_ACTIVE, AssessmentPeriod::STATUS_REVISION])
                 ->orderByDesc(DB::raw("status = 'active'"))
                 ->orderByDesc('id')
-                ->first();
+                ->get();
+
+            $activePeriod = $periods->first();
         }
 
-        return view('kepala_unit.additional_tasks.create', ['activePeriod' => $activePeriod]);
+        return view('kepala_unit.additional_tasks.create', [
+            'activePeriod' => $activePeriod,
+            'periods' => $periods,
+        ]);
     }
 
     public function store(StoreAdditionalTaskRequest $request): RedirectResponse
@@ -134,26 +143,21 @@ class AdditionalTaskController extends Controller
         $me = Auth::user();
         $unitId = $me?->unit_id;
 
-        $activePeriod = null;
+        $tz = config('app.timezone');
+        $data = $request->validated();
+
+        $period = null;
         if (Schema::hasTable('assessment_periods')) {
-            // Pastikan periode aktif up-to-date
             AssessmentPeriod::syncByNow();
-            $activePeriod = AssessmentPeriod::query()
-                ->whereIn('status', [AssessmentPeriod::STATUS_ACTIVE, AssessmentPeriod::STATUS_REVISION])
-                ->orderByDesc(DB::raw("status = 'active'"))
-                ->orderByDesc('id')
-                ->first();
+            $period = AssessmentPeriod::query()->find((int) $data['assessment_period_id']);
         }
-        if (!$activePeriod) {
+        if (!$period) {
             return back()->withErrors([
-                'title' => 'Tidak ada periode yang aktif saat ini. Hubungi Admin RS untuk mengaktifkan periode penilaian terlebih dahulu.',
+                'assessment_period_id' => 'Periode tidak ditemukan. Silakan pilih periode yang valid.',
             ])->withInput();
         }
 
-        AssessmentPeriodGuard::requireActiveOrRevision($activePeriod, 'Buat Tugas Tambahan');
-
-        $tz = config('app.timezone');
-        $data = $request->validated();
+        AssessmentPeriodGuard::requireActiveOrRevision($period, 'Buat Tugas Tambahan');
 
         $dueTime = $data['due_time'] ?? '23:59';
         $dueAt = Carbon::createFromFormat('Y-m-d H:i', $data['due_date'].' '.$dueTime, $tz);
@@ -165,7 +169,7 @@ class AdditionalTaskController extends Controller
 
         $task = AdditionalTask::create([
             'unit_id' => $unitId,
-            'assessment_period_id' => $activePeriod->id,
+            'assessment_period_id' => $period->id,
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
             'due_date' => $dueAt->toDateString(),
@@ -184,8 +188,8 @@ class AdditionalTaskController extends Controller
         $task->refreshLifecycleStatus();
         $task->refresh();
 
-        if ((string) ($activePeriod->status ?? '') === AssessmentPeriod::STATUS_REVISION) {
-            AssessmentPeriodAudit::log((int) $activePeriod->id, (int) $me->id, 'revision_additional_task_created', null, [
+        if ((string) ($period->status ?? '') === AssessmentPeriod::STATUS_REVISION) {
+            AssessmentPeriodAudit::log((int) $period->id, (int) $me->id, 'revision_additional_task_created', null, [
                 'task_id' => (int) $task->id,
             ]);
         }

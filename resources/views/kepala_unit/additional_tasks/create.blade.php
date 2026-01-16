@@ -26,7 +26,13 @@
                         Periode
                         <span class="ml-1 text-amber-600 cursor-help" title="Periode diisi otomatis menggunakan periode penilaian yang aktif saat ini.">!</span>
                     </label>
-                    <x-ui.input :value="($activePeriod->name ?? '-')" disabled />
+                    <x-ui.select
+                        name="assessment_period_id"
+                        :options="($periods ?? collect())->pluck('name','id')"
+                        :value="old('assessment_period_id', $activePeriod?->id)"
+                        placeholder="Pilih periode"
+                        required
+                    />
                     @unless($activePeriod)
                         <p class="mt-2 text-xs text-rose-600">Tidak ada periode yang aktif. Hubungi Admin RS.</p>
                     @endunless
@@ -41,7 +47,12 @@
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Ketentuan Tambahan (PDF)</label>
-                    <input type="file" name="policy_doc" accept="application/pdf" class="mt-1 block w-full text-sm text-slate-700" />
+                    <input
+                        type="file"
+                        name="policy_doc"
+                        accept="application/pdf"
+                        class="mt-1 block w-full text-sm text-slate-700 border border-slate-200 rounded-xl bg-white p-2 focus:outline-none focus:ring-2 focus:ring-sky-200 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"
+                    />
                     <p class="mt-1 text-xs text-slate-500">Opsional. Maks 10MB. Format: PDF.</p>
                 </div>
                 <div>
