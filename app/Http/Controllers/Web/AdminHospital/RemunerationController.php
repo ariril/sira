@@ -65,8 +65,8 @@ class RemunerationController extends Controller
             ->where('pc.is_active', 1)
             ->distinct()
             ->pluck('pc.normalization_basis')
-            ->map(fn ($v) => (string) ($v ?? 'total_unit'))
-            ->filter(fn ($v) => $v !== '')
+            ->map(fn($v) => (string) ($v ?? 'total_unit'))
+            ->filter(fn($v) => $v !== '')
             ->values()
             ->all();
 
@@ -139,7 +139,7 @@ class RemunerationController extends Controller
 
         $calc = (array) ($decoded['calc'] ?? []);
         $bases = array_values((array) ($calc['basis_by_criteria'] ?? []));
-        $bases = array_values(array_filter(array_map(fn ($v) => (string) ($v ?? ''), $bases), fn ($v) => $v !== ''));
+        $bases = array_values(array_filter(array_map(fn($v) => (string) ($v ?? ''), $bases), fn($v) => $v !== ''));
         if (empty($bases)) {
             return null;
         }
@@ -161,15 +161,15 @@ class RemunerationController extends Controller
                 $q->where('profession_id', (int) $professionId);
             }
 
-            return $q->pluck('user_id')->map(fn ($v) => (int) $v)->all();
+            return $q->pluck('user_id')->map(fn($v) => (int) $v)->all();
         }
 
         return User::query()
             ->where('unit_id', (int) $unitId)
-            ->when($professionId !== null, fn ($q) => $q->where('profession_id', (int) $professionId))
+            ->when($professionId !== null, fn($q) => $q->where('profession_id', (int) $professionId))
             ->role(User::ROLE_PEGAWAI_MEDIS)
             ->pluck('id')
-            ->map(fn ($v) => (int) $v)
+            ->map(fn($v) => (int) $v)
             ->all();
     }
 
@@ -238,7 +238,7 @@ class RemunerationController extends Controller
     public function auditCalculation(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'period_id' => ['required','integer','exists:assessment_periods,id'],
+            'period_id' => ['required', 'integer', 'exists:assessment_periods,id'],
         ]);
 
         $periodId = (int) $data['period_id'];
@@ -405,7 +405,7 @@ class RemunerationController extends Controller
     public function calcIndex(Request $request): View
     {
         $periodId = (int) $request->integer('period_id');
-        $periods  = AssessmentPeriod::orderByDesc('start_date')->get(['id','name','start_date']);
+        $periods = AssessmentPeriod::orderByDesc('start_date')->get(['id', 'name', 'start_date']);
 
         $summary = null;
         $allocSummary = null;
@@ -428,7 +428,7 @@ class RemunerationController extends Controller
                 'count' => $remunerations->count(),
                 'total' => (float) $remunerations->sum('amount'),
             ];
-            $allocs = Allocation::where('assessment_period_id', $periodId)->whereNotNull('published_at')->get(['id','amount']);
+            $allocs = Allocation::where('assessment_period_id', $periodId)->whereNotNull('published_at')->get(['id', 'amount']);
             $allocSummary = [
                 'count' => $allocs->count(),
                 'total' => (float) $allocs->sum('amount'),
@@ -505,39 +505,39 @@ class RemunerationController extends Controller
                 ->where('assessment_period_id', $periodId)
                 ->whereNotNull('calculated_at')
                 ->orderByDesc('calculated_at')
-                ->first(['id','calculated_at','revised_by']);
+                ->first(['id', 'calculated_at', 'revised_by']);
         }
 
         return view('admin_rs.remunerations.calc_index', [
-            'periods'       => $periods,
-            'selectedId'    => $periodId ?: null,
-            'selectedPeriod'=> $selectedPeriod,
+            'periods' => $periods,
+            'selectedId' => $periodId ?: null,
+            'selectedPeriod' => $selectedPeriod,
             'remunerations' => $remunerations,
-            'summary'       => $summary,
-            'allocSummary'  => $allocSummary,
+            'summary' => $summary,
+            'allocSummary' => $allocSummary,
             'prerequisites' => $prerequisites,
-            'canRun'        => $canRun,
+            'canRun' => $canRun,
             'needsRecalcConfirm' => $needsRecalcConfirm,
             'lastCalculated' => $lastCalculated,
         ]);
     }
 
     /**
-        * Run remuneration calculation for a given period using configured WSM scores.
-        * Each published unit allocation is distributed proporsional to skor WSM
-        * (sumber: performance_assessments.total_wsm_score). Tetap menambahkan bonus
-        * tugas tambahan yang disetujui sebagai penyesuaian akhir.
+     * Run remuneration calculation for a given period using configured WSM scores.
+     * Each published unit allocation is distributed proporsional to skor WSM
+     * (sumber: performance_assessments.total_wsm_score). Tetap menambahkan bonus
+     * tugas tambahan yang disetujui sebagai penyesuaian akhir.
      */
-        public function runCalculation(Request $request): RedirectResponse
+    public function runCalculation(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'period_id' => ['required','integer','exists:assessment_periods,id'],
+            'period_id' => ['required', 'integer', 'exists:assessment_periods,id'],
         ]);
         $periodId = (int) $data['period_id'];
         $period = AssessmentPeriod::findOrFail($periodId);
 
         $svc = app(RemunerationCalculationService::class);
-            $result = $svc->runForPeriod($period, (int) Auth::id(), false, false);
+        $result = $svc->runForPeriod($period, (int) Auth::id(), false, false);
 
         if (!($result['ok'] ?? false)) {
             return redirect()->route('admin_rs.remunerations.calc.index', ['period_id' => $periodId])
@@ -552,7 +552,7 @@ class RemunerationController extends Controller
     public function forceCalculation(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'period_id' => ['required','integer','exists:assessment_periods,id'],
+            'period_id' => ['required', 'integer', 'exists:assessment_periods,id'],
         ]);
         $periodId = (int) $data['period_id'];
         $period = AssessmentPeriod::findOrFail($periodId);
@@ -744,7 +744,7 @@ class RemunerationController extends Controller
             }
 
             $rem->calculation_details = [
-                'method'    => $mode === self::DISTRIBUTION_MODE_TOTAL_UNIT
+                'method' => $mode === self::DISTRIBUTION_MODE_TOTAL_UNIT
                     ? 'unit_profession_wsm_proportional'
                     : 'unit_profession_attached_percent',
                 'period_id' => $periodId,
@@ -791,7 +791,7 @@ class RemunerationController extends Controller
             return back()->with('danger', 'Tidak dapat publish remunerasi: periode sedang DITOLAK (approval rejected).');
         }
         $remuneration->update(['published_at' => now()]);
-        return back()->with('status','Remunerasi dipublish.');
+        return back()->with('status', 'Remunerasi dipublish.');
     }
     /**
      * Display a listing of the resource.
@@ -799,11 +799,11 @@ class RemunerationController extends Controller
     public function index(Request $request): View
     {
         $data = $request->validate([
-            'period_id'      => ['nullable','integer','exists:assessment_periods,id'],
-            'unit_id'        => ['nullable','integer','exists:units,id'],
-            'profession_id'  => ['nullable','integer','exists:professions,id'],
-            'published'      => ['nullable','in:yes,no'],
-            'payment_status' => ['nullable','in:' . implode(',', array_map(fn($e) => $e->value, RemunerationPaymentStatus::cases()))],
+            'period_id' => ['nullable', 'integer', 'exists:assessment_periods,id'],
+            'unit_id' => ['nullable', 'integer', 'exists:units,id'],
+            'profession_id' => ['nullable', 'integer', 'exists:professions,id'],
+            'published' => ['nullable', 'in:yes,no'],
+            'payment_status' => ['nullable', 'in:' . implode(',', array_map(fn($e) => $e->value, RemunerationPaymentStatus::cases()))],
         ]);
 
         $periodId = (int) ($data['period_id'] ?? 0);
@@ -812,9 +812,9 @@ class RemunerationController extends Controller
         $published = $data['published'] ?? null;
         $paymentStatus = $data['payment_status'] ?? null;
 
-        $periods  = AssessmentPeriod::orderByDesc('start_date')->get(['id','name']);
-        $units = Unit::orderBy('name')->get(['id','name']);
-        $professions = Profession::orderBy('name')->get(['id','name']);
+        $periods = AssessmentPeriod::orderByDesc('start_date')->get(['id', 'name']);
+        $units = Unit::orderBy('name')->get(['id', 'name']);
+        $professions = Profession::orderBy('name')->get(['id', 'name']);
 
         $query = Remuneration::query()
             ->with([
@@ -827,8 +827,10 @@ class RemunerationController extends Controller
             ->when($paymentStatus, fn($w) => $w->where('payment_status', $paymentStatus))
             ->when($unitId || $professionId, function ($w) use ($unitId, $professionId) {
                 $w->whereHas('user', function ($u) use ($unitId, $professionId) {
-                    if ($unitId) $u->where('unit_id', $unitId);
-                    if ($professionId) $u->where('profession_id', $professionId);
+                    if ($unitId)
+                        $u->where('unit_id', $unitId);
+                    if ($professionId)
+                        $u->where('profession_id', $professionId);
                 });
             })
             ->orderByDesc('id');
@@ -842,12 +844,12 @@ class RemunerationController extends Controller
             ->count();
 
         return view('admin_rs.remunerations.index', [
-            'items'    => $items,
-            'periods'  => $periods,
-            'units'    => $units,
+            'items' => $items,
+            'periods' => $periods,
+            'units' => $units,
             'professions' => $professions,
             'periodId' => $periodId ?: null,
-            'filters'  => [
+            'filters' => [
                 'unit_id' => $unitId ?: null,
                 'profession_id' => $professionId ?: null,
                 'published' => $published,
@@ -861,10 +863,10 @@ class RemunerationController extends Controller
     public function publishAll(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'period_id'      => ['required','integer','exists:assessment_periods,id'],
-            'unit_id'        => ['nullable','integer','exists:units,id'],
-            'profession_id'  => ['nullable','integer','exists:professions,id'],
-            'payment_status' => ['nullable','in:' . implode(',', array_map(fn($e) => $e->value, RemunerationPaymentStatus::cases()))],
+            'period_id' => ['required', 'integer', 'exists:assessment_periods,id'],
+            'unit_id' => ['nullable', 'integer', 'exists:units,id'],
+            'profession_id' => ['nullable', 'integer', 'exists:professions,id'],
+            'payment_status' => ['nullable', 'in:' . implode(',', array_map(fn($e) => $e->value, RemunerationPaymentStatus::cases()))],
         ]);
 
         $periodId = (int) $data['period_id'];
@@ -885,8 +887,10 @@ class RemunerationController extends Controller
             ->when($paymentStatus, fn($w) => $w->where('payment_status', $paymentStatus))
             ->when($unitId || $professionId, function ($w) use ($unitId, $professionId) {
                 $w->whereHas('user', function ($u) use ($unitId, $professionId) {
-                    if ($unitId) $u->where('unit_id', $unitId);
-                    if ($professionId) $u->where('profession_id', $professionId);
+                    if ($unitId)
+                        $u->where('unit_id', $unitId);
+                    if ($professionId)
+                        $u->where('profession_id', $professionId);
                 });
             });
 
@@ -904,11 +908,11 @@ class RemunerationController extends Controller
     public function exportPdf(Request $request)
     {
         $data = $request->validate([
-            'period_id'      => ['nullable','integer','exists:assessment_periods,id'],
-            'unit_id'        => ['nullable','integer','exists:units,id'],
-            'profession_id'  => ['nullable','integer','exists:professions,id'],
-            'published'      => ['nullable','in:yes,no'],
-            'payment_status' => ['nullable','in:' . implode(',', array_map(fn($e) => $e->value, RemunerationPaymentStatus::cases()))],
+            'period_id' => ['nullable', 'integer', 'exists:assessment_periods,id'],
+            'unit_id' => ['nullable', 'integer', 'exists:units,id'],
+            'profession_id' => ['nullable', 'integer', 'exists:professions,id'],
+            'published' => ['nullable', 'in:yes,no'],
+            'payment_status' => ['nullable', 'in:' . implode(',', array_map(fn($e) => $e->value, RemunerationPaymentStatus::cases()))],
         ]);
 
         $periodId = (int) ($data['period_id'] ?? 0);
@@ -930,8 +934,10 @@ class RemunerationController extends Controller
             ->when($paymentStatus, fn($w) => $w->where('payment_status', $paymentStatus))
             ->when($unitId || $professionId, function ($w) use ($unitId, $professionId) {
                 $w->whereHas('user', function ($u) use ($unitId, $professionId) {
-                    if ($unitId) $u->where('unit_id', $unitId);
-                    if ($professionId) $u->where('profession_id', $professionId);
+                    if ($unitId)
+                        $u->where('unit_id', $unitId);
+                    if ($professionId)
+                        $u->where('profession_id', $professionId);
                 });
             })
             ->orderByDesc('id');
@@ -992,7 +998,7 @@ class RemunerationController extends Controller
      */
     public function show(Remuneration $remuneration): View
     {
-        $remuneration->load(['user:id,name,unit_id,profession_id','assessmentPeriod:id,name']);
+        $remuneration->load(['user:id,name,unit_id,profession_id', 'assessmentPeriod:id,name']);
         $wsm = $this->buildWsmBreakdown($remuneration);
         $calcDetails = null;
 
@@ -1015,7 +1021,7 @@ class RemunerationController extends Controller
         }
         return view('admin_rs.remunerations.show', [
             'item' => $remuneration,
-            'wsm'  => $wsm,
+            'wsm' => $wsm,
             'calcDetails' => $calcDetails,
         ]);
     }
@@ -1034,8 +1040,8 @@ class RemunerationController extends Controller
     public function update(Request $request, Remuneration $remuneration): RedirectResponse
     {
         $data = $request->validate([
-            'payment_date'   => ['nullable','date'],
-            'payment_status' => ['nullable','string','max:50'],
+            'payment_date' => ['nullable', 'date'],
+            'payment_status' => ['nullable', 'string', 'max:50'],
         ]);
 
         if (!empty($data['payment_date'])) {
@@ -1043,13 +1049,15 @@ class RemunerationController extends Controller
         }
 
         $remuneration->update($data);
-        return back()->with('status','Remunerasi diperbarui.');
+        return back()->with('status', 'Remunerasi diperbarui.');
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id) {}
+    public function destroy(string $id)
+    {
+    }
 
     /**
      * Build WSM breakdown for a user's assessment in the same period as the remuneration.
@@ -1088,12 +1096,12 @@ class RemunerationController extends Controller
                 $contrib = ($score * $w) / 100.0;
                 $rows[] = [
                     'criteria_name' => $row['label'] ?? ($row['key'] ?? '-'),
-                    'type'          => $row['type'] ?? '-',
-                    'weight'        => $w,
-                    'score'         => $score,
-                    'min'           => 0,
-                    'max'           => (float) ($row['criteria_total'] ?? 0),
-                    'contribution'  => round($contrib, 2),
+                    'type' => $row['type'] ?? '-',
+                    'weight' => $w,
+                    'score' => $score,
+                    'min' => 0,
+                    'max' => (float) ($row['criteria_total'] ?? 0),
+                    'contribution' => round($contrib, 2),
                 ];
             }
 
@@ -1103,7 +1111,7 @@ class RemunerationController extends Controller
             }
 
             return [
-                'rows'  => $rows,
+                'rows' => $rows,
                 'total' => round($total, 2),
             ];
         }
@@ -1114,13 +1122,15 @@ class RemunerationController extends Controller
         $periodId = $rem->assessment_period_id;
         $unitId = $rem->user->unit_id ?? null;
         $professionId = $rem->user->profession_id ?? null;
-        if (!$unitId) return null;
+        if (!$unitId)
+            return null;
 
         $assessment = PerformanceAssessment::with(['details.performanceCriteria:id,name,type'])
             ->where('user_id', $userId)
             ->where('assessment_period_id', $periodId)
             ->first();
-        if (!$assessment) return null;
+        if (!$assessment)
+            return null;
 
         $detailByCrit = [];
         $criteriaIds = [];
@@ -1128,11 +1138,12 @@ class RemunerationController extends Controller
             $cid = $d->performance_criteria_id;
             $criteriaIds[] = $cid;
             $detailByCrit[$cid] = [
-                'score'    => (float) $d->score,
+                'score' => (float) $d->score,
                 'criteria' => $d->performanceCriteria,
             ];
         }
-        if (!$criteriaIds) return null;
+        if (!$criteriaIds)
+            return null;
 
         // Fetch ACTIVE weights for this unit & period
         $weightRows = UnitCriteriaWeight::query()
@@ -1149,7 +1160,7 @@ class RemunerationController extends Controller
             // Prioritaskan baris ACTIVE; jika tidak ada, pakai ARCHIVED yang pernah aktif.
             ->orderByRaw("CASE WHEN status='active' THEN 0 WHEN status='archived' AND was_active_before=1 THEN 1 ELSE 2 END")
             ->orderByDesc('updated_at')
-            ->get(['performance_criteria_id','weight','status','was_active_before','updated_at']);
+            ->get(['performance_criteria_id', 'weight', 'status', 'was_active_before', 'updated_at']);
 
         $weights = [];
         foreach ($weightRows as $wr) {
@@ -1184,27 +1195,27 @@ class RemunerationController extends Controller
         foreach ($criteriaIds as $cid) {
             $crit = $detailByCrit[$cid]['criteria'];
             $score = $detailByCrit[$cid]['score'];
-            $w    = (float) ($weights[$cid]->weight ?? 0); // percent
-            $mm   = $minMax[$cid] ?? null;
-            $min  = $mm ? (float)$mm->min_score : 0.0;
-            $max  = $mm ? (float)$mm->max_score : 0.0;
+            $w = (float) ($weights[$cid]->weight ?? 0); // percent
+            $mm = $minMax[$cid] ?? null;
+            $min = $mm ? (float) $mm->min_score : 0.0;
+            $max = $mm ? (float) $mm->max_score : 0.0;
             // Kontribusi dihitung dari Nilai (score) langsung:
             // kontribusi = (score / 100) × bobot(%)
             $contrib = ($score * $w) / 100.0;
             $total += $contrib;
             $rows[] = [
-                'criteria_name' => $crit?->name ?? ('Kriteria #'.$cid),
-                'type'          => $crit?->type?->value ?? '-',
-                'weight'        => $w,
-                'score'         => $score,
-                'min'           => $min,
-                'max'           => $max,
-                'contribution'  => round($contrib, 2),
+                'criteria_name' => $crit?->name ?? ('Kriteria #' . $cid),
+                'type' => $crit?->type?->value ?? '-',
+                'weight' => $w,
+                'score' => $score,
+                'min' => $min,
+                'max' => $max,
+                'contribution' => round($contrib, 2),
             ];
         }
 
         return [
-            'rows'  => $rows,
+            'rows' => $rows,
             'total' => round($total, 2),
         ];
     }

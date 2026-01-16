@@ -148,14 +148,6 @@ class AdditionalTaskService
         });
     }
 
-    // Backward-compat: older callers may still call submitClaim().
-    public function submitClaim(AdditionalTask $task, User $user, array $payload = []): AdditionalTaskClaim
-    {
-        // If not claimed yet, create claim first.
-        $this->claimTask($task, $user);
-        return $this->submitClaimResult($task, $user, $payload);
-    }
-
     /**
      * Review a submitted claim.
      *
