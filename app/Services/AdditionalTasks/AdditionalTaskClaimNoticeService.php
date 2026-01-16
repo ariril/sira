@@ -12,7 +12,7 @@ class AdditionalTaskClaimNoticeService
         return DB::table('additional_task_claims as c')
             ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
             ->leftJoin('assessment_periods as ap', 'ap.id', '=', 't.assessment_period_id')
-            ->selectRaw('c.id, c.updated_at, c.penalty_note, t.title, ap.name as period_name')
+            ->selectRaw('c.id, c.updated_at, c.review_comment, t.title, ap.name as period_name')
             ->where('c.user_id', $userId)
             ->where('c.status', 'rejected')
             ->orderByDesc('c.updated_at')

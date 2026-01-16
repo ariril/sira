@@ -17,11 +17,13 @@ class ClaimApprovedNotification extends Notification
 
     public function toMail($notifiable): MailMessage
     {
+        $points = $this->claim->awarded_points ?? $this->claim->task?->points;
+
         return (new MailMessage)
             ->subject('Klaim Tugas Disetujui')
             ->greeting('Halo ' . $notifiable->name)
             ->line('Klaim tugas tambahan Anda disetujui: ' . $this->claim->task?->title)
-            ->line('Bonus/Poin akan dihitung dalam remunerasi.')
-            ->action('Lihat Klaim', url('/pegawai-medis/additional-contributions'));
+            ->line('Poin yang diberikan: ' . ($points !== null ? rtrim(rtrim(number_format((float) $points, 2, ',', '.'), '0'), ',') : '-'))
+            ->action('Lihat Tugas Tambahan', url('/pegawai-medis/additional-tasks'));
     }
 }

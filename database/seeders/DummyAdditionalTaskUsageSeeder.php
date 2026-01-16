@@ -30,19 +30,22 @@ class DummyAdditionalTaskUsageSeeder extends Seeder
 
         foreach ($tasks as $task) {
             $deadlineTime = $task->due_time ?: '23:59:59';
-            $deadline = Carbon::parse($task->due_date->toDateString() . ' ' . $deadlineTime, $tz);
+            $dueDate = $task->due_date instanceof Carbon
+                ? $task->due_date->toDateString()
+                : Carbon::parse((string) $task->due_date, $tz)->toDateString();
+
+            $deadline = Carbon::parse($dueDate . ' ' . $deadlineTime, $tz);
 
             // Only seed for tasks that are already past due (matches the screen case: Jan 2026 looking at Nov/Dec 2025)
             if ($deadline->isFuture()) {
                 continue;
             }
 
-            $alreadyFinished = AdditionalTaskClaim::query()
+            $alreadyHasClaim = AdditionalTaskClaim::query()
                 ->where('additional_task_id', $task->id)
-                ->whereIn('status', ['approved', 'completed'])
                 ->exists();
 
-            if ($alreadyFinished) {
+            if ($alreadyHasClaim) {
                 continue;
             }
 
@@ -61,16 +64,14 @@ class DummyAdditionalTaskUsageSeeder extends Seeder
             }
 
             DB::transaction(function () use ($task, $user, $now) {
-                $claim = AdditionalTaskClaim::query()->create([
+                AdditionalTaskClaim::query()->create([
                     'additional_task_id' => $task->id,
                     'user_id' => $user->id,
                     'status' => 'approved',
-                    'claimed_at' => $now->copy()->subDays(2),
-                    'completed_at' => $now->copy()->subDay(),
+                    'submitted_at' => $now->copy()->subDays(2),
                     'result_file_path' => 'dummy/additional_task_results/' . $task->id . '/hasil.pdf',
                     'result_note' => 'Dummy data: menandakan tugas sudah dikerjakan.',
                     'awarded_points' => $task->points,
-                    'awarded_bonus_amount' => $task->bonus_amount,
                     'reviewed_by_id' => $task->created_by,
                     'reviewed_at' => $now->copy()->subDay(),
                     'review_comment' => 'Dummy approve.',

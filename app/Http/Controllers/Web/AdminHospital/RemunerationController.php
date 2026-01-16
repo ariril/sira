@@ -600,8 +600,6 @@ class RemunerationController extends Controller
                 }
             }
 
-            // Apply penalty dari klaim batal terlambat (potong remunerasi) - idempotent
-            $this->applyCancelledClaimPenalties($periodId);
         });
 
         if (!empty($skipped)) {
@@ -615,109 +613,6 @@ class RemunerationController extends Controller
 
         return redirect()->route('admin_rs.remunerations.calc.index', ['period_id' => $periodId])
             ->with('status', 'Perhitungan selesai (berdasarkan skor kinerja terkonfigurasi).');
-    }
-
-    /**
-     * Apply penalty dari klaim tugas tambahan yang dibatalkan setelah deadline.
-     * - Claim menjadi sumber kebenaran penalty_applied/amount (sekali per claim)
-     * - Remuneration draft (published_at = null) dikurangi total penalty per user
-     */
-    private function applyCancelledClaimPenalties(int $periodId): void
-    {
-        // Ambil gross remunerasi draft sebelum penalty (basis hitung % remuneration)
-        $grossByUser = Remuneration::query()
-            ->where('assessment_period_id', $periodId)
-            ->whereNull('published_at')
-            ->pluck('amount', 'user_id')
-            ->map(fn($v) => (float) $v)
-            ->all();
-
-        if (empty($grossByUser)) {
-            return;
-        }
-
-        $claims = DB::table('additional_task_claims as c')
-            ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
-            ->selectRaw('c.id, c.user_id, c.penalty_type, c.penalty_value, c.penalty_base, c.awarded_bonus_amount, c.penalty_applied, c.penalty_amount, c.penalty_applied_at')
-            ->where('t.assessment_period_id', $periodId)
-            ->where('c.status', 'cancelled')
-            ->where('c.is_violation', 1)
-            ->get();
-
-        if ($claims->isEmpty()) {
-            return;
-        }
-
-        $now = now();
-        $sumPenaltyByUser = [];
-
-        foreach ($claims as $c) {
-            $userId = (int) $c->user_id;
-            $penaltyAmount = $c->penalty_amount !== null ? (float) $c->penalty_amount : null;
-            $alreadyApplied = (bool) $c->penalty_applied;
-
-            // Hitung penalty hanya jika belum pernah dihitung/ditandai
-            if ($penaltyAmount === null || !$alreadyApplied) {
-                $type = (string) ($c->penalty_type ?? 'none');
-                $value = (float) ($c->penalty_value ?? 0);
-                $base = (string) ($c->penalty_base ?? 'task_bonus');
-
-                $computed = 0.0;
-                if ($type === 'amount') {
-                    $computed = $value;
-                } elseif ($type === 'percent') {
-                    $pct = max(0.0, min(100.0, $value));
-                    $baseAmount = 0.0;
-                    if ($base === 'remuneration') {
-                        $baseAmount = (float) ($grossByUser[$userId] ?? 0);
-                    } else {
-                        $baseAmount = (float) ($c->awarded_bonus_amount ?? 0);
-                    }
-                    $computed = ($pct / 100.0) * $baseAmount;
-                }
-
-                $penaltyAmount = round(max(0.0, $computed), 2);
-
-                DB::table('additional_task_claims')
-                    ->where('id', (int) $c->id)
-                    ->update([
-                        'penalty_amount' => $penaltyAmount,
-                        'penalty_applied' => true,
-                        'penalty_applied_at' => $c->penalty_applied_at ?: $now,
-                        'penalty_note' => 'Cancel after deadline',
-                        'updated_at' => $now,
-                    ]);
-            }
-
-            $sumPenaltyByUser[$userId] = ($sumPenaltyByUser[$userId] ?? 0.0) + (float) $penaltyAmount;
-        }
-
-        foreach ($sumPenaltyByUser as $userId => $sumPenalty) {
-            $sumPenalty = round(max(0.0, (float) $sumPenalty), 2);
-            if ($sumPenalty <= 0) continue;
-
-            $rem = Remuneration::query()
-                ->where('assessment_period_id', $periodId)
-                ->where('user_id', (int) $userId)
-                ->whereNull('published_at')
-                ->first();
-
-            if (!$rem) continue;
-
-            $gross = (float) ($grossByUser[(int) $userId] ?? $rem->amount);
-            $net = max(0.0, round($gross - $sumPenalty, 2));
-            $rem->amount = $net;
-            $rem->calculated_at = now();
-
-            $details = $rem->calculation_details ?? [];
-            $details['penalty'] = [
-                'source' => 'additional_task_claims(cancelled_after_deadline)',
-                'total' => $sumPenalty,
-            ];
-            $rem->calculation_details = $details;
-
-            $rem->save();
-        }
     }
 
     /**

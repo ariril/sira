@@ -10,14 +10,13 @@ use App\Services\AdditionalTasks\AdditionalTaskStatusService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use App\Models\AssessmentPeriod;
 use App\Support\AssessmentPeriodGuard;
+use Illuminate\Support\Carbon;
 
 class AdditionalTaskController extends Controller
 {
@@ -30,7 +29,7 @@ class AdditionalTaskController extends Controller
         $perPageOptions = [10, 20, 30, 50];
         $data = $request->validate([
             'q'         => ['nullable','string','max:100'],
-            'status'    => ['nullable','string','in:draft,open,closed,cancelled'],
+            'status'    => ['nullable','string','in:open,closed'],
             'period_id' => ['nullable','integer'],
             'per_page'  => ['nullable','integer','in:' . implode(',', $perPageOptions)],
         ]);
@@ -60,12 +59,9 @@ class AdditionalTaskController extends Controller
                     'additional_tasks.id',
                     'additional_tasks.title',
                     'additional_tasks.status',
-                    'additional_tasks.start_date',
-                    'additional_tasks.start_time',
                     'additional_tasks.due_date',
                     'additional_tasks.due_time',
                     'additional_tasks.points',
-                    'additional_tasks.bonus_amount',
                     'additional_tasks.max_claims',
                 ])
                 ->addSelect('ap.name as period_name')
@@ -80,7 +76,7 @@ class AdditionalTaskController extends Controller
                         $q->whereIn('status', AdditionalTaskStatusService::REVIEW_WAITING_STATUSES);
                     },
                     'claims as finished_claims' => function ($q) {
-                        $q->whereIn('status', ['approved', 'completed']);
+                        $q->whereIn('status', ['approved', 'rejected']);
                     },
                 ])
                 ->where('additional_tasks.unit_id', $unitId)
@@ -146,43 +142,15 @@ class AdditionalTaskController extends Controller
 
         AssessmentPeriodGuard::requireActive($activePeriod, 'Buat Tugas Tambahan');
 
+        $tz = config('app.timezone');
         $data = $request->validated();
 
-        $penaltyType = (string) ($data['default_penalty_type'] ?? 'none');
-        $penaltyValue = (float) ($data['default_penalty_value'] ?? 0);
-        if ($penaltyType === 'none') {
-            $penaltyValue = 0;
-        }
-
-        $tz = config('app.timezone');
-        $today = Carbon::today($tz)->toDateString();
-        if (($data['start_date'] ?? '') < $today) {
-            return back()->withErrors([
-                'start_date' => 'Tanggal mulai tidak boleh sebelum hari ini.',
-            ])->withInput();
-        }
-
-        $startTime = $data['start_time'] ?? Carbon::now($tz)->format('H:i');
         $dueTime = $data['due_time'] ?? '23:59';
-        $startAt = Carbon::createFromFormat('Y-m-d H:i', $data['start_date'].' '.$startTime, $tz);
-        $dueAt   = Carbon::createFromFormat('Y-m-d H:i', $data['due_date'].' '.$dueTime, $tz);
-
-        if ($dueAt->lt($startAt)) {
+        $dueAt = Carbon::createFromFormat('Y-m-d H:i', $data['due_date'].' '.$dueTime, $tz);
+        if ($dueAt->isPast()) {
             return back()->withErrors([
-                'due_time' => 'Jatuh tempo harus setelah atau sama dengan waktu mulai.',
+                'due_date' => 'Jatuh tempo tidak boleh sudah lewat.',
             ])->withInput();
-        }
-
-        $filePath = null;
-        if ($request->hasFile('supporting_file')) {
-            try {
-                $filePath = $request->file('supporting_file')->store('additional_tasks/supporting', 'public');
-            } catch (\Throwable $e) {
-                report($e);
-                return back()->withErrors([
-                    'supporting_file' => 'Gagal mengunggah file pendukung. Silakan coba lagi atau unggah file lain.',
-                ])->withInput();
-            }
         }
 
         $task = AdditionalTask::create([
@@ -190,42 +158,16 @@ class AdditionalTaskController extends Controller
             'assessment_period_id' => $activePeriod->id,
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
-            'start_date' => $startAt->toDateString(),
-            'start_time' => $startAt->format('H:i:s'),
             'due_date' => $dueAt->toDateString(),
             'due_time' => $dueAt->format('H:i:s'),
-            'bonus_amount' => $data['bonus_amount'] ?? null,
-            'points' => $data['points'] ?? null,
+            'points' => $data['points'],
             'max_claims' => $data['max_claims'] ?? 1,
-            'cancel_window_hours' => (int) ($data['cancel_window_hours'] ?? 24),
-            'default_penalty_type' => $penaltyType,
-            'default_penalty_value' => $penaltyValue,
-            'penalty_base' => (string) ($data['penalty_base'] ?? 'task_bonus'),
             'status' => 'open',
-            'policy_doc_path' => $filePath,
             'created_by' => $me->id,
         ]);
 
         $task->refreshLifecycleStatus();
         $task->refresh();
-
-        if ($task->status === 'open' && class_exists(\App\Notifications\AdditionalTaskAvailableNotification::class)) {
-            $targets = DB::table('users as u')
-                ->join('role_user as ru', 'ru.user_id', '=', 'u.id')
-                ->join('roles as r', 'r.id', '=', 'ru.role_id')
-                ->select('u.id')
-                ->where('u.unit_id', $unitId)
-                ->where('r.slug', 'pegawai_medis')
-                ->where('u.id', '!=', $me->id)
-                ->get();
-
-            foreach ($targets as $target) {
-                $user = \App\Models\User::find($target->id);
-                if ($user) {
-                    $user->notify(new \App\Notifications\AdditionalTaskAvailableNotification($task));
-                }
-            }
-        }
 
         return redirect()->route('kepala_unit.additional-tasks.index')->with('status', 'Tugas dibuat.');
     }
@@ -267,66 +209,21 @@ class AdditionalTaskController extends Controller
 
         $data = $request->validated();
 
-        $penaltyType = (string) ($data['default_penalty_type'] ?? ($task->default_penalty_type ?? 'none'));
-        $penaltyValue = (float) ($data['default_penalty_value'] ?? ($task->default_penalty_value ?? 0));
-        if ($penaltyType === 'none') {
-            $penaltyValue = 0;
-        }
-        if ($penaltyType === 'percent' && $penaltyValue > 100) {
-            return back()->withErrors([
-                'default_penalty_value' => 'Penalty percent harus di antara 0–100.',
-            ])->withInput();
-        }
-
         $targetPeriod = AssessmentPeriod::query()->find((int) $data['assessment_period_id']);
         AssessmentPeriodGuard::requireActive($targetPeriod, 'Ubah Tugas Tambahan');
 
-        $startTime = $data['start_time'] ?? ($task->start_time ? substr($task->start_time, 0, 5) : '00:00');
-        $dueTime = $data['due_time'] ?? ($task->due_time ? substr($task->due_time, 0, 5) : '23:59');
-
         $tz = config('app.timezone');
-        $startAt = Carbon::createFromFormat('Y-m-d H:i', $data['start_date'].' '.$startTime, $tz);
-        $dueAt   = Carbon::createFromFormat('Y-m-d H:i', $data['due_date'].' '.$dueTime, $tz);
-
-        if ($dueAt->lt($startAt)) {
-            return back()->withErrors([
-                'due_time' => 'Jatuh tempo harus setelah atau sama dengan waktu mulai.',
-            ])->withInput();
-        }
-
-        $filePath = $task->policy_doc_path;
-        if ($request->hasFile('supporting_file')) {
-            try {
-                $newPath = $request->file('supporting_file')->store('additional_tasks/supporting', 'public');
-            } catch (\Throwable $e) {
-                report($e);
-                return back()->withErrors([
-                    'supporting_file' => 'Gagal mengunggah file pendukung. Silakan coba lagi atau unggah file lain.',
-                ])->withInput();
-            }
-
-            if ($filePath) {
-                Storage::disk('public')->delete($filePath);
-            }
-            $filePath = $newPath;
-        }
+        $dueTime = $data['due_time'] ?? ($task->due_time ? substr((string) $task->due_time, 0, 5) : '23:59');
+        $dueAt = Carbon::createFromFormat('Y-m-d H:i', $data['due_date'].' '.$dueTime, $tz);
 
         $task->update([
             'assessment_period_id' => $data['assessment_period_id'],
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
-            'start_date' => $startAt->toDateString(),
-            'start_time' => $startAt->format('H:i:s'),
             'due_date' => $dueAt->toDateString(),
             'due_time' => $dueAt->format('H:i:s'),
-            'bonus_amount' => $data['bonus_amount'] ?? null,
-            'points' => $data['points'] ?? null,
+            'points' => $data['points'],
             'max_claims' => $data['max_claims'] ?? 1,
-            'cancel_window_hours' => (int) ($data['cancel_window_hours'] ?? ($task->cancel_window_hours ?? 24)),
-            'default_penalty_type' => $penaltyType,
-            'default_penalty_value' => $penaltyValue,
-            'penalty_base' => (string) ($data['penalty_base'] ?? ($task->penalty_base ?? 'task_bonus')),
-            'policy_doc_path' => $filePath,
         ]);
         $task->refreshLifecycleStatus();
 
@@ -341,20 +238,12 @@ class AdditionalTaskController extends Controller
         if (!$task) abort(404);
         if ((int) $task->unit_id !== (int) $me->unit_id) abort(403);
 
-        if (!in_array((string) $task->status, ['draft', 'cancelled'], true)) {
-            return back()->with('status', 'Tugas tidak dapat dihapus pada status saat ini.');
-        }
-
         if ($task->claims()->exists()) {
             return back()->with('status', 'Tugas tidak dapat dihapus karena sudah memiliki klaim.');
         }
 
         $task->loadMissing('period');
         AssessmentPeriodGuard::requireActive($task->period, 'Hapus Tugas Tambahan');
-
-        if ($task->policy_doc_path) {
-            Storage::disk('public')->delete($task->policy_doc_path);
-        }
 
         $task->delete();
 
@@ -369,11 +258,6 @@ class AdditionalTaskController extends Controller
     public function close(string $id): RedirectResponse
     {
         return $this->setStatus($id, 'closed');
-    }
-
-    public function cancel(string $id): RedirectResponse
-    {
-        return $this->setStatus($id, 'cancelled');
     }
 
     private function setStatus(string $id, string $status): RedirectResponse
@@ -403,17 +287,13 @@ class AdditionalTaskController extends Controller
                 }
             }
 
-            if (!in_array($current, ['draft', 'closed'])) {
-                return back()->with('status', 'Status saat ini tidak dapat dibuka secara manual.');
+            if ($current !== 'closed') {
+                return back()->with('status', 'Hanya tugas berstatus closed yang bisa dibuka kembali.');
             }
         }
 
         if ($status === 'closed' && $current !== 'open') {
             return back()->with('status', 'Hanya tugas berstatus open yang bisa ditutup.');
-        }
-
-        if ($status === 'cancelled' && !in_array($current, ['open','draft'])) {
-            return back()->with('status', 'Status saat ini tidak dapat dibatalkan.');
         }
 
         $task->update(['status' => $status]);

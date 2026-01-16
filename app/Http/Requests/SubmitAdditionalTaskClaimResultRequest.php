@@ -12,7 +12,7 @@ class SubmitAdditionalTaskClaimResultRequest extends FormRequest
     {
         return [
             'note' => ['nullable','string','max:1000'],
-            'result_file' => ['required','file','max:10240','mimes:doc,docx,xls,xlsx,ppt,pptx,pdf'],
+            'result_file' => ['nullable','file','max:10240','mimes:doc,docx,xls,xlsx,ppt,pptx,pdf'],
         ];
     }
 }

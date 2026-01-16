@@ -1476,10 +1476,9 @@ class EightStaffKpiSeeder extends Seeder
         ]);
 
         // =========================================================
-        // Tugas Tambahan (module-style): 2 tasks per unit+period
-        // - Task POINTS: uses t.points
-        // - Task UANG  : uses t.bonus_amount, but claims still provide awarded_points
-        // Claims with status approved/completed contribute via SUM(awarded_points) fallback to t.points.
+        // Tugas Tambahan (points-only): 2 tasks per unit+period
+        // - Both tasks use t.points
+        // Claims with status approved contribute via SUM(awarded_points).
         // =========================================================
         $taskPointsIdByUnit = [];
         $taskMoneyIdByUnit = [];
@@ -1533,18 +1532,10 @@ class EightStaffKpiSeeder extends Seeder
                 'assessment_period_id' => $period->id,
                 'title' => 'Tugas Tambahan (Points) - ' . $period->name . ' (' . $unitSlug . ')',
                 'description' => 'Seeder additional task berbasis poin',
-                'policy_doc_path' => null,
-                'start_date' => (string) $period->start_date,
                 'due_date' => (string) $period->end_date,
-                'start_time' => '00:00:00',
                 'due_time' => '23:59:00',
-                'bonus_amount' => null,
                 'points' => 10,
                 'max_claims' => $claimQuota,
-                'cancel_window_hours' => 24,
-                'default_penalty_type' => 'none',
-                'default_penalty_value' => 0,
-                'penalty_base' => 'task_bonus',
                 'status' => 'closed',
                 'created_by' => $creatorId > 0 ? $creatorId : null,
                 'created_at' => $now,
@@ -1556,20 +1547,12 @@ class EightStaffKpiSeeder extends Seeder
             $taskMoneyIdByUnit[(string) $unitSlug] = (int) DB::table('additional_tasks')->insertGetId([
                 'unit_id' => $uId,
                 'assessment_period_id' => $period->id,
-                'title' => 'Tugas Tambahan (Uang) - ' . $period->name . ' (' . $unitSlug . ')',
-                'description' => 'Seeder additional task berbasis uang; claim menyediakan awarded_points untuk skor',
-                'policy_doc_path' => null,
-                'start_date' => (string) $period->start_date,
+                'title' => 'Tugas Tambahan (Points B) - ' . $period->name . ' (' . $unitSlug . ')',
+                'description' => 'Seeder additional task berbasis poin (variasi)',
                 'due_date' => (string) $period->end_date,
-                'start_time' => '00:00:00',
                 'due_time' => '23:59:00',
-                'bonus_amount' => 500000,
-                'points' => null,
+                'points' => 15,
                 'max_claims' => $claimQuota,
-                'cancel_window_hours' => 24,
-                'default_penalty_type' => 'none',
-                'default_penalty_value' => 0,
-                'penalty_base' => 'task_bonus',
                 'status' => 'closed',
                 'created_by' => $creatorId > 0 ? $creatorId : null,
                 'created_at' => $now,
@@ -1612,34 +1595,20 @@ class EightStaffKpiSeeder extends Seeder
                         continue;
                     }
 
-                    // Awarded points: points task uses its points; money task still contributes points via awarded_points.
-                    $awardedPoints = $taskId === (int) ($taskPointsIdByUnit[(string) $unitSlug] ?? 0) ? 10.0 : 10.0;
+                    // Awarded points: use the seeded task points.
+                    $awardedPoints = $taskId === (int) ($taskPointsIdByUnit[(string) $unitSlug] ?? 0) ? 10.0 : 15.0;
 
                     DB::table('additional_task_claims')->insert([
                         'additional_task_id' => $taskId,
                         'user_id' => $uid,
                         'status' => 'approved',
-                        'claimed_at' => $assessmentDate,
-                        'completed_at' => null,
-                        'cancelled_at' => null,
-                        'cancelled_by' => null,
-                        'cancel_deadline_at' => null,
-                        'cancel_reason' => null,
-                        'penalty_type' => 'none',
-                        'penalty_value' => 0,
-                        'penalty_base' => 'task_bonus',
-                        'penalty_applied' => 0,
-                        'penalty_applied_at' => null,
-                        'penalty_amount' => null,
-                        'penalty_note' => null,
+                        'submitted_at' => $assessmentDate,
                         'result_file_path' => null,
                         'result_note' => 'Seeder claim (quota=' . $quota . ')',
                         'awarded_points' => $awardedPoints,
-                        'awarded_bonus_amount' => null,
                         'reviewed_by_id' => null,
                         'reviewed_at' => $assessmentDate,
                         'review_comment' => 'Seeder auto approve',
-                        'is_violation' => 0,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ]);

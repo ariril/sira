@@ -282,7 +282,6 @@ Route::middleware(['auth','verified','role:kepala_unit'])
         Route::resource('additional-tasks', \App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class);
         Route::patch('additional-tasks/{task}/open',     [\App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class,'open'])->name('additional_tasks.open');
         Route::patch('additional-tasks/{task}/close',    [\App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class,'close'])->name('additional_tasks.close');
-        Route::patch('additional-tasks/{task}/cancel',   [\App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class,'cancel'])->name('additional_tasks.cancel');
 
         // Monitoring klaim
         Route::get('additional-task-claims', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskClaimController::class, 'index'])->name('additional_task_claims.index');
@@ -293,7 +292,7 @@ Route::middleware(['auth','verified','role:kepala_unit'])
         Route::post('reviews/{review}/approve', [ReviewApprovalController::class, 'approve'])->name('reviews.approve');
         Route::post('reviews/{review}/reject', [ReviewApprovalController::class, 'reject'])->name('reviews.reject');
 
-        // Review klaim tugas tambahan (submitted/validated -> validated/approved/rejected)
+        // Review klaim tugas tambahan (submitted -> approved/rejected)
         Route::get('additional-task-claims/review', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskClaimReviewController::class,'index'])->name('additional_task_claims.review_index');
         Route::post('additional-task-claims/{claim}/review', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskClaimReviewController::class,'update'])->name('additional_task_claims.review_update');
 
@@ -398,10 +397,7 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
 
         // Klaim & tugas tambahan
         Route::get('additional-tasks', [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskController::class, 'index'])->name('additional_tasks.index');
-        Route::post('additional-tasks/{task}/claim',    [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'claim'])->name('additional_tasks.claim');
-        Route::post('additional-task-claims/{claim}/cancel', [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'cancel'])->name('additional_task_claims.cancel');
-        Route::post('additional-task-claims/{claim}/complete',[\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'complete'])->name('additional_task_claims.complete');
-        Route::post('additional-task-claims/{claim}/submit',[\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'submit'])->name('additional_task_claims.submit');
+        Route::post('additional-tasks/{task}/submit', [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'submit'])->name('additional_tasks.submit');
 
         // Lihat remunerasi pribadi
         Route::get('remunerations',       [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'index'])->name('remunerations.index');

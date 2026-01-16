@@ -249,15 +249,14 @@ class DashboardController extends Controller
                 ->pluck('aggregate', 'status');
 
             $submittedCount = (int) ($countsByStatus['submitted'] ?? 0);
-            $validatedCount = (int) ($countsByStatus['validated'] ?? 0);
-            $pendingTaskClaims = $submittedCount + $validatedCount;
+            $pendingTaskClaims = $submittedCount;
 
             $stats['add_tasks'] = (int) $pendingTaskClaims;
 
             if ($pendingTaskClaims > 0) {
                 $notifications[] = [
                     'type' => 'info',
-                    'text' => $pendingTaskClaims . ' klaim tugas tambahan butuh tindakan (' . $submittedCount . ' menunggu validasi, ' . $validatedCount . ' menunggu persetujuan).',
+                    'text' => $pendingTaskClaims . ' klaim tugas tambahan butuh tindakan (' . $submittedCount . ' menunggu review).',
                     'href' => route('kepala_unit.additional_task_claims.review_index'),
                 ];
             }

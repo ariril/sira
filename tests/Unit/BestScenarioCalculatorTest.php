@@ -116,9 +116,10 @@ class BestScenarioCalculatorTest extends TestCase
                 'assessment_period_id' => $period->id,
                 'title' => 'Tugas Tambahan',
                 'description' => 'Test',
-                'start_date' => $period->start_date,
                 'due_date' => $period->end_date,
+                'due_time' => '23:59:00',
                 'points' => $points,
+                'max_claims' => 1,
                 'status' => 'open',
                 'created_by' => null,
             ]);
@@ -127,8 +128,8 @@ class BestScenarioCalculatorTest extends TestCase
                 'additional_task_id' => $task->id,
                 'user_id' => $user->id,
                 'status' => 'approved',
-                'claimed_at' => now(),
-                'completed_at' => now(),
+                'submitted_at' => now(),
+                'reviewed_at' => now(),
                 'awarded_points' => $points,
             ]);
         }

@@ -23,17 +23,14 @@ Tanggal: 2025-12-27
 
 ## 3) Kepala Unit
 - Masuk `kepala-unit/additional-tasks`:
-  - Buat tugas tambahan dengan salah satu: `bonus_amount` ATAU `points`.
-  - Pastikan validasi menolak jika keduanya diisi sekaligus.
-  - Set penalty percent > 100 dan pastikan ditolak.
+  - Buat tugas tambahan dengan `points`.
+  - Pastikan validasi menolak jika `points` kosong/tidak valid.
 - Buka monitoring klaim `kepala-unit/additional-task-claims` dan pastikan list tampil.
 
 ## 4) Pegawai Medis
 - Masuk `pegawai-medis/additional-tasks`:
-  - Claim satu task.
-  - Cancel sebelum deadline: status `cancelled`, `is_violation=false`.
-  - Cancel setelah deadline: status `cancelled`, `is_violation=true`, `penalty_applied` tetap `false`.
-- Submit hasil claim (PDF) dan pastikan upload/validasi sukses.
+  - Submit satu task (PDF) dan pastikan upload/validasi sukses.
+  - Coba submit setelah deadline dan pastikan auto-ditolak (status `rejected`, awarded_points=0).
 
 ## 5) Multi-Rater (360)
 - Pastikan ada `assessment_period` ACTIVE dan window 360 aktif.

@@ -61,10 +61,9 @@ class AdditionalTaskClaimTest extends TestCase
             'assessment_period_id' => $period->id,
             'title' => 'Tugas A',
             'description' => null,
-            'start_date' => now()->toDateString(),
             'due_date' => now()->addDay()->toDateString(),
-            'bonus_amount' => null,
-            'points' => null,
+            'due_time' => '23:59:59',
+            'points' => 10,
             'max_claims' => 1,
             'status' => 'open',
             'created_by' => $this->makeUser('kepala_unit', $unitId)->id,
@@ -78,37 +77,38 @@ class AdditionalTaskClaimTest extends TestCase
         $task = $this->makeTask($pegawai1->unit_id);
 
         $this->actingAs($pegawai1)
-            ->post(route('pegawai_medis.additional_tasks.claim', $task->id))
+            ->post(route('pegawai_medis.additional_tasks.submit', $task->id), [
+                'note' => 'Submit 1',
+            ])
             ->assertRedirect();
         $this->actingAs($pegawai2)
-            ->post(route('pegawai_medis.additional_tasks.claim', $task->id))
+            ->post(route('pegawai_medis.additional_tasks.submit', $task->id), [
+                'note' => 'Submit 2',
+            ])
             ->assertRedirect();
 
-        $this->assertEquals(1, AdditionalTaskClaim::count(), 'Only one active claim should exist');
+        $this->assertEquals(1, AdditionalTaskClaim::count(), 'Only one claim should exist when max_claims=1');
     }
 
-    public function test_cancel_after_deadline_sets_violation(): void
+    public function test_late_submit_auto_rejects(): void
     {
         $pegawai = $this->makeUser('pegawai_medis');
-        $task = $this->makeTask($pegawai->unit_id);
-        $claim = AdditionalTaskClaim::create([
-            'additional_task_id' => $task->id,
-            'user_id' => $pegawai->id,
-            'status' => 'active',
-            'claimed_at' => now()->subDay(),
-            'cancel_deadline_at' => now()->subHours(2),
-            'penalty_type' => 'none',
-            'penalty_value' => 0,
+        $task = $this->makeTask($pegawai->unit_id, [
+            'due_date' => now()->subDay()->toDateString(),
+            'due_time' => '00:00:00',
         ]);
 
         $this->actingAs($pegawai)
-            ->post(route('pegawai_medis.additional_task_claims.cancel', $claim->id))
+            ->post(route('pegawai_medis.additional_tasks.submit', $task->id), [
+                'note' => 'Telat submit',
+            ])
             ->assertRedirect();
 
-        $claim->refresh();
-        $this->assertEquals('cancelled', $claim->status);
-        $this->assertTrue((bool)$claim->is_violation);
-        $this->assertFalse((bool)$claim->penalty_applied);
+        $claim = AdditionalTaskClaim::query()->where('additional_task_id', $task->id)->where('user_id', $pegawai->id)->first();
+        $this->assertNotNull($claim);
+        $this->assertEquals('rejected', $claim->status);
+        $this->assertEquals('0.00', (string) $claim->awarded_points);
+        $this->assertNotNull($claim->reviewed_at);
     }
 
     public function test_full_approval_flow(): void
@@ -116,23 +116,17 @@ class AdditionalTaskClaimTest extends TestCase
         $pegawai = $this->makeUser('pegawai_medis');
         $kepala = $this->makeUser('kepala_unit', $pegawai->unit_id);
         $task = $this->makeTask($pegawai->unit_id);
-        $claim = AdditionalTaskClaim::create([
-            'additional_task_id' => $task->id,
-            'user_id' => $pegawai->id,
-            'status' => 'active',
-            'claimed_at' => now(),
-            'cancel_deadline_at' => now()->addDay(),
-            'penalty_type' => 'none',
-            'penalty_value' => 0,
-        ]);
 
-        // Submit
+        // Submit (creates claim)
         $this->actingAs($pegawai)
-            ->post(route('pegawai_medis.additional_task_claims.submit', $claim->id), [
+            ->post(route('pegawai_medis.additional_tasks.submit', $task->id), [
                 'note' => 'Hasil pekerjaan terlampir.',
                 'result_file' => UploadedFile::fake()->create('hasil.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
             ])
             ->assertRedirect();
+
+        $claim = AdditionalTaskClaim::query()->where('additional_task_id', $task->id)->where('user_id', $pegawai->id)->first();
+        $this->assertNotNull($claim);
         $claim->refresh();
         $this->assertEquals('submitted', $claim->status);
 
@@ -144,29 +138,22 @@ class AdditionalTaskClaimTest extends TestCase
             ->assertRedirect();
         $claim->refresh();
         $this->assertEquals('approved', $claim->status);
-        $this->assertNotNull($claim->completed_at);
+        $this->assertEquals((string) number_format((float) $task->points, 2, '.', ''), (string) $claim->awarded_points);
     }
 
     public function test_submit_result_accepts_pdf(): void
     {
         $pegawai = $this->makeUser('pegawai_medis');
         $task = $this->makeTask($pegawai->unit_id);
-        $claim = AdditionalTaskClaim::create([
-            'additional_task_id' => $task->id,
-            'user_id' => $pegawai->id,
-            'status' => 'active',
-            'claimed_at' => now(),
-            'cancel_deadline_at' => now()->addDay(),
-            'penalty_type' => 'none',
-            'penalty_value' => 0,
-        ]);
-
         $this->actingAs($pegawai)
-            ->post(route('pegawai_medis.additional_task_claims.submit', $claim->id), [
+            ->post(route('pegawai_medis.additional_tasks.submit', $task->id), [
                 'note' => 'Hasil PDF terlampir.',
                 'result_file' => UploadedFile::fake()->create('hasil.pdf', 100, 'application/pdf'),
             ])
             ->assertRedirect();
+
+        $claim = AdditionalTaskClaim::query()->where('additional_task_id', $task->id)->where('user_id', $pegawai->id)->first();
+        $this->assertNotNull($claim);
 
         $claim->refresh();
         $this->assertEquals('submitted', $claim->status);

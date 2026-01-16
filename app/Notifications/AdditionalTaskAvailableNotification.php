@@ -25,6 +25,6 @@ class AdditionalTaskAvailableNotification extends Notification implements Should
             ->line($this->task->title)
             ->line('Batas waktu: ' . $this->task->due_date)
             ->action('Lihat Tugas', url('/pegawai-medis/additional-tasks'))
-            ->line('Segera klaim jika relevan.');
+            ->line('Segera kerjakan dan submit jika relevan.');
     }
 }

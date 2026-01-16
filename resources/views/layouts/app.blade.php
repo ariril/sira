@@ -16,7 +16,11 @@
     @stack('head')
 
     {{-- Assets --}}
-    @vite(['resources/css/app.css','resources/js/app.js'])
+    @if(app()->environment('testing') && !file_exists(public_path('build/manifest.json')))
+        {{-- In CI/PhpUnit we don't require built assets. --}}
+    @else
+        @vite(['resources/css/app.css','resources/js/app.js'])
+    @endif
 </head>
 @php
     $role = auth()->user()?->getActiveRoleSlug();

@@ -1,7 +1,7 @@
 @php /** @var \App\Models\SiteSetting $setting */ @endphp
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-    <div class="space-y-4">
+            <p class="mt-1 text-[11px] text-slate-500">Seluruh batas waktu (tugas tambahan, approval, penilaian 360, dsb.) akan mengikuti zona waktu ini.</p>
         <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Nama Situs *</label>
             <x-ui.input name="name" :value="old('name', $setting->name)" required />

@@ -141,74 +141,52 @@ Format Excel fleksibel (header dicocokkan via alias), tetapi minimal perlu:
 This section documents the custom workflow implemented for "Tugas Tambahan" and their evidence contributions, mapped from the BPMN provided.
 
 ### 1. Core Data Structures
-- `additional_tasks` (`App\Models\AdditionalTask`): master task definition per unit (fields: `max_claims`, `status` = draft|open|closed|cancelled).
-- `additional_task_claims` (`App\Models\AdditionalTaskClaim`): lifecycle of a user's claim on a task (extended statuses: active, submitted, validated, approved, rejected, cancelled, auto_unclaim, completed (legacy)).
-- `additional_contributions` (`App\Models\AdditionalContribution`): uploaded evidence (optional linkage to task via `task_id`), approval status (Menunggu Persetujuan, Disetujui, Ditolak) and awarded bonus.
-- `remunerations` (`App\Models\Remuneration`): final period remuneration including approved contribution bonuses.
+- `additional_tasks` (`App\Models\AdditionalTask`): definisi tugas per unit (fields: `due_date`, `due_time`, `points`, `max_claims`, `status` = open|closed).
+- `additional_task_claims` (`App\Models\AdditionalTaskClaim`): submission & review (statuses: `submitted|approved|rejected`, fields: `submitted_at`, `reviewed_at`, `review_comment`, `awarded_points`).
+- `remunerations` (`App\Models\Remuneration`): final period remuneration.
 
 ### 2. Status Lifecycle (Claims)
 ```
-open task → (user claim) active → (user submit) submitted → (kepala unit validate) validated → (kepala unit approve) approved
-															   ↘ (kepala unit reject) rejected
-
-active → (user cancel before deadline) cancelled
-active → (user cancel after deadline) cancelled + violation + penalty
+open task → (pegawai submit) submitted → (kepala unit approve) approved
+                              ↘ (kepala unit reject) rejected
 ```
-Terminal states: approved, rejected, cancelled. Penalty applied on late cancellation with `is_violation = true`.
+Catatan: jika submit melewati deadline, klaim dapat dibuat sebagai `rejected` otomatis (awarded_points=0).
 
 ### 3. Primary Transitions & Methods
-- User claim: `POST /pegawai-medis/additional-tasks/{task}/claim` → handled in `MedicalStaff\AdditionalTaskClaimController::claim()` (transaction + row lock). Creates `AdditionalTaskClaim` (status active).
-- Submit result: `POST /pegawai-medis/additional-task-claims/{claim}/submit` → `submitResult()` (status active → submitted) + notify unit heads.
-- Validate: `POST /kepala-unit/additional-task-claims/{claim}/review` action=validate → `validateTask()`.
-- Approve: same endpoint action=approve → `approve()` (sets completed_at, status approved).
-- Reject: same endpoint action=reject → `reject($comment)`.
-- Cancel: `POST /pegawai-medis/additional-task-claims/{claim}/cancel` → `cancel()` (late? sets violation & penalty).
+- Submit result: `POST /pegawai-medis/additional-tasks/{task}/submit` → membuat `AdditionalTaskClaim` status `submitted` (atau auto-`rejected` jika telat) + notify unit heads.
+- Approve/Reject: `POST /kepala-unit/additional-task-claims/{claim}/review` action=approve|reject → mengisi `reviewed_at`, `review_comment`, dan `awarded_points`.
 
 ### 4. Contribution Evidence Flow
-- Create: `POST /pegawai-medis/additional-contributions` (FormRequest `StoreAdditionalContributionRequest`). Stores file to `storage/app/additional_contributions` with metadata fields: `attachment_original_name`, `attachment_mime`, `attachment_size`.
-- Review (Kepala Unit): `POST /kepala-unit/additional-contributions/{id}/approve|reject` → sets `validation_status`, assigns `bonus_awarded` (from linked task `bonus_amount`) & `score` (from task `points`).
-- Download for review: `GET /kepala-unit/additional-contributions/{id}/download`.
-- Approved bonuses aggregated into remuneration calculation (`AdminHospital\RemunerationController::runCalculation()` merges `approved_contribution_bonus`).
+N/A (module ini hanya mendokumentasikan alur **Tugas Tambahan** points-only).
 
 ### 5. Notifications
 | Event | Class | Trigger |
 |-------|-------|---------|
-| Task becomes available again (cancel frees slot) | `AdditionalTaskAvailableAgainNotification` | cancel logic in medical staff controller |
-| New open task created | `AdditionalTaskAvailableNotification` (if present) | unit head store task |
-| Claim submitted | `ClaimSubmittedNotification` | after submitResult |
-| Claim validated | `ClaimValidatedNotification` | action=validate |
+| Claim submitted | `ClaimSubmittedNotification` | after submit |
 | Claim approved | `ClaimApprovedNotification` | action=approve |
 | Claim rejected | `ClaimRejectedNotification` | action=reject |
-| Contribution approved | `ContributionApprovedNotification` | approve contribution |
-| Contribution rejected | `ContributionRejectedNotification` | reject contribution |
 
 All notifications currently sent via `mail` channel and can be queued (classes implement `ShouldQueue` where appropriate).
 
 ### 6. Penalty Logic
-Late cancellation (after `cancel_deadline_at`):
-- Transitions active → cancelled + `is_violation = true`.
-- Automatically sets default penalty (percent 10% if none) and applies via `applyPenalty()` (stores `penalty_applied`, `penalty_applied_at`).
-- Penalty amount derived from task bonus when type=percent.
+Tidak ada penalty/cancel pada alur Tugas Tambahan (points-only).
 
 ### 7. Concurrency Safeguards
-Claim creation uses DB transaction + `lockForUpdate()` on the task row ensuring `max_claims` quota isn’t oversubscribed under race conditions.
+Claim creation uses DB transaction + `lockForUpdate()` when counting quota so `max_claims` isn’t oversubscribed under race conditions.
 
 ### 8. FormRequest Overview
 | Purpose | File |
 |---------|------|
 | Create Task | `StoreAdditionalTaskRequest` |
 | Update Task | `UpdateAdditionalTaskRequest` |
-| Create Contribution | `StoreAdditionalContributionRequest` |
-| Review Contribution | `ReviewAdditionalContributionRequest` |
-| Cancel Claim | `CancelAdditionalTaskClaimRequest` |
-| Submit Claim Result | `SubmitAdditionalTaskClaimResultRequest` |
+| Submit Task Result | `SubmitAdditionalTaskClaimResultRequest` |
 | Review Claim | `ReviewAdditionalTaskClaimRequest` |
 
 ### 9. Tests
 `tests/Feature/AdditionalTaskClaimTest.php` covers:
 - Single claim quota enforcement.
-- Late cancellation penalty & violation flag.
-- Full submit → validate → approve flow.
+- Late submit auto-reject.
+- Full submit → approve/reject flow.
 
 ### 10. Remuneration Integration
 `runCalculation()` adds `approved_contribution_bonus` per user into `amount` and records breakdown in `calculation_details` (`base_amount`, `approved_contribution_bonus`).
@@ -223,20 +201,16 @@ Claim creation uses DB transaction + `lockForUpdate()` on the task row ensuring 
 | Actor | Action | Route Name |
 |-------|--------|------------|
 | Pegawai Medis | List available tasks | `pegawai_medis.additional_tasks.index` |
-| Pegawai Medis | Claim task | `pegawai_medis.additional_tasks.claim` |
-| Pegawai Medis | Submit claim result | `pegawai_medis.additional_task_claims.submit` |
-| Pegawai Medis | Cancel claim | `pegawai_medis.additional_task_claims.cancel` |
+| Pegawai Medis | Submit task result | `pegawai_medis.additional_tasks.submit` |
 | Kepala Unit | Review claims list | `kepala_unit.additional_task_claims.review_index` |
-| Kepala Unit | Validate/Approve/Reject claim | `kepala_unit.additional_task_claims.review_update` |
+| Kepala Unit | Approve/Reject claim | `kepala_unit.additional_task_claims.review_update` |
 | Kepala Unit | Approve/Reject contribution | `kepala_unit.additional_contributions.approve/reject` |
 | Kepala Unit | Download evidence | `kepala_unit.additional_contributions.download` |
 | Admin RS | Run remuneration calc | `admin_rs.remunerations.calc.run` |
 
 ### 13. BPMN Alignment Notes
 - Decision Gate: "Apakah tugas masih tersedia?" → enforced by transaction + max_claims check.
-- Deadline Gate: "Apakah melewati batas cancel?" → `canCancel()` vs late path applying penalty.
-- Validation & Approval Split: separate transitions allowing optional second-level validation (`validated`) before final approval.
-- Bonus Calculation: triggered only on approved claim + approved contribution (aggregated into remuneration).
+- Deadline Gate: "Apakah melewati batas waktu?" → submit dapat auto-ditolak jika telat.
 
 ---
 

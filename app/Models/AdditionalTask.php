@@ -20,31 +20,18 @@ class AdditionalTask extends Model
         'assessment_period_id',
         'title',
         'description',
-        'policy_doc_path',
-        'start_date',
         'due_date',
-        'start_time',
         'due_time',
-        'bonus_amount',
         'points',
         'max_claims',
-        'cancel_window_hours',
-        'default_penalty_type',
-        'default_penalty_value',
-        'penalty_base',
         'status',
         'created_by',
     ];
 
     protected $casts = [
-        'start_date'   => 'date',
         'due_date'     => 'date',
-        'start_time'   => 'string',
         'due_time'     => 'string',
-        'bonus_amount' => 'decimal:2',
         'points'       => 'decimal:2',
-        'cancel_window_hours' => 'integer',
-        'default_penalty_value' => 'decimal:2',
     ];
 
     /* ============================================================
@@ -64,6 +51,11 @@ class AdditionalTask extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function createdBy()
+    {
+        return $this->creator();
     }
 
     // Relasi ke riwayat claim (multi-claim atau audit)
@@ -112,7 +104,7 @@ class AdditionalTask extends Model
 
     public function scopeNotDraft(Builder $query): Builder
     {
-        return $query->where('status', '!=', 'draft');
+        return $query;
     }
 
     public function scopeExcludeCreator(Builder $query, ?int $userId): Builder

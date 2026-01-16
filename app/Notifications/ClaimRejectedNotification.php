@@ -22,7 +22,7 @@ class ClaimRejectedNotification extends Notification
             ->greeting('Halo ' . $notifiable->name)
             ->line('Klaim tugas tambahan Anda ditolak: ' . $this->claim->task?->title)
             ->line('Catatan: ' . ($this->comment ?: 'Tidak ada'))
-            ->action('Lihat Detail', url('/pegawai-medis/additional-contributions'));
+            ->action('Lihat Tugas Tambahan', url('/pegawai-medis/additional-tasks'));
     }
 
     public function toDatabase($notifiable): array
@@ -32,7 +32,7 @@ class ClaimRejectedNotification extends Notification
             'task' => $this->claim->task?->title,
             'comment' => $this->comment,
             'claim_id' => $this->claim->id,
-            'link' => url('/pegawai-medis/additional-contributions'),
+            'link' => url('/pegawai-medis/additional-tasks'),
         ];
     }
 }

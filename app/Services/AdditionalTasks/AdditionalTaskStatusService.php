@@ -7,10 +7,11 @@ use Illuminate\Support\Carbon;
 
 class AdditionalTaskStatusService
 {
-    public const ACTIVE_STATUSES = ['active','submitted','validated','approved'];
+    // Claims that consume quota (submitted + approved)
+    public const ACTIVE_STATUSES = ['submitted', 'approved'];
 
     // Klaim yang masih menunggu tindakan kepala unit
-    public const REVIEW_WAITING_STATUSES = ['submitted', 'validated'];
+    public const REVIEW_WAITING_STATUSES = ['submitted'];
 
     public static function sync(AdditionalTask $task): void
     {

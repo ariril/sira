@@ -5,15 +5,16 @@ namespace App\Http\Controllers\Web\UnitHead;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ReviewAdditionalTaskClaimRequest;
 use App\Models\AdditionalTaskClaim;
+use App\Services\AdditionalTasks\AdditionalTaskService;
 use App\Services\AdditionalTasks\AdditionalTaskStatusService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Notification as Notify;
 use App\Notifications\ClaimApprovedNotification;
 use App\Notifications\ClaimRejectedNotification;
 use App\Support\AssessmentPeriodGuard;
+use Illuminate\Support\Facades\Notification;
 
 class AdditionalTaskClaimReviewController extends Controller
 {
@@ -31,7 +32,7 @@ class AdditionalTaskClaimReviewController extends Controller
             ->join('additional_tasks as t','t.id','=','c.additional_task_id')
             ->leftJoin('assessment_periods as ap','ap.id','=','t.assessment_period_id')
             ->join('users as u','u.id','=','c.user_id')
-            ->selectRaw("c.id, c.status, c.claimed_at, c.result_file_path, c.result_note, t.due_date, t.points, t.bonus_amount, t.policy_doc_path, t.title as task_title, ap.name as period_name, u.name as user_name")
+            ->selectRaw("c.id, c.status, c.submitted_at, c.reviewed_at, c.review_comment, c.awarded_points, c.result_file_path, c.result_note, t.due_date, t.due_time, t.points, t.title as task_title, ap.name as period_name, u.name as user_name")
             ->where('t.unit_id', $me->unit_id)
             ->whereIn('c.status', AdditionalTaskStatusService::REVIEW_WAITING_STATUSES)
             ->orderByDesc('c.id')
@@ -39,7 +40,7 @@ class AdditionalTaskClaimReviewController extends Controller
         return view('kepala_unit.additional_task_claims.review_index',[ 'claims' => $claims ]);
     }
 
-    public function update(ReviewAdditionalTaskClaimRequest $request, AdditionalTaskClaim $claim): RedirectResponse
+    public function update(ReviewAdditionalTaskClaimRequest $request, AdditionalTaskClaim $claim, AdditionalTaskService $svc): RedirectResponse
     {
         $this->authorizeAccess();
         $me = Auth::user();
@@ -48,31 +49,36 @@ class AdditionalTaskClaimReviewController extends Controller
         $claim->loadMissing('task.period');
         AssessmentPeriodGuard::requireActive($claim->task?->period, 'Review Klaim Tugas Tambahan');
 
-        $action = $request->validated()['action'];
+        $action = (string) ($request->validated()['action'] ?? '');
         $comment = $request->validated()['comment'] ?? null;
 
-        $ok = false;
-        switch ($action) {
-            case 'validate':
-                // Disederhanakan: validasi tidak lagi jadi langkah terpisah.
-                // Untuk kompatibilitas (mis. request lama/test), treat 'validate' sebagai approve.
-                $ok = $claim->approve($me, $comment);
-                if ($ok && $claim->user) { Notify::send($claim->user, new ClaimApprovedNotification($claim)); }
-                break;
-            case 'approve':
-                $ok = $claim->approve($me, $comment);
-                if ($ok && $claim->user) { Notify::send($claim->user, new ClaimApprovedNotification($claim)); }
-                break;
-            case 'reject':
-                $ok = $claim->reject($comment, $me);
-                if ($ok && $claim->user) { Notify::send($claim->user, new ClaimRejectedNotification($claim, $comment)); }
-                break;
-        }
+        $decision = match ($action) {
+            'validate', 'approve' => 'approved',
+            'reject' => 'rejected',
+            default => '',
+        };
 
-        if ($ok && $claim->task) {
-            $claim->task->refreshLifecycleStatus();
-        }
+        try {
+            $svc->reviewClaim($claim, $me, [
+                'decision' => $decision,
+                'comment' => $comment,
+            ]);
 
-        return back()->with('status', $ok ? 'Klaim diperbarui.' : 'Transisi tidak valid.');
+            if ($claim->user) {
+                if ($claim->status === 'approved') {
+                    Notification::send($claim->user, new ClaimApprovedNotification($claim));
+                } elseif ($claim->status === 'rejected') {
+                    Notification::send($claim->user, new ClaimRejectedNotification($claim, $comment));
+                }
+            }
+
+            if ($claim->task) {
+                $claim->task->refreshLifecycleStatus();
+            }
+
+            return back()->with('status', 'Klaim diperbarui.');
+        } catch (\Throwable $e) {
+            return back()->with('status', $e->getMessage());
+        }
     }
 }

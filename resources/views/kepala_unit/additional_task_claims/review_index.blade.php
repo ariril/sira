@@ -38,12 +38,11 @@
             @forelse ($claims as $claim)
                 @php
                     $tz = config('app.timezone');
-                    $claimedAt = $claim->claimed_at
-                        ? Carbon::parse($claim->claimed_at)->timezone($tz)->format('d M Y H:i')
+                    $submittedAt = $claim->submitted_at
+                        ? Carbon::parse($claim->submitted_at)->timezone($tz)->format('d M Y H:i')
                         : '-';
                     $dueDate = $claim->due_date ? Carbon::parse($claim->due_date)->format('d M Y') : '-';
                     $resultUrl = $claim->result_file_path ? Storage::url($claim->result_file_path) : null;
-                    $policyUrl = $claim->policy_doc_path ? Storage::url($claim->policy_doc_path) : null;
 
                     $resultExt = $claim->result_file_path
                         ? strtolower(pathinfo($claim->result_file_path, PATHINFO_EXTENSION))
@@ -73,14 +72,12 @@
                     $statusColor =
                         [
                             'submitted' => 'bg-amber-100 text-amber-700',
-                            'validated' => 'bg-sky-100 text-sky-700',
                             'approved' => 'bg-emerald-100 text-emerald-700',
                             'rejected' => 'bg-rose-100 text-rose-700',
                         ][$claim->status] ?? 'bg-slate-100 text-slate-700';
                     $statusLabel =
                         [
-                            'submitted' => 'Menunggu Persetujuan',
-                            'validated' => 'Menunggu Persetujuan',
+                            'submitted' => 'Menunggu Review',
                             'approved' => 'Disetujui',
                             'rejected' => 'Ditolak',
                         ][$claim->status] ?? ucfirst($claim->status);
@@ -91,12 +88,12 @@
                         <div class="space-y-1">
                             <p class="text-xs uppercase tracking-wide text-slate-400">{{ $claim->period_name ?? 'Periode belum ditentukan' }}</p>
                             <h2 class="text-2xl font-semibold text-slate-900 leading-tight">{{ $claim->task_title }}</h2>
-                            <p class="text-sm text-slate-500">Diajukan oleh <span class="font-medium text-slate-700">{{ $claim->user_name }}</span> pada {{ $claimedAt }}</p>
+                            <p class="text-sm text-slate-500">Diajukan oleh <span class="font-medium text-slate-700">{{ $claim->user_name }}</span> pada {{ $submittedAt }}</p>
                         </div>
                         <div class="flex flex-col items-start sm:items-end gap-2">
                                 <div class="flex items-center gap-2">
                                     <span class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $statusColor }}">{{ $statusLabel }}</span>
-                                    <span class="inline-block text-amber-600 cursor-help" title="Menunggu Validasi: hasil sudah dikirim pegawai. Menunggu Persetujuan: hasil sudah divalidasi, tinggal disetujui atau ditolak. Disetujui: nilai/bonus dihitung. Ditolak: slot klaim kembali tersedia bila kuota masih ada dan belum lewat jatuh tempo.">!</span>
+                                    <span class="inline-block text-amber-600 cursor-help" title="Menunggu Review: hasil sudah dikirim pegawai. Disetujui: poin dihitung. Ditolak: poin tidak diberikan.">!</span>
                                 </div>
                             <div class="text-xs text-slate-500">Jatuh tempo: <span
                                     class="font-medium text-slate-700">{{ $dueDate }}</span></div>
@@ -113,22 +110,23 @@
                             <p class="text-xs text-slate-500">Bobot penilaian yang akan diterima pegawai.</p>
                         </div>
                         <div class="rounded-2xl border border-slate-100 bg-gradient-to-br from-emerald-50 via-white to-slate-50 p-4 space-y-1">
-                            <p class="text-xs tracking-wide text-slate-400 uppercase">Bonus</p>
-                            <p class="text-2xl font-semibold text-slate-900">
-                                {{ $claim->bonus_amount ? 'Rp ' . number_format((float) $claim->bonus_amount, 0, ',', '.') : '-' }}
-                            </p>
-                            <p class="text-xs text-slate-500">Nominal tambahan jika tugas disetujui.</p>
+                            <p class="text-xs tracking-wide text-slate-400 uppercase">Poin diberikan</p>
+                            @php
+                                $awarded = $claim->awarded_points;
+                                $awardedDisplay = is_null($awarded) ? '-' : number_format((float) $awarded, 0, ',', '.');
+                            @endphp
+                            <p class="text-2xl font-semibold text-slate-900">{{ $awardedDisplay === '-' ? '-' : $awardedDisplay . ' poin' }}</p>
+                            <p class="text-xs text-slate-500">Terisi saat klaim disetujui/ditolak.</p>
                         </div>
                         <div class="rounded-2xl border border-slate-100 bg-gradient-to-br from-sky-50 to-white p-4 space-y-2">
-                            <p class="text-xs tracking-wide text-slate-400 uppercase">Dokumen Kebijakan</p>
-                            @if ($policyUrl)
-                                <a href="{{ $policyUrl }}" target="_blank"
-                                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-indigo-700 font-medium hover:bg-indigo-50">
-                                    <i class="fa-solid fa-file-lines"></i> Lihat acuan tugas
-                                </a>
-                            @else
-                                <p class="text-sm text-slate-500">Tidak ada dokumen terlampir.</p>
-                            @endif
+                            <p class="text-xs tracking-wide text-slate-400 uppercase">Waktu Review</p>
+                            @php
+                                $reviewedAt = $claim->reviewed_at
+                                    ? Carbon::parse($claim->reviewed_at)->timezone($tz)->format('d M Y H:i')
+                                    : '-';
+                            @endphp
+                            <p class="text-lg font-semibold text-slate-900">{{ $reviewedAt }}</p>
+                            <p class="text-xs text-slate-500">Tercatat saat kepala unit mengambil keputusan.</p>
                         </div>
                     </div>
 
@@ -166,8 +164,8 @@
 
                     <div class="flex flex-col gap-4">
 
-                        {{-- === SECTION APPROVE (STATUS: submitted/validated) === --}}
-                        @if (in_array($claim->status, ['submitted','validated']))
+                        {{-- === SECTION APPROVE (STATUS: submitted) === --}}
+                        @if ($claim->status === 'submitted')
                             <form method="POST"
                                 action="{{ route('kepala_unit.additional_task_claims.review_update', $claim->id) }}"
                                 class="flex flex-wrap gap-3">
@@ -180,45 +178,46 @@
                                 </button>
 
                                 <p class="text-xs text-slate-500 self-center">
-                                    Klaim yang disetujui akan menghitung skor dan bonus secara otomatis.
+                                    Klaim yang disetujui akan menghitung poin secara otomatis.
                                 </p>
                             </form>
                         @endif
 
-                        {{-- === SECTION TOLAK (SELALU ADA) === --}}
-                        <form method="POST"
-                            action="{{ route('kepala_unit.additional_task_claims.review_update', $claim->id) }}"
-                            class="rounded-2xl border border-rose-100 bg-rose-50 p-4 space-y-3">
-                            @csrf
-                            <input type="hidden" name="action" value="reject">
+                        {{-- === SECTION TOLAK (STATUS: submitted) === --}}
+                        @if ($claim->status === 'submitted')
+                            <form method="POST"
+                                action="{{ route('kepala_unit.additional_task_claims.review_update', $claim->id) }}"
+                                class="rounded-2xl border border-rose-100 bg-rose-50 p-4 space-y-3">
+                                @csrf
+                                <input type="hidden" name="action" value="reject">
 
-                            <div class="flex items-center gap-2">
-                                <div
-                                    class="h-8 w-8 rounded-2xl bg-white text-rose-500 flex items-center justify-center border border-rose-100">
-                                    <i class="fa-solid fa-message"></i>
+                                <div class="flex items-center gap-2">
+                                    <div
+                                        class="h-8 w-8 rounded-2xl bg-white text-rose-500 flex items-center justify-center border border-rose-100">
+                                        <i class="fa-solid fa-message"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-rose-600">Tolak &amp; kirim catatan</p>
+                                        <p class="text-xs text-rose-500">
+                                                Klaim akan ditolak dan poin tidak diberikan.
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p class="text-sm font-semibold text-rose-600">Tolak &amp; kirim catatan perbaikan
-                                    </p>
-                                    <p class="text-xs text-rose-500">
-                                            Klaim akan ditolak. Slot klaim akan kembali tersedia bila kuota masih ada dan belum lewat jatuh tempo.
-                                    </p>
+
+                                <textarea name="comment" rows="3"
+                                    class="w-full rounded-2xl border border-rose-200 bg-white px-3 py-2 text-sm text-slate-700
+                       focus:outline-none focus:ring-2 focus:ring-rose-200"
+                                    placeholder="Tuliskan catatan singkat untuk pegawai..."></textarea>
+
+                                <div class="flex justify-end">
+                                    <button type="submit"
+                                        class="inline-flex items-center gap-2 px-5 h-11 rounded-2xl text-sm font-semibold
+                           bg-rose-600 text-white hover:bg-rose-700">
+                                        <i class="fa-solid fa-xmark"></i> Tolak Klaim
+                                    </button>
                                 </div>
-                            </div>
-
-                            <textarea name="comment" rows="3"
-                                class="w-full rounded-2xl border border-rose-200 bg-white px-3 py-2 text-sm text-slate-700
-                   focus:outline-none focus:ring-2 focus:ring-rose-200"
-                                placeholder="Tuliskan catatan singkat agar pegawai tahu apa yang perlu diperbaiki..."></textarea>
-
-                            <div class="flex justify-end">
-                                <button type="submit"
-                                    class="inline-flex items-center gap-2 px-5 h-11 rounded-2xl text-sm font-semibold
-                       bg-rose-600 text-white hover:bg-rose-700">
-                                    <i class="fa-solid fa-xmark"></i> Tolak Klaim
-                                </button>
-                            </div>
-                        </form>
+                            </form>
+                        @endif
                     </div>
                 </div>
             @empty

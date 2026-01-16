@@ -132,7 +132,7 @@ class DashboardController extends Controller
                     $rejectedClaim->ack_url = route('pegawai_medis.dashboard', [
                         'ack_notice' => 1,
                         'key' => $key,
-                        'next' => url('/pegawai-medis/additional-contributions'),
+                        'next' => url('/pegawai-medis/additional-tasks'),
                     ]);
                 }
             }

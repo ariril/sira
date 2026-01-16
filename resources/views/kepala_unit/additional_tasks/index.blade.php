@@ -26,7 +26,7 @@
                 </div>
                 <div class="md:col-span-3">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
-                    <x-ui.select name="status" :value="$status" :options="['draft' => 'Draft', 'open' => 'Open', 'closed' => 'Closed', 'cancelled' => 'Cancelled']" placeholder="(Semua)" />
+                    <x-ui.select name="status" :value="$status" :options="['open' => 'Open', 'closed' => 'Closed']" placeholder="(Semua)" />
                 </div>
                 <div class="md:col-span-4">
                     <label class="block text-sm font-semibold text-slate-700 mb-1">
@@ -54,15 +54,15 @@
                 <tr>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Judul</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
-                    <th class="px-6 py-4 text-left whitespace-nowrap">Tanggal</th>
-                    <th class="px-6 py-4 text-right whitespace-nowrap">Poin/Bonus</th>
+                    <th class="px-6 py-4 text-left whitespace-nowrap">Jatuh Tempo</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">Poin</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">
                         Status
                         <span class="inline-block ml-1 text-amber-600 cursor-help" title="Status menjelaskan ketersediaan tugas untuk diklaim. Jika kuota penuh atau ada klaim yang sedang diproses, tugas akan ditandai tidak tersedia meskipun belum lewat jatuh tempo.">!</span>
                     </th>
                     <th class="px-6 py-4 text-right whitespace-nowrap">
                         Aksi
-                        <span class="inline-block ml-1 text-amber-600 cursor-help" title="Perbedaan: (1) Ditutup: tugas dihentikan sementara dan bisa dibuka lagi selama belum lewat jatuh tempo. (2) Dibatalkan: final-tidak bisa dibuka/diklaim lagi. Catatan: Edit disembunyikan jika tugas sudah Selesai/Menunggu Review. Hapus hanya tersedia untuk Draft/Dibatalkan yang belum punya klaim.">!</span>
+                        <span class="inline-block ml-1 text-amber-600 cursor-help" title="Buka/Tutup untuk mengatur ketersediaan tugas. Edit/Hapus hanya aman saat belum ada klaim.">!</span>
                     </th>
                 </tr>
             </x-slot>
@@ -82,73 +82,45 @@
                         // fallback tetap seperti sebelumnya
                     }
 
-                    $canOpen = in_array($st, ['draft', 'closed']) && !$duePast;
-                    $canClose = $st === 'open';
-                    $canCancel = in_array($st, ['open', 'draft']);
                     $totalClaims = (int)($it->total_claims ?? 0);
                     $activeClaims = (int)($it->active_claims ?? 0);
                     $reviewWaiting = (int)($it->review_waiting ?? 0);
                     $finishedClaims = (int)($it->finished_claims ?? 0);
                     $maxClaims = $it->max_claims ?? null;
 
-                    $isQuotaDone = !empty($maxClaims) && $finishedClaims >= (int) $maxClaims;
-                    $canOpen = $canOpen && !$isQuotaDone;
-                    $readOnly = ($reviewWaiting > 0) || ($duePast && $finishedClaims > 0) || $isQuotaDone;
-                    $canEdit = ($st !== 'cancelled') && !$readOnly;
-                    $canDelete = in_array($st, ['draft', 'cancelled']) && $totalClaims === 0;
+                    $isQuotaDone = !empty($maxClaims) && $activeClaims >= (int) $maxClaims;
+                    $canOpen = ($st === 'closed') && !$duePast && !$isQuotaDone && ($reviewWaiting === 0);
+                    $canClose = $st === 'open';
+                    $canEdit = ($totalClaims === 0);
+                    $canDelete = ($totalClaims === 0);
 
-                    $statusLabel = 'Draft';
-                    $statusClass = 'bg-amber-100 text-amber-700';
-                    $statusHint  = 'Tugas belum dibuka untuk diklaim pegawai.';
+                    $statusLabel = 'Closed';
+                    $statusClass = 'bg-slate-200 text-slate-700';
+                    $statusHint  = 'Tugas ditutup dan tidak dapat disubmit.';
                     if ($st === 'open') {
-                        $statusLabel = 'Tersedia';
+                        $statusLabel = 'Open';
                         $statusClass = 'bg-emerald-100 text-emerald-700';
-                        $statusHint  = 'Tugas dapat diklaim oleh pegawai medis selama kuota masih ada dan belum lewat jatuh tempo.';
-                    } elseif ($st === 'cancelled') {
-                        $statusLabel = 'Dibatalkan';
-                        $statusClass = 'bg-rose-100 text-rose-700';
-                        $statusHint  = 'Tugas dibatalkan oleh kepala unit dan tidak dapat diklaim.';
-                    } elseif ($st === 'closed') {
+                        $statusHint  = 'Tugas dapat disubmit oleh pegawai medis selama kuota masih ada dan belum lewat jatuh tempo.';
+                    } else {
                         if ($reviewWaiting > 0) {
                             $statusLabel = 'Menunggu Review';
                             $statusClass = 'bg-sky-100 text-sky-700';
-                            $statusHint  = 'Ada klaim yang sudah dikirim pegawai dan menunggu tindakan (validasi/persetujuan).';
+                            $statusHint  = 'Ada klaim yang menunggu keputusan kepala unit.';
                         } elseif ($isQuotaDone) {
-                            $statusLabel = 'Selesai';
-                            $statusClass = 'bg-emerald-100 text-emerald-700';
-                            $statusHint  = 'Kuota klaim sudah terpenuhi dan klaim sudah disetujui/selesai, sehingga tugas dianggap selesai tanpa menunggu periode berakhir.';
-                        } elseif ($duePast && $finishedClaims > 0) {
-                            $statusLabel = 'Selesai';
-                            $statusClass = 'bg-emerald-100 text-emerald-700';
-                            $statusHint  = 'Tugas sudah selesai dan sudah dipakai dalam perhitungan periode sebelumnya.';
+                            $statusLabel = 'Kuota Penuh';
+                            $statusClass = 'bg-slate-200 text-slate-700';
+                            $statusHint  = 'Kuota klaim sudah terpenuhi.';
                         } elseif ($duePast) {
-                            $statusLabel = 'Ditutup';
+                            $statusLabel = 'Closed';
                             $statusClass = 'bg-slate-200 text-slate-700';
-                            $statusHint  = 'Jatuh tempo/periode sudah berakhir sehingga tugas ditutup (tidak dapat diklaim lagi).';
-                        } elseif ($activeClaims > 0) {
-                            $isQuotaFull = !empty($maxClaims) && $activeClaims >= (int) $maxClaims;
-                            $statusLabel = $isQuotaFull ? 'Kuota Penuh' : 'Sedang Diklaim';
-                            $statusClass = $isQuotaFull ? 'bg-slate-200 text-slate-700' : 'bg-cyan-100 text-cyan-800';
-                            $statusHint  = $isQuotaFull
-                                ? 'Kuota klaim sudah penuh sehingga tugas tidak dapat diklaim lagi.'
-                                : 'Ada klaim berjalan yang sedang memakai sebagian kuota.';
-                        } else {
-                            $statusLabel = 'Ditutup';
-                            $statusClass = 'bg-slate-200 text-slate-700';
-                            $statusHint  = 'Tugas ditutup secara manual atau kuota sedang penuh.';
+                            $statusHint  = 'Jatuh tempo sudah lewat.';
                         }
                     }
-                    $startLabel = $it->start_date
-                        ? \Illuminate\Support\Carbon::parse($it->start_date, 'Asia/Jakarta')->setTimeFromTimeString($it->start_time ?? '00:00')->format('d M Y H:i')
-                        : '-';
                     $dueLabel = $it->due_date
                         ? \Illuminate\Support\Carbon::parse($it->due_date, 'Asia/Jakarta')->setTimeFromTimeString($it->due_time ?? '23:59')->format('d M Y H:i')
                         : '-';
 
                     try {
-                        $startLabel = $it->start_date
-                            ? \Illuminate\Support\Carbon::parse($it->start_date, $tz)->setTimeFromTimeString($it->start_time ?? '00:00')->format('d M Y H:i')
-                            : '-';
                         $dueLabel = $it->due_date
                             ? \Illuminate\Support\Carbon::parse($it->due_date, $tz)->setTimeFromTimeString($it->due_time ?? '23:59')->format('d M Y H:i')
                             : '-';
@@ -159,14 +131,11 @@
                 <tr class="hover:bg-slate-50">
                     <td class="px-6 py-4">{{ $it->title }}</td>
                     <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
-                    <td class="px-6 py-4">{{ $startLabel }} s/d<br>{{ $dueLabel }}</td>
                     @php
                         $pointsDisplay = is_null($it->points) ? '0' : number_format((float) $it->points, 0, ',', '.');
-                        $bonusDisplay = is_null($it->bonus_amount)
-                            ? '0'
-                            : 'Rp ' . number_format((float) $it->bonus_amount, 0, ',', '.');
                     @endphp
-                    <td class="px-6 py-4 text-right">{{ $pointsDisplay }} / {{ $bonusDisplay }}</td>
+                    <td class="px-6 py-4">{{ $dueLabel }}</td>
+                    <td class="px-6 py-4 text-right">{{ $pointsDisplay }}</td>
                     <td class="px-6 py-4">
                         <span class="px-2 py-1 rounded text-xs {{ $statusClass }} cursor-help" title="{{ $statusHint }}{{ $maxClaims ? ' (Kuota: '.$activeClaims.' / '.$maxClaims.')' : '' }}{{ $reviewWaiting ? ' (Menunggu review: '.$reviewWaiting.')' : '' }}">{{ $statusLabel }}</span>
                     </td>
@@ -192,14 +161,6 @@
                                     @csrf
                                     @method('PATCH')
                                     <x-ui.button variant="outline" class="h-9 px-3 text-xs" type="submit">Tutup</x-ui.button>
-                                </form>
-                            @endif
-
-                            @if ($canCancel && $st !== 'cancelled')
-                                <form method="POST" action="{{ route('kepala_unit.additional_tasks.cancel', $it->id) }}" onsubmit="return confirm('Batalkan tugas ini?')">
-                                    @csrf
-                                    @method('PATCH')
-                                    <x-ui.button variant="outline" class="h-9 px-3 text-xs" type="submit">Batalkan</x-ui.button>
                                 </form>
                             @endif
 

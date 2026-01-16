@@ -19,11 +19,10 @@ class AdditionalTaskAvailableAgainNotification extends Notification implements S
     public function toMail($notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Slot Tugas Tambahan Dibuka Kembali')
+            ->subject('Tugas Tambahan Tersedia Kembali')
             ->greeting('Halo ' . $notifiable->name)
-            ->line('Sebuah tugas tambahan kini tersedia lagi:')
+            ->line('Sebuah tugas tambahan kini tersedia kembali:')
             ->line($this->task->title)
-            ->action('Klaim Sekarang', url('/pegawai-medis/additional-tasks'))
-            ->line('Slot baru terbuka setelah pembatalan klaim sebelumnya.');
+            ->action('Buka Tugas', url('/pegawai-medis/additional-tasks'));
     }
 }

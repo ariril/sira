@@ -117,8 +117,6 @@ class AdditionalTaskFlowSanityTest extends TestCase
             ->post(route('kepala_unit.additional-tasks.store'), [
                 'title' => 'Pembuatan Buku TBC',
                 'description' => 'Test',
-                'start_date' => Carbon::today('Asia/Jakarta')->toDateString(),
-                // start_time omitted intentionally (should default to now)
                 'due_date' => Carbon::today('Asia/Jakarta')->toDateString(),
                 'due_time' => '23:59',
                 'points' => 10,
@@ -132,31 +130,26 @@ class AdditionalTaskFlowSanityTest extends TestCase
         $this->assertEquals($periodId, (int) $task->assessment_period_id);
         $this->assertEquals($creator->id, (int) $task->created_by);
 
-        // Creator cannot claim own task (even if role switched)
+        // Creator cannot submit own task (even if role switched)
         $this->actingAs($creator)
             ->withSession(['active_role' => 'pegawai_medis'])
-            ->post(route('pegawai_medis.additional_tasks.claim', $task->id))
+            ->post(route('pegawai_medis.additional_tasks.submit', $task->id), [
+                'note' => 'Saya submit',
+            ])
             ->assertRedirect();
         $this->assertEquals(0, AdditionalTaskClaim::count());
 
-        // Pegawai claims
+        // Pegawai submits (creates claim)
         $this->actingAs($pegawai)
             ->withSession(['active_role' => 'pegawai_medis'])
-            ->post(route('pegawai_medis.additional_tasks.claim', $task->id))
-            ->assertRedirect();
-
-        $claim = AdditionalTaskClaim::query()->where('additional_task_id', $task->id)->first();
-        $this->assertNotNull($claim);
-        $this->assertEquals('active', $claim->status);
-
-        // Submit result => submitted
-        $this->actingAs($pegawai)
-            ->withSession(['active_role' => 'pegawai_medis'])
-            ->post(route('pegawai_medis.additional_task_claims.submit', $claim->id), [
+            ->post(route('pegawai_medis.additional_tasks.submit', $task->id), [
                 'note' => 'Terlampir',
                 'result_file' => UploadedFile::fake()->create('hasil.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
             ])
             ->assertRedirect();
+
+        $claim = AdditionalTaskClaim::query()->where('additional_task_id', $task->id)->first();
+        $this->assertNotNull($claim);
         $claim->refresh();
         $this->assertEquals('submitted', $claim->status);
 
@@ -171,7 +164,7 @@ class AdditionalTaskFlowSanityTest extends TestCase
             ->withSession(['active_role' => 'kepala_unit'])
             ->get(route('kepala_unit.additional_task_claims.index', ['status' => 'submitted']))
             ->assertOk()
-            ->assertSee('Menunggu Validasi');
+            ->assertSee('Menunggu Review');
 
         // Review page should not require a separate "Tandai Valid" step anymore
         $this->actingAs($creator)
@@ -179,8 +172,6 @@ class AdditionalTaskFlowSanityTest extends TestCase
             ->get(route('kepala_unit.additional_task_claims.review_index'))
             ->assertOk()
             ->assertDontSee('Tandai Valid');
-
-        // Review validate -> validated
 
         // Review approve -> approved
         $this->actingAs($creator)

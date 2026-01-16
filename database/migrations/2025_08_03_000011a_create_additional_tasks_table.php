@@ -23,26 +23,14 @@ return new class extends Migration
             $table->string('title');
             $table->text('description')->nullable();
 
-            $table->string('policy_doc_path')->nullable();
-
-            $table->date('start_date');
             $table->date('due_date');
-            $table->time('start_time')->default('00:00:00');
             $table->time('due_time')->default('23:59:00');
 
-            $table->decimal('bonus_amount', 15, 2)->nullable();
-            $table->decimal('points', 8, 2)->nullable();
+            $table->decimal('points', 8, 2)->default(0);
 
             $table->tinyInteger('max_claims')->default(1);
 
-            // Policy default (transparansi sebelum klaim)
-            $table->unsignedSmallInteger('cancel_window_hours')->default(24);
-            $table->enum('default_penalty_type', ['none', 'percent', 'amount'])->default('none');
-            $table->decimal('default_penalty_value', 12, 2)->default(0);
-            $table->enum('penalty_base', ['task_bonus', 'remuneration'])->default('task_bonus');
-
-            $table->enum('status', ['draft','open','closed','cancelled'])
-                ->default('open');
+            $table->enum('status', ['open', 'closed'])->default('open');
 
             $table->foreignId('created_by')
                 ->nullable()
@@ -52,6 +40,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['unit_id','assessment_period_id','status'], 'idx_task_unit_period');
+            $table->index(['due_date', 'due_time'], 'idx_task_due');
         });
     }
 
