@@ -43,25 +43,64 @@ class SummaryService
             foreach ($weightRows as $rw) {
                 $cid = (int) ($rw->performance_criteria_id ?? 0);
                 $type = (string) ($rw->assessor_type ?? '');
+                $lvl = $rw->assessor_level === null ? null : (int) $rw->assessor_level;
                 if ($cid > 0 && $type !== '') {
-                    $weightMap[$cid][$type] = (float) (($weightMap[$cid][$type] ?? 0.0) + (float) ($rw->weight ?? 0));
+                    $key = ($type === 'supervisor' && $lvl && $lvl > 0) ? ('supervisor:' . $lvl) : $type;
+                    $weightMap[$cid][$key] = (float) (($weightMap[$cid][$key] ?? 0.0) + (float) ($rw->weight ?? 0));
+                }
+            }
+
+            // If any supervisor level weights exist for a criteria, ignore legacy supervisor weight key.
+            foreach ($weightMap as $cid => $map) {
+                $hasSupervisorLevels = false;
+                foreach (array_keys($map) as $k) {
+                    if (is_string($k) && str_starts_with($k, 'supervisor:')) {
+                        $hasSupervisorLevels = true;
+                        break;
+                    }
+                }
+                if ($hasSupervisorLevels) {
+                    unset($weightMap[$cid]['supervisor']);
                 }
             }
 
             $avgByCriteriaAndType = DB::table('multi_rater_assessment_details as d')
                 ->join('multi_rater_assessments as mra', 'mra.id', '=', 'd.multi_rater_assessment_id')
-                ->selectRaw('d.performance_criteria_id as criteria_id, mra.assessor_type as assessor_type, AVG(d.score) as avg_score')
+                ->selectRaw('d.performance_criteria_id as criteria_id, mra.assessor_type as assessor_type, mra.assessor_level as assessor_level, AVG(d.score) as avg_score, COUNT(*) as n')
                 ->where('mra.assessee_id', $userId)
                 ->where('mra.assessment_period_id', $selectedPeriod->id)
                 ->where('mra.status', 'submitted')
-                ->groupBy('d.performance_criteria_id', 'mra.assessor_type')
+                ->groupBy('d.performance_criteria_id', 'mra.assessor_type', 'mra.assessor_level')
                 ->get();
 
             $avgMap = [];
+            $supervisorSumByCriteria = [];
+            $supervisorNByCriteria = [];
             foreach ($avgByCriteriaAndType as $row) {
                 $cid = (int) ($row->criteria_id ?? 0);
                 $type = (string) ($row->assessor_type ?? '');
-                $avgMap[$cid][$type] = (float) ($row->avg_score ?? 0);
+
+                $avg = (float) ($row->avg_score ?? 0);
+                $n = (int) ($row->n ?? 0);
+                $lvl = $row->assessor_level === null ? null : (int) $row->assessor_level;
+
+                if ($type === 'supervisor' && $lvl && $lvl > 0) {
+                    $avgMap[$cid]['supervisor:' . $lvl] = $avg;
+                } else {
+                    $avgMap[$cid][$type] = $avg;
+                }
+
+                if ($type === 'supervisor' && $n > 0) {
+                    $supervisorSumByCriteria[$cid] = (float) (($supervisorSumByCriteria[$cid] ?? 0.0) + ($avg * $n));
+                    $supervisorNByCriteria[$cid] = (int) (($supervisorNByCriteria[$cid] ?? 0) + $n);
+                }
+            }
+
+            foreach ($supervisorNByCriteria as $cid => $n) {
+                $n = (int) $n;
+                if ($n > 0) {
+                    $avgMap[(int) $cid]['supervisor'] = (float) (($supervisorSumByCriteria[(int) $cid] ?? 0.0) / $n);
+                }
             }
 
             $rows = PerformanceCriteria::query()
@@ -79,28 +118,36 @@ class SummaryService
                         'subordinate' => 20.0,
                         'self' => 10.0,
                     ];
-                    $weights = array_merge($defaults, $weightMap[(int) $criteria->id] ?? []);
+                    $zeroWeights = array_fill_keys(array_keys($defaults), 0.0);
+                    $criteriaWeightCfg = (array) ($weightMap[(int) $criteria->id] ?? []);
+                    $weights = !empty($criteriaWeightCfg)
+                        ? array_merge($zeroWeights, $criteriaWeightCfg)
+                        : $defaults;
 
-                    $weightedSum = 0.0;
-                    $weightSum = 0.0;
-                    foreach (['self', 'supervisor', 'peer', 'subordinate'] as $assessorType) {
-                        if (!array_key_exists($assessorType, $avgs)) {
-                            continue;
-                        }
-
-                        $avg = (float) ($avgs[$assessorType] ?? 0.0);
-                        $w = (float) ($weights[$assessorType] ?? 0.0);
-                        if ($w <= 0) {
-                            continue;
-                        }
-
-                        $weightedSum += $avg * ($w / 100.0);
-                        $weightSum += $w;
+                    if (empty($avgs)) {
+                        return [
+                            'id' => $criteria->id,
+                            'name' => $criteria->name,
+                            'type' => $type,
+                            'type_label' => $type === 'cost' ? 'Cost' : 'Benefit',
+                            'avg_score' => null,
+                        ];
                     }
 
-                    $final = $weightSum > 0.0
-                        ? ($weightedSum / ($weightSum / 100.0))
-                        : null;
+                    // IMPORTANT:
+                    // Missing assessor types must contribute 0 (do NOT renormalize by available weights).
+                    // Final score = Σ(avg_type * weight_type/100).
+                    $weightedSum = 0.0;
+                    foreach (['self', 'supervisor', 'peer', 'subordinate'] as $assessorType) {
+                        $avg = (float) ($avgs[$assessorType] ?? 0.0);
+                        $w = (float) ($weights[$assessorType] ?? 0.0);
+                        if ($w <= 0.0) {
+                            continue;
+                        }
+                        $weightedSum += $avg * ($w / 100.0);
+                    }
+
+                    $final = max(0.0, min(100.0, $weightedSum));
                     return [
                         'id' => $criteria->id,
                         'name' => $criteria->name,

@@ -1,10 +1,10 @@
-@php(
+@php
     $summaryData = $summary ?? [
         'periods' => collect(),
         'selected_period' => null,
         'rows' => collect(),
-    ]
-)
+    ];
+@endphp
 
 <x-app-layout title="Penilaian 360">
     <x-slot name="header">
@@ -51,14 +51,17 @@
         @endif
 
         @if(isset($savedScores))
-            @php($allowInlineEdit = ($windowEndsAt ?? null) && now()->lte($windowEndsAt) && (bool) ($canSubmit ?? false))
+            @php
+                $allowInlineEdit = ($windowEndsAt ?? null) && now()->lte($windowEndsAt) && (bool) ($canSubmit ?? false);
+            @endphp
             <div class="mt-6 bg-white rounded-2xl shadow-sm border border-slate-100" data-saved-table-key="pegawai-medis" data-edit-url="{{ route('pegawai_medis.multi_rater.store') }}" data-period-id="{{ $periodId }}" data-csrf="{{ csrf_token() }}" data-allow-inline-edit="{{ $allowInlineEdit ? 'true' : 'false' }}" data-inline-variant="sky">
                 <x-ui.table min-width="840px">
                     <x-slot name="head">
                         <tr>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Nama Rekan</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Kriteria</th>
-                            <th class="px-6 py-4 text-left whitespace-nowrap">Tipe</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Peran Anda</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Tipe Kriteria</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Nilai</th>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Waktu</th>
                         </tr>
@@ -67,6 +70,30 @@
                         <tr class="hover:bg-slate-50">
                             <td class="px-6 py-4">{{ $s->target_name }}</td>
                             <td class="px-6 py-4">{{ $s->criteria_name ?? 'Umum' }}</td>
+                            <td class="px-6 py-4">
+                                @php
+                                    $roleType = (string) ($s->assessor_type ?? 'peer');
+                                    $lvl = (int) ($s->assessor_level ?? 0);
+                                    $roleLabelMap = [
+                                        'self' => 'Diri',
+                                        'peer' => 'Rekan',
+                                        'subordinate' => 'Bawahan',
+                                    ];
+                                    $roleClassMap = [
+                                        'supervisor' => 'bg-amber-50 text-amber-800 border-amber-200',
+                                        'self' => 'bg-slate-50 text-slate-700 border-slate-200',
+                                        'peer' => 'bg-sky-50 text-sky-800 border-sky-200',
+                                        'subordinate' => 'bg-emerald-50 text-emerald-800 border-emerald-200',
+                                    ];
+                                    $roleLabel = $roleType === 'supervisor'
+                                        ? ('Atasan L' . (($lvl > 0) ? $lvl : 1))
+                                        : ($roleLabelMap[$roleType] ?? $roleType);
+                                    $roleClass = $roleClassMap[$roleType] ?? 'bg-slate-50 text-slate-700 border-slate-200';
+                                @endphp
+                                <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold {{ $roleClass }}">
+                                    {{ $roleLabel }}
+                                </span>
+                            </td>
                             <td class="px-6 py-4">
                                 @if($s->criteria_type)
                                     <span class="px-2 py-1 rounded text-xs border {{ $s->criteria_type === 'cost' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200' }}">
@@ -94,7 +121,7 @@
                         </tr>
                     @empty
                         <tr data-saved-empty>
-                            <td colspan="5" class="px-6 py-10 text-center text-slate-500 text-sm">Belum ada penilaian tersimpan.</td>
+                            <td colspan="6" class="px-6 py-10 text-center text-slate-500 text-sm">Belum ada penilaian tersimpan.</td>
                         </tr>
                     @endforelse
                 </x-ui.table>

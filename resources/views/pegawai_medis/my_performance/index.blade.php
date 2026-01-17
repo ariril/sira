@@ -78,6 +78,8 @@
                             $weightStatus = (string) (($r['weight_status'] ?? null) ?: 'unknown');
                             $weight = (float) ($r['weight'] ?? 0);
 
+                            $is360 = (bool) ($r['is_360'] ?? false);
+
                             $weightActive = $weightStatus === 'active' && $weight > 0;
                             $whyNotText = !$weightActive ? 'Bobot belum diatur/aktif.' : '';
                         @endphp
@@ -128,11 +130,19 @@
                             </td>
 
                             <td class="px-6 py-4 text-right">
-                                {{ number_format((float) ($r['raw'] ?? 0), 2) }}
+                                @if($is360 && $readiness !== 'ready')
+                                    -
+                                @else
+                                    {{ number_format((float) ($r['raw'] ?? 0), 2) }}
+                                @endif
                             </td>
 
                             <td class="px-6 py-4 text-right">
-                                {{ number_format((float) ($r['nilai_normalisasi'] ?? 0), 2) }}
+                                @if($is360 && $readiness !== 'ready')
+                                    -
+                                @else
+                                    {{ number_format((float) ($r['nilai_normalisasi'] ?? 0), 2) }}
+                                @endif
                             </td>
 
                             <td class="px-6 py-4 text-right">
@@ -140,7 +150,11 @@
                                     $basis = (string) (($r['normalization_basis'] ?? null) ?: '');
                                     $rel = $basis === 'total_unit' ? ($r['nilai_relativ_unit'] ?? null) : null;
                                 @endphp
-                                {{ $rel !== null ? number_format((float) $rel, 2) : '-' }}
+                                @if($is360 && $readiness !== 'ready')
+                                    -
+                                @else
+                                    {{ $rel !== null ? number_format((float) $rel, 2) : '-' }}
+                                @endif
                             </td>
                         </tr>
                     @empty

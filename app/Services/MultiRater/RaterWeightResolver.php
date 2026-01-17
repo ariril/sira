@@ -17,6 +17,18 @@ class RaterWeightResolver
         ];
     }
 
+    private static function makeWeightKey(string $assessorType, $assessorLevel): string
+    {
+        $assessorType = (string) $assessorType;
+        if ($assessorType === 'supervisor') {
+            $lvl = $assessorLevel === null ? null : (int) $assessorLevel;
+            if ($lvl && $lvl > 0) {
+                return 'supervisor:' . $lvl;
+            }
+        }
+        return $assessorType;
+    }
+
     /**
      * Resolve per-assessee-profession weight map for one criteria.
      *
@@ -50,7 +62,7 @@ class RaterWeightResolver
                         }
                     });
             })
-            ->get(['assessee_profession_id', 'assessor_type', 'weight', 'status']);
+            ->get(['assessee_profession_id', 'assessor_type', 'assessor_level', 'weight', 'status']);
 
         if ($rows->isEmpty()) {
             return [];
@@ -60,12 +72,14 @@ class RaterWeightResolver
         foreach ($rows as $r) {
             $professionId = (int) ($r->assessee_profession_id ?? 0);
             $assessorType = (string) ($r->assessor_type ?? '');
+            $assessorLevel = $r->assessor_level ?? null;
             $status = (string) ($r->status ?? '');
             if ($professionId <= 0 || $assessorType === '' || ($status !== 'active' && $status !== 'archived')) {
                 continue;
             }
 
-            $byProfession[$professionId][$status][$assessorType] = (float) (($byProfession[$professionId][$status][$assessorType] ?? 0.0) + (float) ($r->weight ?? 0.0));
+            $key = self::makeWeightKey($assessorType, $assessorLevel);
+            $byProfession[$professionId][$status][$key] = (float) (($byProfession[$professionId][$status][$key] ?? 0.0) + (float) ($r->weight ?? 0.0));
         }
 
         $out = [];
@@ -75,6 +89,17 @@ class RaterWeightResolver
             $chosen = is_array($active) && !empty($active) ? $active : (is_array($archived) ? $archived : null);
 
             if (is_array($chosen) && !empty($chosen)) {
+                // If supervisor level weights exist, ignore any legacy 'supervisor' key to avoid double-counting.
+                $hasSupervisorLevels = false;
+                foreach (array_keys($chosen) as $k) {
+                    if (is_string($k) && str_starts_with($k, 'supervisor:')) {
+                        $hasSupervisorLevels = true;
+                        break;
+                    }
+                }
+                if ($hasSupervisorLevels) {
+                    unset($chosen['supervisor']);
+                }
                 $out[$professionId] = $chosen;
             }
         }

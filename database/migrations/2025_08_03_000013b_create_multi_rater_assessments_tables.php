@@ -14,6 +14,9 @@ return new class extends Migration
             $table->foreignId('assessor_id')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('assessor_profession_id')->nullable()->constrained('professions')->nullOnDelete();
             $table->enum('assessor_type', ['self','supervisor','peer','subordinate']);
+            // Only meaningful for supervisor invitations: 1 = L1, 2 = L2, etc.
+            // Use default 0 to preserve existing uniqueness behavior across non-supervisor rows.
+            $table->unsignedTinyInteger('assessor_level')->default(0);
             $table->foreignId('assessment_period_id')->constrained('assessment_periods')->cascadeOnDelete();
             $table->enum('status', ['invited','in_progress','submitted','cancelled'])->default('invited');
             $table->timestamp('submitted_at')->nullable();
@@ -21,8 +24,8 @@ return new class extends Migration
 
             $table->index(['assessee_id','assessment_period_id']);
             $table->unique(
-                ['assessee_id', 'assessment_period_id', 'assessor_type', 'assessor_id', 'assessor_profession_id'],
-                'uniq_mra_once_per_assessor_type_and_profession'
+                ['assessee_id', 'assessment_period_id', 'assessor_type', 'assessor_level', 'assessor_id', 'assessor_profession_id'],
+                'uniq_mra_once_per_assessor_type_level_and_profession'
             );
         });
 

@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\MultiRater\CriteriaResolver;
 use App\Services\MultiRater\AssessorProfessionResolver;
 use App\Services\MultiRater\AssessorTypeResolver;
+use App\Services\MultiRater\AssessorLevelResolver;
 use App\Services\MultiRater\SimpleFormData;
 use App\Services\MultiRater\SummaryService;
 use App\Support\AssessmentPeriodGuard;
@@ -106,8 +107,15 @@ class MultiRaterSubmissionController extends Controller
                         $assessorHasKepalaPoliklinik
                     );
 
+                    $assessorLevel = 0;
+                    if ($assessorType === 'supervisor' && $assessorProfessionId && !empty($target->profession_id)) {
+                        $resolved = AssessorLevelResolver::resolveSupervisorLevel((int) $target->profession_id, (int) $assessorProfessionId, true);
+                        $assessorLevel = (int) ($resolved ?? 1);
+                    }
+
                     return [
                         'assessor_type' => $assessorType,
+                        'assessor_level' => $assessorLevel,
                         'criteria' => $criteriaByType[$assessorType] ?? collect(),
                     ];
                 };
@@ -187,6 +195,7 @@ class MultiRaterSubmissionController extends Controller
                         'mra.assessee_id as target_user_id',
                         'mra.assessor_id as rater_user_id',
                         'mra.assessor_type',
+                        'mra.assessor_level',
                         'u.name as target_name',
                         'pc.name as criteria_name',
                         'pc.type as criteria_type',

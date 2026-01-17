@@ -56,7 +56,10 @@
 
         <div class="grid gap-4 sm:grid-cols-12" x-show="canSubmit" x-cloak>
             <div class="sm:col-span-6">
-                <label class="block text-sm font-medium text-slate-700 mb-1">Target Dinilai (Nama / NIP)</label>
+                <div class="flex items-center gap-2">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Target Dinilai (Nama / NIP)</label>
+                    <span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold" title="Badge menunjukkan posisi Anda sebagai penilai terhadap target (mis. Anda Atasan L1).">!</span>
+                </div>
                 <div class="relative" @click.away="targetDropdown = false; maybeAutoSelectTarget()">
                     <x-ui.input type="text" placeholder="Contoh: dr. Charles / 10.00…" x-model="targetQuery" @focus="openTargetDropdown(false)" @input="openTargetDropdown(true)" @keydown.enter.prevent="maybeAutoSelectTarget(); targetDropdown = false" class="pr-12" />
                     <button type="button" class="absolute right-11 top-1/2 -translate-y-1/2 text-slate-400" x-show="selectedTargetId" @click="clearTarget()">
@@ -73,6 +76,7 @@
                                 <template x-if="person.employee_number">
                                     <span class="text-slate-500" x-text="' • ' + person.employee_number"></span>
                                 </template>
+                                <span class="ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold" :class="rolePillClasses(person)" x-text="roleLabel(person)"></span>
                             </button>
                         </template>
                     </div>
@@ -131,6 +135,26 @@
                         return acc;
                     }, {});
                     this.refreshCriteriaSelect();
+                },
+                roleLabel(person) {
+                    const type = String(person?.assessor_type ?? 'peer');
+                    const lvlRaw = person?.assessor_level;
+                    const lvl = Number.isFinite(Number(lvlRaw)) ? Number(lvlRaw) : 0;
+                    if (type === 'supervisor') {
+                        return `Atasan L${(lvl && lvl > 0) ? Math.trunc(lvl) : 1}`;
+                    }
+                    if (type === 'self') return 'Diri';
+                    if (type === 'peer') return 'Rekan';
+                    if (type === 'subordinate') return 'Bawahan';
+                    return type;
+                },
+                rolePillClasses(person) {
+                    const type = String(person?.assessor_type ?? 'peer');
+                    if (type === 'supervisor') return 'bg-amber-50 text-amber-800 border-amber-200';
+                    if (type === 'self') return 'bg-slate-50 text-slate-700 border-slate-200';
+                    if (type === 'peer') return 'bg-sky-50 text-sky-800 border-sky-200';
+                    if (type === 'subordinate') return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+                    return 'bg-slate-50 text-slate-700 border-slate-200';
                 },
                 progressMessage() {
                     return `Tersisa ${this.remainingPeople} Orang dengan ${this.remainingAssignments} penilaian kriteria yang belum diisi.`;

@@ -534,22 +534,46 @@ class PeriodPerformanceAssessmentService
         // AVG per assessee + assessor_type
         $avgRows = DB::table('multi_rater_assessment_details as d')
             ->join('multi_rater_assessments as mra', 'mra.id', '=', 'd.multi_rater_assessment_id')
-            ->selectRaw('mra.assessee_id as user_id, mra.assessor_type as assessor_type, AVG(d.score) as avg_score')
+            ->selectRaw('mra.assessee_id as user_id, mra.assessor_type as assessor_type, mra.assessor_level as assessor_level, AVG(d.score) as avg_score, COUNT(*) as n')
             ->where('mra.assessment_period_id', $periodId)
             ->where('mra.status', 'submitted')
             ->whereIn('mra.assessee_id', $userIds)
             ->where('d.performance_criteria_id', $criteriaId)
-            ->groupBy('mra.assessee_id', 'mra.assessor_type')
+            ->groupBy('mra.assessee_id', 'mra.assessor_type', 'mra.assessor_level')
             ->get();
 
         $avgMap = [];
+        $supervisorSumByUser = [];
+        $supervisorNByUser = [];
         foreach ($avgRows as $row) {
             $uid = (int) ($row->user_id ?? 0);
             $type = (string) ($row->assessor_type ?? '');
             if ($uid <= 0 || $type === '') {
                 continue;
             }
-            $avgMap[$uid][$type] = (float) ($row->avg_score ?? 0.0);
+
+            $avg = (float) ($row->avg_score ?? 0.0);
+            $n = (int) ($row->n ?? 0);
+            $lvl = $row->assessor_level === null ? null : (int) $row->assessor_level;
+
+            if ($type === 'supervisor' && $lvl && $lvl > 0) {
+                $avgMap[$uid]['supervisor:' . $lvl] = $avg;
+            } else {
+                $avgMap[$uid][$type] = $avg;
+            }
+
+            if ($type === 'supervisor' && $n > 0) {
+                $supervisorSumByUser[$uid] = (float) (($supervisorSumByUser[$uid] ?? 0.0) + ($avg * $n));
+                $supervisorNByUser[$uid] = (int) (($supervisorNByUser[$uid] ?? 0) + $n);
+            }
+        }
+
+        foreach ($userIds as $uid) {
+            $uid = (int) $uid;
+            $n = (int) ($supervisorNByUser[$uid] ?? 0);
+            if ($n > 0) {
+                $avgMap[$uid]['supervisor'] = (float) (($supervisorSumByUser[$uid] ?? 0.0) / $n);
+            }
         }
 
         // Resolve assessee profession_id to choose the correct weight set.
@@ -589,22 +613,20 @@ class PeriodPerformanceAssessmentService
                 $weights = array_merge($zeroWeights, (array) $resolvedWeightsByProfession[$professionId]);
             }
 
+            // IMPORTANT:
+            // Missing assessor types must contribute 0 (do NOT renormalize by available weights).
+            // Final score = Σ(avg_key * weight_key/100), where key can be supervisor:<level>.
             $weightedSum = 0.0;
-            $weightSum = 0.0;
-            foreach (['self', 'supervisor', 'peer', 'subordinate'] as $assessorType) {
-                if (!array_key_exists($assessorType, $avgs)) {
-                    continue;
-                }
-                $avg = (float) ($avgs[$assessorType] ?? 0.0);
-                $w = (float) ($weights[$assessorType] ?? 0.0);
+            foreach ($weights as $key => $w) {
+                $w = (float) $w;
                 if ($w <= 0.0) {
                     continue;
                 }
+                $avg = (float) ($avgs[(string) $key] ?? 0.0);
                 $weightedSum += $avg * ($w / 100.0);
-                $weightSum += $w;
             }
 
-            $out[$uid] = $weightSum > 0.0 ? (float) ($weightedSum / ($weightSum / 100.0)) : 0.0;
+            $out[$uid] = max(0.0, min(100.0, $weightedSum));
         }
 
         return $out;

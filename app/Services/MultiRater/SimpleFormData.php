@@ -19,11 +19,12 @@ class SimpleFormData
             ->where('mra.assessment_period_id', $periodId)
             ->where('mra.assessor_id', $raterId)
             ->when($assessorProfessionId, fn($q) => $q->where('mra.assessor_profession_id', $assessorProfessionId))
-            ->select(['mra.assessee_id as target_user_id', 'mra.assessor_type', 'd.performance_criteria_id'])
+            ->select(['mra.assessee_id as target_user_id', 'mra.assessor_type', 'mra.assessor_level', 'd.performance_criteria_id'])
             ->get()
             ->groupBy(function ($row) {
                 $type = $row->assessor_type ?? 'peer';
-                return ((int) $row->target_user_id) . ':' . $type;
+                $lvl = isset($row->assessor_level) ? (int) $row->assessor_level : 0;
+                return ((int) $row->target_user_id) . ':' . $type . ':' . $lvl;
             })
             ->map(function ($rows) {
                 return collect($rows)
@@ -42,6 +43,12 @@ class SimpleFormData
         foreach ($targets as $target) {
             $context = $contextResolver($target);
             $assessorType = (string) ($context['assessor_type'] ?? 'peer');
+            $assessorLevel = (int) ($context['assessor_level'] ?? 0);
+            if ($assessorType !== 'supervisor') {
+                $assessorLevel = 0;
+            } elseif ($assessorLevel < 0) {
+                $assessorLevel = 0;
+            }
             $criteriaData = $context['criteria'] ?? [];
             $criteria = $criteriaData instanceof Collection ? $criteriaData : collect($criteriaData);
             $criteria = $criteria->filter(fn($c) => !empty($c['id'] ?? null));
@@ -54,7 +61,7 @@ class SimpleFormData
             $criteriaIds = $criteria->pluck('id')->map(fn($val) => (int) $val)->values();
             $totalAssignments += $criteriaIds->count();
 
-            $completedKey = ((int) $target->id) . ':' . $assessorType;
+            $completedKey = ((int) $target->id) . ':' . $assessorType . ':' . $assessorLevel;
             $completed = collect($completedByTarget->get($completedKey, collect()))
                 ->map(fn($val) => (int) $val)
                 ->all();
@@ -75,6 +82,7 @@ class SimpleFormData
                         'assessor_id' => (int) $raterId,
                         'assessor_profession_id' => $assessorProfessionId ? (int) $assessorProfessionId : null,
                         'assessor_type' => $assessorType,
+                        'assessor_level' => $assessorLevel,
                         'assessment_period_id' => (int) $periodId,
                     ],
                     [
@@ -95,6 +103,7 @@ class SimpleFormData
                 'employee_number' => $target->employee_number ?? null,
                 'searchable' => $searchable,
                 'assessor_type' => $assessorType,
+                'assessor_level' => $assessorLevel,
                 'criteria_ids' => $criteriaIds->all(),
                 'pending_criteria' => $pending,
             ]);

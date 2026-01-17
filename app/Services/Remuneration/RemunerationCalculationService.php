@@ -110,12 +110,15 @@ class RemunerationCalculationService
         $skipped = [];
         DB::transaction(function () use ($allocations, $period, $periodId, $actorId, $forceZero, &$skipped) {
             foreach ($allocations as $alloc) {
+                $overrideAmount = $forceZero && empty($alloc->published_at)
+                    ? 0.0
+                    : (float) $alloc->amount;
                 $res = $this->distributeAllocation(
                     $alloc,
                     $period,
                     $periodId,
                     $alloc->profession_id,
-                    $forceZero ? 0.0 : (float) $alloc->amount,
+                    $overrideAmount,
                     $actorId,
                     $forceZero
                 );
@@ -391,9 +394,9 @@ class RemunerationCalculationService
         }
 
         if ($mode === self::DISTRIBUTION_MODE_TOTAL_UNIT) {
-            $allocatedAmounts = $forceZero
-                ? array_fill_keys($userIds, 0.0)
-                : ProportionalAllocator::allocate((float) $amount, $weightsByUserId);
+            $allocatedAmounts = $unitTotal > 0
+                ? ProportionalAllocator::allocate((float) $amount, $weightsByUserId)
+                : array_fill_keys($userIds, 0.0);
             $attachedMeta = null;
         } else {
             $payoutPctByUser = [];
@@ -417,9 +420,7 @@ class RemunerationCalculationService
                 ];
             }
 
-            $attachedMeta = $forceZero
-                ? ['amounts' => array_fill_keys($userIds, 0.0), 'remuneration_max_per_employee' => 0.0, 'leftover_amount' => 0.0, 'headcount' => count($userIds)]
-                : AttachedRemunerationCalculator::calculate((float) $amount, $payoutPctByUser, 2);
+            $attachedMeta = AttachedRemunerationCalculator::calculate((float) $amount, $payoutPctByUser, 2);
             $allocatedAmounts = (array) ($attachedMeta['amounts'] ?? []);
         }
 

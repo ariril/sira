@@ -14,6 +14,7 @@ class MultiRaterAssessment extends Model
         'assessor_id',
         'assessor_profession_id',
         'assessor_type',
+        'assessor_level',
         'assessment_period_id',
         'status',
         'submitted_at',
@@ -21,6 +22,7 @@ class MultiRaterAssessment extends Model
 
     protected $casts = [
         'submitted_at' => 'datetime',
+        'assessor_level' => 'integer',
     ];
 
     public function assessee() { return $this->belongsTo(User::class, 'assessee_id'); }

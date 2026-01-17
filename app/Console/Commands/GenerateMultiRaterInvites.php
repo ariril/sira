@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use App\Models\User;
 use App\Models\MultiRaterAssessment;
 use App\Models\PerformanceCriteria;
+use App\Services\MultiRater\AssessorLevelResolver;
 use App\Services\MultiRater\AssessorTypeResolver;
 
 class GenerateMultiRaterInvites extends Command
@@ -41,12 +42,19 @@ class GenerateMultiRaterInvites extends Command
                 continue;
             }
 
+            $assesseeProfessionId = $u->profession_id ? (int) $u->profession_id : null;
+
             // Self assessment
-            $count += $this->ensureInvite($u->id, $u->id, 'self', $periodId);
+            $count += $this->ensureInvite($u->id, $u->id, 'self', $periodId, $assesseeProfessionId, null);
 
             // Kepala Poliklinik acts as supervisor for dokter/perawat
             foreach ($polyclinicHeads as $head) {
-                $count += $this->ensureInvite($u->id, $head->id, 'supervisor', $periodId);
+                $assessorProfessionId = $head->profession_id ? (int) $head->profession_id : null;
+                $level = null;
+                if ($assesseeProfessionId && $assessorProfessionId) {
+                    $level = AssessorLevelResolver::resolveSupervisorLevel($assesseeProfessionId, $assessorProfessionId, true);
+                }
+                $count += $this->ensureInvite($u->id, $head->id, 'supervisor', $periodId, $assessorProfessionId, $level);
             }
 
             // Within same unit: generate invites using profession-based assessor_type
@@ -62,7 +70,14 @@ class GenerateMultiRaterInvites extends Command
                 if ($type === 'self') {
                     continue;
                 }
-                $count += $this->ensureInvite($u->id, $assessor->id, $type, $periodId);
+
+                $assessorProfessionId = $assessor->profession_id ? (int) $assessor->profession_id : null;
+                $level = null;
+                if ($type === 'supervisor' && $assesseeProfessionId && $assessorProfessionId) {
+                    $level = AssessorLevelResolver::resolveSupervisorLevel($assesseeProfessionId, $assessorProfessionId, true);
+                }
+
+                $count += $this->ensureInvite($u->id, $assessor->id, $type, $periodId, $assessorProfessionId, $level);
             }
         }
 
@@ -70,19 +85,30 @@ class GenerateMultiRaterInvites extends Command
         return 0;
     }
 
-    private function ensureInvite(int $assesseeId, ?int $assessorId, string $type, int $periodId): int
+    private function ensureInvite(
+        int $assesseeId,
+        ?int $assessorId,
+        string $type,
+        int $periodId,
+        ?int $assessorProfessionId,
+        ?int $assessorLevel
+    ): int
     {
         $exists = MultiRaterAssessment::where([
             'assessee_id' => $assesseeId,
             'assessor_id' => $assessorId,
             'assessor_type' => $type,
             'assessment_period_id' => $periodId,
+            'assessor_profession_id' => $assessorProfessionId,
+            'assessor_level' => $assessorLevel,
         ])->exists();
         if ($exists) return 0;
         MultiRaterAssessment::create([
             'assessee_id' => $assesseeId,
             'assessor_id' => $assessorId,
+            'assessor_profession_id' => $assessorProfessionId,
             'assessor_type' => $type,
+            'assessor_level' => $type === 'supervisor' ? $assessorLevel : null,
             'assessment_period_id' => $periodId,
             'status' => 'invited',
         ]);

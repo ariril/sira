@@ -7,6 +7,7 @@ use App\Models\PerformanceCriteria;
 use App\Services\CriteriaEngine\CriteriaAggregator;
 use App\Services\CriteriaEngine\CriteriaNormalizer;
 use App\Services\CriteriaEngine\CriteriaRegistry;
+use App\Services\MultiRater\RaterWeightResolver as MultiRaterWeightResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -161,6 +162,54 @@ class PerformanceScoreService
                 }
             }
 
+            // 360: only ready if submitted data exists for this group AND rater weights are configured/active.
+            if ($c->is_360 || str_starts_with($key, '360:')) {
+                if (!Schema::hasTable('multi_rater_assessments') || !Schema::hasTable('multi_rater_assessment_details')) {
+                    $status = 'missing_data';
+                    $message = 'Modul penilaian 360 belum tersedia.';
+                } else {
+                    $groupCount = (int) DB::table('multi_rater_assessment_details as d')
+                        ->join('multi_rater_assessments as mra', 'mra.id', '=', 'd.multi_rater_assessment_id')
+                        ->where('mra.assessment_period_id', (int) $period->id)
+                        ->where('mra.status', 'submitted')
+                        ->where('d.performance_criteria_id', (int) $criteriaId)
+                        ->whereIn('mra.assessee_id', $userIds)
+                        ->count();
+
+                    if ($groupCount <= 0) {
+                        $status = 'missing_data';
+                        $message = 'Belum ada data penilaian 360 (submitted) untuk grup ini pada periode ini.';
+                    } else {
+                        $status = 'ready';
+                        $message = null;
+                    }
+
+                    if ($status === 'ready') {
+                        $pid = $professionId !== null ? (int) $professionId : 0;
+                        if ($pid <= 0) {
+                            $status = 'missing_data';
+                            $message = 'Bobot penilai 360 belum bisa dihitung: profesi Anda belum terisi.';
+                        } elseif (!Schema::hasTable('unit_rater_weights')) {
+                            $status = 'missing_data';
+                            $message = 'Bobot penilai 360 belum tersedia (tabel unit_rater_weights tidak ditemukan).';
+                        } else {
+                            $activeWeightCount = (int) DB::table('unit_rater_weights')
+                                ->where('assessment_period_id', (int) $period->id)
+                                ->where('unit_id', (int) $unitId)
+                                ->where('performance_criteria_id', (int) $criteriaId)
+                                ->where('assessee_profession_id', (int) $pid)
+                                ->where('status', 'active')
+                                ->count();
+
+                            if ($activeWeightCount <= 0) {
+                                $status = 'missing_data';
+                                $message = 'Bobot penilai 360 pada periode ini belum diatur/aktif, sehingga nilai 360 belum dapat ditampilkan.';
+                            }
+                        }
+                    }
+                }
+            }
+
             $readinessByCriteriaId[$criteriaId] = [
                 'status' => $status !== '' ? $status : 'missing_data',
                 'message' => $message,
@@ -285,6 +334,7 @@ class PerformanceScoreService
                     'criteria_id' => $criteriaId,
                     'criteria_name' => $c ? (string) $c->name : ('Kriteria #' . $criteriaId),
                     'type' => $type,
+                    'is_360' => (bool) ($c?->is_360 ?? false),
                     'normalization_basis' => (string) ($basisByCriteriaId[$criteriaId] ?? 'total_unit'),
                     'basis_value' => (float) ($basisValueByCriteriaId[$criteriaId] ?? 0.0),
                     'custom_target_value' => $customTargetByCriteriaId[$criteriaId] ?? null,
@@ -456,6 +506,54 @@ class PerformanceScoreService
                 }
             }
 
+            // 360: only ready if submitted data exists for this group AND rater weights are configured/active.
+            if ($c->is_360 || str_starts_with($key, '360:')) {
+                if (!Schema::hasTable('multi_rater_assessments') || !Schema::hasTable('multi_rater_assessment_details')) {
+                    $status = 'missing_data';
+                    $message = 'Modul penilaian 360 belum tersedia.';
+                } else {
+                    $groupCount = (int) DB::table('multi_rater_assessment_details as d')
+                        ->join('multi_rater_assessments as mra', 'mra.id', '=', 'd.multi_rater_assessment_id')
+                        ->where('mra.assessment_period_id', (int) $period->id)
+                        ->where('mra.status', 'submitted')
+                        ->where('d.performance_criteria_id', (int) $criteriaId)
+                        ->whereIn('mra.assessee_id', $userIds)
+                        ->count();
+
+                    if ($groupCount <= 0) {
+                        $status = 'missing_data';
+                        $message = 'Belum ada data penilaian 360 (submitted) untuk grup ini pada periode ini.';
+                    } else {
+                        $status = 'ready';
+                        $message = null;
+                    }
+
+                    if ($status === 'ready') {
+                        $pid = $professionId !== null ? (int) $professionId : 0;
+                        if ($pid <= 0) {
+                            $status = 'missing_data';
+                            $message = 'Bobot penilai 360 belum bisa dihitung: profesi Anda belum terisi.';
+                        } elseif (!Schema::hasTable('unit_rater_weights')) {
+                            $status = 'missing_data';
+                            $message = 'Bobot penilai 360 belum tersedia (tabel unit_rater_weights tidak ditemukan).';
+                        } else {
+                            $activeWeightCount = (int) DB::table('unit_rater_weights')
+                                ->where('assessment_period_id', (int) $period->id)
+                                ->where('unit_id', (int) $unitId)
+                                ->where('performance_criteria_id', (int) $criteriaId)
+                                ->where('assessee_profession_id', (int) $pid)
+                                ->where('status', 'active')
+                                ->count();
+
+                            if ($activeWeightCount <= 0) {
+                                $status = 'missing_data';
+                                $message = 'Bobot penilai 360 pada periode ini belum diatur/aktif, sehingga nilai 360 belum dapat ditampilkan.';
+                            }
+                        }
+                    }
+                }
+            }
+
             $readinessByCriteriaId[$criteriaId] = [
                 'status' => $status !== '' ? $status : 'missing_data',
                 'message' => $message,
@@ -568,6 +666,7 @@ class PerformanceScoreService
                     'criteria_id' => $criteriaId,
                     'criteria_name' => $c ? (string) $c->name : ('Kriteria #' . $criteriaId),
                     'type' => $type,
+                    'is_360' => (bool) ($c?->is_360 ?? false),
                     'normalization_basis' => (string) ($basisByCriteriaId[$criteriaId] ?? 'total_unit'),
                     'basis_value' => (float) ($basisValueByCriteriaId[$criteriaId] ?? 0.0),
                     'custom_target_value' => $customTargetByCriteriaId[$criteriaId] ?? null,
