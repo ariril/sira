@@ -8,7 +8,7 @@ use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\{DB, Log, View, Cache, Schema, Blade, Event};
+use Illuminate\Support\Facades\{DB, Log, View, Cache, Schema, Blade, Event, Gate};
 use App\Models\{Profession, SiteSetting, AboutPage, AssessmentPeriod};
 use App\Listeners\LogMailMessageSent;
 use App\Support\Mail\LastMailSendStore;
@@ -96,6 +96,39 @@ class AppServiceProvider extends ServiceProvider
             if (!$u) return false;
             foreach ($slugs as $s) { if (!$u->hasRole($s)) return false; }
             return true;
+        });
+
+        // Gate: Kepala Unit can only view performance for members of their unit in the selected period.
+        Gate::define('monitor-kinerja-view', function ($actor, $period, $target, $mode = null) {
+            if (!($actor instanceof \App\Models\User) || !($period instanceof \App\Models\AssessmentPeriod) || !($target instanceof \App\Models\User)) {
+                return false;
+            }
+
+            if (!$actor->hasRole(\App\Models\User::ROLE_KEPALA_UNIT)) {
+                return false;
+            }
+
+            $unitId = (int) ($actor->unit_id ?? 0);
+            if ($unitId <= 0) {
+                return false;
+            }
+
+            $wantSnapshot = ($mode === 'snapshot') || $period->isFrozen();
+
+            if ($wantSnapshot) {
+                if (!Schema::hasTable('assessment_period_user_membership_snapshots')) {
+                    return false;
+                }
+
+                return DB::table('assessment_period_user_membership_snapshots')
+                    ->where('assessment_period_id', (int) $period->id)
+                    ->where('unit_id', $unitId)
+                    ->where('user_id', (int) $target->id)
+                    ->exists();
+            }
+
+            // Live membership = current users.unit_id as source of truth.
+            return ((int) ($target->unit_id ?? 0) === $unitId) && $target->hasRole(\App\Models\User::ROLE_PEGAWAI_MEDIS);
         });
 
         /**

@@ -306,6 +306,14 @@ Route::middleware(['auth','verified','role:kepala_unit'])
         Route::post('assessments/{assessment}/approve', [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'approve'])->name('assessments.approve');
         Route::post('assessments/{assessment}/reject',  [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'reject'])->name('assessments.reject');
 
+        // Monitor Kinerja (read-only) untuk anggota unit
+        Route::get('monitor-kinerja', [\App\Http\Controllers\Web\UnitHead\MonitorKinerjaController::class, 'index'])
+            ->name('monitor_kinerja.index');
+        Route::get('monitor-kinerja/{period}/{user}', [\App\Http\Controllers\Web\UnitHead\MonitorKinerjaController::class, 'show'])
+            ->whereNumber('period')
+            ->whereNumber('user')
+            ->name('monitor_kinerja.show');
+
         // 360 submissions (if assigned as assessor) – selaraskan dengan multi-rater
         Route::get('multi-rater', [\App\Http\Controllers\Web\UnitHead\MultiRaterSubmissionController::class, 'index'])->name('multi_rater.index');
         // Place the specific store route BEFORE the parameterized route to avoid binding 'store' as {assessment}
