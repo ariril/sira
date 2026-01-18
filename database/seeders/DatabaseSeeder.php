@@ -910,6 +910,8 @@ class DatabaseSeeder extends Seeder
         $this->call(DecemberRaterWeightSeeder::class);
         $this->call(DummyAdditionalTaskUsageSeeder::class);
         $this->call(January2026PoliUmumDokterUmumSeeder::class);
+        $this->call(FixNovDec360SnapshotsSeeder::class);
+
         
     }
 

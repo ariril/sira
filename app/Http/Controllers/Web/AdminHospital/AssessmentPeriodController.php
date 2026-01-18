@@ -106,6 +106,7 @@ class AssessmentPeriodController extends Controller
 
     public function edit(AssessmentPeriod $period): View
     {
+        AssessmentPeriodGuard::requireDraftEditable($period, 'Edit');
         return view('admin_rs.assessment_periods.edit', [
             'item' => $period,
         ]);
@@ -113,6 +114,7 @@ class AssessmentPeriodController extends Controller
 
     public function update(Request $request, AssessmentPeriod $period): RedirectResponse
     {
+        AssessmentPeriodGuard::requireDraftEditable($period, 'Edit');
         $data = $this->validateData($request, isUpdate: true, current: $period);
         unset($data['status']);
         $period->update($data);

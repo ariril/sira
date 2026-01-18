@@ -93,8 +93,9 @@
                             {{-- Delete tidak boleh untuk active/locked/approval/closed --}}
                             @php($nonDeletable = \App\Models\AssessmentPeriod::NON_DELETABLE_STATUSES)
 
-                            {{-- Edit tetap tersedia sesuai implementasi sebelumnya (kecuali locked/closed) --}}
-                            @if(!in_array($it->status, [\App\Models\AssessmentPeriod::STATUS_LOCKED, \App\Models\AssessmentPeriod::STATUS_CLOSED], true))
+                            {{-- Edit hanya boleh ketika DRAFT (periode belum berjalan / belum FIX) --}}
+                            @php($isActiveNow = method_exists($it, 'isCurrentlyActive') && $it->isCurrentlyActive())
+                            @if($it->status === \App\Models\AssessmentPeriod::STATUS_DRAFT && !$isActiveNow)
                                 <x-ui.icon-button as="a" href="{{ route('admin_rs.assessment-periods.edit', $it) }}" icon="fa-pen-to-square" />
                             @endif
 

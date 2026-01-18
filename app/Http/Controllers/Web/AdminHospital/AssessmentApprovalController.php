@@ -66,7 +66,8 @@ class AssessmentApprovalController extends Controller
 
             // Only show current attempt approvals + not invalidated
             $builder->whereNull('aa.invalidated_at')
-                ->whereRaw('aa.attempt = COALESCE(ap.approval_attempt, 1)');
+                // assessment_periods.approval_attempt defaults to 0 (legacy). Treat 0 as attempt=1.
+                ->whereRaw('aa.attempt = COALESCE(NULLIF(ap.approval_attempt, 0), 1)');
 
             // Apply combined status+level filter
             $statusNormalized = $status === 'all' ? '' : $status;

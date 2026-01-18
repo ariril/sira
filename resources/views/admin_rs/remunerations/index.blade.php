@@ -10,7 +10,12 @@
                         <input type="hidden" name="unit_id" value="{{ $filters['unit_id'] ?? '' }}" />
                         <input type="hidden" name="profession_id" value="{{ $filters['profession_id'] ?? '' }}" />
                         <input type="hidden" name="payment_status" value="{{ $filters['payment_status'] ?? '' }}" />
-                        <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base">Publish Semua</x-ui.button>
+                        <x-ui.button type="submit" variant="success" class="h-12 px-6 text-base">
+                            <i class="fa-solid fa-bullhorn mr-2"></i> Publish Semua
+                            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-white/20">
+                                {{ (int) $draftCount }}
+                            </span>
+                        </x-ui.button>
                     </form>
                 @endif
                 <x-ui.button as="a" href="{{ route('admin_rs.remunerations.calc.index') }}" variant="success" class="h-12 px-6 text-base">
@@ -32,6 +37,15 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
+        @if(!empty($periodId) && !empty($draftCount))
+            <div class="rounded-xl bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 text-sm flex items-start gap-2">
+                <i class="fa-solid fa-circle-info mt-0.5"></i>
+                <div>
+                    <div class="font-medium">Ada {{ (int) $draftCount }} remunerasi masih Draf untuk filter saat ini.</div>
+                    <div class="text-amber-800/90">Klik <span class="font-semibold">Publish Semua</span> agar tampil di modul Pegawai Medis.</div>
+                </div>
+            </div>
+        @endif
         {{-- FILTERS --}}
         <form method="GET" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="grid gap-5 md:grid-cols-12">

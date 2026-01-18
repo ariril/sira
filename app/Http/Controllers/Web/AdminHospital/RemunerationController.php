@@ -816,31 +816,37 @@ class RemunerationController extends Controller
         $units = Unit::orderBy('name')->get(['id', 'name']);
         $professions = Profession::orderBy('name')->get(['id', 'name']);
 
-        $query = Remuneration::query()
+        // Base scope for both list and "Publish Semua" draft count.
+        // Note: draftCount must ignore the current "published" filter so the CTA doesn't disappear
+        // when viewing Published-only rows.
+        $baseScope = Remuneration::query()
+            ->when($periodId, fn($w) => $w->where('assessment_period_id', $periodId))
+            ->when($paymentStatus, fn($w) => $w->where('payment_status', $paymentStatus))
+            ->when($unitId || $professionId, function ($w) use ($unitId, $professionId) {
+                $w->whereHas('user', function ($u) use ($unitId, $professionId) {
+                    if ($unitId) {
+                        $u->where('unit_id', $unitId);
+                    }
+                    if ($professionId) {
+                        $u->where('profession_id', $professionId);
+                    }
+                });
+            });
+
+        $query = (clone $baseScope)
             ->with([
                 'user:id,name,unit_id,profession_id',
                 'assessmentPeriod:id,name',
             ])
-            ->when($periodId, fn($w) => $w->where('assessment_period_id', $periodId))
             ->when($published === 'yes', fn($w) => $w->whereNotNull('published_at'))
             ->when($published === 'no', fn($w) => $w->whereNull('published_at'))
-            ->when($paymentStatus, fn($w) => $w->where('payment_status', $paymentStatus))
-            ->when($unitId || $professionId, function ($w) use ($unitId, $professionId) {
-                $w->whereHas('user', function ($u) use ($unitId, $professionId) {
-                    if ($unitId)
-                        $u->where('unit_id', $unitId);
-                    if ($professionId)
-                        $u->where('profession_id', $professionId);
-                });
-            })
             ->orderByDesc('id');
 
-        $items = $query
-            ->paginate(12)
-            ->withQueryString();
+        $items = $query->paginate(12)->withQueryString();
 
-        $draftCount = (clone $query)
+        $draftCount = (clone $baseScope)
             ->whereNull('published_at')
+            ->whereNotNull('amount')
             ->count();
 
         return view('admin_rs.remunerations.index', [

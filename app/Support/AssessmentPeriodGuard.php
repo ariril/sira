@@ -7,6 +7,23 @@ use Illuminate\Support\Facades\Schema;
 
 final class AssessmentPeriodGuard
 {
+    public static function requireDraftEditable(?AssessmentPeriod $period, string $actionLabel = 'Edit'): void
+    {
+        if (!$period) {
+            abort(403, $actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
+        }
+
+        $status = (string) ($period->status ?? '');
+        if ($status !== AssessmentPeriod::STATUS_DRAFT) {
+            $label = $status !== '' ? strtoupper($status) : '-';
+            abort(403, sprintf('%s hanya dapat dilakukan ketika periode berstatus DRAFT. Status periode saat ini: %s.', $actionLabel, $label));
+        }
+
+        if (method_exists($period, 'isCurrentlyActive') && $period->isCurrentlyActive()) {
+            abort(403, sprintf('%s tidak dapat dilakukan: periode sudah mulai berjalan (AKTIF).', $actionLabel));
+        }
+    }
+
     public static function requireActive(?AssessmentPeriod $period, string $actionLabel = 'Aksi'): void
     {
         if (!$period) {

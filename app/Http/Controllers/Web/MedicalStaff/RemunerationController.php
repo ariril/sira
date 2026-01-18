@@ -150,9 +150,11 @@ class RemunerationController extends Controller
         $user = Auth::user();
         $userId = (int) Auth::id();
 
-        // Always allow user to see historical remunerations, but never show data for ACTIVE period (shouldn't exist by rule)
+        // Only show PUBLISHED remunerations to medical staff.
+        // Draft results are intentionally hidden until Admin RS publishes.
         $items = Remuneration::with('assessmentPeriod')
             ->where('user_id', $userId)
+            ->whereNotNull('published_at')
             ->whereHas('assessmentPeriod', function ($q) {
                 $q->where('status', '!=', AssessmentPeriod::STATUS_ACTIVE);
             })
@@ -195,12 +197,15 @@ class RemunerationController extends Controller
             $period = $pendingAssessment->assessmentPeriod;
             $periodId = (int) $pendingAssessment->assessment_period_id;
 
-            $remExists = Remuneration::query()
+            $rem = Remuneration::query()
                 ->where('user_id', $userId)
                 ->where('assessment_period_id', $periodId)
-                ->exists();
+                ->first(['id', 'published_at']);
 
-            if (!$remExists) {
+            $remIsPublished = $rem && !empty($rem->published_at);
+
+            // Keep the process status section visible until remuneration is actually published.
+            if (!$remIsPublished) {
                 // Approval progress details (only shown for non-ACTIVE periods)
                 $levels = DB::table('assessment_approvals')
                     ->where('performance_assessment_id', $pendingAssessment->id)
@@ -279,18 +284,16 @@ class RemunerationController extends Controller
                         ];
                     }
                 }
-            } else {
-                // Remuneration exists (draft/published) for this period; no progress card needed.
-                $rem = Remuneration::query()
-                    ->where('user_id', $userId)
-                    ->where('assessment_period_id', $periodId)
-                    ->first();
+
+                // If remuneration has been calculated but not published yet, clarify the last step.
                 if ($rem && empty($rem->published_at)) {
                     $banners[] = [
                         'type' => 'info',
-                        'message' => 'Remunerasi Anda telah dihitung dan sedang menunggu publikasi.',
+                        'message' => 'Remunerasi Anda telah dihitung dan sedang menunggu publikasi Admin RS.',
                     ];
                 }
+            } else {
+                // Remuneration already published for this period: no need to show process card.
             }
         }
 
@@ -308,6 +311,7 @@ class RemunerationController extends Controller
     {
         $remuneration = $id; // implicit model binding
         abort_unless($remuneration->user_id === Auth::id(), 403);
+        abort_if(empty($remuneration->published_at), 404);
         $remuneration->load(['assessmentPeriod','user.unit','user.profession']);
 
         $period = $remuneration->assessmentPeriod;
@@ -435,6 +439,7 @@ class RemunerationController extends Controller
     {
         $remuneration = $id; // implicit model binding
         abort_unless($remuneration->user_id === Auth::id(), 403);
+        abort_if(empty($remuneration->published_at), 404);
         $remuneration->load(['assessmentPeriod','user.unit','user.profession']);
 
         $period = $remuneration->assessmentPeriod;

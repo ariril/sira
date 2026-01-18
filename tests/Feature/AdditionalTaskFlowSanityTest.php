@@ -115,6 +115,7 @@ class AdditionalTaskFlowSanityTest extends TestCase
         $resp = $this->actingAs($creator)
             ->withSession(['active_role' => 'kepala_unit'])
             ->post(route('kepala_unit.additional-tasks.store'), [
+                'assessment_period_id' => $periodId,
                 'title' => 'Pembuatan Buku TBC',
                 'description' => 'Test',
                 'due_date' => Carbon::today('Asia/Jakarta')->toDateString(),

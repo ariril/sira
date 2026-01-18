@@ -106,8 +106,37 @@ class AdditionalTaskService
                 ->lockForUpdate()
                 ->first();
 
+            // Submit can be done directly without a separate "claim" step.
+            // If no claim exists yet, create one (quota rules apply).
             if (!$claim) {
-                throw new \RuntimeException('Anda belum melakukan klaim untuk tugas ini.');
+                if ($task->status !== 'open') {
+                    throw new \RuntimeException('Tugas tidak tersedia.');
+                }
+
+                if (!empty($task->max_claims)) {
+                    $used = AdditionalTaskClaim::query()
+                        ->where('additional_task_id', $task->id)
+                        ->quotaCounted()
+                        ->lockForUpdate()
+                        ->count();
+
+                    if ($used >= (int) $task->max_claims) {
+                        throw new \RuntimeException('Kuota klaim habis.');
+                    }
+                }
+
+                $claim = AdditionalTaskClaim::create([
+                    'additional_task_id' => $task->id,
+                    'user_id' => $user->id,
+                    'status' => 'active',
+                    'submitted_at' => null,
+                    'result_file_path' => null,
+                    'result_note' => null,
+                    'awarded_points' => null,
+                    'reviewed_by_id' => null,
+                    'reviewed_at' => null,
+                    'review_comment' => null,
+                ]);
             }
 
             if ($claim->status !== 'active') {

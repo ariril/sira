@@ -79,7 +79,7 @@ foreach ($periodIds as $pid) {
             'submitted_detail_rows' => $cnt,
         ];
     }
-}
+} 
 
 $logPath = __DIR__ . '/../storage/logs/debug_ucw_nov_dec_360.json';
 file_put_contents($logPath, json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
