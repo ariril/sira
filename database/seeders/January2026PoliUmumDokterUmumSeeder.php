@@ -81,7 +81,26 @@ class January2026PoliUmumDokterUmumSeeder extends Seeder
             return;
         }
 
-        $userIds = [$felixId, $theoId];
+        // 360 assessors setup (USE EXISTING USERS ONLY):
+        // - Felix dinilai oleh Felix sendiri sebagai Atasan L1 (akun Kepala Unit)
+        // - Atasan L2 untuk semua = Kepala Poliklinik (kepala.poliklinik@rsud.local)
+        // - Subordinate assessors = perawat1/perawat2
+        $kepalaPoliklinikId = (int) (DB::table('users')->where('email', 'kepala.poliklinik@rsud.local')->value('id') ?? 0);
+        if ($kepalaPoliklinikId <= 0) {
+            $this->command?->warn('User kepala.poliklinik@rsud.local not found. Cannot seed supervisor L2.');
+        }
+
+        $nurse1Id = (int) (DB::table('users')->where('email', 'perawat1@rsud.local')->value('id') ?? 0);
+        $nurse2Id = (int) (DB::table('users')->where('email', 'perawat2@rsud.local')->value('id') ?? 0);
+        $nurseAssessorIds = array_values(array_filter([$nurse1Id, $nurse2Id], fn ($v) => (int) $v > 0));
+
+        // IMPORTANT: this seeder is meant to be re-runnable.
+        // Clear existing 360 submissions for these seeded assessees to avoid stale rows
+        // (e.g., after changing assessor-type logic).
+        DB::table('multi_rater_assessments')
+            ->where('assessment_period_id', $periodId)
+            ->whereIn('assessee_id', [$felixId, $theoId])
+            ->delete();
 
         // 3) Copy Unit Criteria Weights + Rater Weights from previous period (Dec 2025)
         $prevPeriodId = $this->resolvePreviousPeriodId();
@@ -92,9 +111,73 @@ class January2026PoliUmumDokterUmumSeeder extends Seeder
             $this->command?->warn('Previous period (December 2025) not found. Weights were not copied.');
         }
 
-        // 4) Attendance (Kehadiran, Jam Kerja, Lembur, Keterlambatan)
-        $this->seedAttendanceForUser(
+        // Shared resources for this period
+        $taskTitle = 'Tugas Tambahan - Januari 2026 (Poli Umum)';
+        $taskId = $this->ensureAdditionalTask($unitId, $periodId, $taskTitle, $endDate, $now);
+
+        $batchId = $this->ensureMetricImportBatch($periodId, $now);
+        $pasienId = (int) (DB::table('performance_criterias')->where('name', 'Jumlah Pasien Ditangani')->value('id') ?? 0);
+        $komplainId = (int) (DB::table('performance_criterias')->where('name', 'Jumlah Komplain Pasien')->value('id') ?? 0);
+
+        $kedis360Id = (int) (DB::table('performance_criterias')->where('name', 'Kedisiplinan (360)')->value('id') ?? 0);
+        $kerja360Id = (int) (DB::table('performance_criterias')->where('name', 'Kerjasama (360)')->value('id') ?? 0);
+        $criteria360Ids = array_values(array_filter([(int) $kedis360Id, (int) $kerja360Id], fn ($v) => $v > 0));
+
+        // ===== User blocks (comment out to disable) =====
+        $this->seedUserFelix(
+            periodId: $periodId,
+            unitId: $unitId,
             userId: $felixId,
+            otherUserId: $theoId,
+            kepalaPoliklinikId: $kepalaPoliklinikId,
+            nurseAssessorIds: $nurseAssessorIds,
+            taskId: $taskId,
+            batchId: $batchId,
+            pasienCriteriaId: $pasienId,
+            komplainCriteriaId: $komplainId,
+            criteria360Ids: $criteria360Ids,
+            startDate: $startDate,
+            endDate: $endDate,
+            now: $now,
+        );
+
+        $this->seedUserTheo(
+            periodId: $periodId,
+            unitId: $unitId,
+            userId: $theoId,
+            otherUserId: $felixId,
+            kepalaPoliklinikId: $kepalaPoliklinikId,
+            nurseAssessorIds: $nurseAssessorIds,
+            taskId: $taskId,
+            batchId: $batchId,
+            pasienCriteriaId: $pasienId,
+            komplainCriteriaId: $komplainId,
+            criteria360Ids: $criteria360Ids,
+            startDate: $startDate,
+            endDate: $endDate,
+            now: $now,
+        );
+    }
+
+    private function seedUserFelix(
+        int $periodId,
+        int $unitId,
+        int $userId,
+        int $otherUserId,
+        int $kepalaPoliklinikId,
+        array $nurseAssessorIds,
+        int $taskId,
+        int $batchId,
+        int $pasienCriteriaId,
+        int $komplainCriteriaId,
+        array $criteria360Ids,
+        Carbon $startDate,
+        Carbon $endDate,
+        $now,
+    ): void {
+        // Attendance
+        $this->seedAttendanceForUser(
+            userId: $userId,
             startDate: $startDate,
             endDate: $endDate,
             attendanceDays: 21,
@@ -103,8 +186,85 @@ class January2026PoliUmumDokterUmumSeeder extends Seeder
             totalLateMinutes: 40
         );
 
+        // Additional Task: Felix = no claim (leave empty intentionally)
+
+        // Metric Import
+        if ($batchId > 0 && $pasienCriteriaId > 0 && $komplainCriteriaId > 0) {
+            $this->upsertMetricValue($batchId, $periodId, $userId, $pasienCriteriaId, 205, $now);
+            $this->upsertMetricValue($batchId, $periodId, $userId, $komplainCriteriaId, 4, $now);
+        }
+
+        // 360: self + non-self (Theo as subordinate, optional peer if exists)
+        if (!empty($criteria360Ids)) {
+            $selfScores = [];
+            foreach ($criteria360Ids as $cid) {
+                $selfScores[(int) $cid] = 98.0;
+            }
+            $this->seed360Assessment($periodId, $userId, $userId, 'self', $selfScores, $now);
+
+            // Supervisor L1: Felix dinilai oleh Felix (akun Kepala Unit)
+            $supScoresL1 = [];
+            foreach ($criteria360Ids as $cid) {
+                $supScoresL1[(int) $cid] = 97.0;
+            }
+            $this->seed360Assessment($periodId, $userId, $userId, 'supervisor', $supScoresL1, $now, assessorLevel: 1);
+
+            // Supervisor L2: Kepala Poliklinik
+            if ($kepalaPoliklinikId > 0) {
+                $supScoresL2 = [];
+                foreach ($criteria360Ids as $cid) {
+                    $supScoresL2[(int) $cid] = 96.0;
+                }
+                $this->seed360Assessment($periodId, $userId, $kepalaPoliklinikId, 'supervisor', $supScoresL2, $now, assessorLevel: 2);
+            }
+
+            // Peer: Theo evaluates Felix as peer (not subordinate)
+            $peerScores = [];
+            foreach ($criteria360Ids as $cid) {
+                $peerScores[(int) $cid] = 95.0;
+            }
+            if ($otherUserId > 0) {
+                $this->seed360Assessment($periodId, $userId, $otherUserId, 'peer', $peerScores, $now);
+            }
+
+            // Subordinate assessors: nurses assess Felix
+            if (!empty($nurseAssessorIds)) {
+                $subScores = [];
+                foreach ($criteria360Ids as $cid) {
+                    $subScores[(int) $cid] = 94.0;
+                }
+                foreach ($nurseAssessorIds as $nurseId) {
+                    $nurseId = (int) $nurseId;
+                    if ($nurseId > 0) {
+                        $this->seed360Assessment($periodId, $userId, $nurseId, 'subordinate', $subScores, $now);
+                    }
+                }
+            }
+        }
+
+        // Reviews
+        $this->seedReviewsForUser($periodId, $unitId, $userId, 10, [5, 5, 5, 5, 5, 4, 4, 4, 4, 4]);
+    }
+
+    private function seedUserTheo(
+        int $periodId,
+        int $unitId,
+        int $userId,
+        int $otherUserId,
+        int $kepalaPoliklinikId,
+        array $nurseAssessorIds,
+        int $taskId,
+        int $batchId,
+        int $pasienCriteriaId,
+        int $komplainCriteriaId,
+        array $criteria360Ids,
+        Carbon $startDate,
+        Carbon $endDate,
+        $now,
+    ): void {
+        // Attendance
         $this->seedAttendanceForUser(
-            userId: $theoId,
+            userId: $userId,
             startDate: $startDate,
             endDate: $endDate,
             attendanceDays: 24,
@@ -113,72 +273,79 @@ class January2026PoliUmumDokterUmumSeeder extends Seeder
             totalLateMinutes: 61
         );
 
-        // 5) Additional Tasks (Kontribusi Tambahan)
-        $taskTitle = 'Tugas Tambahan - Januari 2026 (Poli Umum)';
-        $taskId = (int) (DB::table('additional_tasks')->where('unit_id', $unitId)
-            ->where('assessment_period_id', $periodId)
-            ->where('title', $taskTitle)
-            ->value('id') ?? 0);
-
-        if ($taskId <= 0) {
-            $taskId = (int) DB::table('additional_tasks')->insertGetId([
-                'unit_id' => $unitId,
-                'assessment_period_id' => $periodId,
-                'title' => $taskTitle,
-                'description' => 'Seeder kontribusi tambahan untuk Januari 2026.',
-                'due_date' => $endDate->toDateString(),
-                'due_time' => '23:59:00',
-                'points' => 90,
-                'max_claims' => 10,
-                'status' => 'open',
-                'created_by' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+        // Additional Task: Theo = 90 points
+        if ($taskId > 0) {
+            DB::table('additional_task_claims')->updateOrInsert(
+                ['additional_task_id' => $taskId, 'user_id' => $userId],
+                [
+                    'status' => 'approved',
+                    'submitted_at' => $now,
+                    'result_file_path' => null,
+                    'result_note' => 'Seeder kontribusi Januari 2026.',
+                    'awarded_points' => 90,
+                    'reviewed_by_id' => null,
+                    'reviewed_at' => $now,
+                    'review_comment' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
         }
 
-        // dr. Theodorus = 90 points, dr. Felix = 0 (no claim)
-        DB::table('additional_task_claims')->updateOrInsert(
-            ['additional_task_id' => $taskId, 'user_id' => $theoId],
-            [
-                'status' => 'approved',
-                'submitted_at' => $now,
-                'result_file_path' => null,
-                'result_note' => 'Seeder kontribusi Januari 2026.',
-                'awarded_points' => 90,
-                'reviewed_by_id' => null,
-                'reviewed_at' => $now,
-                'review_comment' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]
-        );
-
-        // 6) Metric Import (Pasien Ditangani, Komplain Pasien)
-        $batchId = $this->ensureMetricImportBatch($periodId, $now);
-        $pasienId = (int) (DB::table('performance_criterias')->where('name', 'Jumlah Pasien Ditangani')->value('id') ?? 0);
-        $komplainId = (int) (DB::table('performance_criterias')->where('name', 'Jumlah Komplain Pasien')->value('id') ?? 0);
-
-        if ($batchId > 0 && $pasienId > 0 && $komplainId > 0) {
-            $this->upsertMetricValue($batchId, $periodId, $felixId, $pasienId, 205, $now);
-            $this->upsertMetricValue($batchId, $periodId, $theoId, $pasienId, 150, $now);
-            $this->upsertMetricValue($batchId, $periodId, $felixId, $komplainId, 4, $now);
-            $this->upsertMetricValue($batchId, $periodId, $theoId, $komplainId, 6, $now);
+        // Metric Import
+        if ($batchId > 0 && $pasienCriteriaId > 0 && $komplainCriteriaId > 0) {
+            $this->upsertMetricValue($batchId, $periodId, $userId, $pasienCriteriaId, 150, $now);
+            $this->upsertMetricValue($batchId, $periodId, $userId, $komplainCriteriaId, 6, $now);
         }
 
-        // 7) 360 (Kedisiplinan, Kerjasama) – self-only, scores fixed
-        $kedis360Id = (int) (DB::table('performance_criterias')->where('name', 'Kedisiplinan (360)')->value('id') ?? 0);
-        $kerja360Id = (int) (DB::table('performance_criterias')->where('name', 'Kerjasama (360)')->value('id') ?? 0);
-        if ($kedis360Id > 0 && $kerja360Id > 0) {
-            $this->seedSelf360($periodId, $felixId, $kedis360Id, 98.0, $now);
-            $this->seedSelf360($periodId, $felixId, $kerja360Id, 98.0, $now);
-            $this->seedSelf360($periodId, $theoId, $kedis360Id, 99.0, $now);
-            $this->seedSelf360($periodId, $theoId, $kerja360Id, 99.0, $now);
+        // 360: self + non-self (Felix as supervisor L1; peer is a doctor peer; subordinates are nurses)
+        if (!empty($criteria360Ids)) {
+            $selfScores = [];
+            foreach ($criteria360Ids as $cid) {
+                $selfScores[(int) $cid] = 99.0;
+            }
+            $this->seed360Assessment($periodId, $userId, $userId, 'self', $selfScores, $now);
+
+            // Felix assesses Theo as supervisor (Atasan L1)
+            $supScores = [];
+            foreach ($criteria360Ids as $cid) {
+                $supScores[(int) $cid] = 97.0;
+            }
+            $this->seed360Assessment($periodId, $userId, $otherUserId, 'supervisor', $supScores, $now, assessorLevel: 1);
+
+            // Supervisor L2: Kepala Poliklinik
+            if ($kepalaPoliklinikId > 0) {
+                $supScoresL2 = [];
+                foreach ($criteria360Ids as $cid) {
+                    $supScoresL2[(int) $cid] = 96.0;
+                }
+                $this->seed360Assessment($periodId, $userId, $kepalaPoliklinikId, 'supervisor', $supScoresL2, $now, assessorLevel: 2);
+            }
+
+            // Peer: use existing doctor account(s). Use Felix as peer too (so peer slot is filled without creating new users).
+            $peerScores = [];
+            foreach ($criteria360Ids as $cid) {
+                $peerScores[(int) $cid] = 95.0;
+            }
+            $this->seed360Assessment($periodId, $userId, $otherUserId, 'peer', $peerScores, $now);
+
+            // Subordinate assessors: nurses assess Theo
+            if (!empty($nurseAssessorIds)) {
+                $subScores = [];
+                foreach ($criteria360Ids as $cid) {
+                    $subScores[(int) $cid] = 94.0;
+                }
+                foreach ($nurseAssessorIds as $nurseId) {
+                    $nurseId = (int) $nurseId;
+                    if ($nurseId > 0) {
+                        $this->seed360Assessment($periodId, $userId, $nurseId, 'subordinate', $subScores, $now);
+                    }
+                }
+            }
         }
 
-        // 8) Reviews & Ratings (AVG rating via SUM/COUNT)
-        $this->seedReviewsForUser($periodId, $unitId, $felixId, 10, [5, 5, 5, 5, 5, 4, 4, 4, 4, 4]);
-        $this->seedReviewsForUser($periodId, $unitId, $theoId, 10, [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]);
+        // Reviews
+        $this->seedReviewsForUser($periodId, $unitId, $userId, 10, [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]);
     }
 
     private function resolvePreviousPeriodId(): int
@@ -416,6 +583,34 @@ class January2026PoliUmumDokterUmumSeeder extends Seeder
         ]);
     }
 
+    private function ensureAdditionalTask(int $unitId, int $periodId, string $title, Carbon $endDate, $now): int
+    {
+        $taskId = (int) (DB::table('additional_tasks')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $periodId)
+            ->where('title', $title)
+            ->value('id') ?? 0);
+
+        if ($taskId > 0) {
+            return $taskId;
+        }
+
+        return (int) DB::table('additional_tasks')->insertGetId([
+            'unit_id' => $unitId,
+            'assessment_period_id' => $periodId,
+            'title' => $title,
+            'description' => 'Seeder kontribusi tambahan untuk Januari 2026.',
+            'due_date' => $endDate->toDateString(),
+            'due_time' => '23:59:00',
+            'points' => 90,
+            'max_claims' => 10,
+            'status' => 'open',
+            'created_by' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
     private function upsertMetricValue(int $batchId, int $periodId, int $userId, int $criteriaId, float $value, $now): void
     {
         DB::table('imported_criteria_values')->updateOrInsert(
@@ -438,48 +633,91 @@ class January2026PoliUmumDokterUmumSeeder extends Seeder
         );
     }
 
-    private function seedSelf360(int $periodId, int $userId, int $criteriaId, float $score, $now): void
-    {
-        DB::table('multi_rater_assessments')->updateOrInsert(
-            [
-                'assessee_id' => $userId,
-                'assessment_period_id' => $periodId,
-                'assessor_type' => 'self',
-                'assessor_id' => $userId,
-                'assessor_profession_id' => null,
-            ],
-            [
-                'status' => 'submitted',
-                'submitted_at' => $now,
-                'updated_at' => $now,
-                'created_at' => $now,
-            ]
-        );
+    /**
+     * Seed 360 submission for one assessee from one assessor.
+     *
+     * @param array<int,float> $criteriaScores criteria_id => score (1..100)
+     */
+    private function seed360Assessment(
+        int $periodId,
+        int $assesseeId,
+        int $assessorId,
+        string $assessorType,
+        array $criteriaScores,
+        $now,
+        ?int $assessorLevel = null,
+    ): void {
+        if (empty($criteriaScores)) {
+            return;
+        }
+
+        $assessorType = (string) $assessorType;
+        if ($assessorType === '') {
+            return;
+        }
+
+        $assessorProfessionId = $this->resolveUserProfessionId($assessorId);
+
+        $where = [
+            'assessee_id' => $assesseeId,
+            'assessment_period_id' => $periodId,
+            'assessor_type' => $assessorType,
+            'assessor_id' => $assessorId,
+        ];
+
+        $values = [
+            'assessor_profession_id' => $assessorProfessionId > 0 ? $assessorProfessionId : null,
+            'status' => 'submitted',
+            'submitted_at' => $now,
+            'updated_at' => $now,
+            'created_at' => $now,
+        ];
+
+        if (Schema::hasColumn('multi_rater_assessments', 'assessor_level')) {
+            $level = 0;
+            if ($assessorType === 'supervisor') {
+                $level = (int) ($assessorLevel ?? 1);
+            }
+            $where['assessor_level'] = $level;
+            $values['assessor_level'] = $level;
+        }
+
+        DB::table('multi_rater_assessments')->updateOrInsert($where, $values);
 
         $mraId = (int) (DB::table('multi_rater_assessments')
-            ->where('assessee_id', $userId)
-            ->where('assessment_period_id', $periodId)
-            ->where('assessor_type', 'self')
-            ->where('assessor_id', $userId)
+            ->where($where)
             ->value('id') ?? 0);
 
         if ($mraId <= 0) {
             return;
         }
 
-        DB::table('multi_rater_assessment_details')->updateOrInsert(
-            [
-                'multi_rater_assessment_id' => $mraId,
-                'performance_criteria_id' => $criteriaId,
-            ],
-            [
-                'score' => $score,
-                'comment' => null,
-                'updated_at' => $now,
-                'created_at' => $now,
-            ]
-        );
+        foreach ($criteriaScores as $criteriaId => $score) {
+            $criteriaId = (int) $criteriaId;
+            if ($criteriaId <= 0) {
+                continue;
+            }
+            DB::table('multi_rater_assessment_details')->updateOrInsert(
+                [
+                    'multi_rater_assessment_id' => $mraId,
+                    'performance_criteria_id' => $criteriaId,
+                ],
+                [
+                    'score' => (float) $score,
+                    'comment' => null,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ]
+            );
+        }
     }
+
+    private function resolveUserProfessionId(int $userId): int
+    {
+        return (int) (DB::table('users')->where('id', $userId)->value('profession_id') ?? 0);
+    }
+
+
 
     /** @param array<int,int> $ratings */
     private function seedReviewsForUser(int $periodId, int $unitId, int $userId, int $count, array $ratings): void

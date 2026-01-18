@@ -193,15 +193,12 @@ class PerformanceScoreService
                             $status = 'missing_data';
                             $message = 'Bobot penilai 360 belum tersedia (tabel unit_rater_weights tidak ditemukan).';
                         } else {
-                            $activeWeightCount = (int) DB::table('unit_rater_weights')
-                                ->where('assessment_period_id', (int) $period->id)
-                                ->where('unit_id', (int) $unitId)
-                                ->where('performance_criteria_id', (int) $criteriaId)
-                                ->where('assessee_profession_id', (int) $pid)
-                                ->where('status', 'active')
-                                ->count();
-
-                            if ($activeWeightCount <= 0) {
+                            // Accept:
+                            // - status=active (when the period is active)
+                            // - status=archived with was_active_before=1 (when the period is closed/history)
+                            $resolved = MultiRaterWeightResolver::resolveForCriteria((int) $period->id, (int) $unitId, (int) $criteriaId, [$pid]);
+                            $hasWeights = isset($resolved[$pid]) && !empty($resolved[$pid]);
+                            if (!$hasWeights) {
                                 $status = 'missing_data';
                                 $message = 'Bobot penilai 360 pada periode ini belum diatur/aktif, sehingga nilai 360 belum dapat ditampilkan.';
                             }
@@ -537,15 +534,12 @@ class PerformanceScoreService
                             $status = 'missing_data';
                             $message = 'Bobot penilai 360 belum tersedia (tabel unit_rater_weights tidak ditemukan).';
                         } else {
-                            $activeWeightCount = (int) DB::table('unit_rater_weights')
-                                ->where('assessment_period_id', (int) $period->id)
-                                ->where('unit_id', (int) $unitId)
-                                ->where('performance_criteria_id', (int) $criteriaId)
-                                ->where('assessee_profession_id', (int) $pid)
-                                ->where('status', 'active')
-                                ->count();
-
-                            if ($activeWeightCount <= 0) {
+                            // Accept:
+                            // - status=active (when the period is active)
+                            // - status=archived with was_active_before=1 (when the period is closed/history)
+                            $resolved = MultiRaterWeightResolver::resolveForCriteria((int) $period->id, (int) $unitId, (int) $criteriaId, [$pid]);
+                            $hasWeights = isset($resolved[$pid]) && !empty($resolved[$pid]);
+                            if (!$hasWeights) {
                                 $status = 'missing_data';
                                 $message = 'Bobot penilai 360 pada periode ini belum diatur/aktif, sehingga nilai 360 belum dapat ditampilkan.';
                             }
