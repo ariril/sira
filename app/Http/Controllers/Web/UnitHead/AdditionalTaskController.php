@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\UnitHead;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAdditionalTaskRequest;
 use App\Http\Requests\UpdateAdditionalTaskRequest;
+use App\Http\Requests\UpdateAdditionalTaskPointsRequest;
 use App\Models\AdditionalTask;
 use App\Services\AdditionalTasks\AdditionalTaskStatusService;
 use Illuminate\Http\RedirectResponse;
@@ -47,7 +48,8 @@ class AdditionalTaskController extends Controller
                 ->orderByDesc(DB::raw("status = 'active'"))
                 ->orderByDesc('id')
                 ->get();
-            $activePeriod = $periods->firstWhere('status', 'active');
+            $activePeriod = $periods->firstWhere('status', 'active')
+                ?? $periods->firstWhere('status', 'revision');
         }
 
         if ($unitId) {
@@ -59,6 +61,7 @@ class AdditionalTaskController extends Controller
                 ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'additional_tasks.assessment_period_id')
                 ->select([
                     'additional_tasks.id',
+                    'additional_tasks.assessment_period_id',
                     'additional_tasks.title',
                     'additional_tasks.status',
                     'additional_tasks.due_date',
@@ -67,6 +70,7 @@ class AdditionalTaskController extends Controller
                     'additional_tasks.max_claims',
                 ])
                 ->addSelect('ap.name as period_name')
+                ->addSelect('ap.status as period_status')
                 ->withCount([
                     'claims as total_claims' => function ($q) {
                         // Count all claims (any status) to prevent unsafe actions like delete.
@@ -219,6 +223,54 @@ class AdditionalTaskController extends Controller
         }
 
         return view('kepala_unit.additional_tasks.edit', ['item' => $row, 'periods' => $periods]);
+    }
+
+    public function editPoints(string $id): View|RedirectResponse
+    {
+        $this->authorizeAccess();
+        $me = Auth::user();
+
+        $task = AdditionalTask::query()->with('period')->find($id);
+        if (!$task) abort(404);
+        if ((int) $task->unit_id !== (int) $me->unit_id) abort(403);
+
+        if ((string) ($task->period?->status ?? '') !== AssessmentPeriod::STATUS_REVISION) {
+            return redirect()->route('kepala_unit.additional-tasks.index')
+                ->with('error', 'Edit poin hanya tersedia untuk tugas pada periode REVISION.');
+        }
+
+        return view('kepala_unit.additional_tasks.edit_points', ['task' => $task]);
+    }
+
+    public function updatePoints(UpdateAdditionalTaskPointsRequest $request, string $id): RedirectResponse
+    {
+        $this->authorizeAccess();
+        $me = Auth::user();
+
+        $task = AdditionalTask::query()->with('period')->find($id);
+        if (!$task) abort(404);
+        if ((int) $task->unit_id !== (int) $me->unit_id) abort(403);
+
+        $period = $task->period;
+        if ((string) ($period?->status ?? '') !== AssessmentPeriod::STATUS_REVISION) {
+            return back()->with('error', 'Periode tugas ini bukan REVISION.');
+        }
+
+        $data = $request->validated();
+        $oldPoints = $task->points;
+        $task->update([
+            'points' => $data['points'],
+        ]);
+
+        AssessmentPeriodAudit::log((int) $period->id, (int) $me->id, 'revision_additional_task_points_updated', null, [
+            'task_id' => (int) $task->id,
+            'old_points' => $oldPoints,
+            'new_points' => $data['points'],
+            'reason' => (string) ($data['reason'] ?? ''),
+        ]);
+
+        return redirect()->route('kepala_unit.additional-tasks.index')
+            ->with('status', 'Poin tugas berhasil diperbarui.');
     }
 
     public function update(UpdateAdditionalTaskRequest $request, string $id): RedirectResponse

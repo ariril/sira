@@ -10,6 +10,7 @@ use App\Models\PerformanceAssessmentDetail;
 use App\Models\PerformanceCriteria;
 use App\Models\User;
 use App\Services\CriteriaEngine\CriteriaRegistry;
+use App\Services\MultiRater\Assessment360ScoreFallbackService;
 use App\Services\MultiRater\RaterWeightResolver;
 use App\Services\PerformanceScore\PerformanceScoreService;
 use Illuminate\Support\Facades\DB;
@@ -117,6 +118,7 @@ class PeriodPerformanceAssessmentService
         if (!$unitId) {
             return;
         }
+
 
         // Ensure PerformanceAssessment exists for each user in this period
         DB::transaction(function () use ($period, $userIds, $unitId, $professionId) {
@@ -250,18 +252,23 @@ class PeriodPerformanceAssessmentService
                     $score = round((float) ($row['nilai_relativ_unit'] ?? 0.0), 2);
                     $rawValue = (float) ($row['raw'] ?? 0.0);
                     $nilaiNormalisasi = (float) ($row['nilai_normalisasi'] ?? 0.0);
+
+                    $detailValues = [
+                        'score' => $score,
+                        'meta' => [
+                            'raw_value' => $rawValue,
+                            'nilai_normalisasi' => $nilaiNormalisasi,
+                        ],
+                    ];
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('performance_assessment_details', 'criteria_metric_id')) {
+                        $detailValues['criteria_metric_id'] = null;
+                    }
                     PerformanceAssessmentDetail::updateOrCreate(
                         [
                             'performance_assessment_id' => $assessmentId,
                             'performance_criteria_id' => $criteriaId,
                         ],
-                        [
-                            'score' => $score,
-                            'meta' => [
-                                'raw_value' => $rawValue,
-                                'nilai_normalisasi' => $nilaiNormalisasi,
-                            ],
-                        ]
+                        $detailValues
                     );
                 }
             }
@@ -530,40 +537,149 @@ class PeriodPerformanceAssessmentService
             return [];
         }
 
-        // AVG per assessee + assessor_type
+        // AVG per assessee + assessor_type + assessor_level + assessor_profession_id
         $avgRows = DB::table('multi_rater_assessment_details as d')
             ->join('multi_rater_assessments as mra', 'mra.id', '=', 'd.multi_rater_assessment_id')
-            ->selectRaw('mra.assessee_id as user_id, mra.assessor_type as assessor_type, mra.assessor_level as assessor_level, AVG(d.score) as avg_score, COUNT(*) as n')
+            ->selectRaw('mra.assessee_id as user_id, mra.assessor_type as assessor_type, mra.assessor_level as assessor_level, mra.assessor_profession_id as assessor_profession_id, AVG(d.score) as avg_score, COUNT(*) as n')
             ->where('mra.assessment_period_id', $periodId)
             ->where('mra.status', 'submitted')
             ->whereIn('mra.assessee_id', $userIds)
             ->where('d.performance_criteria_id', $criteriaId)
-            ->groupBy('mra.assessee_id', 'mra.assessor_type', 'mra.assessor_level')
+            ->groupBy('mra.assessee_id', 'mra.assessor_type', 'mra.assessor_level', 'mra.assessor_profession_id')
             ->get();
 
-        $avgMap = [];
-        $supervisorSumByUser = [];
-        $supervisorNByUser = [];
+        $currentMap = [];
+        $currentTypeLevelMap = [];
         foreach ($avgRows as $row) {
             $uid = (int) ($row->user_id ?? 0);
             $type = (string) ($row->assessor_type ?? '');
             if ($uid <= 0 || $type === '') {
                 continue;
             }
-
             $avg = (float) ($row->avg_score ?? 0.0);
             $n = (int) ($row->n ?? 0);
-            $lvl = $row->assessor_level === null ? null : (int) $row->assessor_level;
+            if ($n <= 0) {
+                continue;
+            }
+            $lvl = $row->assessor_level === null ? 0 : (int) $row->assessor_level;
+            $profId = $row->assessor_profession_id === null ? 0 : (int) $row->assessor_profession_id;
+            $key = $uid . '|' . $type . '|' . $lvl . '|' . $profId;
+            $currentMap[$key] = ['avg' => $avg, 'n' => $n];
 
-            if ($type === 'supervisor' && $lvl && $lvl > 0) {
-                $avgMap[$uid]['supervisor:' . $lvl] = $avg;
-            } else {
-                $avgMap[$uid][$type] = $avg;
+            $typeKey = ($type === 'supervisor' && $lvl > 0) ? ('supervisor:' . $lvl) : $type;
+            $currentTypeLevelMap[$uid][$typeKey]['sum'] = ($currentTypeLevelMap[$uid][$typeKey]['sum'] ?? 0.0) + ($avg * $n);
+            $currentTypeLevelMap[$uid][$typeKey]['n'] = ($currentTypeLevelMap[$uid][$typeKey]['n'] ?? 0) + $n;
+        }
+
+        // Resolve assessee profession_id to choose the correct weight set.
+        $professionByUserId = DB::table('users')
+            ->whereIn('id', $userIds)
+            ->pluck('profession_id', 'id')
+            ->map(fn($v) => $v === null ? null : (int) $v)
+            ->all();
+
+        $assesseeProfessionIds = [];
+        foreach ($professionByUserId as $pid) {
+            if (is_int($pid) && $pid > 0) {
+                $assesseeProfessionIds[$pid] = true;
+            }
+        }
+        $assesseeProfessionIds = array_keys($assesseeProfessionIds);
+
+        $prlRows = DB::table('profession_reporting_lines')
+            ->whereIn('assessee_profession_id', $assesseeProfessionIds)
+            ->where('is_active', true)
+            ->where('is_required', true)
+            ->get(['assessee_profession_id', 'assessor_profession_id', 'relation_type', 'level']);
+
+        $prlByAssessee = [];
+        foreach ($prlRows as $row) {
+            $ass = (int) $row->assessee_profession_id;
+            $prlByAssessee[$ass][] = [
+                'assessor_profession_id' => (int) $row->assessor_profession_id,
+                'relation_type' => (string) $row->relation_type,
+                'level' => $row->level === null ? 0 : (int) $row->level,
+            ];
+        }
+
+        $requiredKeysByUser = [];
+        foreach ($userIds as $uid) {
+            $uid = (int) $uid;
+            $profId = $professionByUserId[$uid] ?? null;
+            if (!is_int($profId) || $profId <= 0) {
+                continue;
             }
 
-            if ($type === 'supervisor' && $n > 0) {
-                $supervisorSumByUser[$uid] = (float) (($supervisorSumByUser[$uid] ?? 0.0) + ($avg * $n));
-                $supervisorNByUser[$uid] = (int) (($supervisorNByUser[$uid] ?? 0) + $n);
+            $requiredKeysByUser[$uid]['self'][0][$profId] = true;
+
+            foreach ($prlByAssessee[$profId] ?? [] as $line) {
+                $type = (string) ($line['relation_type'] ?? '');
+                $lvl = (int) ($line['level'] ?? 0);
+                $ap = (int) ($line['assessor_profession_id'] ?? 0);
+                if ($type === '' || $ap <= 0) {
+                    continue;
+                }
+                $requiredKeysByUser[$uid][$type][$lvl][$ap] = true;
+            }
+        }
+
+        $fallbackSvc = app(Assessment360ScoreFallbackService::class);
+        $fallbackPayload = $fallbackSvc->getFallbackAverages($periodId, $criteriaId, $userIds);
+        $fallbackMap = (array) ($fallbackPayload['map'] ?? []);
+
+        $avgMap = [];
+        $supervisorSumByUser = [];
+        $supervisorNByUser = [];
+
+        foreach ($userIds as $uid) {
+            $uid = (int) $uid;
+            $required = $requiredKeysByUser[$uid] ?? [];
+
+            if (empty($required)) {
+                foreach (($currentTypeLevelMap[$uid] ?? []) as $key => $stats) {
+                    $n = (int) ($stats['n'] ?? 0);
+                    if ($n <= 0) {
+                        continue;
+                    }
+                    $avgMap[$uid][$key] = (float) ($stats['sum'] / $n);
+                    if (str_starts_with((string) $key, 'supervisor')) {
+                        $supervisorSumByUser[$uid] = (float) (($supervisorSumByUser[$uid] ?? 0.0) + (float) $stats['sum']);
+                        $supervisorNByUser[$uid] = (int) (($supervisorNByUser[$uid] ?? 0) + $n);
+                    }
+                }
+                continue;
+            }
+
+            $typeLevelSums = [];
+            foreach ($required as $type => $levels) {
+                foreach ($levels as $lvl => $profIds) {
+                    foreach ($profIds as $profId => $_) {
+                        $key = $uid . '|' . $type . '|' . (int) $lvl . '|' . (int) $profId;
+                        $src = $currentMap[$key] ?? $fallbackMap[$key] ?? null;
+                        if (!$src) {
+                            continue;
+                        }
+                        $n = max(1, (int) ($src['n'] ?? 0));
+                        $avg = (float) ($src['avg'] ?? 0.0);
+
+                        $typeKey = ($type === 'supervisor' && (int) $lvl > 0) ? ('supervisor:' . (int) $lvl) : (string) $type;
+                        $typeLevelSums[$typeKey]['sum'] = ($typeLevelSums[$typeKey]['sum'] ?? 0.0) + ($avg * $n);
+                        $typeLevelSums[$typeKey]['n'] = ($typeLevelSums[$typeKey]['n'] ?? 0) + $n;
+
+                        if ($type === 'supervisor') {
+                            $supervisorSumByUser[$uid] = (float) (($supervisorSumByUser[$uid] ?? 0.0) + ($avg * $n));
+                            $supervisorNByUser[$uid] = (int) (($supervisorNByUser[$uid] ?? 0) + $n);
+                        }
+                    }
+                }
+            }
+
+            foreach ($typeLevelSums as $key => $stats) {
+                $n = (int) ($stats['n'] ?? 0);
+                if ($n <= 0) {
+                    continue;
+                }
+                $avgMap[$uid][$key] = (float) ($stats['sum'] / $n);
             }
         }
 
@@ -574,13 +690,6 @@ class PeriodPerformanceAssessmentService
                 $avgMap[$uid]['supervisor'] = (float) (($supervisorSumByUser[$uid] ?? 0.0) / $n);
             }
         }
-
-        // Resolve assessee profession_id to choose the correct weight set.
-        $professionByUserId = DB::table('users')
-            ->whereIn('id', $userIds)
-            ->pluck('profession_id', 'id')
-            ->map(fn($v) => $v === null ? null : (int) $v)
-            ->all();
 
         $professionIds = [];
         foreach ($professionByUserId as $pid) {

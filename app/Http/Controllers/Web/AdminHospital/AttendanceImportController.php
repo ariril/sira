@@ -42,7 +42,13 @@ class AttendanceImportController extends Controller
         $latestLockedPeriod = AssessmentPeriodGuard::resolveLatestLocked();
         $activePeriod = AssessmentPeriodGuard::resolveActive();
 
-        return view('admin_rs.attendances.import.create', compact('latestLockedPeriod', 'activePeriod'));
+        $latestImportablePeriod = AssessmentPeriod::query()
+            ->whereIn('status', [AssessmentPeriod::STATUS_REVISION, AssessmentPeriod::STATUS_LOCKED])
+            ->orderByDesc(DB::raw("status='" . AssessmentPeriod::STATUS_REVISION . "'"))
+            ->orderByDesc('start_date')
+            ->first();
+
+        return view('admin_rs.attendances.import.create', compact('latestLockedPeriod', 'latestImportablePeriod', 'activePeriod'));
     }
 
     // Preview 5 first rows (for client-side warning before import)

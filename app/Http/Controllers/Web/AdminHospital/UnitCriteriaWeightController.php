@@ -45,7 +45,7 @@ class UnitCriteriaWeightController extends Controller
     {
         $unitId = (int)$id;
         $filters = $request->validate([
-            'status' => ['nullable','in:draft,pending,active,rejected,all'],
+            'status' => ['nullable','in:draft,pending,active,rejected,archived,all'],
             'period_id' => ['nullable','integer'],
         ]);
 

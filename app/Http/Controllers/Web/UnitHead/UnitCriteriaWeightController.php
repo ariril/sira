@@ -10,6 +10,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginator
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Database\QueryException;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -99,21 +100,24 @@ class UnitCriteriaWeightController extends Controller
         }
 
         // Listing weights for this unit (+ optional period)
-        $currentTotal = 0; // total bobot draft/rejected yang akan diajukan massal
+        $currentTotal = 0; // total bobot draft yang akan diajukan massal
         $pendingTotal = 0; // total bobot yang sedang menunggu persetujuan
         $pendingCount = 0;
         $committedTotal = 0; // total bobot active+pending
         $requiredTotal = 100; // sisa bobot yang harus diajukan
         $activeTotal = 0; // total bobot aktif
-        $hasDraftOrRejected = false;
+        $hasDraft = false;
+        $rejectedCountPeriod = 0;
+        $rejectedCountActive = 0;
         $itemsWorking = collect();
         $itemsHistory = collect();
+        $usingFallback = false;
         if ($unitId && Schema::hasTable('unit_criteria_weights')) {
             $workingPeriodId = !empty($periodId) ? (int) $periodId : ($activePeriodId ?? null);
             $baseBuilder = DB::table('unit_criteria_weights as w')
                 ->join('performance_criterias as pc', 'pc.id', '=', 'w.performance_criteria_id')
                 ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'w.assessment_period_id')
-                ->selectRaw('w.id, w.weight, w.status, w.decided_note, w.assessment_period_id, ap.name as period_name, pc.name as criteria_name, pc.type as criteria_type')
+                ->selectRaw('w.id, w.weight, w.status, w.decided_note, w.assessment_period_id, w.performance_criteria_id, ap.name as period_name, pc.name as criteria_name, pc.type as criteria_type')
                 ->where('w.unit_id', $unitId);
 
             // Working list is always for a single period: selected period, or active period.
@@ -121,18 +125,44 @@ class UnitCriteriaWeightController extends Controller
             $itemsWorking = !empty($workingPeriodId)
                 ? (clone $baseBuilder)
                     ->where('w.assessment_period_id', (int) $workingPeriodId)
-                    ->where('w.status', '!=', 'archived')
+                    ->whereIn('w.status', ['draft', 'pending', 'active'])
                     ->orderByDesc('w.assessment_period_id')
                     ->orderBy('pc.name')
                     ->get()
                 : collect();
 
             $itemsHistory = (clone $baseBuilder)
-                ->where('w.status','archived')
+                ->whereIn('w.status', ['archived', 'rejected'])
                 ->when(!empty($periodId), fn($q) => $q->where('w.assessment_period_id', (int) $periodId))
                 ->orderByDesc('w.assessment_period_id')
                 ->orderBy('pc.name')
                 ->get();
+
+            if ($itemsWorking->isEmpty() && !empty($workingPeriodId)) {
+                $period = AssessmentPeriod::query()->find((int) $workingPeriodId);
+                if ($period && $period->isFrozen()) {
+                    $previous = $this->resolvePreviousPeriod($period);
+                    if ($previous) {
+                        $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
+                        $itemsWorking = (clone $baseBuilder)
+                            ->where('w.assessment_period_id', (int) $previous->id)
+                            ->where(function ($q) use ($hasWasActiveBefore) {
+                                $q->where('w.status', 'active')
+                                    ->orWhere(function ($sub) use ($hasWasActiveBefore) {
+                                        $sub->where('w.status', 'archived');
+                                        if ($hasWasActiveBefore) {
+                                            $sub->where('w.was_active_before', 1);
+                                        }
+                                    });
+                            })
+                            ->orderByDesc('w.assessment_period_id')
+                            ->orderBy('pc.name')
+                            ->get();
+                        $usingFallback = $itemsWorking->isNotEmpty();
+                    }
+                }
+            }
+
 
             // Totals are only meaningful for a concrete target period.
             if (!empty($targetPeriodId)) {
@@ -140,7 +170,7 @@ class UnitCriteriaWeightController extends Controller
                 $currentTotal = (float) DB::table('unit_criteria_weights')
                     ->where('unit_id', $unitId)
                     ->where('assessment_period_id', $targetPeriodId)
-                    ->whereIn('status', ['draft','rejected'])
+                    ->where('status', 'draft')
                     ->sum('weight');
 
                 $pendingQuery = DB::table('unit_criteria_weights')
@@ -163,16 +193,37 @@ class UnitCriteriaWeightController extends Controller
                     ->where('status', 'active')
                     ->sum('weight');
 
-                $hasDraftOrRejected = DB::table('unit_criteria_weights')
+                $hasDraft = DB::table('unit_criteria_weights')
                     ->where('unit_id', $unitId)
                     ->where('assessment_period_id', $targetPeriodId)
-                    ->whereIn('status', ['draft','rejected'])
+                    ->where('status', 'draft')
                     ->exists();
+
+                $rejectedCountPeriod = (int) DB::table('unit_criteria_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $targetPeriodId)
+                    ->where('status', 'rejected')
+                    ->count();
+            }
+
+            if (!empty($activePeriodId)) {
+                $rejectedCountActive = (int) DB::table('unit_criteria_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $activePeriodId)
+                    ->where('status', 'rejected')
+                    ->count();
             }
         } else {
             $itemsWorking = collect();
             $itemsHistory = collect();
         }
+
+        $allActiveApproved = ($pendingCount ?? 0) === 0
+            && !$hasDraft
+            && !empty($targetPeriodId)
+            && (int) round($activeTotal ?? 0) === 100;
+
+        $canCopyPrevious = (bool) ($activePeriod && $previousPeriod && !$allActiveApproved);
 
         return view('kepala_unit.unit_criteria_weights.index', [
             'itemsWorking'     => $itemsWorking,
@@ -190,9 +241,13 @@ class UnitCriteriaWeightController extends Controller
             'pendingTotal' => $pendingTotal,
             'targetPeriodId' => $targetPeriodId,
             'activeTotal' => $activeTotal,
-            'hasDraftOrRejected' => $hasDraftOrRejected,
+            'hasDraftOrRejected' => $hasDraft,
+            'rejectedCountPeriod' => $rejectedCountPeriod,
+            'rejectedCountActive' => $rejectedCountActive,
             'previousPeriod' => $previousPeriod,
+            'canCopyPrevious' => $canCopyPrevious,
             'unitName' => $unitName,
+            'usingFallback' => $usingFallback,
         ]);
     }
 
@@ -224,6 +279,7 @@ class UnitCriteriaWeightController extends Controller
             return back()->withErrors(['assessment_period_id' => 'Tidak ada periode aktif. Hubungi Admin RS.'])->withInput();
         }
         $data['assessment_period_id'] = $activePeriodId;
+
 
             $period = AssessmentPeriod::query()->find((int) $data['assessment_period_id']);
             AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Tambah Bobot Kriteria Unit');
@@ -333,17 +389,18 @@ class UnitCriteriaWeightController extends Controller
             $period = AssessmentPeriod::query()->find((int) ($row->assessment_period_id ?? 0));
             AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ubah Bobot Kriteria Unit');
             AssessmentPeriodGuard::requireActive($period, 'Ubah Bobot Kriteria Unit');
-        if (!in_array((string)$row->status, ['draft','rejected'], true)) {
+        if (!in_array((string)$row->status, ['draft'], true)) {
             if ($request->expectsJson()) {
-                return response()->json(['ok' => false, 'message' => 'Hanya draft/ditolak yang bisa diedit.'], 422);
+                return response()->json(['ok' => false, 'message' => 'Hanya draft yang bisa diedit.'], 422);
             }
-            return back()->withErrors(['status' => 'Hanya draft/ditolak yang bisa diedit.']);
+            return back()->withErrors(['status' => 'Hanya draft yang bisa diedit.']);
         }
+
         // Validasi total tidak melebihi 100 saat update
         $othersSum = (float) DB::table('unit_criteria_weights')
             ->where('unit_id', $row->unit_id)
             ->where('assessment_period_id', $row->assessment_period_id)
-            ->whereIn('status', ['draft','rejected'])
+            ->where('status', 'draft')
             ->where('id', '!=', $id)
             ->sum('weight');
         if (($othersSum + (float)$data['weight']) > 100) {
@@ -367,6 +424,123 @@ class UnitCriteriaWeightController extends Controller
     }
 
     /**
+     * Bulk "Cek": simpan semua input bobot di halaman sebagai draft (refresh halaman).
+     * Meniru pola rater_weights.cek.
+     */
+    public function bulkCheck(Request $request): RedirectResponse
+    {
+        $this->authorizeAccess();
+
+        $me = Auth::user();
+        $unitId = (int) ($me?->unit_id ?? 0);
+        abort_unless($unitId > 0, 403);
+
+        $weights = (array) $request->input('weights', []);
+        $ids = collect(array_keys($weights))
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            return back();
+        }
+
+        // Validate numeric inputs (0-100 integer).
+        $validator = Validator::make(['weights' => $weights], [
+            'weights' => ['required', 'array'],
+            'weights.*' => ['nullable', 'integer', 'min:0', 'max:100'],
+        ]);
+        $validator->validate();
+
+        $rows = DB::table('unit_criteria_weights')
+            ->where('unit_id', $unitId)
+            ->whereIn('id', $ids)
+            ->get();
+
+        // Fail fast if user attempts to update rows outside the allowed set.
+        if ($rows->count() !== count($ids)) {
+            abort(403);
+        }
+
+        $periodIds = $rows->pluck('assessment_period_id')->filter()->unique()->values();
+        foreach ($periodIds as $pid) {
+            $period = AssessmentPeriod::query()->find((int) $pid);
+            AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ubah Bobot Kriteria Unit');
+            AssessmentPeriodGuard::requireActive($period, 'Ubah Bobot Kriteria Unit');
+        }
+
+        $errors = [];
+
+        DB::transaction(function () use ($rows, $weights, &$errors) {
+            foreach ($rows as $row) {
+                $status = (string) ($row->status ?? '');
+                if (!in_array($status, ['draft'], true)) {
+                    $errors[] = 'Ada baris yang tidak bisa diedit karena statusnya bukan draft.';
+                    continue;
+                }
+
+
+                $incoming = $weights[(string) $row->id] ?? null;
+                if ($incoming === null || $incoming === '') {
+                    // Treat empty as 0 to keep totals predictable.
+                    $incoming = 0;
+                }
+
+                DB::table('unit_criteria_weights')
+                    ->where('id', (int) $row->id)
+                    ->update([
+                        'weight' => (int) $incoming,
+                        'decided_note' => null,
+                        'decided_by' => null,
+                        'decided_at' => null,
+                        'updated_at' => now(),
+                    ]);
+            }
+        });
+
+        if (!empty($errors)) {
+            return back()->withErrors($errors);
+        }
+
+        // After saving, validate readiness toward 100% (same spirit as rater weights checklist).
+        // Target period is inferred from the edited rows (UI edits only a single period at a time).
+        $periodId = (int) ($rows->pluck('assessment_period_id')->filter()->unique()->first() ?? 0);
+        if ($periodId > 0) {
+            $draftTotal = (float) DB::table('unit_criteria_weights')
+                ->where('unit_id', $unitId)
+                ->where('assessment_period_id', $periodId)
+                ->where('status', 'draft')
+                ->sum('weight');
+
+            $committed = (float) DB::table('unit_criteria_weights')
+                ->where('unit_id', $unitId)
+                ->where('assessment_period_id', $periodId)
+                ->whereIn('status', ['pending', 'active'])
+                ->sum('weight');
+
+            $required = max(0, 100 - $committed);
+
+            // If draft exceeds 100, highlight immediately.
+            if ((int) round($draftTotal, 0) > 100) {
+                return back()->with('danger', 'Cek gagal: total bobot draft melebihi 100%. Kurangi nilai bobot.');
+            }
+
+            if ($required <= 0) {
+                return back()->with('status', 'Cek berhasil: bobot untuk periode ini sudah lengkap 100%.');
+            }
+
+            if ((int) round($draftTotal, 0) === (int) round($required, 0)) {
+                return back()->with('status', 'Cek berhasil: seluruh perubahan tersimpan sebagai draft dan siap diajukan.');
+            }
+
+            return back()->with('warning', 'Cek berhasil: perubahan tersimpan sebagai draft, namun total draft saat ini ' . number_format($draftTotal, 0) . '%. Kebutuhan tersisa ' . number_format($required, 0) . '%.');
+        }
+
+        return back()->with('status', 'Cek berhasil: semua perubahan tersimpan sebagai draft.');
+    }
+
+    /**
      * Remove the specified resource from storage.
      */
     public function destroy(string $id): RedirectResponse
@@ -380,8 +554,8 @@ class UnitCriteriaWeightController extends Controller
             $period = AssessmentPeriod::query()->find((int) ($row->assessment_period_id ?? 0));
             AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Hapus Bobot Kriteria Unit');
             AssessmentPeriodGuard::requireActive($period, 'Hapus Bobot Kriteria Unit');
-        if (!in_array((string)$row->status, ['draft','rejected'], true)) {
-            return back()->withErrors(['status' => 'Hanya draft/ditolak yang bisa dihapus.']);
+        if (!in_array((string)$row->status, ['draft'], true)) {
+            return back()->withErrors(['status' => 'Hanya draft yang bisa dihapus.']);
         }
         DB::table('unit_criteria_weights')->where('id', $id)->delete();
         return back()->with('status', 'Bobot dihapus.');
@@ -398,8 +572,8 @@ class UnitCriteriaWeightController extends Controller
             AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ajukan Bobot Kriteria Unit');
             AssessmentPeriodGuard::requireActive($period, 'Ajukan Bobot Kriteria Unit');
         // Perbaikan enum: gunakan ->value
-        if (!in_array($weight->status->value, ['draft','rejected'], true)) {
-            return back()->withErrors(['status' => 'Hanya draft/ditolak yang bisa diajukan.']);
+        if (!in_array($weight->status->value, ['draft'], true)) {
+            return back()->withErrors(['status' => 'Hanya draft yang bisa diajukan.']);
         }
         $note = (string) $request->input('proposed_note');
         $weight->update([
@@ -413,7 +587,7 @@ class UnitCriteriaWeightController extends Controller
         return back()->with('status', 'Diajukan untuk persetujuan.');
     }
 
-    /** Ajukan seluruh draft/rejected sekaligus bila total bobot = 100%. */
+    /** Ajukan seluruh draft sekaligus bila total bobot = 100%. */
     public function submitAll(Request $request): RedirectResponse
     {
         $this->authorizeAccess();
@@ -430,10 +604,11 @@ class UnitCriteriaWeightController extends Controller
         AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ajukan Bobot Kriteria Unit');
         AssessmentPeriodGuard::requireActive($period, 'Ajukan Bobot Kriteria Unit');
 
+
         $query = UnitCriteriaWeight::query()
             ->where('unit_id', $unitId)
             ->where('assessment_period_id', $periodId)
-            ->whereIn('status', ['draft','rejected']);
+            ->whereIn('status', ['draft']);
         $weights = $query->get();
         $total = (float) $weights->sum('weight');
 
@@ -500,6 +675,7 @@ class UnitCriteriaWeightController extends Controller
         AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ajukan Perubahan Bobot Kriteria Unit');
         AssessmentPeriodGuard::requireActive($period, 'Ajukan Perubahan Bobot Kriteria Unit');
 
+
         $activeRows = DB::table('unit_criteria_weights')
             ->where('unit_id', $unitId)
             ->where('assessment_period_id', $periodId)
@@ -524,32 +700,45 @@ class UnitCriteriaWeightController extends Controller
             return back()->withErrors(['status' => 'Masih ada bobot draft/pending. Selesaikan terlebih dahulu sebelum mengajukan perubahan.']);
         }
 
-        DB::transaction(function () use ($activeRows, $me, $periodId) {
-            $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
-            foreach ($activeRows as $row) {
-                DB::table('unit_criteria_weights')->where('id', $row->id)->update(array_filter([
-                    'status' => 'archived',
-                    // This row really was active, so it is valid to mark was_active_before=1.
-                    'was_active_before' => $hasWasActiveBefore ? 1 : null,
-                    'updated_at' => now(),
-                ], fn($v) => $v !== null));
+            try {
+                DB::transaction(function () use ($activeRows, $me) {
+                    $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
+                    foreach ($activeRows as $row) {
+                        DB::table('unit_criteria_weights')
+                            ->where('unit_id', $row->unit_id)
+                            ->where('performance_criteria_id', $row->performance_criteria_id)
+                            ->where('assessment_period_id', $row->assessment_period_id)
+                            ->where('status', 'archived')
+                            ->delete();
 
-                DB::table('unit_criteria_weights')->insert([
-                    'unit_id' => $row->unit_id,
-                    'performance_criteria_id' => $row->performance_criteria_id,
-                    'assessment_period_id' => $row->assessment_period_id,
-                    'weight' => $row->weight,
-                    'status' => 'draft',
-                    'proposed_by' => $me->id,
-                    'proposed_note' => 'Pengajuan perubahan tengah periode',
-                    'decided_note' => null,
-                    'decided_by' => null,
-                    'decided_at' => null,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                        DB::table('unit_criteria_weights')
+                            ->where('id', $row->id)
+                            ->update(array_filter([
+                                'status' => 'archived',
+                                // This row really was active, so it is valid to mark was_active_before=1.
+                                'was_active_before' => $hasWasActiveBefore ? 1 : null,
+                                'updated_at' => now(),
+                            ], fn($v) => $v !== null));
+
+                        DB::table('unit_criteria_weights')->insert([
+                            'unit_id' => $row->unit_id,
+                            'performance_criteria_id' => $row->performance_criteria_id,
+                            'assessment_period_id' => $row->assessment_period_id,
+                            'weight' => $row->weight,
+                            'status' => 'draft',
+                            'proposed_by' => $me->id,
+                            'proposed_note' => 'Pengajuan perubahan tengah periode',
+                            'decided_note' => null,
+                            'decided_by' => null,
+                            'decided_at' => null,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                    }
+                });
+            } catch (QueryException $e) {
+                return back()->withErrors(['status' => 'Gagal mengajukan perubahan karena konflik data. Silakan coba ulang atau hubungi admin jika masalah berlanjut.']);
             }
-        });
 
         return back()->with('status', 'Perubahan diajukan. Bobot baru dibuat sebagai draft.');
     }
@@ -579,7 +768,7 @@ class UnitCriteriaWeightController extends Controller
         $alreadyExists = DB::table('unit_criteria_weights')
             ->where('unit_id', $unitId)
             ->where('assessment_period_id', $activePeriod->id)
-            ->where('status', '!=', 'archived')
+            ->whereIn('status', ['draft', 'pending', 'active'])
             ->exists();
         if ($alreadyExists) {
             return back()->withErrors(['status' => 'Periode aktif sudah memiliki bobot. Hapus atau arsipkan terlebih dahulu.']);
@@ -629,6 +818,82 @@ class UnitCriteriaWeightController extends Controller
         return back()->with('status', 'Bobot periode sebelumnya disalin sebagai draft.');
     }
 
+    /** Salin bobot ditolak (batch terakhir) menjadi draft periode aktif. */
+    public function copyFromRejected(): RedirectResponse
+    {
+        $this->authorizeAccess();
+        $me = Auth::user();
+        $unitId = $me?->unit_id;
+        if (!$unitId) abort(403);
+
+        if (!Schema::hasTable('assessment_periods') || !Schema::hasTable('unit_criteria_weights')) {
+            return back()->withErrors(['status' => 'Tabel periode atau bobot belum tersedia.']);
+        }
+
+        $activePeriod = DB::table('assessment_periods')->where('status', AssessmentPeriod::STATUS_ACTIVE)->first();
+        if (!$activePeriod) return back()->withErrors(['status' => 'Tidak ada periode aktif.']);
+
+        $period = AssessmentPeriod::query()->find((int) ($activePeriod->id ?? 0));
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Salin Bobot Ditolak');
+        AssessmentPeriodGuard::requireActive($period, 'Salin Bobot Ditolak');
+
+        $alreadyExists = DB::table('unit_criteria_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $activePeriod->id)
+            ->whereIn('status', ['draft', 'pending', 'active'])
+            ->exists();
+        if ($alreadyExists) {
+            return back()->withErrors(['status' => 'Periode aktif sudah memiliki bobot. Hapus atau arsipkan terlebih dahulu.']);
+        }
+
+        $latest = DB::table('unit_criteria_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $activePeriod->id)
+            ->where('status', 'rejected')
+            ->orderByRaw('COALESCE(decided_at, updated_at, created_at) DESC')
+            ->first();
+
+        if (!$latest) {
+            return back()->withErrors(['status' => 'Tidak ada bobot ditolak pada periode aktif.']);
+        }
+
+        $latestDecidedAt = $latest->decided_at ?? null;
+        $latestUpdatedAt = $latest->updated_at ?? $latest->created_at ?? null;
+
+        $sourceRows = DB::table('unit_criteria_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $activePeriod->id)
+            ->where('status', 'rejected')
+            ->when($latestDecidedAt, fn($q) => $q->where('decided_at', $latestDecidedAt))
+            ->when(!$latestDecidedAt && $latestUpdatedAt, fn($q) => $q->where('updated_at', $latestUpdatedAt))
+            ->get();
+
+        if ($sourceRows->isEmpty()) {
+            return back()->withErrors(['status' => 'Tidak ada batch penolakan yang dapat disalin.']);
+        }
+
+        DB::transaction(function () use ($sourceRows, $me) {
+            foreach ($sourceRows as $row) {
+                DB::table('unit_criteria_weights')->insert([
+                    'unit_id' => $row->unit_id,
+                    'performance_criteria_id' => $row->performance_criteria_id,
+                    'assessment_period_id' => $row->assessment_period_id,
+                    'weight' => $row->weight,
+                    'status' => 'draft',
+                    'proposed_by' => $me->id,
+                    'proposed_note' => 'Salin bobot ditolak',
+                    'decided_note' => null,
+                    'decided_by' => null,
+                    'decided_at' => null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        });
+
+        return back()->with('status', 'Bobot ditolak terakhir berhasil disalin sebagai draft.');
+    }
+
     private function authorizeAccess(): void
     {
         $user = Auth::user();
@@ -674,6 +939,31 @@ class UnitCriteriaWeightController extends Controller
                     : null,
                 'unit_criteria_weights.updated_at' => now(),
             ], fn($v) => $v !== null));
+    }
+
+    private function resolvePreviousPeriod(AssessmentPeriod $period): ?object
+    {
+        if (!Schema::hasTable('assessment_periods')) {
+            return null;
+        }
+
+        $query = DB::table('assessment_periods')
+            ->where('id', '!=', (int) $period->id)
+            ->whereIn('status', [
+                AssessmentPeriod::STATUS_LOCKED,
+                AssessmentPeriod::STATUS_APPROVAL,
+                AssessmentPeriod::STATUS_CLOSED,
+            ]);
+
+        if (Schema::hasColumn('assessment_periods', 'end_date') && Schema::hasColumn('assessment_periods', 'start_date') && !empty($period->start_date)) {
+            $query->where('end_date', '<', $period->start_date)
+                ->orderByDesc('end_date');
+        } else {
+            $query->where('id', '<', (int) $period->id)
+                ->orderByDesc('id');
+        }
+
+        return $query->first();
     }
 
     private function previousPeriod($activePeriod, ?int $unitId)

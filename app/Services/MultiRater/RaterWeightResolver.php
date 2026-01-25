@@ -3,6 +3,9 @@
 namespace App\Services\MultiRater;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
+use App\Models\AssessmentPeriod;
 
 class RaterWeightResolver
 {
@@ -57,12 +60,39 @@ class RaterWeightResolver
                 $q->where('status', 'active')
                     ->orWhere(function ($q) {
                         $q->where('status', 'archived');
-                        if (\Illuminate\Support\Facades\Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
+                        if (Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
                             $q->where('was_active_before', 1);
                         }
                     });
             })
             ->get(['assessee_profession_id', 'assessor_type', 'assessor_level', 'weight', 'status']);
+
+        $period = Schema::hasTable('assessment_periods')
+            ? AssessmentPeriod::query()->find($periodId)
+            : null;
+
+        if ($rows->isEmpty() && $period && $period->isFrozen()) {
+            $previous = self::resolvePreviousPeriod($periodId);
+            if ($previous) {
+                $rows = DB::table('unit_rater_weights')
+                    ->where('assessment_period_id', (int) $previous->id)
+                    ->where('unit_id', $unitId)
+                    ->where('performance_criteria_id', $criteriaId)
+                    ->whereIn('assessee_profession_id', $assesseeProfessionIds)
+                    ->whereIn('status', ['active', 'archived'])
+                    ->when(Schema::hasColumn('unit_rater_weights', 'was_active_before'), fn($q) => $q->where('was_active_before', 1))
+                    ->get(['assessee_profession_id', 'assessor_type', 'assessor_level', 'weight', 'status']);
+            }
+        }
+
+        if ($rows->isEmpty()) {
+            if ($period && $period->isFrozen()) {
+                throw ValidationException::withMessages([
+                    'status' => 'Periode tidak dapat diproses karena bobot kinerja tidak tersedia dan tidak ditemukan bobot aktif pada periode sebelumnya.',
+                ]);
+            }
+            return [];
+        }
 
         if ($rows->isEmpty()) {
             return [];
@@ -105,5 +135,35 @@ class RaterWeightResolver
         }
 
         return $out;
+    }
+
+    private static function resolvePreviousPeriod(int $periodId): ?object
+    {
+        if (!Schema::hasTable('assessment_periods')) {
+            return null;
+        }
+
+        $current = AssessmentPeriod::query()->find($periodId);
+        if (!$current) {
+            return null;
+        }
+
+        $query = DB::table('assessment_periods')
+            ->where('id', '!=', (int) $current->id)
+            ->whereIn('status', [
+                AssessmentPeriod::STATUS_LOCKED,
+                AssessmentPeriod::STATUS_APPROVAL,
+                AssessmentPeriod::STATUS_CLOSED,
+            ]);
+
+        if (Schema::hasColumn('assessment_periods', 'end_date') && Schema::hasColumn('assessment_periods', 'start_date') && !empty($current->start_date)) {
+            $query->where('end_date', '<', $current->start_date)
+                ->orderByDesc('end_date');
+        } else {
+            $query->where('id', '<', (int) $current->id)
+                ->orderByDesc('id');
+        }
+
+        return $query->first();
     }
 }

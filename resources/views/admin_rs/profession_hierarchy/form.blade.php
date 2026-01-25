@@ -36,7 +36,7 @@
 
             <div class="grid gap-5 md:grid-cols-12">
                 <div class="md:col-span-6">
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Assessee Profesi</label>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Profesi Dinilai</label>
                     <x-ui.select
                         name="assessee_profession_id"
                         :options="$assesseeProfessions->pluck('name','id')->all()"
@@ -55,7 +55,7 @@
                 </div>
 
                 <div class="md:col-span-6">
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Assessor Profesi</label>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Profesi Penilai</label>
                     <x-ui.select
                         name="assessor_profession_id"
                         :options="$professions->pluck('name','id')->all()"
@@ -66,7 +66,7 @@
                 <div class="md:col-span-6" id="levelWrap">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Level (khusus Supervisor)</label>
                     <x-ui.input name="level" type="number" min="1" placeholder="Contoh: 1" value="{{ old('level', $item->level) }}" id="level" />
-                    <div class="text-xs text-slate-500 mt-2">Wajib diisi jika relasi Supervisor. Kosong untuk Peer/Subordinate.</div>
+                    <div class="text-xs text-slate-500 mt-2">Level hanya diisi jika terdapat lebih dari satu atasan atau bawahan. Kosongkan jika relasi Peer atau hanya satu level.</div>
                 </div>
 
                 <div class="md:col-span-6">
@@ -97,13 +97,13 @@
 
             function sync(){
                 const v = (rel && rel.value) ? rel.value : 'supervisor';
-                const isSupervisor = v === 'supervisor';
+                const isLevelRelation = v === 'supervisor' || v === 'subordinate';
 
-                if (wrap) wrap.style.display = isSupervisor ? '' : 'none';
+                if (wrap) wrap.style.display = isLevelRelation ? '' : 'none';
 
                 // Prevent prohibited_unless from triggering when not supervisor
                 if (level) {
-                    if (isSupervisor) {
+                    if (isLevelRelation) {
                         level.disabled = false;
                     } else {
                         level.value = '';

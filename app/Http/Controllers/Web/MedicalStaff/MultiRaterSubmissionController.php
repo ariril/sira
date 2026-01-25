@@ -19,6 +19,7 @@ use App\Services\MultiRater\AssessorLevelResolver;
 use App\Services\MultiRater\SimpleFormData;
 use App\Services\MultiRater\SummaryService;
 use App\Support\AssessmentPeriodGuard;
+use Illuminate\Support\Facades\DB;
 
 class MultiRaterSubmissionController extends Controller
 {
@@ -82,6 +83,7 @@ class MultiRaterSubmissionController extends Controller
             $assessments = MultiRaterAssessment::with(['assessee.unit','period'])
                 ->where('assessor_id', Auth::id())
                 ->where('assessment_period_id', $window->assessment_period_id)
+                ->whereIn('assessor_type', ['self', 'peer', 'subordinate'])
                 ->whereIn('status', ['invited','in_progress'])
                 ->orderByDesc('id')
                 ->get();
@@ -97,8 +99,18 @@ class MultiRaterSubmissionController extends Controller
                     ->all();
 
                 $assessorHasKepalaPoliklinik = $assessor ? (bool) $assessor->hasRole('kepala_poliklinik') : false;
+                $reportingRows = DB::table('profession_reporting_lines')
+                    ->where('is_active', true)
+                    ->get(['assessee_profession_id', 'assessor_profession_id', 'relation_type']);
+                $reportingMap = [];
+                foreach ($reportingRows as $row) {
+                    $ap = (int) $row->assessee_profession_id;
+                    $rp = (int) $row->assessor_profession_id;
+                    $rt = (string) $row->relation_type;
+                    $reportingMap[$ap][$rt][$rp] = true;
+                }
 
-                $contextResolver = function ($target) use ($assessorProfessionId, $criteriaByType, $assessorHasKepalaPoliklinik) {
+                $contextResolver = function ($target) use ($assessorProfessionId, $criteriaByType, $assessorHasKepalaPoliklinik, $reportingMap) {
                     $assessorType = AssessorTypeResolver::resolveByIds(
                         (int) Auth::id(),
                         $assessorProfessionId ? (int) $assessorProfessionId : null,
@@ -106,6 +118,18 @@ class MultiRaterSubmissionController extends Controller
                         !empty($target->profession_id) ? (int) $target->profession_id : null,
                         $assessorHasKepalaPoliklinik
                     );
+
+                    if (in_array($assessorType, ['supervisor', 'peer', 'subordinate'], true)) {
+                        $assesseeProfessionId = !empty($target->profession_id) ? (int) $target->profession_id : 0;
+                        $assessorProfessionIdInt = $assessorProfessionId ? (int) $assessorProfessionId : 0;
+                        if ($assesseeProfessionId <= 0 || $assessorProfessionIdInt <= 0 || empty($reportingMap[$assesseeProfessionId][$assessorType][$assessorProfessionIdInt])) {
+                            return [
+                                'assessor_type' => $assessorType,
+                                'assessor_level' => 0,
+                                'criteria' => collect(),
+                            ];
+                        }
+                    }
 
                     $assessorLevel = 0;
                     if ($assessorType === 'supervisor' && $assessorProfessionId && !empty($target->profession_id)) {
@@ -186,6 +210,7 @@ class MultiRaterSubmissionController extends Controller
                     ->leftJoin($criteriaTable . ' as pc', 'pc.id', '=', 'multi_rater_assessment_details.performance_criteria_id')
                     ->where('mra.assessment_period_id', $periodId)
                     ->where('mra.assessor_id', Auth::id())
+                    ->whereIn('mra.assessor_type', ['self', 'peer', 'subordinate'])
                     ->when($assessorProfessionId, fn($q) => $q->where('mra.assessor_profession_id', $assessorProfessionId))
                     ->where('pc.is_360', true)
                     ->where('u.unit_id', $unitId)
@@ -232,6 +257,7 @@ class MultiRaterSubmissionController extends Controller
     public function show(MultiRaterAssessment $assessment)
     {
         abort_unless($assessment->assessor_id === Auth::id(), 403);
+        abort_unless(in_array((string) $assessment->assessor_type, ['self', 'peer', 'subordinate'], true), 403);
         $period = AssessmentPeriod::query()->find((int) $assessment->assessment_period_id);
 
         AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Penilaian 360');
@@ -260,6 +286,7 @@ class MultiRaterSubmissionController extends Controller
     public function submit(Request $request, MultiRaterAssessment $assessment)
     {
         abort_unless($assessment->assessor_id === Auth::id(), 403);
+        abort_unless(in_array((string) $assessment->assessor_type, ['self', 'peer', 'subordinate'], true), 403);
         $period = AssessmentPeriod::query()->find((int) $assessment->assessment_period_id);
 
         AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Penilaian 360');

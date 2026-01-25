@@ -1,6 +1,7 @@
 @props([
     'title' => 'Penilaian 360°',
     'periodId',
+    'windowId' => null,
     'unitId' => null,
     'raterRole',
     'targets' => [],
@@ -21,7 +22,7 @@
     $remainingPeople = $targetsCollection->count();
 @endphp
 
-<div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100" x-data="simple360Form(@js($targetsData), @js($criteriaData), '{{ route($postRoute) }}', {{ (int)$periodId }}, {{ $unitId ? (int)$unitId : 'null' }}, '{{ $raterRole }}', '{{ $savedTableKey ?? '' }}', {{ (int) ($remainingAssignments ?? 0) }}, {{ (int) ($totalAssignments ?? 0) }}, {{ (int) $remainingPeople }}, {{ $canSubmit ? 'true' : 'false' }})">
+<div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100" x-data="simple360Form(@js($targetsData), @js($criteriaData), '{{ route($postRoute) }}', {{ (int)$periodId }}, {{ $windowId ? (int)$windowId : 'null' }}, {{ $unitId ? (int)$unitId : 'null' }}, '{{ $raterRole }}', '{{ $savedTableKey ?? '' }}', {{ (int) ($remainingAssignments ?? 0) }}, {{ (int) ($totalAssignments ?? 0) }}, {{ (int) $remainingPeople }}, {{ $canSubmit ? 'true' : 'false' }})">
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-semibold">{{ $title }}</h2>
         </div>
@@ -112,7 +113,7 @@
 
     <script>
         document.addEventListener('alpine:init', () => {
-            Alpine.data('simple360Form', (initialItems, criteriaCatalog, postUrl, periodId, unitId, raterRole, savedTableKey = '', remainingAssignments = 0, totalAssignments = 0, remainingPeople = 0, canSubmit = true) => ({
+            Alpine.data('simple360Form', (initialItems, criteriaCatalog, postUrl, periodId, windowId, unitId, raterRole, savedTableKey = '', remainingAssignments = 0, totalAssignments = 0, remainingPeople = 0, canSubmit = true) => ({
                 items: initialItems,
                 criteriaCatalog,
                 criteriaMap: {},
@@ -279,6 +280,7 @@
 
                     const fd = new FormData();
                     fd.set('assessment_period_id', periodId);
+                    // Window id is not persisted on multi_rater_assessments; use period only.
                     if (unitId) fd.set('unit_id', unitId);
                     fd.set('rater_role', raterRole);
                     fd.set('target_user_id', this.selectedTargetId);
@@ -393,10 +395,11 @@
                     const editUrl = wrapper.dataset.editUrl;
                     const csrf = wrapper.dataset.csrf;
                     const periodId = wrapper.dataset.periodId;
+                    const windowId = wrapper.dataset.windowId;
                     const inlineVariant = wrapper.dataset.inlineVariant || 'orange';
                     let scoreCell = `<span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">${row.score}</span>`;
                     if (allowEdit && editUrl && csrf && periodId) {
-                        scoreCell = buildInlineEditForm({ editUrl, csrf, periodId, targetId: row.targetId, criteriaId: row.criteriaId, score: row.score, variant: inlineVariant });
+                        scoreCell = buildInlineEditForm({ editUrl, csrf, periodId, windowId, targetId: row.targetId, criteriaId: row.criteriaId, score: row.score, variant: inlineVariant });
                     }
 
                     const tr = document.createElement('tr');
@@ -432,7 +435,7 @@
                 }
             }
 
-            function buildInlineEditForm({ editUrl, csrf, periodId, targetId, criteriaId, score, variant = 'orange' }) {
+            function buildInlineEditForm({ editUrl, csrf, periodId, windowId, targetId, criteriaId, score, variant = 'orange' }) {
                 let buttonColor;
                 switch (variant) {
                     case 'sky':
@@ -452,6 +455,7 @@
                 return `
 <form class="inline-flex items-center gap-2" onsubmit="event.preventDefault(); const fd=new FormData(this); fetch('${editUrl}',{method:'POST',headers:{'X-CSRF-TOKEN':'${csrf}','Accept':'application/json'},body:fd}).then(r=>r.json()).then(()=>location.reload());">
     <input type="hidden" name="assessment_period_id" value="${periodId}">
+
     <input type="hidden" name="target_user_id" value="${targetId}">
     <input type="hidden" name="performance_criteria_id" value="${criteriaId}">
     <div class="relative w-24">

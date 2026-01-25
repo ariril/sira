@@ -17,7 +17,7 @@ use App\Http\Controllers\Web\ReviewInvitationRedirectController;
 use App\Http\Controllers\Web\SuperAdmin\DashboardController as SADashboard;
 use App\Http\Controllers\Web\UnitHead\DashboardController as KUDashboard;             // kepala_unit
 use App\Http\Controllers\Web\UnitHead\ReviewApprovalController;
-use App\Http\Controllers\Web\AdminHospital\DashboardController as AdminDashboard;             // admin_rs (baru)
+use App\Http\Controllers\Web\AdminHospital\DashboardController as AdminDashboard;     // admin_rs (baru)
 use App\Http\Controllers\Web\MedicalStaff\DashboardController as PMDashboard;         // pegawai_medis
 use App\Http\Controllers\Web\PolyclinicHead\DashboardController as KPDashboard;       // kepala_poliklinik
 use App\Http\Controllers\Web\MultiRater\StoreController as MRStoreController;
@@ -102,17 +102,16 @@ Route::middleware(['auth','verified','role:super_admin'])
         Route::resource('units',        \App\Http\Controllers\Web\SuperAdmin\UnitController::class);
         Route::resource('professions',  \App\Http\Controllers\Web\SuperAdmin\ProfessionController::class);
         Route::resource('users',        \App\Http\Controllers\Web\SuperAdmin\UserController::class);
+
         // Bulk user import
         Route::get('users-import', [\App\Http\Controllers\Web\SuperAdmin\UserImportController::class, 'form'])->name('users.import.form');
         Route::post('users-import', [\App\Http\Controllers\Web\SuperAdmin\UserImportController::class, 'process'])->name('users.import.process');
         Route::get('users-import-template', [\App\Http\Controllers\Web\SuperAdmin\UserImportController::class, 'template'])->name('users.import.template');
 
-        // (Kinerja dipindahkan ke Admin RS)
-
-    // Konten & pengaturan situs
-    // Gunakan GET+PUT tanpa parameter agar form bisa submit ke /super-admin/site-settings langsung
-    Route::get('site-settings', [\App\Http\Controllers\Web\SuperAdmin\SiteSettingController::class, 'index'])->name('site-settings.index');
-    Route::put('site-settings', [\App\Http\Controllers\Web\SuperAdmin\SiteSettingController::class, 'update'])->name('site-settings.update');
+        // Konten & pengaturan situs
+        // Gunakan GET+PUT tanpa parameter agar form bisa submit ke /super-admin/site-settings langsung
+        Route::get('site-settings', [\App\Http\Controllers\Web\SuperAdmin\SiteSettingController::class, 'index'])->name('site-settings.index');
+        Route::put('site-settings', [\App\Http\Controllers\Web\SuperAdmin\SiteSettingController::class, 'update'])->name('site-settings.update');
         Route::resource('about-pages',   \App\Http\Controllers\Web\SuperAdmin\AboutPageManageController::class)->parameters(['about-pages' => 'aboutPage']);
         Route::resource('faqs',          \App\Http\Controllers\Web\SuperAdmin\FaqManageController::class);
         Route::resource('announcements', \App\Http\Controllers\Web\SuperAdmin\AnnouncementManageController::class);
@@ -194,7 +193,6 @@ Route::middleware(['auth','verified','role:admin_rs'])
         // 360 Invitations management (URL diselaraskan dengan folder view: admin_rs/multi_rater)
         Route::get('multi-rater', [\App\Http\Controllers\Web\AdminHospital\MultiRaterController::class, 'index'])->name('multi_rater.index');
         Route::post('multi-rater/open', [\App\Http\Controllers\Web\AdminHospital\MultiRaterController::class, 'openWindow'])->name('multi_rater.open');
-        Route::post('multi-rater/close', [\App\Http\Controllers\Web\AdminHospital\MultiRaterController::class, 'closeWindow'])->name('multi_rater.close');
         Route::post('multi-rater/generate', [\App\Http\Controllers\Web\AdminHospital\MultiRaterController::class, 'generate'])->name('multi_rater.generate');
 
         // Aturan Kriteria 360 (criteria_rater_rules)
@@ -205,10 +203,16 @@ Route::middleware(['auth','verified','role:admin_rs'])
         Route::put('criteria-rater-rules/{criteria_rater_rule}', [\App\Http\Controllers\Web\AdminHospital\CriteriaRaterRuleController::class, 'update'])->name('criteria_rater_rules.update');
         Route::delete('criteria-rater-rules/{criteria_rater_rule}', [\App\Http\Controllers\Web\AdminHospital\CriteriaRaterRuleController::class, 'destroy'])->name('criteria_rater_rules.destroy');
 
-    // Approval usulan kriteria baru
-    Route::get('criteria-proposals', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'index'])->name('criteria_proposals.index');
-    Route::post('criteria-proposals/{proposal}/approve', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'approve'])->name('criteria_proposals.approve');
-    Route::post('criteria-proposals/{proposal}/reject', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'reject'])->name('criteria_proposals.reject');
+        // Bobot Penilai 360 (monitoring)
+        Route::get('unit-rater-weights/units', [\App\Http\Controllers\Web\AdminHospital\UnitRaterWeightMonitorController::class, 'units'])
+            ->name('unit_rater_weights.units');
+        Route::get('unit-rater-weights/units/{unitId}', [\App\Http\Controllers\Web\AdminHospital\UnitRaterWeightMonitorController::class, 'unit'])
+            ->name('unit_rater_weights.unit');
+
+        // Approval usulan kriteria baru
+        Route::get('criteria-proposals', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'index'])->name('criteria_proposals.index');
+        Route::post('criteria-proposals/{proposal}/approve', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'approve'])->name('criteria_proposals.approve');
+        Route::post('criteria-proposals/{proposal}/reject', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'reject'])->name('criteria_proposals.reject');
 
         // Periode Penilaian (assessment_periods)
         Route::resource('assessment-periods', \App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class)
@@ -273,10 +277,14 @@ Route::middleware(['auth','verified','role:kepala_unit'])
             ->name('unit_criteria_weights.submit');
         Route::post('unit-criteria-weights/submit-all', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'submitAll'])
             ->name('unit_criteria_weights.submit_all');
+        Route::post('unit-criteria-weights/cek', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'bulkCheck'])
+            ->name('unit_criteria_weights.cek');
         Route::post('unit-criteria-weights/request-change', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'requestChange'])
             ->name('unit_criteria_weights.request_change');
         Route::post('unit-criteria-weights/copy-previous', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'copyFromPrevious'])
             ->name('unit_criteria_weights.copy_previous');
+        Route::post('unit-criteria-weights/copy-rejected', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'copyFromRejected'])
+            ->name('unit_criteria_weights.copy_rejected');
 
         // Usulan kriteria baru
         Route::get('criteria-proposals', [\App\Http\Controllers\Web\UnitHead\CriteriaProposalController::class,'index'])->name('criteria_proposals.index');
@@ -284,6 +292,10 @@ Route::middleware(['auth','verified','role:kepala_unit'])
 
         // Tugas Tambahan untuk unit
         Route::resource('additional-tasks', \App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class);
+        Route::get('additional-tasks/{task}/edit-points', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class, 'editPoints'])
+            ->name('additional_tasks.edit_points');
+        Route::patch('additional-tasks/{task}/points', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class, 'updatePoints'])
+            ->name('additional_tasks.update_points');
         Route::patch('additional-tasks/{task}/open',     [\App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class,'open'])->name('additional_tasks.open');
         Route::patch('additional-tasks/{task}/close',    [\App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class,'close'])->name('additional_tasks.close');
 
@@ -316,7 +328,6 @@ Route::middleware(['auth','verified','role:kepala_unit'])
 
         // 360 submissions (if assigned as assessor) – selaraskan dengan multi-rater
         Route::get('multi-rater', [\App\Http\Controllers\Web\UnitHead\MultiRaterSubmissionController::class, 'index'])->name('multi_rater.index');
-        // Place the specific store route BEFORE the parameterized route to avoid binding 'store' as {assessment}
         Route::post('multi-rater/store', [MRStoreController::class, 'store'])->name('multi_rater.store');
         Route::get('multi-rater/{assessment}', [\App\Http\Controllers\Web\UnitHead\MultiRaterSubmissionController::class, 'show'])->name('multi_rater.show');
         Route::post('multi-rater/{assessment}', [\App\Http\Controllers\Web\UnitHead\MultiRaterSubmissionController::class, 'submit'])->name('multi_rater.submit');
@@ -325,7 +336,9 @@ Route::middleware(['auth','verified','role:kepala_unit'])
         Route::get('rater-weights', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'index'])->name('rater_weights.index');
         Route::put('rater-weights/{raterWeight}', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'updateInline'])->name('rater_weights.update');
         Route::post('rater-weights/cek', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'bulkCheck'])->name('rater_weights.cek');
+        Route::post('rater-weights/request-change', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'requestChange'])->name('rater_weights.request_change');
         Route::post('rater-weights/copy-previous', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'copyFromPrevious'])->name('rater_weights.copy_previous');
+        Route::post('rater-weights/copy-rejected', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'copyFromRejected'])->name('rater_weights.copy_rejected');
         Route::post('rater-weights/submit-all', [\App\Http\Controllers\Web\UnitHead\RaterWeightController::class, 'submitAll'])->name('rater_weights.submit_all');
     });
 
@@ -348,9 +361,14 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
         Route::post('unit-criteria-weights/{weight}/reject',  [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'reject'])->name('unit_criteria_weights.reject');
         Route::post('unit-criteria-weights/units/{unitId}/approve', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'approveUnit'])->name('unit_criteria_weights.approve_unit');
         Route::post('unit-criteria-weights/units/{unitId}/reject',  [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'rejectUnit'])->name('unit_criteria_weights.reject_unit');
-    // Read-only list per unit & detail
-    Route::get('unit-criteria-weights/units', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'units'])->name('unit_criteria_weights.units');
-    Route::get('unit-criteria-weights/units/{unitId}', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'unit'])->name('unit_criteria_weights.unit');
+    
+        // Read-only list per unit & detail
+        Route::get('unit-criteria-weights/units', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'units'])->name('unit_criteria_weights.units');
+        Route::get('unit-criteria-weights/units/{unitId}', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'unit'])->name('unit_criteria_weights.unit');
+
+        // Monitoring Bobot Penilai 360 (read-only)
+        Route::get('unit-rater-weights/units', [\App\Http\Controllers\Web\PolyclinicHead\UnitRaterWeightMonitorController::class, 'units'])->name('unit_rater_weights.units');
+        Route::get('unit-rater-weights/units/{unitId}', [\App\Http\Controllers\Web\PolyclinicHead\UnitRaterWeightMonitorController::class, 'unit'])->name('unit_rater_weights.unit');
 
         // Approval final penilaian – Level 3
         Route::get('assessments/pending',   [\App\Http\Controllers\Web\PolyclinicHead\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
@@ -419,8 +437,6 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
 
         // Lihat kriteria & bobot aktif untuk unit sendiri pada periode aktif
         Route::get('unit-criteria-weights', [\App\Http\Controllers\Web\MedicalStaff\UnitCriteriaWeightViewController::class, 'index'])->name('unit_criteria_weights.index');
-
-        // (moved to assessments-360 above to avoid collision with resource route)
     });
 
 /**

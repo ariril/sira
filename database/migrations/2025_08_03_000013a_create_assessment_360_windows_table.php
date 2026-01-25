@@ -20,7 +20,6 @@ return new class extends Migration
         });
 
         // Add generated column to enforce single active window per period
-        // MySQL syntax via raw statements
         if (DB::getDriverName() === 'mysql') {
             Schema::table('assessment_360_windows', function (Blueprint $table) {
                 $table->unsignedBigInteger('active_period_key')->nullable()->storedAs("IF(is_active, assessment_period_id, NULL)");

@@ -11,6 +11,13 @@
         <h1 class="text-2xl font-semibold text-slate-800">Penilaian 360°</h1>
     </x-slot>
     <div class="container-px py-6 space-y-6">
+        @if(!($window ?? null) && ($latestRevisionPeriod ?? null))
+            <div class="rounded-xl border border-sky-200 bg-sky-50 text-sky-900 px-4 py-3 text-sm">
+                <div class="font-semibold">Periode sedang REVISION ({{ $latestRevisionPeriod->name ?? '-' }}).</div>
+                <div>Penilaian 360 untuk pegawai hanya dapat diisi saat periode <b>AKTIF</b>. Pada tahap revisi, perbaikan 360 hanya untuk Kepala Unit / Kepala Poliklinik.</div>
+            </div>
+        @endif
+
         @include('shared.multi_rater.window_notice', [
             'window' => $window,
             'periodName' => $activePeriod->name ?? null,
@@ -21,6 +28,7 @@
                 @include('shared.multi_rater.simple_form', [
                     'title' => 'Penilaian Diri',
                     'periodId' => $periodId,
+                    'windowId' => $window?->id,
                     'unitId' => $unitId,
                     'raterRole' => 'pegawai_medis',
                     'targets' => $selfTargets ?? collect(),
@@ -37,6 +45,7 @@
             @include('shared.multi_rater.simple_form', [
                 'title' => 'Penilaian Pegawai',
                 'periodId' => $periodId,
+                'windowId' => $window?->id,
                 'unitId' => $unitId,
                 'raterRole' => 'pegawai_medis',
                 'targets' => $unitPeers,
@@ -54,7 +63,7 @@
             @php
                 $allowInlineEdit = ($windowEndsAt ?? null) && now()->lte($windowEndsAt) && (bool) ($canSubmit ?? false);
             @endphp
-            <div class="mt-6 bg-white rounded-2xl shadow-sm border border-slate-100" data-saved-table-key="pegawai-medis" data-edit-url="{{ route('pegawai_medis.multi_rater.store') }}" data-period-id="{{ $periodId }}" data-csrf="{{ csrf_token() }}" data-allow-inline-edit="{{ $allowInlineEdit ? 'true' : 'false' }}" data-inline-variant="sky">
+            <div class="mt-6 bg-white rounded-2xl shadow-sm border border-slate-100" data-saved-table-key="pegawai-medis" data-edit-url="{{ route('pegawai_medis.multi_rater.store') }}" data-period-id="{{ $periodId }}" data-window-id="{{ $window?->id }}" data-csrf="{{ csrf_token() }}" data-allow-inline-edit="{{ $allowInlineEdit ? 'true' : 'false' }}" data-inline-variant="sky">
                 <x-ui.table min-width="840px">
                     <x-slot name="head">
                         <tr>
@@ -105,7 +114,17 @@
                             </td>
                             <td class="px-6 py-3">
                                 @if($allowInlineEdit)
-                                    <form class="inline-flex items-center gap-2" onsubmit="event.preventDefault(); const fd=new FormData(this); fetch('{{ route('pegawai_medis.multi_rater.store') }}',{method:'POST',headers:{'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'},body:fd}).then(r=>r.json()).then(()=>location.reload());">
+                                    <form class="inline-flex items-center gap-2" onsubmit="event.preventDefault(); const fd=new FormData(this);
+                                        fetch('{{ route('pegawai_medis.multi_rater.store') }}',{method:'POST',headers:{'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'},body:fd})
+                                            .then(async (r) => {
+                                                const data = await r.json().catch(() => ({}));
+                                                if (!r.ok) {
+                                                    const msg = data?.message || 'Gagal menyimpan perubahan.';
+                                                    alert(msg);
+                                                    return;
+                                                }
+                                                location.reload();
+                                            });">
                                         <input type="hidden" name="assessment_period_id" value="{{ $periodId }}">
                                         <input type="hidden" name="rater_role" value="pegawai_medis">
                                         <input type="hidden" name="target_user_id" value="{{ $s->target_user_id }}">

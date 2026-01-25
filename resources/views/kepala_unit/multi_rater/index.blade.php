@@ -19,6 +19,7 @@
             @include('shared.multi_rater.simple_form', [
                 'title' => 'Penilaian Pegawai',
                 'periodId' => $periodId,
+                'windowId' => $window?->id,
                 'unitId' => $unitId,
                 'raterRole' => 'kepala_unit',
                      'targets' => $unitStaff,
@@ -34,9 +35,13 @@
 
         @if(isset($savedScores))
             @php
-                $allowInlineEdit = ($windowEndsAt ?? null) && now()->lte($windowEndsAt) && (bool) ($canSubmit ?? false);
+                $periodStatus = (string) ($activePeriod->status ?? '');
+                $allowInlineEdit = (bool) ($canSubmit ?? false) && (
+                    $periodStatus === 'revision'
+                    || (($windowEndsAt ?? null) && now()->lte($windowEndsAt))
+                );
             @endphp
-            <div class="mt-6 bg-white rounded-2xl shadow-sm border border-slate-100" data-saved-table-key="kepala-unit" data-edit-url="{{ route('kepala_unit.multi_rater.store') }}" data-period-id="{{ $periodId }}" data-csrf="{{ csrf_token() }}" data-allow-inline-edit="{{ $allowInlineEdit ? 'true' : 'false' }}" data-inline-variant="orange">
+            <div class="mt-6 bg-white rounded-2xl shadow-sm border border-slate-100" data-saved-table-key="kepala-unit" data-edit-url="{{ route('kepala_unit.multi_rater.store') }}" data-period-id="{{ $periodId }}" data-window-id="{{ $window?->id }}" data-csrf="{{ csrf_token() }}" data-allow-inline-edit="{{ $allowInlineEdit ? 'true' : 'false' }}" data-inline-variant="orange">
                 <x-ui.table min-width="840px">
                     <x-slot name="head">
                         <tr>
@@ -87,7 +92,17 @@
                             </td>
                             <td class="px-6 py-3">
                                 @if($allowInlineEdit)
-                                    <form class="inline-flex items-center gap-2" onsubmit="event.preventDefault(); const fd=new FormData(this); fetch('{{ route('kepala_unit.multi_rater.store') }}',{method:'POST',headers:{'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'},body:fd}).then(r=>r.json()).then(()=>location.reload());">
+                                    <form class="inline-flex items-center gap-2" onsubmit="event.preventDefault(); const fd=new FormData(this);
+                                        fetch('{{ route('kepala_unit.multi_rater.store') }}',{method:'POST',headers:{'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'},body:fd})
+                                            .then(async (r) => {
+                                                const data = await r.json().catch(() => ({}));
+                                                if (!r.ok) {
+                                                    const msg = data?.message || 'Gagal menyimpan perubahan.';
+                                                    alert(msg);
+                                                    return;
+                                                }
+                                                location.reload();
+                                            });">
                                         <input type="hidden" name="assessment_period_id" value="{{ $periodId }}">
                                         <input type="hidden" name="rater_role" value="kepala_unit">
                                         <input type="hidden" name="target_user_id" value="{{ $s->target_user_id }}">

@@ -17,9 +17,11 @@
                     <div>Modul ini digunakan untuk menyusun Bobot Kriteria Unit pada periode aktif.</div>
                     <ul class="list-disc pl-5 space-y-1">
                         <li>Tambah bobot sebagai <strong>Draft</strong>, lalu sesuaikan hingga total bobot siap diajukan.</li>
-                        <li>Tombol <strong>Ajukan Semua</strong> digunakan untuk mengirim seluruh draft/rejected (sesuai kebutuhan sisa bobot) menjadi <strong>Pending</strong>.</li>
-                        <li>Jika status <strong>Ditolak</strong>, klik badge <strong>Ditolak</strong> untuk melihat komentar penolakan.</li>
+                        <li>Tombol <strong>Ajukan Semua</strong> digunakan untuk mengirim seluruh draft (sesuai kebutuhan sisa bobot) menjadi <strong>Pending</strong>.</li>
+                        <li>Tombol <strong>Cek</strong> menyimpan perubahan bobot draft pada tabel sebagai <strong>Draft</strong> sebelum Anda pindah halaman / sebelum Ajukan Semua.</li>
+                        <li>Bobot berstatus <strong>Ditolak</strong> ditampilkan di bagian <strong>Riwayat</strong> sebagai arsip (read-only).</li>
                         <li>Tombol <strong>Salin periode sebelumnya</strong> menyalin bobot periode sebelumnya menjadi draft periode aktif.</li>
+                        <li>Tombol <strong>Salin Bobot Ditolak</strong> menyalin batch penolakan terakhir pada periode aktif menjadi draft.</li>
                     </ul>
                 </div>
 
@@ -60,11 +62,19 @@
             <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
                 <h3 class="text-slate-800 font-semibold">Tambah Bobot (Draft){{ $activePeriod ? ' - Periode '.$activePeriod->name : '' }}</h3>
                 <div class="flex items-center gap-3">
-                    @if($activePeriod && $previousPeriod)
+                    @if($activePeriod && $previousPeriod && ($canCopyPrevious ?? false))
                         <form method="POST" action="{{ route('kepala_unit.unit_criteria_weights.copy_previous') }}" class="inline-flex">
                             @csrf
                             <x-ui.button type="submit" variant="outline" class="h-10 px-4 text-sm" onclick="return confirm('Salin seluruh bobot aktif periode sebelumnya menjadi draft periode aktif?')">
                                 <i class="fa-solid fa-copy mr-2"></i> Salin periode sebelumnya
+                            </x-ui.button>
+                        </form>
+                    @endif
+                    @if($activePeriod && ($rejectedCountActive ?? 0) > 0)
+                        <form method="POST" action="{{ route('kepala_unit.unit_criteria_weights.copy_rejected') }}" class="inline-flex">
+                            @csrf
+                            <x-ui.button type="submit" variant="outline" class="h-10 px-4 text-sm" onclick="return confirm('Salin bobot ditolak terakhir menjadi draft periode aktif?')">
+                                <i class="fa-solid fa-clone mr-2"></i> Salin bobot ditolak
                             </x-ui.button>
                         </form>
                     @endif
@@ -89,17 +99,23 @@
                     telah diajukan.
                 </div>
             @else
+                @if(($usingFallback ?? false))
+                    <div class="mb-4 text-sm text-slate-600">
+                        Bobot periode ini belum diatur. Sistem menampilkan bobot dari periode sebelumnya.
+                    </div>
+                @endif
                 @php($roundedDraft = (int) round($currentTotal))
                 @php($committed = (float) ($committedTotal ?? 0))
                 @php($required = max(0, (int) round($requiredTotal ?? 100)))
                 @php($draftMeetsRequirement = $required > 0 && $roundedDraft === $required)
                 @php($allActiveApproved = ($pendingCount ?? 0) === 0 && !($hasDraftOrRejected ?? false) && !empty($targetPeriodId) && (int) round($activeTotal ?? 0) === 100)
-                @php($rejectedWorkingCount = (int) $itemsWorking->where('status','rejected')->count())
+                @php($rejectedWorkingCount = (int) ($rejectedCountPeriod ?? 0))
+                @php($hasEditableWorking = (int) $itemsWorking->whereIn('status', ['draft'])->count() > 0)
 
                 @if($allActiveApproved)
                     <div class="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between gap-3">
                         <span>Seluruh bobot telah disetujui dan aktif untuk periode {{ $activePeriod->name ?? '-' }}.</span>
-                        <form method="POST" action="{{ route('kepala_unit.unit_criteria_weights.request_change') }}" class="flex-shrink-0">
+                        <form method="POST" action="{{ route('kepala_unit.unit_criteria_weights.request_change') }}" class="flex-shrink-0" onsubmit="return confirm('Ajukan Perubahan Bobot Kriteria?\n\nApakah Anda yakin ingin mengajukan perubahan?\nBobot Penilai 360 yang terkait juga akan disinkronkan kembali menjadi DRAFT dan perlu diajukan ulang.')">
                             @csrf
                             <input type="hidden" name="period_id" value="{{ $periodId ?? $targetPeriodId }}" />
                             <x-ui.button type="submit" variant="orange" class="h-10 px-4">Ajukan Perubahan</x-ui.button>
@@ -114,25 +130,43 @@
                         <div>
                             <div>Sisa {{ number_format($required, 2) }}% siap diajukan untuk melengkapi total 100%.</div>
                             @if($rejectedWorkingCount > 0)
-                                <div class="mt-1 text-xs text-emerald-700">Ada pengajuan yang ditolak. Klik <strong>Ditolak</strong> untuk lihat komentar, revisi bobot, lalu klik <strong>Ajukan Semua</strong> untuk mengajukan ulang.</div>
+                                <div class="mt-1 text-xs text-emerald-700">Ada pengajuan yang ditolak. Lihat detailnya di bagian <strong>Riwayat</strong>, lalu buat draft baru dan klik <strong>Ajukan Semua</strong>.</div>
                             @endif
                         </div>
-                        <form method="POST" action="{{ route('kepala_unit.unit_criteria_weights.submit_all') }}" id="ucwSubmitAllForm">
-                            @csrf
-                            <input type="hidden" name="period_id" value="{{ $periodId ?? $targetPeriodId }}" />
-                            <x-ui.button type="submit" variant="orange" class="h-10 px-6">Ajukan Semua</x-ui.button>
-                        </form>
+                        <div class="flex items-center gap-3">
+                            @if($hasEditableWorking)
+                                <x-ui.button variant="outline" type="button" class="h-10 px-4 ucw-cek-btn">Cek</x-ui.button>
+                            @endif
+                            <form method="POST" action="{{ route('kepala_unit.unit_criteria_weights.submit_all') }}" id="ucwSubmitAllForm" class="inline-flex">
+                                @csrf
+                                <input type="hidden" name="period_id" value="{{ $periodId ?? $targetPeriodId }}" />
+                                <x-ui.button type="submit" variant="orange" class="h-10 px-6">Ajukan Semua</x-ui.button>
+                            </form>
+                        </div>
                     </div>
                 @else
-                    <div class="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-                        Total bobot aktif/pending saat ini <span class="font-semibold">{{ number_format($committed,2) }}%</span>. Draf yang siap diajukan baru <span class="font-semibold">{{ number_format($currentTotal,2) }}%</span>.
-                        Butuh <strong>{{ number_format(max(0, $required - $roundedDraft), 2) }}%</strong> lagi agar dapat diajukan.
-                        @if($rejectedWorkingCount > 0)
-                            <div class="mt-2 text-xs text-amber-700">Ada pengajuan yang ditolak. Klik <strong>Ditolak</strong> untuk melihat komentar penolakan dan lakukan revisi.</div>
+                    <div class="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-center justify-between gap-3">
+                        <div>
+                            Total bobot aktif/pending saat ini <span class="font-semibold">{{ number_format($committed,2) }}%</span>. Draf yang siap diajukan baru <span class="font-semibold">{{ number_format($currentTotal,2) }}%</span>.
+                            Butuh <strong>{{ number_format(max(0, $required - $roundedDraft), 2) }}%</strong> lagi agar dapat diajukan.
+                            @if($rejectedWorkingCount > 0)
+                                <div class="mt-2 text-xs text-amber-700">Ada pengajuan yang ditolak. Lihat detailnya di bagian <strong>Riwayat</strong>, lalu buat draft baru untuk revisi.</div>
+                            @endif
+                        </div>
+                        @if($hasEditableWorking)
+                            <div class="flex items-center gap-3">
+                                <x-ui.button variant="outline" type="button" class="h-10 px-4 ucw-cek-btn">Cek</x-ui.button>
+                            </div>
                         @endif
                     </div>
                 @endif
             @endif
+
+            {{-- Bulk cek form (kept separate to avoid nested forms inside the table) --}}
+            <form id="ucwBulkForm" method="POST" action="{{ route('kepala_unit.unit_criteria_weights.cek') }}" class="hidden">
+                @csrf
+                <input type="hidden" name="period_id" value="{{ $periodId ?? $targetPeriodId }}" />
+            </form>
             <form method="POST" action="{{ route('kepala_unit.unit-criteria-weights.store') }}" class="grid md:grid-cols-12 gap-4 items-end" id="ucwAddForm">
                 @csrf
                 <div class="md:col-span-6">
@@ -194,7 +228,7 @@
                             @endif
                         </td>
                         <td class="px-6 py-2 text-right">
-                            @php($editable = in_array($st,['draft','rejected']))
+                            @php($editable = in_array($st,['draft']))
                             @if($editable)
                                 @php($weightDisplay = number_format((float) $it->weight, 0))
                                 <div class="inline-flex items-center gap-2">
@@ -203,14 +237,11 @@
                                         step="1"
                                         min="0"
                                         max="100"
-                                        name="weight"
+                                        name="weights[{{ (int) $it->id }}]"
                                         :value="$weightDisplay"
                                         :preserve-old="false"
                                         class="h-9 w-24 max-w-[96px] text-right ucw-weight"
-                                        data-update-url="{{ route('kepala_unit.unit-criteria-weights.update', $it->id) }}"
-                                        data-initial-value="{{ (int) $weightDisplay }}"
                                     />
-                                    <span class="text-xs text-slate-400 ucw-save-status" aria-live="polite"></span>
                                 </div>
                             @else
                                 <div class="inline-flex items-center gap-2">
@@ -240,30 +271,9 @@
                 @endforelse
             </x-ui.table>
 
-            {{-- Render modals outside the table wrapper (avoid overflow clipping) --}}
-            @foreach($itemsWorking as $it)
-                @if((string) ($it->status ?? '') === 'rejected')
-                    <x-modal name="ucw-note-{{ (int) $it->id }}" :show="false" maxWidth="lg">
-                        <div class="p-6">
-                            <div class="flex items-start justify-between gap-3">
-                                <h2 class="text-lg font-semibold text-slate-800">Komentar Penolakan</h2>
-                                <button type="button" class="text-slate-400 hover:text-slate-600" onclick="window.dispatchEvent(new CustomEvent('close-modal', { detail: 'ucw-note-{{ (int) $it->id }}' }))">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
-                            </div>
-                            <div class="mt-1 text-xs text-slate-500">Revisi bobot lalu klik <strong>Ajukan Semua</strong> untuk mengajukan ulang.</div>
-                            @php($note = trim((string) ($it->decided_note ?? '')))
-                            <div class="mt-3 text-sm text-slate-700 whitespace-pre-wrap">{{ $note !== '' ? $note : 'Tidak ada komentar penolakan.' }}</div>
-                            <div class="mt-5 flex justify-end">
-                                <x-ui.button type="button" variant="outline" onclick="window.dispatchEvent(new CustomEvent('close-modal', { detail: 'ucw-note-{{ (int) $it->id }}' }))">Tutup</x-ui.button>
-                            </div>
-                        </div>
-                    </x-modal>
-                @endif
-            @endforeach
         </div>
 
-        {{-- TABLE: History (Archived) --}}
+        {{-- TABLE: History (Archived + Rejected) --}}
         <div class="space-y-3 mt-6">
             <h4 class="text-sm font-semibold text-slate-700">Riwayat</h4>
             <x-ui.table min-width="1040px">
@@ -281,12 +291,17 @@
                     </tr>
                 </x-slot>
                 @forelse($itemsHistory as $it)
+                    @php($histStatus = (string) ($it->status ?? 'archived'))
                     <tr class="hover:bg-slate-50">
                         <td class="px-6 py-4">{{ $it->criteria_name }}</td>
                         <td class="px-6 py-4">{{ $it->criteria_type }}</td>
                         <td class="px-6 py-4">{{ $it->period_name ?? '-' }}</td>
                         <td class="px-6 py-4">
-                            <span class="px-2 py-1 rounded text-xs bg-slate-200 text-slate-600">Arsip</span>
+                            @if($histStatus === 'rejected')
+                                <button type="button" class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700 hover:bg-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 cursor-pointer" title="Klik untuk lihat komentar penolakan" onclick="window.dispatchEvent(new CustomEvent('open-modal', { detail: 'ucw-note-hist-{{ (int) $it->id }}' }))">Ditolak</button>
+                            @else
+                                <span class="px-2 py-1 rounded text-xs bg-slate-200 text-slate-600">Arsip</span>
+                            @endif
                         </td>
                         <td class="px-6 py-2 text-right">
                             @php($weightDisplay = number_format((float) $it->weight, 0))
@@ -298,6 +313,29 @@
                 @endforelse
             </x-ui.table>
         </div>
+
+        {{-- Render history rejection modals --}}
+        @foreach($itemsHistory as $it)
+            @if((string) ($it->status ?? '') === 'rejected')
+                <x-modal name="ucw-note-hist-{{ (int) $it->id }}" :show="false" maxWidth="lg">
+                    <div class="p-6">
+                        <div class="flex items-start justify-between gap-3">
+                            <h2 class="text-lg font-semibold text-slate-800">Komentar Penolakan</h2>
+                            <button type="button" class="text-slate-400 hover:text-slate-600" onclick="window.dispatchEvent(new CustomEvent('close-modal', { detail: 'ucw-note-hist-{{ (int) $it->id }}' }))">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div class="mt-1 text-xs text-slate-500">Riwayat ini bersifat arsip dan tidak bisa diedit.</div>
+                        @php($note = trim((string) ($it->decided_note ?? '')))
+                        <div class="mt-3 text-sm text-slate-700 whitespace-pre-wrap">{{ $note !== '' ? $note : 'Tidak ada komentar penolakan.' }}</div>
+                        <div class="mt-5 flex justify-end">
+                            <x-ui.button type="button" variant="outline" onclick="window.dispatchEvent(new CustomEvent('close-modal', { detail: 'ucw-note-hist-{{ (int) $it->id }}' }))">Tutup</x-ui.button>
+                        </div>
+                    </div>
+                </x-modal>
+            @endif
+        @endforeach
+
     </div>
 
     <script>
@@ -325,10 +363,10 @@
             });
         })();
     </script>
-</x-app-layout>
-@push('scripts')
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
+
+    @push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
         const csrf = '{{ csrf_token() }}';
 
         const crit = document.getElementById('ucwCrit');
@@ -351,114 +389,57 @@
         toggle();
         requestAnimationFrame(toggle);
 
-        // Autosave weight edits (draft/rejected) to reduce button clutter.
-        const inputs = Array.from(document.querySelectorAll('input.ucw-weight'));
-        const clampInt = (v) => {
+        // "Cek" should refresh the page (server-side check), like the 360 module.
+        const bulkForm = document.getElementById('ucwBulkForm');
+        const cekButtons = Array.from(document.querySelectorAll('.ucw-cek-btn'));
+        const clearDynamicInputs = () => {
+            if (!bulkForm) return;
+            Array.from(bulkForm.querySelectorAll('input[data-ucw-dynamic="1"]')).forEach((el) => el.remove());
+        };
+
+        const clampIntBulk = (v) => {
             const n = parseInt(String(v ?? '').trim(), 10);
-            if (Number.isNaN(n)) return null;
+            if (Number.isNaN(n)) return 0;
             return Math.min(100, Math.max(0, n));
         };
 
-        inputs.forEach((input) => {
-            const statusEl = input.closest('.inline-flex')?.querySelector('.ucw-save-status');
-            const url = input.dataset.updateUrl;
-            if (!url) return;
+        const submitBulkCek = async () => {
+            if (!bulkForm) return;
 
-            let timer = null;
-            let lastSaved = clampInt(input.dataset.initialValue ?? input.value);
+            // Ensure latest values are saved to DB via bulkCheck.
+            clearDynamicInputs();
 
-            const setStatus = (text, kind) => {
-                if (!statusEl) return;
-                statusEl.textContent = text || '';
-                statusEl.classList.remove('text-slate-400', 'text-emerald-600', 'text-rose-600');
-                if (kind === 'ok') statusEl.classList.add('text-emerald-600');
-                else if (kind === 'err') statusEl.classList.add('text-rose-600');
-                else statusEl.classList.add('text-slate-400');
-            };
+            const inputs = Array.from(document.querySelectorAll('input.ucw-weight'));
+            if (!inputs.length) {
+                return;
+            }
 
-            const saveNow = async () => {
-                const val = clampInt(input.value);
-                if (val === null) {
-                    setStatus('Isi 0–100', 'err');
-                    return false;
-                }
-
-                // Normalize displayed value to integer.
-                if (String(input.value) !== String(val)) {
-                    input.value = String(val);
-                }
-
-                if (val === lastSaved) {
-                    setStatus('', '');
-                    return true;
-                }
-
-                setStatus('Menyimpan…', '');
-
-                const fd = new FormData();
-                fd.append('_method', 'PUT');
-                fd.append('weight', String(val));
-
-                try {
-                    const res = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
-                        body: fd,
-                    });
-
-                    const data = await res.json().catch(() => null);
-                    if (!res.ok || !data?.ok) {
-                        const msg = data?.message || 'Gagal menyimpan';
-                        setStatus(msg, 'err');
-                        return false;
-                    }
-
-                    lastSaved = val;
-                    setStatus('Tersimpan', 'ok');
-                    setTimeout(() => setStatus('', ''), 1200);
-                    return true;
-                } catch (e) {
-                    setStatus('Gagal menyimpan', 'err');
-                    return false;
-                }
-            };
-
-            const schedule = () => {
-                if (timer) clearTimeout(timer);
-                timer = setTimeout(saveNow, 350);
-            };
-
-            // Expose saver for submit flush.
-            input.__ucwSaveNow = saveNow;
-            input.__ucwClearTimer = () => { if (timer) clearTimeout(timer); timer = null; };
-
-            input.addEventListener('input', schedule);
-            input.addEventListener('change', saveNow);
-            input.addEventListener('blur', saveNow);
-        });
-
-        // Flush pending autosaves before submitting Ajukan Semua.
-        const submitAllForm = document.getElementById('ucwSubmitAllForm');
-        if (submitAllForm) {
-            submitAllForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-
-                const savers = Array.from(document.querySelectorAll('input.ucw-weight'))
-                    .map((el) => {
-                        el.__ucwClearTimer?.();
-                        return el.__ucwSaveNow?.();
-                    })
-                    .filter(Boolean);
-
-                if (savers.length) {
-                    const results = await Promise.allSettled(savers);
-                    const ok = results.every((r) => r.status === 'fulfilled' && r.value === true);
-                    if (!ok) return;
-                }
-
-                submitAllForm.submit();
+            inputs.forEach((input) => {
+                const name = input.getAttribute('name');
+                if (!name) return;
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = name;
+                hidden.value = String(clampIntBulk(input.value));
+                hidden.setAttribute('data-ucw-dynamic', '1');
+                bulkForm.appendChild(hidden);
             });
-        }
-    });
-</script>
-@endpush
+
+            bulkForm.submit();
+        };
+
+        cekButtons.forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                cekButtons.forEach((b) => (b.disabled = true));
+                try {
+                    await submitBulkCek();
+                } finally {
+                    // If submit is blocked for some reason, re-enable.
+                    setTimeout(() => cekButtons.forEach((b) => (b.disabled = false)), 500);
+                }
+            });
+        });
+        });
+    </script>
+    @endpush
+</x-app-layout>

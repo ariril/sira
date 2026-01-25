@@ -115,13 +115,14 @@
                         @php($st = $it->status ?? 'pending')
                         @php($lvl = (int) ($it->level ?? 1))
                         @php($lvl2Approved = (bool) ($it->has_lvl2_approved ?? false))
+                        @php($periodRejected = !empty($it->period_rejected_at) && (string)($it->period_status ?? '') === 'approval')
                         <div class="inline-flex gap-2">
                             <a href="{{ route('admin_rs.assessments.detail', $it->id) }}"
                                class="inline-flex items-center gap-2 h-9 px-3 rounded-lg text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
                                 <i class="fa-solid fa-eye"></i>
                                 Detail
                             </a>
-                            @if ($st === 'pending' && $lvl === 1)
+                            @if ($st === 'pending' && $lvl === 1 && !$periodRejected)
                                 <form method="POST" action="{{ route('admin_rs.assessments.approve', $it->id) }}">
                                     @csrf
                                     <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">

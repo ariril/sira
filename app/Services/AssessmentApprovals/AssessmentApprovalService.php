@@ -23,7 +23,7 @@ class AssessmentApprovalService
         DB::transaction(function () use ($approval, $actor, $note) {
             $approval->refresh();
 
-            $assessment = $approval->performanceAssessment()->with('assessmentPeriod')->firstOrFail();
+            $assessment = $approval->performanceAssessment()->with(['assessmentPeriod', 'user'])->firstOrFail();
             $period = $assessment->assessmentPeriod;
 
             $this->assertPeriodAllowsApprovalActions($period);
@@ -81,7 +81,13 @@ class AssessmentApprovalService
                     $period,
                     $actor,
                     (int) ($approval->level ?? 0),
-                    $note
+                    $note,
+                    [
+                        'rejected_approval_id' => (int) $approval->id,
+                        'rejected_performance_assessment_id' => (int) $assessment->id,
+                        'rejected_staff_id' => (int) ($assessment->user_id ?? 0),
+                        'rejected_staff_name' => (string) ($assessment->user?->name ?? ''),
+                    ]
                 );
             }
         });

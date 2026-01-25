@@ -55,9 +55,9 @@ class RaterWeightGenerator
             ->join('criteria_rater_rules as crr', 'crr.performance_criteria_id', '=', 'pc.id')
             ->where('ucw.unit_id', $unitId)
             ->where('ucw.assessment_period_id', $periodId)
-            // Only generate 360 rater weights after the unit has submitted/activated the criteria weight.
+            // Generate 360 rater weights once criteria weights exist (draft/pending/active).
             // Note: historical periods may have been marked as archived; treat archived as eligible for history generation.
-            ->whereIn('ucw.status', ['pending', 'active', 'archived'])
+            ->whereIn('ucw.status', ['draft', 'pending', 'active', 'archived'])
             ->where('pc.is_360', true)
             ->distinct()
             ->pluck('pc.id')
@@ -82,6 +82,20 @@ class RaterWeightGenerator
 
         if ($professionRows->isEmpty()) {
             return $stats;
+        }
+
+        $unitProfessionIds = $professionRows
+            ->pluck('profession_id')
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->values()
+            ->all();
+
+        $unitProfessionSet = array_fill_keys($unitProfessionIds, true);
+
+        $structuralProfessionIds = $this->resolveStructuralProfessionIds();
+        foreach ($structuralProfessionIds as $pid) {
+            $unitProfessionSet[(int) $pid] = true;
         }
 
         $hasHierarchyMaster = Schema::hasTable('profession_reporting_lines');
@@ -126,7 +140,7 @@ class RaterWeightGenerator
 
         $now = now();
 
-        DB::transaction(function () use ($unitId, $periodId, $criteriaIds, $professionRows, $assessorTypesByCriteria, $hierarchyByAssessee, $now, &$stats) {
+        DB::transaction(function () use ($unitId, $periodId, $criteriaIds, $professionRows, $assessorTypesByCriteria, $hierarchyByAssessee, $unitProfessionSet, $now, &$stats) {
             foreach ($criteriaIds as $criteriaId) {
                 $ruleTypes = array_values(array_filter($assessorTypesByCriteria[$criteriaId] ?? []));
                 $ruleTypes = array_values(array_unique($ruleTypes));
@@ -173,9 +187,22 @@ class RaterWeightGenerator
 
                         if (!empty($lines)) {
                             foreach ($lines as $line) {
+                                $assessorProfessionId = (int) ($line['assessor_profession_id'] ?? 0);
+                                if ($assessorProfessionId > 0 && !isset($unitProfessionSet[$assessorProfessionId])) {
+                                    Log::info('RaterWeightGenerator: skipping assessor profession not in unit.', [
+                                        'unit_id' => $unitId,
+                                        'assessment_period_id' => $periodId,
+                                        'performance_criteria_id' => $criteriaId,
+                                        'assessee_profession_id' => $professionId,
+                                        'assessor_profession_id' => $assessorProfessionId,
+                                        'assessor_type' => $assessorType,
+                                    ]);
+                                    continue;
+                                }
+
                                 $desiredDescriptors[] = [
                                     'assessor_type' => $assessorType,
-                                    'assessor_profession_id' => (int) ($line['assessor_profession_id'] ?? 0) ?: null,
+                                    'assessor_profession_id' => $assessorProfessionId ?: null,
                                     'assessor_level' => $assessorType === 'supervisor' ? (int) ($line['level'] ?? 0) ?: null : null,
                                 ];
                             }
@@ -199,6 +226,17 @@ class RaterWeightGenerator
                                 ]);
                             }
                         }
+
+                        if (empty($desiredDescriptors) && !empty($lines)) {
+                            // All mapping rows exist but none are valid for this unit.
+                            Log::info('RaterWeightGenerator: all mapped assessors filtered out because profession not in unit.', [
+                                'unit_id' => $unitId,
+                                'assessment_period_id' => $periodId,
+                                'performance_criteria_id' => $criteriaId,
+                                'assessee_profession_id' => $professionId,
+                                'assessor_type' => $assessorType,
+                            ]);
+                        }
                     }
 
                     if (empty($desiredDescriptors)) {
@@ -216,6 +254,11 @@ class RaterWeightGenerator
                         ->where('unit_id', $unitId)
                         ->where('performance_criteria_id', $criteriaId)
                         ->where('assessee_profession_id', $professionId)
+                        ->whereIn('status', [
+                            RaterWeightStatus::DRAFT->value,
+                            RaterWeightStatus::PENDING->value,
+                            RaterWeightStatus::ACTIVE->value,
+                        ])
                         ->get();
 
                     $existingMap = [];
@@ -342,5 +385,23 @@ class RaterWeightGenerator
         $pid = $assessorProfessionId === null ? 'null' : (string) (int) $assessorProfessionId;
         $lvl = $assessorLevel === null ? 'null' : (string) (int) $assessorLevel;
         return $assessorType . '|' . $pid . '|' . $lvl;
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function resolveStructuralProfessionIds(): array
+    {
+        if (!Schema::hasTable('professions')) {
+            return [];
+        }
+
+        return DB::table('professions')
+            ->whereIn('code', ['KPL-UNIT', 'KPL-POLI'])
+            ->pluck('id')
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->values()
+            ->all();
     }
 }

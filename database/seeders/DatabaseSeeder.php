@@ -714,38 +714,6 @@ class DatabaseSeeder extends Seeder
             $criteriaId = fn(string $name) => DB::table('performance_criterias')->where('name', $name)->value('id');
 
             // =========================================================
-            // 7b) CRITERIA RATER RULES (untuk kriteria 360)
-            // =========================================================
-            // NOTE: Seeded via CriteriaRaterRuleSeeder (keeps the rules matrix consistent).
-
-            // =========================================================
-            // 8) UNIT CRITERIA WEIGHTS (contoh Poli Umum)
-            // =========================================================
-            // DB::table('unit_criteria_weights')->insert([
-            //     [
-            //         'unit_id' => $poliklinikUmumId,
-            //         'performance_criteria_id' => $criteriaId('Kedisiplinan'),
-            //         'weight' => 40.00,
-            //         'created_at' => $now,
-            //         'updated_at' => $now
-            //     ],
-            //     [
-            //         'unit_id' => $poliklinikUmumId,
-            //         'performance_criteria_id' => $criteriaId('Pelayanan Pasien'),
-            //         'weight' => 40.00,
-            //         'created_at' => $now,
-            //         'updated_at' => $now
-            //     ],
-            //     [
-            //         'unit_id' => $poliklinikUmumId,
-            //         'performance_criteria_id' => $criteriaId('Kepatuhan Prosedur'),
-            //         'weight' => 20.00,
-            //         'created_at' => $now,
-            //         'updated_at' => $now
-            //     ],
-            // ]);
-
-            // =========================================================
             // 9) ANNOUNCEMENTS
             // =========================================================
             DB::table('announcements')->updateOrInsert(
@@ -801,27 +769,6 @@ class DatabaseSeeder extends Seeder
                     'updated_at' => $now
                 ],
             ]);
-
-            // // =========================================================
-            // // 11) ATTENDANCE IMPORT BATCH + ATTENDANCES
-            // // =========================================================
-            
-
-            // =========================================================
-            // 12) ADDITIONAL CONTRIBUTIONS
-            // =========================================================
-            // NOTE: demo data untuk Oktober sengaja tidak di-seed.
-
-            // =========================================================
-            // 13) PERFORMANCE ASSESSMENTS
-            // =========================================================
-            // NOTE: demo data untuk Oktober sengaja tidak di-seed.
-
-            // =========================================================
-            // 14) PERFORMANCE ASSESSMENT DETAILS
-            // =========================================================
-            // NOTE: demo data untuk Oktober sengaja tidak di-seed.
-
 
             // =========================================================
             // 17) REVIEWS (tanpa relasi visit)
@@ -909,10 +856,9 @@ class DatabaseSeeder extends Seeder
         $this->call(NovemberRaterWeightSeeder::class);
         $this->call(DecemberRaterWeightSeeder::class);
         $this->call(DummyAdditionalTaskUsageSeeder::class);
-        $this->call(January2026PoliUmumDokterUmumSeeder::class);
         $this->call(FixNovDec360SnapshotsSeeder::class);
 
-        
+        $this->call(January2026PoliUmumDokterUmumSeeder::class);
     }
 
     private function seedCriteriaRaterRules(): void

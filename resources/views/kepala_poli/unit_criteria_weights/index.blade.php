@@ -18,7 +18,7 @@
                 </div>
                 <div class="md:col-span-3">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
-                    <x-ui.select name="status" :options="['all' => '(Semua)','pending'=>'Pending','active'=>'Active','rejected'=>'Rejected','draft'=>'Draft']" :value="$filters['status'] ?? 'pending'" />
+                    <x-ui.select name="status" :options="['all' => '(Semua)','pending'=>'Pending','active'=>'Active','rejected'=>'Rejected','draft'=>'Draft','archived'=>'Arsip']" :value="$filters['status'] ?? 'pending'" />
                 </div>
             </div>
             <div class="mt-6 flex justify-end gap-3">
@@ -81,6 +81,9 @@
                                                 @case('pending')
                                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Pending</span>
                                                     @break
+                                                @case('archived')
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200">Arsip</span>
+                                                    @break
                                                 @default
                                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-100">Draft</span>
                                             @endswitch
@@ -102,13 +105,13 @@
                                 </div>
 
                                 <div x-show="rejecting" x-cloak class="mt-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                                    <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.reject_unit', $unitId) }}" class="space-y-4" onsubmit="return confirm('Tolak semua bobot pending pada unit ini?');">
+                                    <form method="POST" action="{{ route('kepala_poliklinik.unit_criteria_weights.reject_unit', $unitId) }}" class="space-y-4" onsubmit="return confirm('Tolak semua bobot pending pada unit ini? Bobot Penilai 360 terkait akan ikut ditolak secara otomatis.');">
                                         @csrf
                                         <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}" />
                                         <div>
                                             <label class="block text-sm font-medium text-slate-700 mb-1">Catatan (wajib)</label>
                                             <textarea name="comment" rows="4" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200" placeholder="Tuliskan apa yang perlu diubah..." required></textarea>
-                                            <div class="mt-1 text-xs text-slate-500">Catatan ini akan terlihat oleh Kepala Unit.</div>
+                                            <div class="mt-1 text-xs text-slate-500">Catatan ini akan terlihat oleh Kepala Unit. Penolakan ini juga akan menolak bobot penilai 360 terkait.</div>
                                         </div>
                                         <div class="flex justify-end gap-2">
                                             <x-ui.button type="button" variant="outline" x-on:click="rejecting = false">Batal</x-ui.button>

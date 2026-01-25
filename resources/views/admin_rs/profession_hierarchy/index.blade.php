@@ -12,7 +12,7 @@
         <form method="GET" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="grid gap-5 md:grid-cols-12">
                 <div class="md:col-span-5">
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Assessee Profesi</label>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Profesi Dinilai</label>
                     <x-ui.select
                         name="assessee_profession_id"
                         :options="$professions->pluck('name','id')->all()"
@@ -69,10 +69,10 @@
                         <x-ui.table min-width="960px">
                             <x-slot name="head">
                                 <tr>
-                                    <th class="px-6 py-4 text-left whitespace-nowrap">Assessee Profesi</th>
+                                    <th class="px-6 py-4 text-left whitespace-nowrap">Profesi Dinilai</th>
                                     <th class="px-6 py-4 text-left whitespace-nowrap">Relasi</th>
                                     <th class="px-6 py-4 text-left whitespace-nowrap">Level</th>
-                                    <th class="px-6 py-4 text-left whitespace-nowrap">Assessor Profesi</th>
+                                    <th class="px-6 py-4 text-left whitespace-nowrap">Profesi Penilai</th>
                                     <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
                                     <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
                                 </tr>

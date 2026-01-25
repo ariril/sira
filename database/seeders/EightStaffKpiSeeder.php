@@ -1770,7 +1770,27 @@ class EightStaffKpiSeeder extends Seeder
                 return max(0.0, min(100.0, $v));
             };
 
-            $insertAssessment = function (int $assesseeId, int $assessorId, string $assessorType, array $details) use ($period, $assessmentDate, $now) {
+            // Keep a window row for UI gating, but do not store window_id in multi_rater_assessments.
+            $windowId = (int) (DB::table('assessment_360_windows')->where('assessment_period_id', (int) $period->id)->max('id') ?? 0);
+            if ($windowId <= 0) {
+                $start = !empty($period->start_date) ? (string) $period->start_date : now()->toDateString();
+                $end = !empty($period->end_date) ? (string) $period->end_date : now()->toDateString();
+                try {
+                    $windowId = (int) DB::table('assessment_360_windows')->insertGetId([
+                        'assessment_period_id' => (int) $period->id,
+                        'start_date' => $start,
+                        'end_date' => $end,
+                        'is_active' => 1,
+                        'opened_by' => null,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                } catch (\Throwable $e) {
+                    $windowId = 0;
+                }
+            }
+
+            $insertAssessment = function (int $assesseeId, int $assessorId, string $assessorType, array $details) use ($period, $windowId, $assessmentDate, $now) {
                 $mraId = DB::table('multi_rater_assessments')->insertGetId([
                     'assessee_id' => $assesseeId,
                     'assessor_id' => $assessorId,

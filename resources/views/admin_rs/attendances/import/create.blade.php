@@ -14,17 +14,17 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
-        @unless($latestLockedPeriod ?? null)
+        @unless($latestImportablePeriod ?? null)
             <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
-                <div class="font-semibold">Tidak ada periode yang berstatus LOCKED saat ini.</div>
-                <div>Import absensi (rekap bulanan) hanya dapat dilakukan ketika periode sudah dikunci.</div>
+                <div class="font-semibold">Tidak ada periode yang berstatus LOCKED / REVISION saat ini.</div>
+                <div>Import absensi (rekap bulanan) hanya dapat dilakukan ketika periode sudah dikunci (LOCKED) atau sedang revisi (REVISION).</div>
             </div>
         @endunless
 
-        @if($latestLockedPeriod ?? null)
+        @if($latestImportablePeriod ?? null)
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                 <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 px-4 py-3 text-sm">
-                    Import menggunakan periode: <span class="font-semibold">{{ $latestLockedPeriod->name ?? '-' }}</span>.
+                    Import menggunakan periode: <span class="font-semibold">{{ $latestImportablePeriod->name ?? '-' }}</span>.
                 </div>
 
                 <form method="POST" action="{{ route('admin_rs.attendances.import.store') }}" enctype="multipart/form-data" class="space-y-6">

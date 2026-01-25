@@ -75,12 +75,15 @@ class AssessmentApprovalController extends Controller
                 ->join('performance_assessments as pa', 'pa.id', '=', 'aa.performance_assessment_id')
                 ->leftJoin('users as u', 'u.id', '=', 'pa.user_id')
                 ->leftJoin('assessment_periods as ap', 'ap.id', '=', 'pa.assessment_period_id')
-                ->selectRaw('aa.id, aa.status, aa.level, aa.note, aa.created_at, aa.acted_at, u.name as user_name, ap.name as period_name, pa.total_wsm_score')
+                ->selectRaw('aa.id, aa.status, aa.level, aa.note, aa.created_at, aa.acted_at, u.name as user_name, ap.name as period_name, pa.total_wsm_score, ap.status as period_status, ap.rejected_at as period_rejected_at')
                 ->orderByDesc('aa.id');
 
             // Only show current attempt approvals + not invalidated
             $builder->whereNull('aa.invalidated_at')
                 ->whereRaw('aa.attempt = COALESCE(ap.approval_attempt, 1)');
+
+            // Hide any rows that belong to a period that is already marked rejected in approval.
+            $builder->whereNull('ap.rejected_at');
 
             // Scope to units under Poliklinik Head
             if ($scopeUnitIds->isNotEmpty()) {
@@ -129,9 +132,6 @@ class AssessmentApprovalController extends Controller
         $this->authorizeAccess();
 
         $assessment->loadMissing('performanceAssessment.assessmentPeriod');
-        $period = $assessment->performanceAssessment?->assessmentPeriod;
-        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Setujui Penilaian');
-
         try {
             $svc->approve($assessment, Auth::user(), (string) $request->input('note'));
             return back()->with('status', 'Penilaian disetujui.');
@@ -147,9 +147,6 @@ class AssessmentApprovalController extends Controller
         $request->validate(['note' => ['required','string','max:500']]);
 
         $assessment->loadMissing('performanceAssessment.assessmentPeriod');
-        $period = $assessment->performanceAssessment?->assessmentPeriod;
-        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Tolak Penilaian');
-
         try {
             $svc->reject($assessment, Auth::user(), (string) $request->input('note'));
             return back()->with('status', 'Penilaian ditolak.');

@@ -2,6 +2,7 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Bobot Kriteria Unit</h1>
+            <x-ui.button as="a" href="{{ route('admin_rs.unit_rater_weights.units') }}" variant="success" class="h-10 px-4 text-sm">Lihat Bobot Kriteria 360</x-ui.button>
         </div>
     </x-slot>
 

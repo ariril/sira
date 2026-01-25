@@ -119,7 +119,7 @@ class DashboardController extends Controller
                 ->count();
             if ($rejectedCount > 0) {
                 $notifications[] = [
-                    'type' => 'warning',
+                    'type' => 'error',
                     'text' => $rejectedCount . ' bobot ditolak. Revisi kemudian ajukan kembali.',
                     'href' => route('kepala_unit.unit-criteria-weights.index'),
                 ];
@@ -196,7 +196,7 @@ class DashboardController extends Controller
 
             if ($rejectedRaterWeights > 0) {
                 $notifications[] = [
-                    'type' => 'warning',
+                    'type' => 'error',
                     'text' => $rejectedRaterWeights . ' bobot penilai 360 ditolak. Revisi kemudian ajukan kembali.',
                     'href' => route('kepala_unit.rater_weights.index', [
                         'status' => 'rejected',

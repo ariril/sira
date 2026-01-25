@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\PolyclinicHead;
 use App\Http\Controllers\Controller;
 use App\Models\UnitCriteriaWeight as Weight;
 use App\Enums\UnitCriteriaWeightStatus as UCWStatus;
+use App\Enums\RaterWeightStatus;
 use App\Models\AssessmentPeriod;
 use App\Support\AssessmentPeriodGuard;
 use Illuminate\Support\Facades\Auth;
@@ -195,7 +196,9 @@ class UnitCriteriaApprovalController extends Controller
 
         $policyNote = trim('Rejected: '.$comment);
 
-        DB::transaction(function () use ($pendingQuery, $me, $comment, $policyNote) {
+        $pendingRows = (clone $pendingQuery)->get(['assessment_period_id', 'performance_criteria_id']);
+
+        DB::transaction(function () use ($pendingQuery, $pendingRows, $unitId, $me, $comment, $policyNote) {
             $pendingQuery->update([
                 'status' => UCWStatus::REJECTED,
                 'decided_by' => $me->id,
@@ -203,9 +206,18 @@ class UnitCriteriaApprovalController extends Controller
                 'decided_note' => $comment,
                 'policy_note' => $policyNote,
             ]);
+
+            $note = $this->buildAutoRejectNote($comment);
+            $grouped = $pendingRows->groupBy('assessment_period_id');
+            foreach ($grouped as $pid => $rows) {
+                $criteriaIds = $rows->pluck('performance_criteria_id')->filter()->map(fn($v) => (int) $v)->values()->all();
+                if (!empty($criteriaIds)) {
+                    $this->cascadeRejectRaterWeights($unitId, (int) $pid, $criteriaIds, $note, (int) $me->id);
+                }
+            }
         });
 
-        return back()->with('status', $count.' bobot pending ditolak untuk unit ini.');
+        return back()->with('status', $count.' bobot pending ditolak untuk unit ini. Bobot Penilai 360 terkait ikut ditolak otomatis.');
     }
 
     public function approve(Request $request, Weight $weight)
@@ -249,7 +261,10 @@ class UnitCriteriaApprovalController extends Controller
         // Legacy: keep writing to policy_note so existing UI/exports don't break.
         $weight->policy_note = trim('Rejected: '.$comment);
         $weight->save();
-        return back()->with('status','Bobot kriteria ditolak.');
+
+        $note = $this->buildAutoRejectNote($comment);
+        $this->cascadeRejectRaterWeights((int) $weight->unit_id, (int) $weight->assessment_period_id, [(int) $weight->performance_criteria_id], $note, (int) $me->id);
+        return back()->with('status','Bobot kriteria ditolak. Bobot Penilai 360 terkait ikut ditolak otomatis.');
     }
 
     public function approveAll(Request $request): RedirectResponse
@@ -325,7 +340,7 @@ class UnitCriteriaApprovalController extends Controller
     public function unit(Request $request, int $unitId): View
     {
         $filters = $request->validate([
-            'status' => ['nullable','in:draft,pending,active,rejected,all'],
+            'status' => ['nullable','in:draft,pending,active,rejected,archived,all'],
             'period_id' => ['nullable','integer'],
         ]);
         $unit = Schema::hasTable('units') ? DB::table('units')->where('id',$unitId)->first() : null;
@@ -357,5 +372,42 @@ class UnitCriteriaApprovalController extends Controller
                 'period_id' => $filters['period_id'] ?? null,
             ],
         ]);
+    }
+
+    private function buildAutoRejectNote(string $comment): string
+    {
+        $comment = trim($comment);
+        if ($comment === '') {
+            return 'Ditolak otomatis karena bobot kriteria unit ditolak.';
+        }
+
+        return 'Ditolak otomatis karena bobot kriteria unit ditolak. Catatan: ' . $comment;
+    }
+
+    /**
+     * @param array<int> $criteriaIds
+     */
+    private function cascadeRejectRaterWeights(int $unitId, int $periodId, array $criteriaIds, string $note, int $actorId): void
+    {
+        if ($unitId <= 0 || $periodId <= 0 || empty($criteriaIds)) {
+            return;
+        }
+
+        if (!Schema::hasTable('unit_rater_weights')) {
+            return;
+        }
+
+        DB::table('unit_rater_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $periodId)
+            ->whereIn('performance_criteria_id', $criteriaIds)
+            ->where('status', '!=', RaterWeightStatus::ARCHIVED->value)
+            ->update([
+                'status' => RaterWeightStatus::REJECTED->value,
+                'decided_by' => $actorId > 0 ? $actorId : null,
+                'decided_at' => now(),
+                'decided_note' => $note,
+                'updated_at' => now(),
+            ]);
     }
 }

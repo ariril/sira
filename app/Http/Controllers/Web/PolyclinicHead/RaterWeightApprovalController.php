@@ -8,11 +8,13 @@ use App\Models\AssessmentPeriod;
 use App\Models\PerformanceCriteria;
 use App\Models\Profession;
 use App\Models\RaterWeight;
+use App\Services\RaterWeights\RaterWeightGenerator;
 use App\Support\AssessmentPeriodGuard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -218,6 +220,19 @@ class RaterWeightApprovalController extends Controller
         $raterWeight->decided_note = $data['comment'];
         $raterWeight->save();
 
+        $criteriaIds = $this->resolveActive360CriteriaIdsForUnit((int) $raterWeight->unit_id, (int) $raterWeight->assessment_period_id);
+        if (!empty($criteriaIds)) {
+            app(RaterWeightGenerator::class)->syncForUnitPeriod(
+                (int) $raterWeight->unit_id,
+                (int) $raterWeight->assessment_period_id
+            );
+        } else {
+            Log::warning('RaterWeight reject: no active 360 criteria found for regeneration.', [
+                'unit_id' => (int) $raterWeight->unit_id,
+                'assessment_period_id' => (int) $raterWeight->assessment_period_id,
+            ]);
+        }
+
         return back()->with('status', 'Bobot penilai 360 ditolak.');
     }
 
@@ -264,6 +279,18 @@ class RaterWeightApprovalController extends Controller
                 'decided_note' => $data['comment'],
             ]);
         });
+
+        foreach ($periodIds as $pid) {
+            $criteriaIds = $this->resolveActive360CriteriaIdsForUnit($unitId, (int) $pid);
+            if (empty($criteriaIds)) {
+                Log::warning('RaterWeight reject unit: no active 360 criteria found for regeneration.', [
+                    'unit_id' => $unitId,
+                    'assessment_period_id' => (int) $pid,
+                ]);
+                continue;
+            }
+            app(RaterWeightGenerator::class)->syncForUnitPeriod($unitId, (int) $pid);
+        }
 
         return back()->with('status', $count . ' bobot penilai 360 ditolak untuk unit ini.');
     }
@@ -327,5 +354,33 @@ class RaterWeightApprovalController extends Controller
                         ->orWhereHas('assessorProfession', fn($p) => $p->where('name', 'like', '%' . $search . '%'));
                 });
             });
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function resolveActive360CriteriaIdsForUnit(int $unitId, int $periodId): array
+    {
+        if ($unitId <= 0 || $periodId <= 0) {
+            return [];
+        }
+
+        if (!Schema::hasTable('unit_criteria_weights') || !Schema::hasTable('performance_criterias')) {
+            return [];
+        }
+
+        return DB::table('unit_criteria_weights as ucw')
+            ->join('performance_criterias as pc', 'pc.id', '=', 'ucw.performance_criteria_id')
+            ->where('ucw.unit_id', $unitId)
+            ->where('ucw.assessment_period_id', $periodId)
+            ->where('ucw.status', 'active')
+            ->where('pc.is_360', 1)
+            ->where('pc.is_active', 1)
+            ->distinct()
+            ->pluck('pc.id')
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->values()
+            ->all();
     }
 }

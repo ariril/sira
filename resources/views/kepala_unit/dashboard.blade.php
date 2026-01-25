@@ -35,7 +35,7 @@
                             </div>
                         </div>
                     @elseif($type==='info')
-                        <div class="rounded-lg px-4 py-3 text-sm bg-amber-50 text-amber-800">
+                        <div class="rounded-lg px-4 py-3 text-sm bg-blue-50 text-blue-800">
                             <div class="flex items-center justify-between gap-3">
                                 <span>{{ $n['text'] ?? '' }}</span>
                                 @if($href)

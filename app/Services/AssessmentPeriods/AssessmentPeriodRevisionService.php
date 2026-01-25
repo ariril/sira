@@ -7,12 +7,16 @@ use App\Models\AssessmentPeriod;
 use App\Models\PerformanceAssessment;
 use App\Models\User;
 use App\Support\AssessmentPeriodAudit;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class AssessmentPeriodRevisionService
 {
-    public function markRejectedFromApproval(AssessmentPeriod $period, User $actor, int $rejectedLevel, string $reason): void
+    /**
+     * @param array<string,mixed> $meta
+     */
+    public function markRejectedFromApproval(AssessmentPeriod $period, User $actor, int $rejectedLevel, string $reason, array $meta = []): void
     {
         $reason = trim($reason);
         if ($reason === '') {
@@ -32,9 +36,13 @@ class AssessmentPeriodRevisionService
 
         $period->update($updates);
 
-        AssessmentPeriodAudit::log((int) $period->id, (int) $actor->id, 'period_rejected', $reason, [
+        Cache::forget('ui.period_state_banner');
+
+        $payload = array_merge([
             'rejected_level' => $rejectedLevel,
-        ]);
+        ], $meta);
+
+        AssessmentPeriodAudit::log((int) $period->id, (int) $actor->id, 'period_rejected', $reason, $payload);
     }
 
     public function openRevision(AssessmentPeriod $period, User $actor, string $reason): void
@@ -69,6 +77,8 @@ class AssessmentPeriodRevisionService
                 'revision_opened_at' => now(),
                 'revision_opened_reason' => $reason,
             ]);
+
+            Cache::forget('ui.period_state_banner');
 
             $this->invalidateApprovalsForPeriodAttempt($period, $actor->id, 'Open revision: approval harus diulang dari Level 1.');
 
@@ -107,6 +117,8 @@ class AssessmentPeriodRevisionService
                 'rejected_at' => null,
                 'rejected_reason' => null,
             ]);
+
+            Cache::forget('ui.period_state_banner');
 
             // Create (or reset) Level 1 approvals for the new attempt.
             $this->ensureLevel1ApprovalsForPeriodAttempt($period, $nextAttempt);

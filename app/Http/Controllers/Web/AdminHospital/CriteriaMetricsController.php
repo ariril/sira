@@ -11,6 +11,7 @@ use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use App\Services\Metrics\Imports\CriteriaMetricsTemplateBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 use App\Support\AssessmentPeriodGuard;
@@ -37,6 +38,12 @@ class CriteriaMetricsController extends Controller
 
         $activePeriod = AssessmentPeriodGuard::resolveActive();
         $latestLockedPeriod = AssessmentPeriodGuard::resolveLatestLocked();
+
+        $latestImportablePeriod = AssessmentPeriod::query()
+            ->whereIn('status', [AssessmentPeriod::STATUS_REVISION, AssessmentPeriod::STATUS_LOCKED])
+            ->orderByDesc(DB::raw("status='" . AssessmentPeriod::STATUS_REVISION . "'"))
+            ->orderByDesc('start_date')
+            ->first();
 
         $items = CriteriaMetric::query()
             ->when(Schema::hasColumn('imported_criteria_values', 'is_active'), fn($w) => $w->where('is_active', true))
@@ -94,7 +101,8 @@ class CriteriaMetricsController extends Controller
             'perPage',
             'perPageOptions',
             'activePeriod',
-            'latestLockedPeriod'
+            'latestLockedPeriod',
+            'latestImportablePeriod'
         ));
     }
 

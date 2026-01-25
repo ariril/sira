@@ -197,12 +197,21 @@ class AppServiceProvider extends ServiceProvider
 
             try {
                 if (Schema::hasTable('assessment_periods') && Schema::hasColumn('assessment_periods', 'status')) {
-                    $period = Cache::remember('ui.period_state_banner', 30, function () {
+                    $period = Cache::remember('ui.period_state_banner', now()->addSeconds(10), function () {
                         // Prefer REVISION if present.
-                        $revision = AssessmentPeriod::query()
-                            ->where('status', AssessmentPeriod::STATUS_REVISION)
-                            ->orderByDesc('start_date')
-                            ->first();
+                        $revisionQuery = AssessmentPeriod::query()
+                            ->where('status', AssessmentPeriod::STATUS_REVISION);
+
+                        // Only treat as an active revision if it was explicitly opened.
+                        if (Schema::hasColumn('assessment_periods', 'revision_opened_at')) {
+                            $revisionQuery
+                                ->whereNotNull('revision_opened_at')
+                                ->orderByDesc('revision_opened_at');
+                        } else {
+                            $revisionQuery->orderByDesc('start_date');
+                        }
+
+                        $revision = $revisionQuery->first();
                         if ($revision) {
                             return $revision;
                         }

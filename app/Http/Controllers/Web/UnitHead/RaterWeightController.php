@@ -17,7 +17,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -100,15 +102,15 @@ class RaterWeightController extends Controller
             }
         }
 
+        if ($currentPeriodId > 0) {
+            $this->sync360DraftForPeriod($unitId, $currentPeriodId);
+        }
+
         $shouldSync = $activePeriodId > 0
             && $currentPeriodId === $activePeriodId
             && $hasRelevant360Criteria
             && $hasRules
             && $hasProfession;
-
-        if ($shouldSync) {
-            $this->raterWeightGenerator->syncForUnitPeriod($unitId, $currentPeriodId);
-        }
 
         // Ensure history can still show even if current period prerequisites are incomplete.
         // If the rater weight table is empty for this unit, try to backfill from previous periods
@@ -192,7 +194,6 @@ class RaterWeightController extends Controller
             )
             ->whereIn('status', [
                 RaterWeightStatus::DRAFT->value,
-                RaterWeightStatus::REJECTED->value,
                 RaterWeightStatus::PENDING->value,
                 RaterWeightStatus::ACTIVE->value,
             ])
@@ -202,13 +203,58 @@ class RaterWeightController extends Controller
         // - Default (awal buka / "Semua"): tampilkan data selain periode aktif.
         // - Jika user memilih periode tertentu: tampilkan data periode tersebut.
         $historyQuery = (clone $base)
+            ->whereIn('status', [
+                RaterWeightStatus::ARCHIVED->value,
+                RaterWeightStatus::REJECTED->value,
+            ])
             ->when(
                 !empty($filters['assessment_period_id'] ?? null) && (int) $filters['assessment_period_id'] !== $activePeriodId,
-                fn($q) => $q->where('assessment_period_id', (int) $filters['assessment_period_id']),
-                fn($q) => $q->when($activePeriodId > 0, fn($qq) => $qq->where('assessment_period_id', '!=', $activePeriodId))
+                fn($q) => $q->where('assessment_period_id', (int) $filters['assessment_period_id'])
+            )
+            ->when(
+                !empty($filters['assessment_period_id'] ?? null) && (int) $filters['assessment_period_id'] === $activePeriodId,
+                fn($q) => $q->where('assessment_period_id', $activePeriodId)
+            )
+            ->when(
+                empty($filters['assessment_period_id'] ?? null) && $activePeriodId > 0,
+                function ($q) use ($activePeriodId) {
+                    $rejectedVal = RaterWeightStatus::REJECTED->value;
+                    $q->where(function ($inner) use ($activePeriodId, $rejectedVal) {
+                        $inner->where('assessment_period_id', '!=', $activePeriodId)
+                              ->orWhere(function ($activeRejected) use ($activePeriodId, $rejectedVal) {
+                                  $activeRejected->where('assessment_period_id', $activePeriodId)
+                                                 ->where('status', $rejectedVal);
+                              });
+                    });
+                }
             )
             ->orderByDesc('assessment_period_id')
             ->orderByDesc('id');
+
+        $usingFallback = false;
+        $workingCount = (clone $workingQuery)->count();
+        if ($workingCount === 0 && $activePeriodId > 0) {
+            $period = AssessmentPeriod::query()->find((int) $activePeriodId);
+            if ($period && $period->isFrozen()) {
+                $previous = $this->resolvePreviousPeriod($period);
+                if ($previous) {
+                    $hasWasActiveBefore = Schema::hasColumn('unit_rater_weights', 'was_active_before');
+                    $workingQuery = (clone $base)
+                        ->where('assessment_period_id', (int) $previous->id)
+                        ->where(function ($q) use ($hasWasActiveBefore) {
+                            $q->where('status', RaterWeightStatus::ACTIVE->value)
+                                ->orWhere(function ($sub) use ($hasWasActiveBefore) {
+                                    $sub->where('status', RaterWeightStatus::ARCHIVED->value);
+                                    if ($hasWasActiveBefore) {
+                                        $sub->where('was_active_before', 1);
+                                    }
+                                });
+                        })
+                        ->orderByDesc('id');
+                    $usingFallback = true;
+                }
+            }
+        }
 
         $itemsWorking = $workingQuery->paginate(20, ['*'], 'page_working')->withQueryString();
         $itemsHistory = $historyQuery->paginate(20, ['*'], 'page_history')->withQueryString();
@@ -260,9 +306,23 @@ class RaterWeightController extends Controller
                 criteriaIds: $relevantCriteriaIds,
                 criteriaFilterId: !empty($filters['performance_criteria_id'] ?? null) ? (int) $filters['performance_criteria_id'] : null,
                 professionFilterId: !empty($filters['assessee_profession_id'] ?? null) ? (int) $filters['assessee_profession_id'] : null,
-                statuses: [RaterWeightStatus::DRAFT->value, RaterWeightStatus::REJECTED->value],
+                statuses: [RaterWeightStatus::DRAFT->value],
                 weightOverrides: $tempWeights,
             );
+        }
+
+        if ($currentPeriodId > 0) {
+            $parentCriteriaCounts = $this->countParent360CriteriaByStatus($unitId, $currentPeriodId);
+            $raterWeightCounts = $this->countRaterWeightsByStatus($unitId, $currentPeriodId);
+
+            Log::debug('RaterWeight index snapshot', [
+                'unit_id' => $unitId,
+                'assessment_period_id' => $currentPeriodId,
+                'parent_360_criteria_count_by_status' => $parentCriteriaCounts,
+                'draft_rater_weight_count' => $raterWeightCounts['draft'] ?? 0,
+                'active_rater_weight_count' => $raterWeightCounts['active'] ?? 0,
+                'archived_rater_weight_count' => $raterWeightCounts['archived'] ?? 0,
+            ]);
         }
 
             $canSubmitAll = $checklist->isNotEmpty() && $checklist->every(fn($r) => (bool) ($r['ok'] ?? false));
@@ -332,9 +392,24 @@ class RaterWeightController extends Controller
                 $canCopyPrevious = (bool) $previousPeriod;
             }
 
+            if ($allGroupsActive) {
+                $canCopyPrevious = false;
+            }
+
+            $rejectedCountActive = 0;
+            if ($currentPeriodId > 0) {
+                $rejectedCountActive = (int) DB::table('unit_rater_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $currentPeriodId)
+                    ->where('status', RaterWeightStatus::REJECTED->value)
+                    ->count();
+            }
+
         return view('kepala_unit.rater_weights.index', [
             'itemsWorking' => $itemsWorking,
             'itemsHistory' => $itemsHistory,
+            'usingFallback' => $usingFallback,
+            'hasFallbackActive' => $hasFallbackActive,
             'periods' => $periods,
             'criteriaOptions' => $criteriaOptions,
             'professions' => $professions,
@@ -365,6 +440,7 @@ class RaterWeightController extends Controller
             'allGroupsActive' => $allGroupsActive,
             'hasAnyGroup' => $hasAnyGroup,
             'rejectedWorkingCount' => $rejectedWorkingCount,
+            'rejectedCountActive' => $rejectedCountActive,
         ]);
     }
 
@@ -402,10 +478,12 @@ class RaterWeightController extends Controller
         $this->raterWeightGenerator->syncForUnitPeriod($unitId, (int) $activePeriod->id);
 
         // Only copy for criteria that are relevant in the active period.
-        $criteriaIds = $this->resolveRelevant360CriteriaIdsForUnit($unitId, (int) $activePeriod->id);
+        $criteriaIds = $this->resolveActive360CriteriaIdsForUnit($unitId, (int) $activePeriod->id);
         if (empty($criteriaIds)) {
-            return back()->withErrors(['status' => 'Tidak ada kriteria 360 pada periode aktif untuk disalin.']);
+            return back()->withErrors(['status' => 'Bobot kriteria unit belum aktif, tidak dapat generate bobot penilai.']);
         }
+
+        $this->ensureDraftRaterWeightsExists($unitId, (int) $activePeriod->id, $criteriaIds);
 
         // Source: prefer active rows; fallback progressively for demo/dev scenarios.
         $sourceStatusPriority = [
@@ -413,7 +491,6 @@ class RaterWeightController extends Controller
             RaterWeightStatus::ARCHIVED->value,
             RaterWeightStatus::PENDING->value,
             RaterWeightStatus::DRAFT->value,
-            RaterWeightStatus::REJECTED->value,
         ];
 
         $sourceRows = collect();
@@ -495,17 +572,289 @@ class RaterWeightController extends Controller
         session()->forget('rater_weights.temp_weights');
 
         if ($updated <= 0) {
-            return back()->with('status', 'Tidak ada bobot yang bisa disalin (tidak ada pasangan baris yang cocok).');
+            return back()->with('status', 'Tidak ada pasangan baris yang cocok. Aturan penilai pada periode ini berbeda dengan sumber yang disalin.');
         }
 
         return back()->with('status', "Berhasil menyalin bobot dari periode sebelumnya (diperbarui {$updated} baris draft)." );
+    }
+
+    /** Salin bobot ditolak (batch terakhir) menjadi draft periode aktif. */
+    public function copyFromRejected(Request $request): RedirectResponse
+    {
+        $this->authorizeAccess();
+
+        $me = Auth::user();
+        $unitId = (int) ($me?->unit_id ?? 0);
+        if ($unitId <= 0) {
+            abort(403);
+        }
+
+        if (!Schema::hasTable('assessment_periods') || !Schema::hasTable('unit_rater_weights')) {
+            return back()->withErrors(['status' => 'Tabel periode atau bobot penilai belum tersedia.']);
+        }
+
+        $revisionPeriod = AssessmentPeriod::query()->where('status', AssessmentPeriod::STATUS_REVISION)->orderByDesc('id')->first();
+        $activePeriod = AssessmentPeriod::query()->where('status', AssessmentPeriod::STATUS_ACTIVE)->orderByDesc('start_date')->first();
+        $activePeriod = $revisionPeriod ?: $activePeriod;
+        if (!$activePeriod) {
+            return back()->withErrors(['status' => 'Tidak ada periode aktif/revisi.']);
+        }
+
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($activePeriod, 'Salin Bobot Ditolak');
+        AssessmentPeriodGuard::requireActiveOrRevision($activePeriod, 'Salin Bobot Ditolak');
+
+        $hasWorking = RaterWeight::query()
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', (int) $activePeriod->id)
+            ->whereIn('status', [RaterWeightStatus::DRAFT->value, RaterWeightStatus::PENDING->value, RaterWeightStatus::ACTIVE->value])
+            ->exists();
+        if ($hasWorking) {
+            return back()->withErrors(['status' => 'Periode aktif sudah memiliki bobot. Hapus atau arsipkan terlebih dahulu.']);
+        }
+
+        // Ensure destination rows exist.
+        $this->raterWeightGenerator->syncForUnitPeriod($unitId, (int) $activePeriod->id);
+
+        $criteriaIds = $this->resolveActive360CriteriaIdsForUnit($unitId, (int) $activePeriod->id);
+        if (empty($criteriaIds)) {
+            return back()->withErrors(['status' => 'Bobot kriteria unit belum aktif, tidak dapat generate bobot penilai.']);
+        }
+
+        $latest = DB::table('unit_rater_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', (int) $activePeriod->id)
+            ->whereIn('performance_criteria_id', $criteriaIds)
+            ->where('status', RaterWeightStatus::REJECTED->value)
+            ->orderByRaw('COALESCE(decided_at, updated_at, created_at) DESC')
+            ->first();
+
+        if (!$latest) {
+            return back()->withErrors(['status' => 'Tidak ada bobot ditolak pada periode aktif.']);
+        }
+
+        $latestDecidedAt = $latest->decided_at ?? null;
+        $latestUpdatedAt = $latest->updated_at ?? $latest->created_at ?? null;
+
+        $sourceRows = DB::table('unit_rater_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', (int) $activePeriod->id)
+            ->whereIn('performance_criteria_id', $criteriaIds)
+            ->where('status', RaterWeightStatus::REJECTED->value)
+            ->when($latestDecidedAt, fn($q) => $q->where('decided_at', $latestDecidedAt))
+            ->when(!$latestDecidedAt && $latestUpdatedAt, fn($q) => $q->where('updated_at', $latestUpdatedAt))
+            ->get();
+
+        if ($sourceRows->isEmpty()) {
+            return back()->withErrors(['status' => 'Tidak ada batch penolakan yang dapat disalin.']);
+        }
+
+        $this->ensureDraftRaterWeightsExists($unitId, (int) $activePeriod->id, $criteriaIds);
+
+        $makeKey = function ($r): string {
+            $assessorProfessionId = (int) ($r->assessor_profession_id ?? 0);
+            $assessorLevel = (int) ($r->assessor_level ?? 0);
+            return (int) ($r->performance_criteria_id ?? 0)
+                . ':' . (int) ($r->assessee_profession_id ?? 0)
+                . ':' . (string) ($r->assessor_type ?? '')
+                . ':' . $assessorProfessionId
+                . ':' . $assessorLevel;
+        };
+
+        $sourceByKey = $sourceRows
+            ->mapWithKeys(fn($r) => [$makeKey($r) => $r])
+            ->all();
+
+        $destRows = RaterWeight::query()
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', (int) $activePeriod->id)
+            ->whereIn('performance_criteria_id', $criteriaIds)
+            ->whereIn('status', [RaterWeightStatus::DRAFT->value, RaterWeightStatus::REJECTED->value])
+            ->get();
+
+        $updated = 0;
+        DB::transaction(function () use ($destRows, $sourceByKey, $makeKey, &$updated) {
+            foreach ($destRows as $rw) {
+                $groupCount = (int) RaterWeight::query()
+                    ->where('assessment_period_id', (int) $rw->assessment_period_id)
+                    ->where('unit_id', (int) $rw->unit_id)
+                    ->where('performance_criteria_id', (int) $rw->performance_criteria_id)
+                    ->where('assessee_profession_id', (int) $rw->assessee_profession_id)
+                    ->count();
+                $isAutoSingle = $groupCount === 1 && (float) ($rw->weight ?? 0) === 100.0;
+                if ($isAutoSingle) {
+                    continue;
+                }
+
+                $key = $makeKey($rw);
+                if (!array_key_exists($key, $sourceByKey)) {
+                    continue;
+                }
+                $src = $sourceByKey[$key];
+                $rw->weight = $src->weight;
+                $rw->status = RaterWeightStatus::DRAFT;
+                $rw->proposed_by = null;
+                $rw->decided_by = null;
+                $rw->decided_at = null;
+                $rw->decided_note = null;
+                $rw->save();
+                $updated++;
+            }
+        });
+
+        session()->forget('rater_weights.temp_weights');
+
+        if ($updated <= 0) {
+            return back()->with('status', 'Tidak ada pasangan baris yang cocok. Aturan penilai pada periode ini berbeda dengan sumber yang disalin.');
+        }
+
+        return back()->with('status', "Berhasil menyalin bobot ditolak terakhir (diperbarui {$updated} baris draft)." );
+    }
+
+    /** Ajukan perubahan saat seluruh bobot sudah aktif. */
+    public function requestChange(Request $request): RedirectResponse
+    {
+        $this->authorizeAccess();
+
+        $me = Auth::user();
+        $unitId = (int) ($me?->unit_id ?? 0);
+        if ($unitId <= 0) {
+            abort(403);
+        }
+
+        $periodId = (int) ($request->input('assessment_period_id') ?: 0);
+        if ($periodId <= 0) {
+            $periodId = (int) (AssessmentPeriod::query()->where('status', AssessmentPeriod::STATUS_ACTIVE)->orderByDesc('start_date')->value('id') ?? 0);
+        }
+        if ($periodId <= 0) {
+            return back()->withErrors(['assessment_period_id' => 'Tidak ada periode aktif untuk diajukan ulang.']);
+        }
+
+        $period = AssessmentPeriod::query()->find((int) $periodId);
+        AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ajukan Perubahan Bobot Penilai 360');
+        AssessmentPeriodGuard::requireActive($period, 'Ajukan Perubahan Bobot Penilai 360');
+
+        $criteriaIds = $this->resolveActive360CriteriaIdsForUnit($unitId, (int) $periodId);
+        if (empty($criteriaIds)) {
+            return back()->withErrors(['status' => 'Bobot kriteria unit belum aktif, tidak dapat generate bobot penilai.']);
+        }
+
+        $activeRows = DB::table('unit_rater_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', (int) $periodId)
+            ->whereIn('performance_criteria_id', $criteriaIds)
+            ->where('status', RaterWeightStatus::ACTIVE->value)
+            ->get();
+
+        if ($activeRows->isEmpty()) {
+            return back()->withErrors(['status' => 'Tidak ada bobot aktif yang bisa diajukan ulang.']);
+        }
+
+        $hasPendingOrDraft = DB::table('unit_rater_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', (int) $periodId)
+            ->whereIn('performance_criteria_id', $criteriaIds)
+            ->whereIn('status', [RaterWeightStatus::DRAFT->value, RaterWeightStatus::PENDING->value, RaterWeightStatus::REJECTED->value])
+            ->exists();
+
+        if ($hasPendingOrDraft) {
+            return back()->withErrors(['status' => 'Masih ada bobot draft/pending/ditolak. Selesaikan terlebih dahulu sebelum mengajukan perubahan.']);
+        }
+
+        DB::transaction(function () use ($activeRows, $unitId, $periodId, $me) {
+            $hasWasActiveBefore = Schema::hasColumn('unit_rater_weights', 'was_active_before');
+            $now = now();
+
+            $activeBefore = (int) $activeRows->count();
+            $archivedDeleted = 0;
+            $draftDeleted = 0;
+            $archivedAfter = 0;
+            $draftInserted = 0;
+
+            $snapshot = $activeRows->map(fn($row) => [
+                'id' => (int) $row->id,
+                'assessment_period_id' => (int) $row->assessment_period_id,
+                'unit_id' => (int) $row->unit_id,
+                'performance_criteria_id' => (int) $row->performance_criteria_id,
+                'assessee_profession_id' => (int) $row->assessee_profession_id,
+                'assessor_type' => (string) $row->assessor_type,
+                'assessor_profession_id' => $row->assessor_profession_id,
+                'assessor_level' => $row->assessor_level,
+                'weight' => $row->weight,
+            ])->values()->all();
+
+            foreach ($snapshot as $row) {
+                $baseQuery = DB::table('unit_rater_weights')
+                    ->where('assessment_period_id', (int) $periodId)
+                    ->where('unit_id', $unitId)
+                    ->where('performance_criteria_id', (int) $row['performance_criteria_id'])
+                    ->where('assessee_profession_id', (int) $row['assessee_profession_id'])
+                    ->where('assessor_type', (string) $row['assessor_type'])
+                    ->where('assessor_profession_id', $row['assessor_profession_id'])
+                    ->where('assessor_level', $row['assessor_level']);
+
+                $archivedDeleted += (int) (clone $baseQuery)
+                    ->where('status', RaterWeightStatus::ARCHIVED->value)
+                    ->delete();
+
+                $draftDeleted += (int) (clone $baseQuery)
+                    ->where('status', RaterWeightStatus::DRAFT->value)
+                    ->delete();
+            }
+
+            foreach ($snapshot as $row) {
+                DB::table('unit_rater_weights')
+                    ->where('id', (int) $row['id'])
+                    ->update(array_filter([
+                        'status' => RaterWeightStatus::ARCHIVED->value,
+                        'was_active_before' => $hasWasActiveBefore ? 0 : null,
+                        'updated_at' => $now,
+                    ], fn($v) => $v !== null));
+                $archivedAfter++;
+            }
+
+            foreach ($snapshot as $row) {
+                DB::table('unit_rater_weights')->insert([
+                    'assessment_period_id' => (int) $row['assessment_period_id'],
+                    'unit_id' => (int) $row['unit_id'],
+                    'performance_criteria_id' => (int) $row['performance_criteria_id'],
+                    'assessee_profession_id' => (int) $row['assessee_profession_id'],
+                    'assessor_type' => (string) $row['assessor_type'],
+                    'assessor_profession_id' => $row['assessor_profession_id'],
+                    'assessor_level' => $row['assessor_level'],
+                    'weight' => $row['weight'],
+                    'status' => RaterWeightStatus::DRAFT->value,
+                    'was_active_before' => $hasWasActiveBefore ? 0 : null,
+                    'proposed_by' => (int) ($me?->id ?? 0),
+                    'decided_by' => null,
+                    'decided_at' => null,
+                    'decided_note' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $draftInserted++;
+            }
+
+            Log::info('REQUEST_CHANGE_360', [
+                'unit_id' => $unitId,
+                'assessment_period_id' => $periodId,
+                'active_before' => $activeBefore,
+                'archived_conflicts_deleted' => $archivedDeleted,
+                'archived_after' => $archivedAfter,
+                'draft_after' => $draftInserted,
+                'draft_deleted_conflicts' => $draftDeleted,
+            ]);
+        });
+
+        session()->forget('rater_weights.temp_weights');
+
+        return back()->with('status', 'Perubahan berhasil diajukan. Silakan revisi bobot pada draft, lalu ajukan kembali.');
     }
 
     public function updateInline(Request $request, RaterWeight $raterWeight): RedirectResponse|JsonResponse
     {
         $this->authorizeAccess();
         $this->authorizeOwnedByUnit($raterWeight);
-        $this->authorizeDraftOrRejected($raterWeight);
+        $this->authorizeDraftOnly($raterWeight);
 
         $period = AssessmentPeriod::query()->find((int) $raterWeight->assessment_period_id);
         AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ubah Bobot Penilai 360');
@@ -595,9 +944,36 @@ class RaterWeightController extends Controller
         AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Ajukan Bobot Penilai 360');
         AssessmentPeriodGuard::requireActiveOrRevision($period, 'Ajukan Bobot Penilai 360');
 
-        $criteriaIds = $this->resolveRelevant360CriteriaIdsForUnit($unitId, $periodId);
+        // Block submission if any related unit criteria weights are not approved.
+        $hasUnapproved = DB::table('unit_criteria_weights as ucw')
+            ->join('performance_criterias as pc', 'pc.id', '=', 'ucw.performance_criteria_id')
+            ->where('ucw.unit_id', $unitId)
+            ->where('ucw.assessment_period_id', $periodId)
+            ->whereIn('ucw.status', ['draft', 'pending', 'rejected'])
+            ->where('pc.is_360', 1)
+            ->where('pc.is_active', 1)
+            ->exists();
+
+        if ($hasUnapproved) {
+            return back()->withErrors(['status' => 'Bobot penilai 360 belum dapat diajukan: bobot kriteria unit masih draft/pending/ditolak.']);
+        }
+
+        $criteriaIds = DB::table('unit_criteria_weights as ucw')
+            ->join('performance_criterias as pc', 'pc.id', '=', 'ucw.performance_criteria_id')
+            ->join('criteria_rater_rules as crr', 'crr.performance_criteria_id', '=', 'pc.id')
+            ->where('ucw.unit_id', $unitId)
+            ->where('ucw.assessment_period_id', $periodId)
+            ->where('ucw.status', 'active')
+            ->where('pc.is_360', 1)
+            ->where('pc.is_active', 1)
+            ->distinct()
+            ->pluck('pc.id')
+            ->map(fn($v) => (int) $v)
+            ->values()
+            ->all();
+
         if (empty($criteriaIds)) {
-            return back()->withErrors(['status' => 'Tidak ada kriteria 360 yang dipilih untuk unit pada periode ini.']);
+            return back()->withErrors(['status' => 'Tidak ada kriteria 360 aktif untuk unit pada periode ini.']);
         }
 
         // Ensure rows exist before validation
@@ -616,11 +992,11 @@ class RaterWeightController extends Controller
             ->where('assessment_period_id', $periodId)
             ->where('unit_id', $unitId)
             ->whereIn('performance_criteria_id', $criteriaIds)
-            ->whereIn('status', [RaterWeightStatus::DRAFT->value, RaterWeightStatus::REJECTED->value])
+            ->whereIn('status', [RaterWeightStatus::DRAFT->value])
             ->get();
 
         if ($rows->isEmpty()) {
-            return back()->withErrors(['status' => 'Tidak ada bobot draft/ditolak yang bisa diajukan.']);
+            return back()->withErrors(['status' => 'Tidak ada bobot draft yang bisa diajukan.']);
         }
 
         // Validate totals per (unit, period, criteria, profession)
@@ -656,7 +1032,7 @@ class RaterWeightController extends Controller
             return back()->withErrors($errors);
         }
 
-        // Submit all draft/rejected rows for this unit+period+criteria set
+        // Submit all draft rows for this unit+period+criteria set
         DB::transaction(function () use ($rows) {
             foreach ($rows as $rw) {
                 $rw->status = RaterWeightStatus::PENDING;
@@ -695,7 +1071,7 @@ class RaterWeightController extends Controller
             return back();
         }
 
-        // Only allow updating rows owned by this unit and in draft/rejected.
+        // Only allow updating rows owned by this unit and in draft.
         $ids = collect(array_keys($weights))
             ->map(fn($v) => (int) $v)
             ->filter(fn($v) => $v > 0)
@@ -731,8 +1107,8 @@ class RaterWeightController extends Controller
         DB::transaction(function () use ($rows, $weights, &$errors) {
             foreach ($rows as $raterWeight) {
                 // status guard (same as updateInline)
-                if (!($raterWeight->status === RaterWeightStatus::DRAFT || $raterWeight->status === RaterWeightStatus::REJECTED)) {
-                    $errors[] = 'Ada baris yang tidak bisa diedit karena statusnya bukan draft/ditolak.';
+                if (!($raterWeight->status === RaterWeightStatus::DRAFT)) {
+                    $errors[] = 'Ada baris yang tidak bisa diedit karena statusnya bukan draft.';
                     continue;
                 }
 
@@ -777,18 +1153,72 @@ class RaterWeightController extends Controller
         abort_unless((int) $raterWeight->unit_id === $unitId, 403);
     }
 
-    private function authorizeDraftOrRejected(RaterWeight $raterWeight): void
+    private function authorizeDraftOnly(RaterWeight $raterWeight): void
     {
-        abort_unless(
-            $raterWeight->status === RaterWeightStatus::DRAFT || $raterWeight->status === RaterWeightStatus::REJECTED,
-            403
-        );
+        abort_unless($raterWeight->status === RaterWeightStatus::DRAFT, 403);
     }
 
     private function authorizeAccess(): void
     {
         $me = Auth::user();
         abort_unless($me && (string) $me->role === 'kepala_unit', 403);
+    }
+
+
+    private function ensureDraftRaterWeightsExists(int $unitId, int $periodId, array $criteriaIds): void
+    {
+        if ($unitId <= 0 || $periodId <= 0 || empty($criteriaIds)) {
+            Log::warning('ensureDraftRaterWeightsExists: missing criteriaIds for generation.', [
+                'unit_id' => $unitId,
+                'assessment_period_id' => $periodId,
+            ]);
+            throw ValidationException::withMessages([
+                'status' => 'Bobot kriteria unit belum aktif, tidak dapat generate bobot penilai.'
+            ]);
+        }
+
+        $hasWorking = RaterWeight::query()
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $periodId)
+            ->whereIn('performance_criteria_id', $criteriaIds)
+            ->whereIn('status', [RaterWeightStatus::DRAFT->value, RaterWeightStatus::PENDING->value])
+            ->exists();
+
+        if ($hasWorking) {
+            return;
+        }
+
+        $this->raterWeightGenerator->syncForUnitPeriod($unitId, $periodId);
+    }
+
+    /**
+     * Resolve criteria IDs for ACTIVE unit criteria weights only.
+     *
+     * @return array<int>
+     */
+    private function resolveActive360CriteriaIdsForUnit(int $unitId, int $periodId): array
+    {
+        if ($unitId <= 0 || $periodId <= 0) {
+            return [];
+        }
+
+        if (!Schema::hasTable('unit_criteria_weights') || !Schema::hasTable('performance_criterias')) {
+            return [];
+        }
+
+        return DB::table('unit_criteria_weights as ucw')
+            ->join('performance_criterias as pc', 'pc.id', '=', 'ucw.performance_criteria_id')
+            ->where('ucw.unit_id', $unitId)
+            ->where('ucw.assessment_period_id', $periodId)
+            ->where('ucw.status', 'active')
+            ->where('pc.is_360', 1)
+            ->where('pc.is_active', 1)
+            ->distinct()
+            ->pluck('pc.id')
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->values()
+            ->all();
     }
 
     private function archiveNonActivePeriods(int $unitId, int $activePeriodId): void
@@ -862,17 +1292,16 @@ class RaterWeightController extends Controller
         if ($unitId <= 0 || $periodId <= 0) {
             return [];
         }
-        if (!Schema::hasTable('unit_criteria_weights') || !Schema::hasTable('performance_criterias') || !Schema::hasTable('criteria_rater_rules')) {
+        if (!Schema::hasTable('unit_criteria_weights') || !Schema::hasTable('performance_criterias')) {
             return [];
         }
 
         $rows = DB::table('unit_criteria_weights as ucw')
             ->join('performance_criterias as pc', 'pc.id', '=', 'ucw.performance_criteria_id')
-            ->join('criteria_rater_rules as crr', 'crr.performance_criteria_id', '=', 'pc.id')
             ->where('ucw.unit_id', $unitId)
             ->where('ucw.assessment_period_id', $periodId)
-            // Only consider 360 criteria after the unit has submitted/activated its criteria weight.
-            ->whereIn('ucw.status', ['pending', 'active'])
+            // Consider criteria selected for this period (draft/pending/active).
+            ->whereIn('ucw.status', ['draft', 'pending', 'active'])
             ->where('pc.is_360', 1)
             ->where('pc.is_active', 1)
             ->distinct()
@@ -882,6 +1311,183 @@ class RaterWeightController extends Controller
             ->all();
 
         return $rows;
+    }
+
+    private function sync360DraftForPeriod(int $unitId, int $periodId): void
+    {
+        if ($unitId <= 0 || $periodId <= 0) {
+            return;
+        }
+
+        if (!Schema::hasTable('unit_criteria_weights') || !Schema::hasTable('performance_criterias') || !Schema::hasTable('unit_rater_weights')) {
+            return;
+        }
+
+        $parentRows = DB::table('unit_criteria_weights as ucw')
+            ->join('performance_criterias as pc', 'pc.id', '=', 'ucw.performance_criteria_id')
+            ->where('ucw.unit_id', $unitId)
+            ->where('ucw.assessment_period_id', $periodId)
+            ->whereIn('ucw.status', ['draft', 'pending', 'active'])
+            ->where('pc.is_360', 1)
+            ->where('pc.is_active', 1)
+            ->get(['ucw.performance_criteria_id', 'ucw.status']);
+
+        if ($parentRows->isEmpty()) {
+            return;
+        }
+
+        $draftCriteriaIds = $parentRows
+            ->where('status', 'draft')
+            ->pluck('performance_criteria_id')
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->values()
+            ->all();
+
+        if (!empty($draftCriteriaIds)) {
+            $hasWasActiveBefore = Schema::hasColumn('unit_rater_weights', 'was_active_before');
+            $now = now();
+
+            DB::transaction(function () use ($unitId, $periodId, $draftCriteriaIds, $hasWasActiveBefore, $now) {
+                $toArchive = DB::table('unit_rater_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $periodId)
+                    ->whereIn('performance_criteria_id', $draftCriteriaIds)
+                    ->whereIn('status', [RaterWeightStatus::ACTIVE->value, RaterWeightStatus::PENDING->value])
+                    ->get();
+
+                if ($toArchive->isEmpty()) {
+                    Log::debug('SYNC360: no rows to archive', [
+                        'unit_id' => $unitId,
+                        'assessment_period_id' => $periodId,
+                        'criteria_ids' => $draftCriteriaIds,
+                    ]);
+                    return;
+                }
+
+                $snapshot = $toArchive->map(fn($row) => [
+                    'id' => (int) $row->id,
+                    'assessment_period_id' => (int) $row->assessment_period_id,
+                    'unit_id' => (int) $row->unit_id,
+                    'performance_criteria_id' => (int) $row->performance_criteria_id,
+                    'assessee_profession_id' => (int) $row->assessee_profession_id,
+                    'assessor_type' => (string) $row->assessor_type,
+                    'assessor_profession_id' => $row->assessor_profession_id,
+                    'assessor_level' => $row->assessor_level,
+                    'weight' => $row->weight,
+                ])->values()->all();
+
+                $archivedConflictsDeleted = 0;
+                $draftDeleted = 0;
+                $archivedUpdated = 0;
+                $draftInserted = 0;
+
+                foreach ($snapshot as $row) {
+                    $baseQuery = DB::table('unit_rater_weights')
+                        ->where('assessment_period_id', (int) $periodId)
+                        ->where('unit_id', $unitId)
+                        ->where('performance_criteria_id', (int) $row['performance_criteria_id'])
+                        ->where('assessee_profession_id', (int) $row['assessee_profession_id'])
+                        ->where('assessor_type', (string) $row['assessor_type'])
+                        ->where('assessor_profession_id', $row['assessor_profession_id'])
+                        ->where('assessor_level', $row['assessor_level']);
+
+                    $archivedConflictsDeleted += (int) (clone $baseQuery)
+                        ->where('status', RaterWeightStatus::ARCHIVED->value)
+                        ->delete();
+
+                    $draftDeleted += (int) (clone $baseQuery)
+                        ->where('status', RaterWeightStatus::DRAFT->value)
+                        ->delete();
+                }
+
+                foreach ($snapshot as $row) {
+                    DB::table('unit_rater_weights')
+                        ->where('id', (int) $row['id'])
+                        ->update(array_filter([
+                            'status' => RaterWeightStatus::ARCHIVED->value,
+                            'was_active_before' => $hasWasActiveBefore ? 0 : null,
+                            'updated_at' => $now,
+                        ], fn($v) => $v !== null));
+                    $archivedUpdated++;
+                }
+
+                foreach ($snapshot as $row) {
+                    DB::table('unit_rater_weights')->insert([
+                        'assessment_period_id' => (int) $row['assessment_period_id'],
+                        'unit_id' => (int) $row['unit_id'],
+                        'performance_criteria_id' => (int) $row['performance_criteria_id'],
+                        'assessee_profession_id' => (int) $row['assessee_profession_id'],
+                        'assessor_type' => (string) $row['assessor_type'],
+                        'assessor_profession_id' => $row['assessor_profession_id'],
+                        'assessor_level' => $row['assessor_level'],
+                        'weight' => $row['weight'],
+                        'status' => RaterWeightStatus::DRAFT->value,
+                        'was_active_before' => $hasWasActiveBefore ? 0 : null,
+                        'proposed_by' => null,
+                        'decided_by' => null,
+                        'decided_at' => null,
+                        'decided_note' => null,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                    $draftInserted++;
+                }
+
+                Log::debug('SYNC360: archive and draft refresh', [
+                    'unit_id' => $unitId,
+                    'assessment_period_id' => $periodId,
+                    'to_archive_count' => count($snapshot),
+                    'archived_conflicts_deleted' => $archivedConflictsDeleted,
+                    'archived_updated' => $archivedUpdated,
+                    'draft_deleted' => $draftDeleted,
+                    'draft_inserted' => $draftInserted,
+                ]);
+            });
+        }
+
+        $this->raterWeightGenerator->syncForUnitPeriod($unitId, $periodId);
+    }
+
+    private function countParent360CriteriaByStatus(int $unitId, int $periodId): array
+    {
+        if ($unitId <= 0 || $periodId <= 0) {
+            return [];
+        }
+        if (!Schema::hasTable('unit_criteria_weights') || !Schema::hasTable('performance_criterias')) {
+            return [];
+        }
+
+        return DB::table('unit_criteria_weights as ucw')
+            ->join('performance_criterias as pc', 'pc.id', '=', 'ucw.performance_criteria_id')
+            ->where('ucw.unit_id', $unitId)
+            ->where('ucw.assessment_period_id', $periodId)
+            ->where('pc.is_360', 1)
+            ->where('pc.is_active', 1)
+            ->groupBy('ucw.status')
+            ->selectRaw('ucw.status, COUNT(*) as cnt')
+            ->pluck('cnt', 'status')
+            ->mapWithKeys(fn($v, $k) => [(string) $k => (int) $v])
+            ->all();
+    }
+
+    private function countRaterWeightsByStatus(int $unitId, int $periodId): array
+    {
+        if ($unitId <= 0 || $periodId <= 0) {
+            return [];
+        }
+        if (!Schema::hasTable('unit_rater_weights')) {
+            return [];
+        }
+
+        return DB::table('unit_rater_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $periodId)
+            ->groupBy('status')
+            ->selectRaw('status, COUNT(*) as cnt')
+            ->pluck('cnt', 'status')
+            ->mapWithKeys(fn($v, $k) => [(string) $k => (int) $v])
+            ->all();
     }
 
     /**
@@ -988,5 +1594,30 @@ class RaterWeightController extends Controller
                 }
             })
             ->first();
+    }
+
+    private function resolvePreviousPeriod(AssessmentPeriod $period): ?object
+    {
+        if (!Schema::hasTable('assessment_periods')) {
+            return null;
+        }
+
+        $query = DB::table('assessment_periods')
+            ->where('id', '!=', (int) $period->id)
+            ->whereIn('status', [
+                AssessmentPeriod::STATUS_LOCKED,
+                AssessmentPeriod::STATUS_APPROVAL,
+                AssessmentPeriod::STATUS_CLOSED,
+            ]);
+
+        if (Schema::hasColumn('assessment_periods', 'end_date') && Schema::hasColumn('assessment_periods', 'start_date') && !empty($period->start_date)) {
+            $query->where('end_date', '<', $period->start_date)
+                ->orderByDesc('end_date');
+        } else {
+            $query->where('id', '<', (int) $period->id)
+                ->orderByDesc('id');
+        }
+
+        return $query->first();
     }
 }

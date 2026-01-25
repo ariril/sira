@@ -12,8 +12,8 @@
     <div class="container-px py-6 space-y-6">
         @unless($activePeriod ?? null)
             <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
-                <div class="font-semibold">Tidak ada periode yang aktif saat ini.</div>
-                <div>Hubungi Admin RS untuk mengaktifkan periode penilaian terlebih dahulu.</div>
+                <div class="font-semibold">Tidak ada periode yang aktif/revisi saat ini.</div>
+                <div>Hubungi Admin RS untuk mengaktifkan periode atau membuka revisi periode penilaian terlebih dahulu.</div>
             </div>
         @endunless
 
@@ -94,6 +94,8 @@
                     $canEdit = ($totalClaims === 0);
                     $canDelete = ($totalClaims === 0);
 
+                    $isRevisionTask = (string) ($it->period_status ?? '') === 'revision';
+
                     $statusLabel = 'Closed';
                     $statusClass = 'bg-slate-200 text-slate-700';
                     $statusHint  = 'Tugas ditutup dan tidak dapat disubmit.';
@@ -141,6 +143,16 @@
                     </td>
                     <td class="px-6 py-4 text-right">
                         <div class="inline-flex items-center gap-2 justify-end">
+                            @if ($isRevisionTask)
+                                <x-ui.icon-button
+                                    as="a"
+                                    href="{{ route('kepala_unit.additional_tasks.edit_points', $it->id) }}"
+                                    icon="fa-pencil"
+                                    class="w-9 h-9"
+                                    title="Edit poin (REVISION)"
+                                />
+                            @endif
+
                             @if ($canEdit)
                                 <x-ui.icon-button as="a"
                                     href="{{ route('kepala_unit.additional-tasks.edit', $it->id) }}"

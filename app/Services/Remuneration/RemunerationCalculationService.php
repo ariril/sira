@@ -63,7 +63,7 @@ class RemunerationCalculationService
         }
 
         if (($wsmFilledCount !== $assessmentCount) && !$forceZero) {
-            return ['ok' => false, 'message' => 'Tidak dapat menjalankan perhitungan: skor WSM belum siap (total_wsm_score masih kosong). Pastikan bobot kriteria ACTIVE sudah tersedia, lalu recalculate penilaian.'];
+            return ['ok' => false, 'message' => 'Tidak dapat menjalankan perhitungan: skor kinerja belum siap (skor kinerja masih kosong). Pastikan bobot kriteria ACTIVE sudah tersedia, lalu hitung ulang penilaian kinerja.'];
         }
 
         // If any allocation for this period uses ATTACHED mode, require VALUE WSM to be filled too.
@@ -87,7 +87,7 @@ class RemunerationCalculationService
                 ->count();
 
             if ($wsmValueFilledCount !== $assessmentCount) {
-                return ['ok' => false, 'message' => 'Tidak dapat menjalankan perhitungan: skor WSM VALUE belum siap (total_wsm_value_score masih kosong). Jalankan recalculate penilaian (WSM) setelah update sistem.'];
+                return ['ok' => false, 'message' => 'Tidak dapat menjalankan perhitungan: nilai kinerja belum siap (nilai kinerja masih kosong). Jalankan hitung ulang penilaian kinerja setelah update sistem.'];
             }
         }
 
@@ -130,7 +130,7 @@ class RemunerationCalculationService
         });
 
         if (!empty($skipped) && !$forceZero) {
-            $msg = "Perhitungan selesai, tetapi ada alokasi yang dilewati karena data WSM grup tidak valid.\n- " . implode("\n- ", array_slice($skipped, 0, 10));
+            $msg = "Perhitungan selesai, tetapi ada alokasi yang dilewati karena data kinerja grup tidak valid.\n- " . implode("\n- ", array_slice($skipped, 0, 10));
             if (count($skipped) > 10) {
                 $msg .= "\n(dan " . (count($skipped) - 10) . " lainnya)";
             }
@@ -138,7 +138,7 @@ class RemunerationCalculationService
         }
 
         return ['ok' => true, 'message' => $forceZero
-            ? 'Perhitungan paksa selesai (nilai 0 untuk WSM kosong & alokasi belum dipublish).'
+            ? 'Perhitungan paksa selesai (nilai 0 untuk skor kinerja kosong & alokasi belum dipublikasikan).'
             : 'Perhitungan selesai (berdasarkan skor kinerja terkonfigurasi).'];
     }
 

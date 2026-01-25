@@ -1,4 +1,4 @@
-<x-app-layout title="Bobot Penilai 360 - {{ $unitName ?? 'Unit' }}" :suppressGlobalError="true">
+<x-app-layout title="Bobot Penilai 360 - {{ $unitName ?? 'Unit' }}">
     <x-slot name="header">
         <h1 class="text-2xl font-semibold text-slate-800">Bobot Penilai 360 - {{ $unitName ?? 'Unit' }}</h1>
     </x-slot>
@@ -17,9 +17,10 @@
                     <div>Modul ini digunakan untuk menyusun Bobot Penilai 360 pada periode berjalan.</div>
                     <ul class="list-disc pl-5 space-y-1">
                         <li>Tombol <strong>Cek</strong> menyimpan semua input bobot pada halaman ini sebagai <strong>Draft</strong> (berguna sebelum pindah halaman / sebelum Ajukan Semua).</li>
-                        <li>Tombol <strong>Ajukan Semua</strong> mengirim seluruh bobot draft/ditolak menjadi <strong>Pending</strong> jika total per kelompok sudah 100%.</li>
+                        <li>Tombol <strong>Ajukan Semua</strong> mengirim seluruh bobot draft menjadi <strong>Pending</strong> jika total per kelompok sudah 100%.</li>
                         <li>Tombol <strong>Salin periode sebelumnya</strong> menyalin bobot periode sebelumnya ke periode aktif sebagai draft (menimpa draft yang ada).</li>
-                        <li>Jika status <strong>Ditolak</strong>, klik badge <strong>Ditolak</strong> untuk melihat komentar penolakan. Revisi bobot lalu klik <strong>Ajukan Semua</strong> untuk mengajukan ulang.</li>
+                        <li>Jika status <strong>Ditolak</strong>, klik badge <strong>Ditolak</strong> pada Riwayat untuk melihat komentar penolakan. Gunakan <strong>Salin Bobot Ditolak</strong> untuk menyiapkan draft baru.</li>
+                        <li>Tombol <strong>Salin Bobot Ditolak</strong> menyalin batch penolakan terakhir pada periode aktif menjadi draft.</li>
                     </ul>
                 </div>
 
@@ -33,22 +34,11 @@
             </div>
         </x-modal>
 
-        @if ($errors->any())
-            <div class="p-4 rounded-xl border text-sm bg-rose-50 border-rose-200 text-rose-800">
-                <div class="font-semibold">Tidak dapat memproses permintaan.</div>
-                <ul class="mt-1 list-disc pl-5">
-                    @foreach ($errors->all() as $err)
-                        <li>{{ $err }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
         @if (!$hasRelevant360Criteria)
             <div class="p-4 rounded-xl border text-sm bg-amber-50 border-amber-200 text-amber-800">
                 <div class="font-semibold">Kriteria 360 belum dipilih untuk periode ini.</div>
                 <div class="mt-1">Bobot penilai 360 akan muncul setelah Bobot Kriteria Unit untuk kriteria 360 pada periode ini
-                    <strong>diajukan (Pending)</strong> atau sudah <strong>Aktif</strong>.</div>
+                    <strong>Draft</strong>, <strong>Pending</strong>, atau sudah <strong>Aktif</strong>.</div>
                 <div class="mt-1">Silakan buka Bobot Kriteria Unit lalu klik <strong>Ajukan Semua</strong> untuk kriteria 360.</div>
                 <div class="mt-3">
                     <x-ui.button variant="outline" as="a" href="{{ $unitCriteriaWeightsUrl }}">Buka Bobot
@@ -126,6 +116,14 @@
                             </x-ui.button>
                         </form>
                     @endif
+                    @if(($rejectedCountActive ?? 0) > 0)
+                        <form method="POST" action="{{ route('kepala_unit.rater_weights.copy_rejected') }}" class="inline-flex">
+                            @csrf
+                            <x-ui.button type="submit" variant="outline" class="h-10 px-4 text-sm" onclick="return confirm('Salin bobot ditolak terakhir ke periode aktif sebagai draft? Draft yang ada akan ditimpa.')">
+                                <i class="fa-solid fa-clone mr-2"></i> Salin bobot ditolak
+                            </x-ui.button>
+                        </form>
+                    @endif
                 </div>
             </div>
 
@@ -150,15 +148,20 @@
                     @endif
                 </div>
             @elseif($allActive && $totalGroups > 0)
-                <div class="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
-                    Seluruh bobot telah disetujui dan aktif untuk periode {{ $activePeriodName ?? '-' }}.
+                <div class="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between gap-3">
+                    <span>Seluruh bobot telah disetujui dan aktif untuk periode {{ $activePeriodName ?? '-' }}.</span>
+                    <form method="POST" action="{{ route('kepala_unit.rater_weights.request_change') }}" class="flex-shrink-0" onsubmit="return confirm('Ajukan Perubahan Bobot Penilai 360?\n\nApakah Anda yakin ingin mengajukan perubahan?\nBobot penilai yang saat ini AKTIF akan diarsipkan dan sistem akan membuat ulang versi DRAFT untuk diedit.')">
+                        @csrf
+                        <input type="hidden" name="assessment_period_id" value="{{ $activePeriodId }}" />
+                        <x-ui.button type="submit" variant="orange" class="h-10 px-4">Ajukan Perubahan</x-ui.button>
+                    </form>
                 </div>
             @elseif($readyToSubmit)
                 <div class="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between gap-3">
                     <div>
                         <div>Semua kelompok bobot sudah 100% dan siap diajukan. Jika Anda baru mengubah nilai, klik <strong>Cek</strong> terlebih dahulu.</div>
                         @if($rejectedCount > 0)
-                            <div class="mt-1 text-xs text-emerald-700">Ada pengajuan yang ditolak. Klik <strong>Ditolak</strong> untuk lihat komentar, revisi bobot, lalu klik <strong>Ajukan Semua</strong> untuk mengajukan ulang.</div>
+                            <div class="mt-1 text-xs text-emerald-700">Ada pengajuan yang ditolak. Lihat detailnya di <strong>Riwayat</strong>, lalu gunakan <strong>Salin Bobot Ditolak</strong> untuk menyiapkan draft baru.</div>
                         @endif
                     </div>
                     <div class="flex items-center gap-2">
@@ -171,11 +174,16 @@
                     </div>
                 </div>
             @else
+                @if(($usingFallback ?? false))
+                    <div class="mb-4 text-sm text-slate-600">
+                        Bobot periode ini belum diatur. Sistem menampilkan bobot dari periode sebelumnya.
+                    </div>
+                @endif
                 <div class="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-center justify-between gap-3">
                     <div>
                         <div>Klik <strong>Cek</strong> untuk menyimpan semua input pada halaman ini sebagai draft. Pastikan total per (kriteria + profesi assessee) = <strong>100%</strong> sebelum <strong>Ajukan Semua</strong>.</div>
                         @if($rejectedCount > 0)
-                            <div class="mt-2 text-xs text-amber-700">Ada pengajuan yang ditolak. Klik <strong>Ditolak</strong> untuk lihat komentar penolakan dan lakukan revisi.</div>
+                            <div class="mt-2 text-xs text-amber-700">Ada pengajuan yang ditolak. Lihat detailnya di <strong>Riwayat</strong>, lalu gunakan <strong>Salin Bobot Ditolak</strong> untuk menyiapkan draft baru.</div>
                         @endif
                     </div>
                     <div class="flex items-center gap-2">
@@ -281,7 +289,7 @@
                             @php($isAutoSingleLine = ((int) ($groupCountsByKey[$groupKey] ?? 0) === 1) && (float) ($row->weight ?? 0) === 100.0)
                             @php($isAutoRuleSingle = !empty($autoType) && (string) $autoType === (string) $row->assessor_type && (float) ($row->weight ?? 0) === 100.0)
                             @php($isAuto100 = $isAutoSingleLine || $isAutoRuleSingle)
-                            @php($editable = in_array($st, ['draft', 'rejected'], true) && !$isAuto100)
+                            @php($editable = in_array($st, ['draft'], true) && !$isAuto100)
 
                             @if($editable)
                                 <div class="inline-flex items-center justify-end gap-2">
@@ -313,8 +321,6 @@
                                 <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">Aktif</span>
                             @elseif($st === 'pending')
                                 <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Pending</span>
-                            @elseif($st === 'rejected')
-                                <button type="button" class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700 hover:bg-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 cursor-pointer" title="Klik untuk lihat komentar penolakan" onclick="window.dispatchEvent(new CustomEvent('open-modal', { detail: 'rw-note-{{ (int) $row->id }}' }))">Ditolak</button>
                             @else
                                 <span class="px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">Draft</span>
                             @endif
@@ -328,28 +334,6 @@
                 </x-ui.table>
             </form>
 
-            {{-- Render modals outside the table wrapper (avoid overflow clipping) --}}
-            @foreach($itemsWorking as $row)
-                @php($stModal = $row->status?->value ?? (string) $row->status)
-                @if($stModal === 'rejected')
-                    <x-modal name="rw-note-{{ (int) $row->id }}" :show="false" maxWidth="lg">
-                        <div class="p-6">
-                            <div class="flex items-start justify-between gap-3">
-                                <h2 class="text-lg font-semibold text-slate-800">Komentar Penolakan</h2>
-                                <button type="button" class="text-slate-400 hover:text-slate-600" onclick="window.dispatchEvent(new CustomEvent('close-modal', { detail: 'rw-note-{{ (int) $row->id }}' }))">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
-                            </div>
-                            @php($note = trim((string) ($row->decided_note ?? '')))
-                            <div class="mt-1 text-xs text-slate-500">Revisi bobot lalu klik <strong>Ajukan Semua</strong> untuk mengajukan ulang.</div>
-                            <div class="mt-3 text-sm text-slate-700 whitespace-pre-wrap">{{ $note !== '' ? $note : 'Tidak ada komentar penolakan.' }}</div>
-                            <div class="mt-5 flex justify-end">
-                                <x-ui.button type="button" variant="outline" onclick="window.dispatchEvent(new CustomEvent('close-modal', { detail: 'rw-note-{{ (int) $row->id }}' }))">Tutup</x-ui.button>
-                            </div>
-                        </div>
-                    </x-modal>
-                @endif
-            @endforeach
         </div>
 
         <div>
@@ -445,6 +429,12 @@
                 };
 
                 document.addEventListener('DOMContentLoaded', function () {
+                    const inputs = Array.from(document.querySelectorAll('input.rw-weight'));
+                    inputs.forEach((input) => {
+                        const clone = input.cloneNode(true);
+                        input.parentNode?.replaceChild(clone, input);
+                    });
+
                     try {
                         if (localStorage.getItem(storageKey) !== '1') {
                             window.dispatchEvent(new CustomEvent('open-modal', { detail: 'help-rater-weights' }));

@@ -10,6 +10,7 @@ use App\Services\CriteriaEngine\CriteriaRegistry;
 use App\Services\MultiRater\RaterWeightResolver as MultiRaterWeightResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class PerformanceScoreService
 {
@@ -810,7 +811,30 @@ class PerformanceScoreService
             ->where('assessment_period_id', $periodId)
             ->get($select);
 
+        if ($rows->isEmpty() && $period->isFrozen()) {
+            $previous = $this->resolvePreviousPeriod($period);
+            if ($previous) {
+                $prevRows = DB::table('unit_criteria_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', (int) $previous->id)
+                    ->whereIn('status', ['active', 'archived'])
+                    ->when($hasWasActiveBefore, function ($q) {
+                        $q->where('was_active_before', 1);
+                    })
+                    ->get($select);
+
+                if ($prevRows->isNotEmpty()) {
+                    $rows = $prevRows;
+                }
+            }
+        }
+
         if ($rows->isEmpty()) {
+            if ($period->isFrozen()) {
+                throw ValidationException::withMessages([
+                    'status' => 'Periode tidak dapat diproses karena bobot kinerja tidak tersedia dan tidak ditemukan bobot aktif pada periode sebelumnya.',
+                ]);
+            }
             return ['weights_all' => [], 'weights_active' => [], 'status_by_criteria' => []];
         }
 
@@ -867,6 +891,31 @@ class PerformanceScoreService
         }
 
         return ['weights_all' => $weightsAll, 'weights_active' => $weightsActive, 'status_by_criteria' => $statusByCriteriaId];
+    }
+
+    private function resolvePreviousPeriod(AssessmentPeriod $period): ?object
+    {
+        if (!Schema::hasTable('assessment_periods')) {
+            return null;
+        }
+
+        $query = DB::table('assessment_periods')
+            ->where('id', '!=', (int) $period->id)
+            ->whereIn('status', [
+                AssessmentPeriod::STATUS_LOCKED,
+                AssessmentPeriod::STATUS_APPROVAL,
+                AssessmentPeriod::STATUS_CLOSED,
+            ]);
+
+        if (Schema::hasColumn('assessment_periods', 'end_date') && Schema::hasColumn('assessment_periods', 'start_date') && !empty($period->start_date)) {
+            $query->where('end_date', '<', $period->start_date)
+                ->orderByDesc('end_date');
+        } else {
+            $query->where('id', '<', (int) $period->id)
+                ->orderByDesc('id');
+        }
+
+        return $query->first();
     }
 
     private function periodTotalDays(AssessmentPeriod $period): float

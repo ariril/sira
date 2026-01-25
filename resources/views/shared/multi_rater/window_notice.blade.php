@@ -5,18 +5,21 @@
         @php
             $startAt = optional($window->start_date)?->copy()->startOfDay();
             $endAt = optional($window->end_date)?->copy()->endOfDay();
+            $periodStatus = (string) (optional($window->period)->status ?? '');
         @endphp
         <div class="text-sm text-slate-700">
             Penilaian 360 dimulai dari <b>{{ optional($window->start_date)->format('d M Y') }}</b>
             hingga <b>{{ optional($window->end_date)->format('d M Y') }}</b>
             pada periode <b>{{ $periodName ?? optional($window->period)->name ?? '-' }}</b>.
             @if($startAt && $endAt)
-                @if(now()->lt($startAt))
+                @if($periodStatus === 'revision')
+                    <span class="inline-flex ml-2 text-sky-700 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded">Periode sedang revisi (perbaikan dibuka).</span>
+                @elseif(now()->lt($startAt))
                     <span class="inline-flex ml-2 text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded">Periode belum dibuka.</span>
                 @elseif(now()->between($startAt, $endAt, true))
                     <span class="inline-flex ml-2 text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded">Anda dapat mengisi penilaian sekarang.</span>
                 @else
-                    <span class="inline-flex ml-2 text-slate-600 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded">Periode sudah berakhir.</span>
+                    <span class="inline-flex ml-2 text-slate-600  bg-slate-50 border border-slate-100 px-2 py-0.5 rounded">Periode sudah berakhir.</span>
                 @endif
             @endif
         </div>

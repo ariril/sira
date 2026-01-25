@@ -62,7 +62,7 @@
                         {{ optional($it->start_date)->format('d M Y') }} - {{ optional($it->end_date)->format('d M Y') }}
                     </td>
                     <td class="px-6 py-4">
-                        @if(method_exists($it, 'isCurrentlyActive') && $it->isCurrentlyActive())
+                        @if($it->status === \App\Models\AssessmentPeriod::STATUS_ACTIVE && method_exists($it, 'isCurrentlyActive') && $it->isCurrentlyActive())
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Aktif</span>
                         @else
                             @switch($it->status)
@@ -116,12 +116,11 @@
                             @endif
 
                             @if($it->status === \App\Models\AssessmentPeriod::STATUS_APPROVAL && !empty($it->rejected_at))
-                                <form method="POST" action="{{ route('admin_rs.assessment_periods.open_revision', $it) }}" class="flex items-center gap-2" onsubmit="return confirm('Buka mode revisi untuk periode ini? Approval akan diulang dari Level 1 setelah resubmit.');">
+                                <form method="POST" action="{{ route('admin_rs.assessment_periods.open_revision', $it) }}" class="flex items-center gap-2"
+                                      onsubmit="const reason = prompt('Alasan Open Revision (wajib):'); if(!reason){ return false; } this.reason.value = reason; return confirm('Buka mode revisi untuk periode ini? Approval akan diulang dari Level 1 setelah resubmit.');">
                                     @csrf
-                                    <input type="text" name="reason" required maxlength="800"
-                                           class="h-9 px-3 rounded-lg border border-slate-300 text-xs w-52"
-                                           placeholder="Alasan Open Revision" />
-                                    <x-ui.button type="submit" variant="warning" class="h-9 px-3 text-xs">Open Revision</x-ui.button>
+                                    <input type="hidden" name="reason" value="" />
+                                    <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs">Open Revision</x-ui.button>
                                 </form>
                             @endif
 

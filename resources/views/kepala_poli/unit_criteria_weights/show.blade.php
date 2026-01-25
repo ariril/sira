@@ -11,7 +11,7 @@
             <div class="grid gap-5 md:grid-cols-12">
                 <div class="md:col-span-3">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
-                    <x-ui.select name="status" :options="['all'=>'(Semua)','draft'=>'Draft','pending'=>'Pending','active'=>'Active','rejected'=>'Rejected']" :value="$filters['status'] ?? 'all'" />
+                    <x-ui.select name="status" :options="['all'=>'(Semua)','draft'=>'Draft','pending'=>'Pending','active'=>'Active','rejected'=>'Rejected','archived'=>'Arsip']" :value="$filters['status'] ?? 'all'" />
                 </div>
                 <div class="md:col-span-3">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
@@ -51,6 +51,8 @@
                             <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Pending</span>
                         @elseif($st==='rejected')
                             <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Rejected</span>
+                        @elseif($st==='archived')
+                            <span class="px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">Arsip</span>
                         @else
                             <span class="px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">Draft</span>
                         @endif

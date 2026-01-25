@@ -29,12 +29,14 @@ $rows = DB::table('multi_rater_assessments as mra')
     ->join('users as u_assessor', 'u_assessor.id', '=', 'mra.assessor_id')
     ->where('mra.assessment_period_id', $pid)
     ->select([
+        'mra.id as mra_id',
         'mra.assessee_id',
         'u_assessee.name as assessee_name',
         'mra.assessor_type',
         'mra.assessor_level',
         'mra.assessor_id',
         'u_assessor.name as assessor_name',
+        'mra.assessor_profession_id',
         'mra.status',
     ])
     ->orderBy('mra.assessee_id')
@@ -60,6 +62,8 @@ foreach ($rows as $r) {
     $grouped[$key]['assessors'][] = [
         'id' => (int) $r->assessor_id,
         'name' => (string) $r->assessor_name,
+        'profession_id' => $r->assessor_profession_id === null ? null : (int) $r->assessor_profession_id,
+        'mra_id' => (int) $r->mra_id,
         'status' => (string) $r->status,
     ];
 }
@@ -70,7 +74,8 @@ foreach ($grouped as $g) {
     echo "Assessee: {$g['assessee_name']} (id={$g['assessee_id']})" . PHP_EOL;
     echo "  Type: {$g['assessor_type']} | Level: {$lvl} | Count: {$g['count']}" . PHP_EOL;
     foreach ($g['assessors'] as $a) {
-        echo "    - {$a['name']} (id={$a['id']}) status={$a['status']}" . PHP_EOL;
+        $pid = $a['profession_id'] === null ? 'null' : (string) $a['profession_id'];
+        echo "    - {$a['name']} (id={$a['id']}) profession_id={$pid} mra_id={$a['mra_id']} status={$a['status']}" . PHP_EOL;
     }
 }
 

@@ -129,6 +129,7 @@
                         @php($st = $it->status ?? 'pending')
                         @php($lvl1Approved = (bool) ($it->has_lvl1_approved ?? false))
                         @php($isMyLevel = (int) ($it->level ?? 0) === 2)
+                        @php($periodRejected = !empty($it->period_rejected_at) && (string)($it->period_status ?? '') === 'approval')
 
                         <div class="inline-flex gap-2">
                             <a href="{{ route('kepala_unit.assessments.detail', $it->id) }}"
@@ -136,7 +137,7 @@
                                 <i class="fa-solid fa-eye"></i>
                                 Detail
                             </a>
-                            @if ($isMyLevel && $st === 'pending')
+                            @if ($isMyLevel && $st === 'pending' && !$periodRejected)
                                 <form method="POST" action="{{ route('kepala_unit.assessments.approve', $it->id) }}">
                                     @csrf
                                     <x-ui.button type="submit" variant="success" class="h-9 px-3 text-xs"

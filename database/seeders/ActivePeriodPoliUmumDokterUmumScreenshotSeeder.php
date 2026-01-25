@@ -279,6 +279,25 @@ class ActivePeriodPoliUmumDokterUmumScreenshotSeeder extends Seeder
         }
 
         // 5) 360 (Multi-rater) — create self assessment per doctor with submitted status.
+        // Keep a window row for UI gating, but do not store window_id in multi_rater_assessments.
+        $windowId = (int) (DB::table('assessment_360_windows')->where('assessment_period_id', (int) $period->id)->max('id') ?? 0);
+        if ($windowId <= 0) {
+            $start = !empty($period->start_date) ? (string) $period->start_date : $now->toDateString();
+            $end = !empty($period->end_date) ? (string) $period->end_date : $now->toDateString();
+            try {
+                $windowId = (int) DB::table('assessment_360_windows')->insertGetId([
+                    'assessment_period_id' => (int) $period->id,
+                    'start_date' => $start,
+                    'end_date' => $end,
+                    'is_active' => 1,
+                    'opened_by' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            } catch (\Throwable $e) {
+                $windowId = 0;
+            }
+        }
         foreach ($userIds as $idx => $uid) {
             $uid = (int) $uid;
             $mraId = (int) DB::table('multi_rater_assessments')->updateOrInsert(

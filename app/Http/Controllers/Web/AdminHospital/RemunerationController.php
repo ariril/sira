@@ -389,7 +389,7 @@ class RemunerationController extends Controller
         }
 
         $msg = $hasIssue
-            ? 'Audit selesai: ada grup yang bermasalah (WSM NULL/0 atau nominal belum sesuai). Lihat tabel audit di bawah.'
+            ? 'Audit selesai: ada grup yang bermasalah (skor kinerja kosong/0 atau nominal belum sesuai). Lihat tabel audit di bawah.'
             : 'Audit selesai: semua grup konsisten (alokasi = total remunerasi terhitung, tanpa selisih).';
 
         return back()
@@ -476,14 +476,14 @@ class RemunerationController extends Controller
                     'ok' => $allValidated,
                     'detail' => $assessmentCount > 0
                         ? ("Tervalidasi: {$validatedCount} / {$assessmentCount}")
-                        : 'Belum ada data penilaian pada periode ini.',
+                        : 'Belum ada data penilaian kinerja pada periode ini.',
                 ],
                 [
-                    'label' => 'Skor WSM tersedia (total_wsm_score terisi)',
+                    'label' => 'Skor Kinerja Pegawai telah tersedia',
                     'ok' => $allWsmReady,
                     'detail' => $assessmentCount > 0
-                        ? ("Terisi: {$wsmFilledCount} / {$assessmentCount}" . ($wsmNullCount > 0 ? " (NULL: {$wsmNullCount})" : ''))
-                        : 'Belum ada data penilaian pada periode ini.',
+                        ? ("Terisi: {$wsmFilledCount} / {$assessmentCount}" . ($wsmNullCount > 0 ? " (Kosong: {$wsmNullCount})" : ''))
+                        : 'Belum ada data penilaian kinerja pada periode ini.',
                 ],
                 [
                     'label' => 'Semua alokasi remunerasi unit sudah dipublish',

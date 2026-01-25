@@ -3,31 +3,51 @@
 namespace App\Support;
 
 use App\Models\AssessmentPeriod;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Schema;
 
 final class AssessmentPeriodGuard
 {
+    private static function deny(string $message): void
+    {
+        if (app()->runningInConsole()) {
+            throw new \RuntimeException($message);
+        }
+
+        try {
+            if (function_exists('request') && request()?->expectsJson()) {
+                abort(403, $message);
+            }
+        } catch (\Throwable $e) {
+            // ignore and fall back
+        }
+
+        throw new HttpResponseException(
+            redirect()->back()->with('error', $message)
+        );
+    }
+
     public static function requireDraftEditable(?AssessmentPeriod $period, string $actionLabel = 'Edit'): void
     {
         if (!$period) {
-            abort(403, $actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
+            self::deny($actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
         }
 
         $status = (string) ($period->status ?? '');
         if ($status !== AssessmentPeriod::STATUS_DRAFT) {
             $label = $status !== '' ? strtoupper($status) : '-';
-            abort(403, sprintf('%s hanya dapat dilakukan ketika periode berstatus DRAFT. Status periode saat ini: %s.', $actionLabel, $label));
+            self::deny(sprintf('%s hanya dapat dilakukan ketika periode berstatus DRAFT. Status periode saat ini: %s.', $actionLabel, $label));
         }
 
         if (method_exists($period, 'isCurrentlyActive') && $period->isCurrentlyActive()) {
-            abort(403, sprintf('%s tidak dapat dilakukan: periode sudah mulai berjalan (AKTIF).', $actionLabel));
+            self::deny(sprintf('%s tidak dapat dilakukan: periode sudah mulai berjalan (AKTIF).', $actionLabel));
         }
     }
 
     public static function requireActive(?AssessmentPeriod $period, string $actionLabel = 'Aksi'): void
     {
         if (!$period) {
-            abort(403, $actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
+            self::deny($actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
         }
 
         $status = (string) ($period->status ?? '');
@@ -37,7 +57,7 @@ final class AssessmentPeriodGuard
                 $actionLabel,
                 $status !== '' ? strtoupper($status) : '-'
             );
-            abort(403, $msg);
+            self::deny($msg);
         }
 
         if (!$period->isCurrentlyActive()) {
@@ -46,14 +66,14 @@ final class AssessmentPeriodGuard
                 $actionLabel,
                 (string) ($period->status ?? '-')
             );
-            abort(403, $msg);
+            self::deny($msg);
         }
     }
 
     public static function requireActiveOrRevision(?AssessmentPeriod $period, string $actionLabel = 'Aksi'): void
     {
         if (!$period) {
-            abort(403, $actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
+            self::deny($actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
         }
 
         $status = (string) ($period->status ?? '');
@@ -72,7 +92,7 @@ final class AssessmentPeriodGuard
         }
 
         if (method_exists($period, 'isRejectedApproval') && $period->isRejectedApproval()) {
-            abort(403, $actionLabel . ' tidak dapat dilakukan: periode sedang DITOLAK (approval rejected).');
+            self::deny($actionLabel . ' tidak dapat dilakukan: periode sedang DITOLAK (approval rejected).');
         }
     }
 
@@ -84,7 +104,7 @@ final class AssessmentPeriodGuard
     public static function requireLockedOrRevision(?AssessmentPeriod $period, string $actionLabel = 'Aksi'): void
     {
         if (!$period) {
-            abort(403, $actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
+            self::deny($actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
         }
 
         $status = (string) ($period->status ?? '');
@@ -97,7 +117,7 @@ final class AssessmentPeriodGuard
             $actionLabel,
             $status !== '' ? strtoupper($status) : '-'
         );
-        abort(403, $msg);
+        self::deny($msg);
     }
 
     public static function resolveById(?int $periodId): ?AssessmentPeriod
@@ -151,12 +171,12 @@ final class AssessmentPeriodGuard
     public static function requireDeletable(?AssessmentPeriod $period, string $actionLabel = 'Hapus'): void
     {
         if (!$period) {
-            abort(403, $actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
+            self::deny($actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
         }
 
         if ($period->isNonDeletable()) {
             $label = AssessmentPeriod::statusLabel((string) $period->status);
-            abort(403, sprintf('Periode dengan status %s tidak boleh dihapus.', $label));
+            self::deny(sprintf('Periode dengan status %s tidak boleh dihapus.', $label));
         }
     }
 
@@ -165,7 +185,7 @@ final class AssessmentPeriodGuard
         $actual = (string) ($period?->status ?? '');
 
         if (!$period) {
-            abort(403, $actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
+            self::deny($actionLabel . ' tidak dapat dilakukan: periode penilaian tidak ditemukan.');
         }
 
         if ($actual !== $requiredStatus) {
@@ -175,7 +195,7 @@ final class AssessmentPeriodGuard
                 $requiredLabel,
                 $actual !== '' ? strtoupper($actual) : '-'
             );
-            abort(403, $msg);
+            self::deny($msg);
         }
     }
 }

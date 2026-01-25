@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\ValidationException;
+
+use App\Models\User;
 
 class AssessmentPeriod extends Model
 {
@@ -53,6 +56,16 @@ class AssessmentPeriod extends Model
     public function remunerations()
     {
         return $this->hasMany(Remuneration::class, 'assessment_period_id');
+    }
+
+    public function rejectedBy()
+    {
+        return $this->belongsTo(User::class, 'rejected_by_id');
+    }
+
+    public function revisionOpenedBy()
+    {
+        return $this->belongsTo(User::class, 'revision_opened_by_id');
     }
 
     /*
@@ -241,6 +254,8 @@ class AssessmentPeriod extends Model
 
     public function lock(?int $byUserId = null, ?string $notes = null): void
     {
+        $this->assertWeightsAvailableForLock();
+
         $updates = ['status' => self::STATUS_LOCKED];
         if (Schema::hasColumn('assessment_periods','locked_at'))    $updates['locked_at'] = now();
         if (Schema::hasColumn('assessment_periods','locked_by_id')) $updates['locked_by_id'] = $byUserId;
@@ -267,5 +282,126 @@ class AssessmentPeriod extends Model
         if ($notes !== null && Schema::hasColumn('assessment_periods','notes')) $updates['notes'] = $notes;
         DB::table('assessment_periods')->where('id', $this->id)->update($updates);
         $this->refresh();
+    }
+
+    private function assertWeightsAvailableForLock(): void
+    {
+        if (!Schema::hasTable('unit_criteria_weights') || !Schema::hasTable('users')) {
+            return;
+        }
+
+        $periodId = (int) $this->id;
+        if ($periodId <= 0) {
+            return;
+        }
+
+        $previous = $this->resolvePreviousPeriodForFallback();
+        $previousId = $previous ? (int) $previous->id : 0;
+
+        $unitIds = DB::table('users')
+            ->where('role', User::ROLE_PEGAWAI_MEDIS)
+            ->whereNotNull('unit_id')
+            ->distinct()
+            ->pluck('unit_id')
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->values()
+            ->all();
+
+        if (empty($unitIds)) {
+            return;
+        }
+
+        $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
+
+        foreach ($unitIds as $unitId) {
+            $hasCurrent = DB::table('unit_criteria_weights')
+                ->where('unit_id', $unitId)
+                ->where('assessment_period_id', $periodId)
+                ->where('status', '!=', 'archived')
+                ->exists();
+
+            if (!$hasCurrent) {
+                $hasPrev = $previousId > 0
+                    ? DB::table('unit_criteria_weights')
+                        ->where('unit_id', $unitId)
+                        ->where('assessment_period_id', $previousId)
+                        ->whereIn('status', ['active', 'archived'])
+                        ->when($hasWasActiveBefore, fn($q) => $q->where('was_active_before', 1))
+                        ->exists()
+                    : false;
+
+                if (!$hasPrev) {
+                    throw ValidationException::withMessages([
+                        'status' => 'Periode tidak dapat diproses karena bobot kinerja tidak tersedia dan tidak ditemukan bobot aktif pada periode sebelumnya.',
+                    ]);
+                }
+            }
+
+            if (Schema::hasTable('unit_rater_weights') && Schema::hasTable('performance_criterias')) {
+                $criteriaIds = DB::table('unit_criteria_weights as ucw')
+                    ->join('performance_criterias as pc', 'pc.id', '=', 'ucw.performance_criteria_id')
+                    ->where('ucw.unit_id', $unitId)
+                    ->where('ucw.assessment_period_id', $hasCurrent ? $periodId : $previousId)
+                    ->whereIn('ucw.status', ['active', 'archived'])
+                    ->when($hasWasActiveBefore, fn($q) => $q->where('ucw.was_active_before', 1))
+                    ->where('pc.is_360', 1)
+                    ->where('pc.is_active', 1)
+                    ->distinct()
+                    ->pluck('pc.id')
+                    ->map(fn($v) => (int) $v)
+                    ->filter(fn($v) => $v > 0)
+                    ->values()
+                    ->all();
+
+                if (!empty($criteriaIds)) {
+                    $hasRaterCurrent = DB::table('unit_rater_weights')
+                        ->where('unit_id', $unitId)
+                        ->where('assessment_period_id', $periodId)
+                        ->whereIn('performance_criteria_id', $criteriaIds)
+                        ->where('status', '!=', 'archived')
+                        ->exists();
+
+                    if (!$hasRaterCurrent) {
+                        $hasRaterPrev = $previousId > 0
+                            ? DB::table('unit_rater_weights')
+                                ->where('unit_id', $unitId)
+                                ->where('assessment_period_id', $previousId)
+                                ->whereIn('performance_criteria_id', $criteriaIds)
+                                ->whereIn('status', ['active', 'archived'])
+                                ->when(Schema::hasColumn('unit_rater_weights', 'was_active_before'), fn($q) => $q->where('was_active_before', 1))
+                                ->exists()
+                            : false;
+
+                        if (!$hasRaterPrev) {
+                            throw ValidationException::withMessages([
+                                'status' => 'Periode tidak dapat diproses karena bobot kinerja tidak tersedia dan tidak ditemukan bobot aktif pada periode sebelumnya.',
+                            ]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private function resolvePreviousPeriodForFallback(): ?object
+    {
+        if (!Schema::hasTable('assessment_periods')) {
+            return null;
+        }
+
+        $query = DB::table('assessment_periods')
+            ->where('id', '!=', (int) $this->id)
+            ->whereIn('status', [self::STATUS_LOCKED, self::STATUS_APPROVAL, self::STATUS_CLOSED]);
+
+        if (Schema::hasColumn('assessment_periods', 'end_date') && Schema::hasColumn('assessment_periods', 'start_date') && !empty($this->start_date)) {
+            $query->where('end_date', '<', $this->start_date)
+                ->orderByDesc('end_date');
+        } else {
+            $query->where('id', '<', (int) $this->id)
+                ->orderByDesc('id');
+        }
+
+        return $query->first();
     }
 }

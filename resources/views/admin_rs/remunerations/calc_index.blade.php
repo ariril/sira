@@ -12,7 +12,7 @@
                         </x-ui.button>
                     </form>
                     <form method="POST" action="{{ route('admin_rs.remunerations.calc.force') }}"
-                        onsubmit="return confirm('Jalankan perhitungan paksa? Sistem akan mengisi nilai 0 untuk WSM kosong dan alokasi yang belum dipublish.');">
+                        onsubmit="return confirm('Jalankan perhitungan paksa? Sistem akan mengisi nilai 0 untuk skor kinerja yang kosong dan alokasi yang belum dipublikasikan.');">
                         @csrf
                         <input type="hidden" name="period_id" value="{{ $selectedId }}" />
                         <x-ui.button type="submit" variant="danger" class="h-12 px-6 text-base">

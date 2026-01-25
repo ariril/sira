@@ -1,6 +1,9 @@
 <x-app-layout title="Approval Bobot Penilai 360">
     <x-slot name="header">
-        <h1 class="text-2xl font-semibold text-slate-800">Approval Bobot Penilai 360</h1>
+        <div class="flex items-center justify-between gap-3">
+            <h1 class="text-2xl font-semibold text-slate-800">Approval Bobot Penilai 360</h1>
+            <x-ui.button as="a" href="{{ route('kepala_poliklinik.unit_rater_weights.units') }}" variant="violet" class="h-10 px-4 text-sm">Lihat per Unit</x-ui.button>
+        </div>
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
@@ -13,7 +16,7 @@
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
-                    <x-ui.select name="status" :options="['all' => '(Semua)','pending'=>'Pending','active'=>'Active','rejected'=>'Rejected','archived'=>'Archived']" :value="$filters['status'] ?? 'pending'" />
+                    <x-ui.select name="status" :options="['all' => '(Semua)','pending'=>'Pending','active'=>'Active','rejected'=>'Rejected','archived'=>'Arsip']" :value="$filters['status'] ?? 'pending'" />
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
@@ -99,7 +102,7 @@
                                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Pending</span>
                                                     @break
                                                 @case('archived')
-                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200">Archived</span>
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200">Arsip</span>
                                                     @break
                                                 @default
                                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-100">Draft</span>

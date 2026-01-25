@@ -34,6 +34,7 @@ return new class extends Migration
                 'assessor_type',
                 'assessor_profession_id',
                 'assessor_level',
+                'status',
             ], 'uniq_rater_weight');
         });
     }

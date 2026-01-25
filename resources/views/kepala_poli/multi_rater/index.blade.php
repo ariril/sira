@@ -20,6 +20,7 @@
             @include('shared.multi_rater.simple_form', [
                 'title' => 'Penilaian Pegawai',
                 'periodId' => $periodId,
+                'windowId' => $window?->id,
                 'unitId' => null,
                 'raterRole' => 'kepala_poliklinik',
                 'targets' => $targets,
@@ -35,9 +36,13 @@
 
         @if(isset($savedScores))
             @php
-                $allowInlineEdit = ($windowEndsAt ?? null) && now()->lte($windowEndsAt) && (bool) ($canSubmit ?? false);
+                $periodStatus = (string) ($activePeriod->status ?? '');
+                $allowInlineEdit = (bool) ($canSubmit ?? false) && (
+                    $periodStatus === 'revision'
+                    || (($windowEndsAt ?? null) && now()->lte($windowEndsAt))
+                );
             @endphp
-            <div class="mt-4 bg-white rounded-2xl shadow-sm border border-slate-100" data-saved-table-key="kepala-poliklinik" data-edit-url="{{ route('kepala_poliklinik.multi_rater.store') }}" data-period-id="{{ $periodId }}" data-csrf="{{ csrf_token() }}" data-allow-inline-edit="{{ $allowInlineEdit ? 'true' : 'false' }}" data-inline-variant="violet">
+            <div class="mt-4 bg-white rounded-2xl shadow-sm border border-slate-100" data-saved-table-key="kepala-poliklinik" data-edit-url="{{ route('kepala_poliklinik.multi_rater.store') }}" data-period-id="{{ $periodId }}" data-window-id="{{ $window?->id }}" data-csrf="{{ csrf_token() }}" data-allow-inline-edit="{{ $allowInlineEdit ? 'true' : 'false' }}" data-inline-variant="violet">
                 <x-ui.table min-width="840px">
                     <x-slot name="head">
                         <tr>

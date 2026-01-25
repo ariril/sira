@@ -9,6 +9,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProfessionHierarchyController extends Controller
@@ -82,7 +83,11 @@ class ProfessionHierarchyController extends Controller
         } catch (QueryException $e) {
             if ((string) $e->getCode() === '23000') {
                 return back()->withInput()->withErrors([
-                    'assessee_profession_id' => 'Kombinasi sudah ada (assessee, assessor, relasi, level).',
+                    'assessee_profession_id' => $this->buildDuplicateMessage(
+                        (int) $data['assessee_profession_id'],
+                        (int) $data['assessor_profession_id'],
+                        (string) $data['relation_type']
+                    ),
                 ]);
             }
             throw $e;
@@ -117,7 +122,11 @@ class ProfessionHierarchyController extends Controller
         } catch (QueryException $e) {
             if ((string) $e->getCode() === '23000') {
                 return back()->withInput()->withErrors([
-                    'assessee_profession_id' => 'Kombinasi sudah ada (assessee, assessor, relasi, level).',
+                    'assessee_profession_id' => $this->buildDuplicateMessage(
+                        (int) $data['assessee_profession_id'],
+                        (int) $data['assessor_profession_id'],
+                        (string) $data['relation_type']
+                    ),
                 ]);
             }
             throw $e;
@@ -148,33 +157,66 @@ class ProfessionHierarchyController extends Controller
     private function validatePayload(Request $request, ?int $ignoreId = null, ?ProfessionReportingLine $existing = null): array
     {
         $relationType = (string) $request->input('relation_type', 'supervisor');
+        $isLevelRelation = in_array($relationType, ['supervisor', 'subordinate'], true);
 
-        $unique = Rule::unique('profession_reporting_lines')
-            ->where(fn($q) => $q
-                ->where('assessee_profession_id', (int) $request->input('assessee_profession_id'))
-                ->where('assessor_profession_id', (int) $request->input('assessor_profession_id'))
+        $assesseeId = (int) $request->input('assessee_profession_id');
+        $levelCount = 0;
+        if ($isLevelRelation && $assesseeId > 0) {
+            $levelCount = ProfessionReportingLine::query()
+                ->where('assessee_profession_id', $assesseeId)
                 ->where('relation_type', $relationType)
-                ->when($relationType === 'supervisor', fn($w) => $w->where('level', (int) $request->input('level')),
-                    fn($w) => $w->whereNull('level'))
-            );
-        if ($ignoreId) {
-            $unique = $unique->ignore($ignoreId);
+                ->when($ignoreId, fn($q) => $q->where('id', '!=', $ignoreId))
+                ->count();
+        }
+
+        $levelRules = ['nullable', 'integer', 'min:1'];
+        if ($isLevelRelation && $levelCount >= 1) {
+            $levelRules[] = 'required';
+        }
+
+        if ($isLevelRelation && $request->filled('level')) {
+            $uniqueLevel = Rule::unique('profession_reporting_lines', 'level')
+                ->where(fn($q) => $q
+                    ->where('assessee_profession_id', $assesseeId)
+                    ->where('relation_type', $relationType)
+                );
+            if ($ignoreId) {
+                $uniqueLevel = $uniqueLevel->ignore($ignoreId);
+            }
+            $levelRules[] = $uniqueLevel;
         }
 
         $validated = $request->validate([
-            'assessee_profession_id' => ['required', 'integer', 'different:assessor_profession_id', 'exists:professions,id', $unique],
+            'assessee_profession_id' => ['required', 'integer', 'different:assessor_profession_id', 'exists:professions,id'],
             'assessor_profession_id' => ['required', 'integer', 'different:assessee_profession_id', 'exists:professions,id'],
             'relation_type' => ['required', Rule::in(array_keys(self::RELATION_TYPES))],
-            'level' => [
-                'nullable',
-                'integer',
-                'min:1',
-                'required_if:relation_type,supervisor',
-                'prohibited_unless:relation_type,supervisor',
-            ],
+            'level' => $levelRules,
             'is_required' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
+        ], [
+            'assessee_profession_id.different' => 'Profesi Dinilai dan Profesi Penilai tidak boleh sama.',
+            'assessor_profession_id.different' => 'Profesi Dinilai dan Profesi Penilai tidak boleh sama.',
         ]);
+
+        $assesseeId = (int) ($validated['assessee_profession_id'] ?? 0);
+        $assessorId = (int) ($validated['assessor_profession_id'] ?? 0);
+        if ($assesseeId > 0 && $assessorId > 0) {
+            $duplicate = ProfessionReportingLine::query()
+                ->where('assessee_profession_id', $assesseeId)
+                ->where('assessor_profession_id', $assessorId)
+                ->when($ignoreId, fn($q) => $q->where('id', '!=', $ignoreId))
+                ->first();
+
+            if ($duplicate) {
+                throw ValidationException::withMessages([
+                    'assessee_profession_id' => $this->buildDuplicateMessage(
+                        $assesseeId,
+                        $assessorId,
+                        (string) $duplicate->relation_type
+                    ),
+                ]);
+            }
+        }
 
         // Normalize booleans (checkboxes)
         // If the UI no longer sends is_required, preserve existing value on update; default true on create.
@@ -183,11 +225,20 @@ class ProfessionHierarchyController extends Controller
             : (bool) ($existing?->is_required ?? true);
         $validated['is_active'] = (bool) ($request->boolean('is_active'));
 
-        // Enforce level null unless supervisor (defensive)
-        if (($validated['relation_type'] ?? null) !== 'supervisor') {
+        // Enforce level null unless supervisor/subordinate (defensive)
+        if (!in_array(($validated['relation_type'] ?? null), ['supervisor', 'subordinate'], true)) {
             $validated['level'] = null;
         }
 
         return $validated;
+    }
+
+    private function buildDuplicateMessage(int $assesseeId, int $assessorId, string $relationType): string
+    {
+        $assesseeName = (string) (Profession::query()->whereKey($assesseeId)->value('name') ?? 'Profesi Dinilai');
+        $assessorName = (string) (Profession::query()->whereKey($assessorId)->value('name') ?? 'Profesi Penilai');
+        $relationLabel = self::RELATION_TYPES[$relationType] ?? $relationType;
+
+        return "Profesi Dinilai {$assesseeName} dan Profesi Penilai {$assessorName} telah terhubung dengan relasi {$relationLabel}.";
     }
 }
