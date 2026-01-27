@@ -7,9 +7,9 @@ use App\Models\AssessmentPeriod;
 use App\Models\RaterWeight;
 use App\Services\RaterWeights\RaterWeightGenerator;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Collection;
 
 class DecemberRaterWeightSeeder extends Seeder
 {
@@ -37,52 +37,8 @@ class DecemberRaterWeightSeeder extends Seeder
                 continue;
             }
 
-            // Do not keep draft-like rows for a closed/non-active period.
-            if ((string) ($period->status ?? '') !== AssessmentPeriod::STATUS_ACTIVE) {
-                $archived = RaterWeightStatus::ARCHIVED->value;
-
-                $hasRwWasActiveBefore = Schema::hasColumn('unit_rater_weights', 'was_active_before');
-                $hasUcwWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
-
-                $rwUpdates = [
-                    'status' => $archived,
-                    'updated_at' => now(),
-                ];
-                if ($hasRwWasActiveBefore) {
-                    // Only mark as previously active if the row was active.
-                    $rwUpdates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE was_active_before END");
-                }
-
-                $rwUpdated = (int) DB::table('unit_rater_weights')
-                    ->where('assessment_period_id', $periodId)
-                    ->where('status', '!=', $archived)
-                    ->update($rwUpdates);
-
-                $ucwUpdated = 0;
-                if (Schema::hasTable('unit_criteria_weights')) {
-                    $ucwUpdates = [
-                        'status' => 'archived',
-                        'updated_at' => now(),
-                    ];
-                    if ($hasUcwWasActiveBefore) {
-                        // Tandai bahwa baris ini pernah aktif untuk periode tersebut.
-                        // Ini penting agar laporan periode lama tetap bisa memakai bobotnya.
-                        $ucwUpdates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE was_active_before END");
-                    }
-
-                    $ucwUpdated = (int) DB::table('unit_criteria_weights')
-                        ->where('assessment_period_id', $periodId)
-                        ->where('status', '!=', 'archived')
-                        ->update($ucwUpdates);
-                }
-
-                $pname = (string) ($period->name ?? '');
-                // Fall through to backfill metadata below.
-            }
-
             $unitIds = DB::table('unit_criteria_weights')
                 ->where('assessment_period_id', $periodId)
-                ->where('status', '!=', 'archived')
                 ->distinct()
                 ->pluck('unit_id')
                 ->map(fn ($v) => (int) $v)
@@ -98,16 +54,13 @@ class DecemberRaterWeightSeeder extends Seeder
             $structuralProfessionIds = $this->resolveStructuralProfessionIds();
             $professionsByUnit = $this->mapProfessionsByUnit($unitIds, $structuralProfessionIds);
 
-            // Ensure rater weight rows exist.
             foreach ($unitIds as $unitId) {
                 app(RaterWeightGenerator::class)->syncForUnitPeriod((int) $unitId, $periodId);
             }
 
-            // Fill missing weights, but only when a group is entirely empty (non-destructive).
             $rows = RaterWeight::query()
                 ->where('assessment_period_id', $periodId)
                 ->whereIn('unit_id', $unitIds)
-                ->whereIn('status', [RaterWeightStatus::DRAFT->value, RaterWeightStatus::REJECTED->value])
                 ->orderBy('unit_id')
                 ->orderBy('performance_criteria_id')
                 ->orderBy('assessee_profession_id')
@@ -116,82 +69,79 @@ class DecemberRaterWeightSeeder extends Seeder
                 ->orderByRaw('COALESCE(assessor_profession_id, 999999) ASC')
                 ->get();
 
-            if ($rows->isEmpty()) {
-                continue;
+            if ($rows->isNotEmpty()) {
+                $groups = $rows->groupBy(function ($r) {
+                    return (int) $r->unit_id . ':' . (int) $r->performance_criteria_id . ':' . (int) $r->assessee_profession_id;
+                });
+
+                DB::transaction(function () use ($groups, $professionsByUnit) {
+                    foreach ($groups as $groupRows) {
+                        $this->normalizeGroupWeights($groupRows, $professionsByUnit);
+                    }
+                });
             }
 
-            $updated = 0;
+            // For demo/history periods (non-active), archive rows so they can be used as history.
+            if ((string) ($period->status ?? '') !== AssessmentPeriod::STATUS_ACTIVE) {
+                $archived = RaterWeightStatus::ARCHIVED->value;
 
-            $groups = $rows->groupBy(function ($r) {
-                return (int) $r->unit_id . ':' . (int) $r->performance_criteria_id . ':' . (int) $r->assessee_profession_id;
-            });
-
-            DB::transaction(function () use ($groups, $professionsByUnit, &$updated) {
-                foreach ($groups as $groupRows) {
-                    $updated += $this->normalizeGroupWeights($groupRows, $professionsByUnit);
+                $rwUpdates = [
+                    'status' => $archived,
+                    'updated_at' => now(),
+                ];
+                if (Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
+                    $rwUpdates['was_active_before'] = 1;
                 }
-            });
-        }
 
-        // Backfill approval metadata for demo/history periods: decided_by/decided_at + was_active_before.
-        $deciderId = $this->resolveDeciderId();
-        $decidedAt = $this->resolveDecidedAt($periodId);
-        if ($deciderId > 0) {
-            DB::table('unit_rater_weights')
-                ->where('assessment_period_id', $periodId)
-                ->whereIn('status', ['active', 'archived'])
-                ->where(function ($q) {
-                    $q->whereNull('decided_by')
-                      ->orWhereNull('decided_at');
-                })
-                ->update([
-                    'decided_by' => $deciderId,
-                    'decided_at' => $decidedAt,
-                    'updated_at' => now(),
-                ]);
+                DB::table('unit_rater_weights')
+                    ->where('assessment_period_id', $periodId)
+                    ->where('status', '!=', $archived)
+                    ->update($rwUpdates);
 
-            DB::table('unit_criteria_weights')
-                ->where('assessment_period_id', $periodId)
-                ->whereIn('status', ['active', 'archived'])
-                ->where(function ($q) {
-                    $q->whereNull('decided_by')
-                      ->orWhereNull('decided_at');
-                })
-                ->update([
-                    'decided_by' => $deciderId,
-                    'decided_at' => $decidedAt,
+                $ucwUpdates = [
+                    'status' => 'archived',
                     'updated_at' => now(),
-                ]);
-        }
+                ];
+                if (Schema::hasColumn('unit_criteria_weights', 'was_active_before')) {
+                    $ucwUpdates['was_active_before'] = 1;
+                }
 
-        if (Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
-            DB::table('unit_rater_weights')
-                ->where('assessment_period_id', $periodId)
-                ->where('status', 'archived')
-                ->where('was_active_before', 0)
-                ->where(function ($q) {
-                    $q->whereNotNull('decided_by')
-                      ->orWhereNotNull('decided_at');
-                })
-                ->update([
-                    'was_active_before' => 1,
-                    'updated_at' => now(),
-                ]);
-        }
+                DB::table('unit_criteria_weights')
+                    ->where('assessment_period_id', $periodId)
+                    ->where('status', '!=', 'archived')
+                    ->update($ucwUpdates);
+            }
 
-        if (Schema::hasColumn('unit_criteria_weights', 'was_active_before')) {
-            DB::table('unit_criteria_weights')
-                ->where('assessment_period_id', $periodId)
-                ->where('status', 'archived')
-                ->where('was_active_before', 0)
-                ->where(function ($q) {
-                    $q->whereNotNull('decided_by')
-                      ->orWhereNotNull('decided_at');
-                })
-                ->update([
-                    'was_active_before' => 1,
-                    'updated_at' => now(),
-                ]);
+            // Backfill approval metadata.
+            $deciderId = $this->resolveDeciderId();
+            $decidedAt = $this->resolveDecidedAt($periodId);
+            if ($deciderId > 0) {
+                DB::table('unit_rater_weights')
+                    ->where('assessment_period_id', $periodId)
+                    ->whereIn('status', ['active', 'archived'])
+                    ->where(function ($q) {
+                        $q->whereNull('decided_by')
+                          ->orWhereNull('decided_at');
+                    })
+                    ->update([
+                        'decided_by' => $deciderId,
+                        'decided_at' => $decidedAt,
+                        'updated_at' => now(),
+                    ]);
+
+                DB::table('unit_criteria_weights')
+                    ->where('assessment_period_id', $periodId)
+                    ->whereIn('status', ['active', 'archived'])
+                    ->where(function ($q) {
+                        $q->whereNull('decided_by')
+                          ->orWhereNull('decided_at');
+                    })
+                    ->update([
+                        'decided_by' => $deciderId,
+                        'decided_at' => $decidedAt,
+                        'updated_at' => now(),
+                    ]);
+            }
         }
     }
 
@@ -262,6 +212,7 @@ class DecemberRaterWeightSeeder extends Seeder
 
         $rows = $groupRows->values();
 
+        // Remove assessors whose profession is not present in the unit.
         $invalid = $rows->filter(function ($r) use ($allowedProfessions) {
             $pid = $r->assessor_profession_id;
             return $pid !== null && (int) $pid > 0 && !isset($allowedProfessions[(int) $pid]);
@@ -443,7 +394,7 @@ class DecemberRaterWeightSeeder extends Seeder
     }
 
     /**
-     * Ensure supervisor level >=3 (kepala poliklinik) is never zero after normalization.
+     * Ensure supervisor level >=2 is never zero after normalization.
      *
      * @param array<int,int> $weights
      */
@@ -529,30 +480,29 @@ class DecemberRaterWeightSeeder extends Seeder
             return [$forced];
         }
 
-        // Prefer the demo period name if it exists.
-        $demoId = (int) (DB::table('assessment_periods')->where('name', 'December 2025')->value('id') ?? 0);
-        if ($demoId > 0) {
-            return [$demoId];
-        }
-
-        // Default: pick the latest period that starts in December.
-        $ids = DB::table('assessment_periods')
-            ->whereMonth('start_date', 12)
+        // Prefer explicit demo period names if they exist (Indonesian/English).
+        $byName = DB::table('assessment_periods')
+            ->whereIn('name', ['Desember 2025', 'December 2025'])
             ->orderByDesc('start_date')
-            ->limit(1)
             ->pluck('id')
             ->map(fn ($v) => (int) $v)
             ->filter(fn ($v) => $v > 0)
             ->values()
             ->all();
 
-        if (!empty($ids)) {
-            return $ids;
+        if (!empty($byName)) {
+            return array_values(array_unique($byName));
         }
 
-        // Fallback: name-based search.
+        $dec = (int) (DB::table('assessment_periods')->whereMonth('start_date', 12)->orderByDesc('start_date')->value('id') ?? 0);
+        if ($dec > 0) {
+            return [$dec];
+        }
+
         return DB::table('assessment_periods')
             ->where('name', 'like', '%Dec%')
+            ->orWhere('name', 'like', '%Des%')
+            ->orWhere('name', 'like', '%Desember%')
             ->orWhere('name', 'like', '%December%')
             ->orderByDesc('start_date')
             ->limit(1)

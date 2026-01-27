@@ -254,7 +254,7 @@ class AssessmentPeriod extends Model
 
     public function lock(?int $byUserId = null, ?string $notes = null): void
     {
-        $this->assertWeightsAvailableForLock();
+        $this->ensureWeightsReadyForLock();
 
         $updates = ['status' => self::STATUS_LOCKED];
         if (Schema::hasColumn('assessment_periods','locked_at'))    $updates['locked_at'] = now();
@@ -276,6 +276,7 @@ class AssessmentPeriod extends Model
 
     public function close(?int $byUserId = null, ?string $notes = null): void
     {
+        $this->ensureWeightsReadyForLock();
         $updates = ['status' => self::STATUS_CLOSED];
         if (Schema::hasColumn('assessment_periods','closed_at'))    $updates['closed_at'] = now();
         if (Schema::hasColumn('assessment_periods','closed_by_id')) $updates['closed_by_id'] = $byUserId;
@@ -284,7 +285,7 @@ class AssessmentPeriod extends Model
         $this->refresh();
     }
 
-    private function assertWeightsAvailableForLock(): void
+    public function ensureWeightsReadyForLock(): void
     {
         if (!Schema::hasTable('unit_criteria_weights') || !Schema::hasTable('users')) {
             return;
@@ -298,8 +299,16 @@ class AssessmentPeriod extends Model
         $previous = $this->resolvePreviousPeriodForFallback();
         $previousId = $previous ? (int) $previous->id : 0;
 
+        $roleColumn = Schema::hasColumn('users', 'role')
+            ? 'role'
+            : (Schema::hasColumn('users', 'last_role') ? 'last_role' : null);
+
+        if ($roleColumn === null) {
+            return;
+        }
+
         $unitIds = DB::table('users')
-            ->where('role', User::ROLE_PEGAWAI_MEDIS)
+            ->where($roleColumn, User::ROLE_PEGAWAI_MEDIS)
             ->whereNotNull('unit_id')
             ->distinct()
             ->pluck('unit_id')
@@ -312,39 +321,15 @@ class AssessmentPeriod extends Model
             return;
         }
 
-        $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
-
         foreach ($unitIds as $unitId) {
-            $hasCurrent = DB::table('unit_criteria_weights')
-                ->where('unit_id', $unitId)
-                ->where('assessment_period_id', $periodId)
-                ->where('status', '!=', 'archived')
-                ->exists();
-
-            if (!$hasCurrent) {
-                $hasPrev = $previousId > 0
-                    ? DB::table('unit_criteria_weights')
-                        ->where('unit_id', $unitId)
-                        ->where('assessment_period_id', $previousId)
-                        ->whereIn('status', ['active', 'archived'])
-                        ->when($hasWasActiveBefore, fn($q) => $q->where('was_active_before', 1))
-                        ->exists()
-                    : false;
-
-                if (!$hasPrev) {
-                    throw ValidationException::withMessages([
-                        'status' => 'Periode tidak dapat diproses karena bobot kinerja tidak tersedia dan tidak ditemukan bobot aktif pada periode sebelumnya.',
-                    ]);
-                }
-            }
+            $this->ensureUnitCriteriaWeightsReadyForUnit($unitId, $periodId, $previousId);
 
             if (Schema::hasTable('unit_rater_weights') && Schema::hasTable('performance_criterias')) {
                 $criteriaIds = DB::table('unit_criteria_weights as ucw')
                     ->join('performance_criterias as pc', 'pc.id', '=', 'ucw.performance_criteria_id')
                     ->where('ucw.unit_id', $unitId)
-                    ->where('ucw.assessment_period_id', $hasCurrent ? $periodId : $previousId)
-                    ->whereIn('ucw.status', ['active', 'archived'])
-                    ->when($hasWasActiveBefore, fn($q) => $q->where('ucw.was_active_before', 1))
+                    ->where('ucw.assessment_period_id', $periodId)
+                    ->where('ucw.status', 'active')
                     ->where('pc.is_360', 1)
                     ->where('pc.is_active', 1)
                     ->distinct()
@@ -355,31 +340,196 @@ class AssessmentPeriod extends Model
                     ->all();
 
                 if (!empty($criteriaIds)) {
-                    $hasRaterCurrent = DB::table('unit_rater_weights')
-                        ->where('unit_id', $unitId)
-                        ->where('assessment_period_id', $periodId)
-                        ->whereIn('performance_criteria_id', $criteriaIds)
-                        ->where('status', '!=', 'archived')
-                        ->exists();
-
-                    if (!$hasRaterCurrent) {
-                        $hasRaterPrev = $previousId > 0
-                            ? DB::table('unit_rater_weights')
-                                ->where('unit_id', $unitId)
-                                ->where('assessment_period_id', $previousId)
-                                ->whereIn('performance_criteria_id', $criteriaIds)
-                                ->whereIn('status', ['active', 'archived'])
-                                ->when(Schema::hasColumn('unit_rater_weights', 'was_active_before'), fn($q) => $q->where('was_active_before', 1))
-                                ->exists()
-                            : false;
-
-                        if (!$hasRaterPrev) {
-                            throw ValidationException::withMessages([
-                                'status' => 'Periode tidak dapat diproses karena bobot kinerja tidak tersedia dan tidak ditemukan bobot aktif pada periode sebelumnya.',
-                            ]);
-                        }
-                    }
+                    $this->ensureRaterWeightsReadyForUnit($unitId, $periodId, $previousId, $criteriaIds);
                 }
+            }
+        }
+    }
+
+    private function ensureUnitCriteriaWeightsReadyForUnit(int $unitId, int $periodId, int $previousId): void
+    {
+        $hasActive = DB::table('unit_criteria_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $periodId)
+            ->where('status', 'active')
+            ->exists();
+
+        if ($hasActive) {
+            return;
+        }
+
+        $draftIds = DB::table('unit_criteria_weights')
+            ->where('unit_id', $unitId)
+            ->where('assessment_period_id', $periodId)
+            ->where('status', 'draft')
+            ->pluck('id')
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->values()
+            ->all();
+
+        if (!empty($draftIds)) {
+            DB::table('unit_criteria_weights')
+                ->whereIn('id', $draftIds)
+                ->update([
+                    'status' => 'active',
+                    'updated_at' => now(),
+                ]);
+            return;
+        }
+
+        $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
+        $prevRows = $previousId > 0
+            ? DB::table('unit_criteria_weights')
+                ->where('unit_id', $unitId)
+                ->where('assessment_period_id', $previousId)
+                ->whereIn('status', ['active', 'archived'])
+                ->when($hasWasActiveBefore, fn($q) => $q->where('was_active_before', 1))
+                ->get([
+                    'unit_id',
+                    'performance_criteria_id',
+                    'weight',
+                    'policy_doc_path',
+                    'policy_note',
+                    'proposed_by',
+                    'proposed_note',
+                    'decided_by',
+                    'decided_at',
+                    'decided_note',
+                ])
+            : collect();
+
+        if ($prevRows->isEmpty()) {
+            throw ValidationException::withMessages([
+                'status' => 'Periode tidak dapat diproses karena bobot kinerja tidak tersedia dan tidak ditemukan bobot aktif pada periode sebelumnya.',
+            ]);
+        }
+
+        $now = now();
+        $insertRows = [];
+        foreach ($prevRows as $r) {
+            $insertRows[] = [
+                'unit_id' => (int) ($r->unit_id ?? 0),
+                'performance_criteria_id' => (int) ($r->performance_criteria_id ?? 0),
+                'weight' => (float) ($r->weight ?? 0.0),
+                'assessment_period_id' => $periodId,
+                'status' => 'active',
+                'was_active_before' => 0,
+                'policy_doc_path' => $r->policy_doc_path ?? null,
+                'policy_note' => $r->policy_note ?? null,
+                'proposed_by' => $r->proposed_by ?? null,
+                'proposed_note' => $r->proposed_note ?? null,
+                'decided_by' => $r->decided_by ?? null,
+                'decided_at' => $r->decided_at ?? null,
+                'decided_note' => $r->decided_note ?? null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        if (!empty($insertRows)) {
+            DB::table('unit_criteria_weights')->insert($insertRows);
+        }
+    }
+
+    /**
+     * @param array<int> $criteriaIds
+     */
+    private function ensureRaterWeightsReadyForUnit(int $unitId, int $periodId, int $previousId, array $criteriaIds): void
+    {
+        $criteriaIds = array_values(array_unique(array_map('intval', $criteriaIds)));
+        $criteriaIds = array_values(array_filter($criteriaIds, fn($v) => $v > 0));
+        if (empty($criteriaIds)) {
+            return;
+        }
+
+        foreach ($criteriaIds as $criteriaId) {
+            $hasActive = DB::table('unit_rater_weights')
+                ->where('unit_id', $unitId)
+                ->where('assessment_period_id', $periodId)
+                ->where('performance_criteria_id', $criteriaId)
+                ->where('status', 'active')
+                ->exists();
+
+            if ($hasActive) {
+                continue;
+            }
+
+            $draftIds = DB::table('unit_rater_weights')
+                ->where('unit_id', $unitId)
+                ->where('assessment_period_id', $periodId)
+                ->where('performance_criteria_id', $criteriaId)
+                ->where('status', 'draft')
+                ->pluck('id')
+                ->map(fn($v) => (int) $v)
+                ->filter(fn($v) => $v > 0)
+                ->values()
+                ->all();
+
+            if (!empty($draftIds)) {
+                DB::table('unit_rater_weights')
+                    ->whereIn('id', $draftIds)
+                    ->update([
+                        'status' => 'active',
+                        'updated_at' => now(),
+                    ]);
+                continue;
+            }
+
+            $hasWasActiveBefore = Schema::hasColumn('unit_rater_weights', 'was_active_before');
+            $prevRows = $previousId > 0
+                ? DB::table('unit_rater_weights')
+                    ->where('unit_id', $unitId)
+                    ->where('assessment_period_id', $previousId)
+                    ->where('performance_criteria_id', $criteriaId)
+                    ->whereIn('status', ['active', 'archived'])
+                    ->when($hasWasActiveBefore, fn($q) => $q->where('was_active_before', 1))
+                    ->get([
+                        'unit_id',
+                        'performance_criteria_id',
+                        'assessee_profession_id',
+                        'assessor_type',
+                        'assessor_profession_id',
+                        'assessor_level',
+                        'weight',
+                        'proposed_by',
+                        'decided_by',
+                        'decided_at',
+                        'decided_note',
+                    ])
+                : collect();
+
+            if ($prevRows->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'status' => 'Periode tidak dapat diproses karena bobot kinerja tidak tersedia dan tidak ditemukan bobot aktif pada periode sebelumnya.',
+                ]);
+            }
+
+            $now = now();
+            $insertRows = [];
+            foreach ($prevRows as $r) {
+                $insertRows[] = [
+                    'assessment_period_id' => $periodId,
+                    'unit_id' => (int) ($r->unit_id ?? 0),
+                    'performance_criteria_id' => (int) ($r->performance_criteria_id ?? 0),
+                    'assessee_profession_id' => (int) ($r->assessee_profession_id ?? 0),
+                    'assessor_type' => (string) ($r->assessor_type ?? ''),
+                    'assessor_profession_id' => $r->assessor_profession_id === null ? null : (int) $r->assessor_profession_id,
+                    'assessor_level' => $r->assessor_level === null ? null : (int) $r->assessor_level,
+                    'weight' => (float) ($r->weight ?? 0.0),
+                    'status' => 'active',
+                    'was_active_before' => 0,
+                    'proposed_by' => $r->proposed_by ?? null,
+                    'decided_by' => $r->decided_by ?? null,
+                    'decided_at' => $r->decided_at ?? null,
+                    'decided_note' => $r->decided_note ?? null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            if (!empty($insertRows)) {
+                DB::table('unit_rater_weights')->insert($insertRows);
             }
         }
     }

@@ -211,6 +211,12 @@ class AssessmentPeriodLifecycleService
                 continue;
             }
 
+            // Ensure weights are ready before closing.
+            $periodModel = AssessmentPeriod::query()->find($periodId);
+            if ($periodModel) {
+                $periodModel->ensureWeightsReadyForLock();
+            }
+
             // Close period.
             AssessmentPeriod::query()
                 ->where('id', $periodId)

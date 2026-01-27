@@ -93,7 +93,7 @@ class ProfessionHierarchyController extends Controller
             throw $e;
         }
 
-        return redirect()->route('admin.master.profession_hierarchy.index')->with('status', 'Aturan hirarki berhasil ditambahkan.');
+        return redirect()->route('admin_rs.profession_hierarchy.index')->with('status', 'Aturan hirarki berhasil ditambahkan.');
     }
 
     public function edit(Request $request, ProfessionReportingLine $professionReportingLine): View
@@ -132,7 +132,7 @@ class ProfessionHierarchyController extends Controller
             throw $e;
         }
 
-        return redirect()->route('admin.master.profession_hierarchy.index')->with('status', 'Aturan hirarki berhasil diperbarui.');
+        return redirect()->route('admin_rs.profession_hierarchy.index')->with('status', 'Aturan hirarki berhasil diperbarui.');
     }
 
     public function toggle(Request $request, ProfessionReportingLine $professionReportingLine): RedirectResponse

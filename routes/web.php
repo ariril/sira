@@ -27,13 +27,13 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 /**
  * Public, English slugs
  */
-Route::get('/announcements',        [AnnouncementController::class, 'index'])->name('announcements.index');
+Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
 Route::get('/announcements/{slug}', [AnnouncementController::class, 'show'])->name('announcements.show');
 
-Route::get('/faqs',                 [FaqController::class, 'index'])->name('faqs.index');
+Route::get('/faqs', [FaqController::class, 'index'])->name('faqs.index');
 
-Route::get('/about-pages/{type}',   [AboutPageController::class, 'show'])->name('about_pages.show');
-Route::get('/contact',              [ContactController::class, 'index'])->name('contact');
+Route::get('/about-pages/{type}', [AboutPageController::class, 'show'])->name('about_pages.show');
+Route::get('/contact', [ContactController::class, 'index'])->name('contact');
 
 
 // Invitation-based public reviews (one-time token)
@@ -54,14 +54,14 @@ Route::get('/reviews/thanks', [PublicReviewController::class, 'thanks'])
 /**
  * Authenticated dashboard redirect
  */
-Route::middleware(['auth','verified'])
+Route::middleware(['auth', 'verified'])
     ->get('/dashboard', [HomeController::class, 'index'])
     ->name('dashboard');
 
 /**
  * Role dashboards (prefix & route names dipertahankan, dengan perubahan admin_rs -> admin_rs)
  */
-Route::middleware(['auth','verified'])->group(function () {
+Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('super-admin')->name('super_admin.')->middleware('role:super_admin')->group(function () {
         Route::get('/dashboard', [SADashboard::class, 'index'])->name('dashboard');
     });
@@ -95,13 +95,13 @@ Route::middleware(['auth','verified'])->group(function () {
  * - unit_criteria_weights (set global/draft push)
  * - site_settings, about_pages, faqs, announcements (manajemen konten)
  */
-Route::middleware(['auth','verified','role:super_admin'])
+Route::middleware(['auth', 'verified', 'role:super_admin'])
     ->prefix('super-admin')->name('super_admin.')->group(function () {
 
         // Master Data
-        Route::resource('units',        \App\Http\Controllers\Web\SuperAdmin\UnitController::class);
-        Route::resource('professions',  \App\Http\Controllers\Web\SuperAdmin\ProfessionController::class);
-        Route::resource('users',        \App\Http\Controllers\Web\SuperAdmin\UserController::class);
+        Route::resource('units', \App\Http\Controllers\Web\SuperAdmin\UnitController::class)->except(['show']);
+        Route::resource('professions', \App\Http\Controllers\Web\SuperAdmin\ProfessionController::class)->except(['show']);
+        Route::resource('users', \App\Http\Controllers\Web\SuperAdmin\UserController::class)->except(['show']);
 
         // Bulk user import
         Route::get('users-import', [\App\Http\Controllers\Web\SuperAdmin\UserImportController::class, 'form'])->name('users.import.form');
@@ -112,9 +112,9 @@ Route::middleware(['auth','verified','role:super_admin'])
         // Gunakan GET+PUT tanpa parameter agar form bisa submit ke /super-admin/site-settings langsung
         Route::get('site-settings', [\App\Http\Controllers\Web\SuperAdmin\SiteSettingController::class, 'index'])->name('site-settings.index');
         Route::put('site-settings', [\App\Http\Controllers\Web\SuperAdmin\SiteSettingController::class, 'update'])->name('site-settings.update');
-        Route::resource('about-pages',   \App\Http\Controllers\Web\SuperAdmin\AboutPageManageController::class)->parameters(['about-pages' => 'aboutPage']);
-        Route::resource('faqs',          \App\Http\Controllers\Web\SuperAdmin\FaqManageController::class);
-        Route::resource('announcements', \App\Http\Controllers\Web\SuperAdmin\AnnouncementManageController::class);
+        Route::resource('about-pages', \App\Http\Controllers\Web\SuperAdmin\AboutPageManageController::class)->except(['show'])->parameters(['about-pages' => 'aboutPage']);
+        Route::resource('faqs', \App\Http\Controllers\Web\SuperAdmin\FaqManageController::class)->except(['show']);
+        Route::resource('announcements', \App\Http\Controllers\Web\SuperAdmin\AnnouncementManageController::class)->except(['show']);
 
         // Laporan ringkas
         Route::get('reports/system-health', [\App\Http\Controllers\Web\SuperAdmin\ReportController::class, 'systemHealth'])->name('reports.system_health');
@@ -131,41 +131,42 @@ Route::middleware(['auth','verified','role:super_admin'])
  * - Proses & publikasi remunerations
  * - (Opsional) kelola pengumuman/FAQ sehari-hari
  */
-Route::middleware(['auth','verified','role:admin_rs'])
+Route::middleware(['auth', 'verified', 'role:admin_rs'])
     ->prefix('admin-rs')->name('admin_rs.')->group(function () {
 
         // Import Kehadiran
         Route::get('attendances/import', [\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'create'])->name('attendances.import.form');
-        Route::post('attendances/import',[\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'store'])->name('attendances.import.store');
-        Route::post('attendances/import/preview',[\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'preview'])->name('attendances.import.preview');
-        Route::get('attendances/import-template',[\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'template'])->name('attendances.import.template');
-        Route::get('attendances/batches',[\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'index'])->name('attendances.batches');
-        Route::get('attendances/batches/{batch}',[\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'show'])->name('attendances.batches.show');
-        Route::resource('attendances',   \App\Http\Controllers\Web\AdminHospital\AttendanceController::class)->only(['index','show','update','destroy']);
+        Route::post('attendances/import', [\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'store'])->name('attendances.import.store');
+        Route::post('attendances/import/preview', [\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'preview'])->name('attendances.import.preview');
+        Route::get('attendances/import-template', [\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'template'])->name('attendances.import.template');
+        Route::get('attendances/batches', [\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'index'])->name('attendances.batches');
+        Route::get('attendances/batches/{batch}', [\App\Http\Controllers\Web\AdminHospital\AttendanceImportController::class, 'show'])->name('attendances.batches.show');
+        Route::resource('attendances', \App\Http\Controllers\Web\AdminHospital\AttendanceController::class)->only(['index', 'show', 'update', 'destroy']);
 
         // Multi-Level Assessment Approvals – Level 1 (Admin RS)
-        Route::get('assessments/pending',             [\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
+        Route::get('assessments/pending', [\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
         Route::get('assessments/{assessment}/detail', [\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'detail'])->name('assessments.detail');
-        Route::post('assessments/{assessment}/approve',[\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'approve'])->name('assessments.approve');
+        Route::post('assessments/{assessment}/approve', [\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'approve'])->name('assessments.approve');
         Route::post('assessments/{assessment}/reject', [\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'reject'])->name('assessments.reject');
-        Route::post('assessments/{assessment}/resubmit',[\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'resubmit'])->name('assessments.resubmit');
+        Route::post('assessments/{assessment}/resubmit', [\App\Http\Controllers\Web\AdminHospital\AssessmentApprovalController::class, 'resubmit'])->name('assessments.resubmit');
 
         // Alokasi Unit untuk remunerasi
         Route::resource('unit-remuneration-allocations', \App\Http\Controllers\Web\AdminHospital\UnitRemunerationAllocationController::class)
+            ->except(['show'])
             ->parameters(['unit-remuneration-allocations' => 'allocation']);
 
         // Proses & Publikasi Remunerasi
-        Route::get('remunerations/calc',        [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'calcIndex'])->name('remunerations.calc.index');
-        Route::post('remunerations/calc/run',   [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'runCalculation'])->name('remunerations.calc.run');
+        Route::get('remunerations/calc', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'calcIndex'])->name('remunerations.calc.index');
+        Route::post('remunerations/calc/run', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'runCalculation'])->name('remunerations.calc.run');
         Route::post('remunerations/calc/force', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'forceCalculation'])->name('remunerations.calc.force');
         Route::post('remunerations/calc/audit', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'auditCalculation'])->name('remunerations.calc.audit');
-        Route::get('remunerations/export/pdf',  [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'exportPdf'])->name('remunerations.export.pdf');
+        Route::get('remunerations/export/pdf', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'exportPdf'])->name('remunerations.export.pdf');
         Route::post('remunerations/{remuneration}/publish', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'publish'])->name('remunerations.publish');
         Route::post('remunerations/publish-all', [\App\Http\Controllers\Web\AdminHospital\RemunerationController::class, 'publishAll'])->name('remunerations.publish_all');
-        Route::resource('remunerations', \App\Http\Controllers\Web\AdminHospital\RemunerationController::class)->only(['index','show','update']);
+        Route::resource('remunerations', \App\Http\Controllers\Web\AdminHospital\RemunerationController::class)->only(['index', 'show', 'update']);
 
         // Kinerja (dipindahkan dari Super Admin)
-        Route::resource('performance-criterias', \App\Http\Controllers\Web\AdminHospital\PerformanceCriteriaController::class);
+        Route::resource('performance-criterias', \App\Http\Controllers\Web\AdminHospital\PerformanceCriteriaController::class)->except(['show']);
 
         // Manual Criteria Metrics (input + upload CSV)
         Route::get('metrics', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'index'])->name('metrics.index');
@@ -210,36 +211,25 @@ Route::middleware(['auth','verified','role:admin_rs'])
             ->name('unit_rater_weights.unit');
 
         // Approval usulan kriteria baru
-        Route::get('criteria-proposals', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'index'])->name('criteria_proposals.index');
-        Route::post('criteria-proposals/{proposal}/approve', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'approve'])->name('criteria_proposals.approve');
-        Route::post('criteria-proposals/{proposal}/reject', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class,'reject'])->name('criteria_proposals.reject');
+        Route::get('criteria-proposals', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class, 'index'])->name('criteria_proposals.index');
+        Route::post('criteria-proposals/{proposal}/approve', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class, 'approve'])->name('criteria_proposals.approve');
+        Route::post('criteria-proposals/{proposal}/reject', [\App\Http\Controllers\Web\AdminHospital\CriteriaProposalApprovalController::class, 'reject'])->name('criteria_proposals.reject');
 
         // Periode Penilaian (assessment_periods)
         Route::resource('assessment-periods', \App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class)
+            ->except(['show'])
             ->parameters(['assessment-periods' => 'period']);
-        Route::post('assessment-periods/{period}/lock',     [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'lock'])->name('assessment_periods.lock');
+        Route::post('assessment-periods/{period}/lock', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'lock'])->name('assessment_periods.lock');
         Route::post('assessment-periods/{period}/start-approval', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'startApproval'])->name('assessment_periods.start_approval');
         Route::post('assessment-periods/{period}/open-revision', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'openRevision'])->name('assessment_periods.open_revision');
         Route::post('assessment-periods/{period}/resubmit-from-revision', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'resubmitFromRevision'])->name('assessment_periods.resubmit_from_revision');
-        Route::post('assessment-periods/{period}/close',    [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'close'])->name('assessment_periods.close');
+        Route::post('assessment-periods/{period}/close', [\App\Http\Controllers\Web\AdminHospital\AssessmentPeriodController::class, 'close'])->name('assessment_periods.close');
 
         // Bobot Kriteria Unit (setup awal/push draft per unit)
         Route::resource('unit-criteria-weights', \App\Http\Controllers\Web\AdminHospital\UnitCriteriaWeightController::class)
-            ->only(['index','store','update','destroy','show']);
+            ->only(['index', 'store', 'update', 'destroy', 'show']);
         Route::post('unit-criteria-weights/publish-draft', [\App\Http\Controllers\Web\AdminHospital\UnitCriteriaWeightController::class, 'publishDraft'])
             ->name('unit_criteria_weights.publish_draft');
-
-        // Konten operasional (opsional) — tidak dikelola oleh Admin RS
-    });
-
-/**
- * =========================
- * ADMIN MASTER DATA (Admin RS)
- * =========================
- * URL mengikuti kebutuhan: /admin/master/...
- */
-Route::middleware(['auth','verified','role:admin_rs'])
-    ->prefix('admin/master')->name('admin.master.')->group(function () {
 
         Route::get('profession-hierarchy', [\App\Http\Controllers\Web\AdminHospital\ProfessionHierarchyController::class, 'index'])
             ->name('profession_hierarchy.index');
@@ -267,12 +257,12 @@ Route::middleware(['auth','verified','role:admin_rs'])
  * - Monitoring klaim tugas (additional_task_claims)
  * - Review & validasi penilaian level 2 (assessment_approvals)
  */
-Route::middleware(['auth','verified','role:kepala_unit'])
+Route::middleware(['auth', 'verified', 'role:kepala_unit'])
     ->prefix('kepala-unit')->name('kepala_unit.')->group(function () {
 
         // Bobot kriteria per unit
         Route::resource('unit-criteria-weights', \App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class)
-            ->only(['index','create','store','edit','update','destroy','show']);
+            ->only(['index', 'create', 'store', 'edit', 'update', 'destroy', 'show']);
         Route::post('unit-criteria-weights/{weight}/submit', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'submitForApproval'])
             ->name('unit_criteria_weights.submit');
         Route::post('unit-criteria-weights/submit-all', [\App\Http\Controllers\Web\UnitHead\UnitCriteriaWeightController::class, 'submitAll'])
@@ -287,8 +277,8 @@ Route::middleware(['auth','verified','role:kepala_unit'])
             ->name('unit_criteria_weights.copy_rejected');
 
         // Usulan kriteria baru
-        Route::get('criteria-proposals', [\App\Http\Controllers\Web\UnitHead\CriteriaProposalController::class,'index'])->name('criteria_proposals.index');
-        Route::post('criteria-proposals', [\App\Http\Controllers\Web\UnitHead\CriteriaProposalController::class,'store'])->name('criteria_proposals.store');
+        Route::get('criteria-proposals', [\App\Http\Controllers\Web\UnitHead\CriteriaProposalController::class, 'index'])->name('criteria_proposals.index');
+        Route::post('criteria-proposals', [\App\Http\Controllers\Web\UnitHead\CriteriaProposalController::class, 'store'])->name('criteria_proposals.store');
 
         // Tugas Tambahan untuk unit
         Route::resource('additional-tasks', \App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class);
@@ -296,8 +286,8 @@ Route::middleware(['auth','verified','role:kepala_unit'])
             ->name('additional_tasks.edit_points');
         Route::patch('additional-tasks/{task}/points', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class, 'updatePoints'])
             ->name('additional_tasks.update_points');
-        Route::patch('additional-tasks/{task}/open',     [\App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class,'open'])->name('additional_tasks.open');
-        Route::patch('additional-tasks/{task}/close',    [\App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class,'close'])->name('additional_tasks.close');
+        Route::patch('additional-tasks/{task}/open', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class, 'open'])->name('additional_tasks.open');
+        Route::patch('additional-tasks/{task}/close', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskController::class, 'close'])->name('additional_tasks.close');
 
         // Monitoring klaim
         Route::get('additional-task-claims', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskClaimController::class, 'index'])->name('additional_task_claims.index');
@@ -309,14 +299,14 @@ Route::middleware(['auth','verified','role:kepala_unit'])
         Route::post('reviews/{review}/reject', [ReviewApprovalController::class, 'reject'])->name('reviews.reject');
 
         // Review klaim tugas tambahan (submitted -> approved/rejected)
-        Route::get('additional-task-claims/review', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskClaimReviewController::class,'index'])->name('additional_task_claims.review_index');
-        Route::post('additional-task-claims/{claim}/review', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskClaimReviewController::class,'update'])->name('additional_task_claims.review_update');
+        Route::get('additional-task-claims/review', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskClaimReviewController::class, 'index'])->name('additional_task_claims.review_index');
+        Route::post('additional-task-claims/{claim}/review', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskClaimReviewController::class, 'update'])->name('additional_task_claims.review_update');
 
         // Review & validasi penilaian – Level 2
-        Route::get('assessments/pending',   [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
+        Route::get('assessments/pending', [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
         Route::get('assessments/{assessment}/detail', [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'detail'])->name('assessments.detail');
         Route::post('assessments/{assessment}/approve', [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'approve'])->name('assessments.approve');
-        Route::post('assessments/{assessment}/reject',  [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'reject'])->name('assessments.reject');
+        Route::post('assessments/{assessment}/reject', [\App\Http\Controllers\Web\UnitHead\AssessmentApprovalController::class, 'reject'])->name('assessments.reject');
 
         // Monitor Kinerja (read-only) untuk anggota unit
         Route::get('monitor-kinerja', [\App\Http\Controllers\Web\UnitHead\MonitorKinerjaController::class, 'index'])
@@ -351,17 +341,17 @@ Route::middleware(['auth','verified','role:kepala_unit'])
  * - Approval final penilaian kinerja – Level 3
  * - Monitoring remunerasi unit-unit poliklinik
  */
-Route::middleware(['auth','verified','role:kepala_poliklinik'])
+Route::middleware(['auth', 'verified', 'role:kepala_poliklinik'])
     ->prefix('kepala-poliklinik')->name('kepala_poliklinik.')->group(function () {
 
         // Approval bobot kriteria unit
         Route::get('unit-criteria-weights', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'index'])->name('unit_criteria_weights.index');
         Route::post('unit-criteria-weights/approve-all', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'approveAll'])->name('unit_criteria_weights.approve_all');
         Route::post('unit-criteria-weights/{weight}/approve', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'approve'])->name('unit_criteria_weights.approve');
-        Route::post('unit-criteria-weights/{weight}/reject',  [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'reject'])->name('unit_criteria_weights.reject');
+        Route::post('unit-criteria-weights/{weight}/reject', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'reject'])->name('unit_criteria_weights.reject');
         Route::post('unit-criteria-weights/units/{unitId}/approve', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'approveUnit'])->name('unit_criteria_weights.approve_unit');
-        Route::post('unit-criteria-weights/units/{unitId}/reject',  [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'rejectUnit'])->name('unit_criteria_weights.reject_unit');
-    
+        Route::post('unit-criteria-weights/units/{unitId}/reject', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'rejectUnit'])->name('unit_criteria_weights.reject_unit');
+
         // Read-only list per unit & detail
         Route::get('unit-criteria-weights/units', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'units'])->name('unit_criteria_weights.units');
         Route::get('unit-criteria-weights/units/{unitId}', [\App\Http\Controllers\Web\PolyclinicHead\UnitCriteriaApprovalController::class, 'unit'])->name('unit_criteria_weights.unit');
@@ -371,10 +361,10 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
         Route::get('unit-rater-weights/units/{unitId}', [\App\Http\Controllers\Web\PolyclinicHead\UnitRaterWeightMonitorController::class, 'unit'])->name('unit_rater_weights.unit');
 
         // Approval final penilaian – Level 3
-        Route::get('assessments/pending',   [\App\Http\Controllers\Web\PolyclinicHead\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
+        Route::get('assessments/pending', [\App\Http\Controllers\Web\PolyclinicHead\AssessmentApprovalController::class, 'index'])->name('assessments.pending');
         Route::get('assessments/{assessment}/detail', [\App\Http\Controllers\Web\PolyclinicHead\AssessmentApprovalController::class, 'detail'])->name('assessments.detail');
         Route::post('assessments/{assessment}/approve', [\App\Http\Controllers\Web\PolyclinicHead\AssessmentApprovalController::class, 'approve'])->name('assessments.approve');
-        Route::post('assessments/{assessment}/reject',  [\App\Http\Controllers\Web\PolyclinicHead\AssessmentApprovalController::class, 'reject'])->name('assessments.reject');
+        Route::post('assessments/{assessment}/reject', [\App\Http\Controllers\Web\PolyclinicHead\AssessmentApprovalController::class, 'reject'])->name('assessments.reject');
 
         // Monitoring remunerasi
         Route::get('remunerations', [\App\Http\Controllers\Web\PolyclinicHead\RemunerationMonitorController::class, 'index'])->name('remunerations.index');
@@ -403,7 +393,7 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
  * - Klaim tugas tambahan & submit hasil (additional_task_claims)
  * - Lihat remunerasi pribadi
  */
-Route::middleware(['auth','verified','role:pegawai_medis'])
+Route::middleware(['auth', 'verified', 'role:pegawai_medis'])
     ->prefix('pegawai-medis')->name('pegawai_medis.')->group(function () {
 
         // Kinerja Saya (periode berjalan)
@@ -423,7 +413,7 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
             ->name('assessments.show_ariel');
 
         Route::resource('assessments', \App\Http\Controllers\Web\MedicalStaff\PerformanceAssessmentController::class)
-            ->only(['index','show']);
+            ->only(['index', 'show']);
 
         // Klaim & tugas tambahan
         Route::get('additional-tasks', [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskController::class, 'index'])->name('additional_tasks.index');
@@ -431,9 +421,9 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
         Route::post('additional-tasks/{task}/submit', [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'submit'])->name('additional_tasks.submit');
 
         // Lihat remunerasi pribadi
-        Route::get('remunerations',       [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'index'])->name('remunerations.index');
-        Route::get('remunerations/{id}',  [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'show'])->name('remunerations.show');
-        Route::get('remunerations/{id}/export/pdf',  [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'exportPdf'])->name('remunerations.export.pdf');
+        Route::get('remunerations', [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'index'])->name('remunerations.index');
+        Route::get('remunerations/{id}', [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'show'])->name('remunerations.show');
+        Route::get('remunerations/{id}/export/pdf', [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'exportPdf'])->name('remunerations.export.pdf');
 
         // Lihat kriteria & bobot aktif untuk unit sendiri pada periode aktif
         Route::get('unit-criteria-weights', [\App\Http\Controllers\Web\MedicalStaff\UnitCriteriaWeightViewController::class, 'index'])->name('unit_criteria_weights.index');
@@ -443,15 +433,15 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
  * Profile
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/profile',  [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile',[ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile',[ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';
 
 /**
  * Role switching (multi-role users)
  */
-Route::middleware(['auth','verified'])->post('/switch-role', [\App\Http\Controllers\Auth\ActiveRoleController::class, 'update'])
+Route::middleware(['auth', 'verified'])->post('/switch-role', [\App\Http\Controllers\Auth\ActiveRoleController::class, 'update'])
     ->name('auth.switch-role');

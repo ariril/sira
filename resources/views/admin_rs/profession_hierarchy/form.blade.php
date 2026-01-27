@@ -1,8 +1,8 @@
 @php
     $isEdit = ($mode ?? 'create') === 'edit';
     $action = $isEdit
-        ? route('admin.master.profession_hierarchy.update', $item)
-        : route('admin.master.profession_hierarchy.store');
+        ? route('admin_rs.profession_hierarchy.update', $item)
+        : route('admin_rs.profession_hierarchy.store');
 
     $assesseeProfessions = $professions;
     if (!$isEdit) {
@@ -21,7 +21,7 @@
             <h1 class="text-2xl font-semibold text-slate-800">
                 {{ $isEdit ? 'Edit Hirarki Penilai Profesi' : 'Tambah Hirarki Penilai Profesi' }}
             </h1>
-            <x-ui.button as="a" href="{{ route('admin.master.profession_hierarchy.index') }}" variant="outline" class="h-12 px-6 text-base">
+            <x-ui.button as="a" href="{{ route('admin_rs.profession_hierarchy.index') }}" variant="outline" class="h-12 px-6 text-base">
                 <i class="fa-solid fa-arrow-left mr-2"></i> Kembali
             </x-ui.button>
         </div>

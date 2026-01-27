@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-slate-800">Hirarki Penilai Profesi</h1>
-            <x-ui.button as="a" href="{{ route('admin.master.profession_hierarchy.create') }}" variant="success" class="h-12 px-6 text-base">
+            <x-ui.button as="a" href="{{ route('admin_rs.profession_hierarchy.create') }}" variant="success" class="h-12 px-6 text-base">
                 <i class="fa-solid fa-plus mr-2"></i> Tambah Aturan
             </x-ui.button>
         </div>
@@ -40,7 +40,7 @@
             </div>
 
             <div class="mt-6 flex justify-end gap-3">
-                <a href="{{ route('admin.master.profession_hierarchy.index') }}"
+                <a href="{{ route('admin_rs.profession_hierarchy.index') }}"
                    class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
                     <i class="fa-solid fa-rotate-left"></i>
                     Reset
@@ -93,8 +93,8 @@
                                     </td>
                                     <td class="px-6 py-4 text-right whitespace-nowrap">
                                         <div class="inline-flex gap-2">
-                                            <x-ui.icon-button as="a" href="{{ route('admin.master.profession_hierarchy.edit', $it) }}" icon="fa-pen-to-square" />
-                                            <form method="POST" action="{{ route('admin.master.profession_hierarchy.destroy', $it) }}" onsubmit="return confirm('Hapus aturan ini?')">
+                                            <x-ui.icon-button as="a" href="{{ route('admin_rs.profession_hierarchy.edit', $it) }}" icon="fa-pen-to-square" />
+                                            <form method="POST" action="{{ route('admin_rs.profession_hierarchy.destroy', $it) }}" onsubmit="return confirm('Hapus aturan ini?')">
                                                 @csrf
                                                 @method('DELETE')
                                                 <x-ui.icon-button icon="fa-trash" variant="danger" />

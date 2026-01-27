@@ -74,8 +74,8 @@
 
       ['heading'=>'Master Data','items'=>[
         ['label'=>'Hirarki Penilai Profesi','icon'=>'fa-sitemap',
-         'href'=>$href('admin.master.profession_hierarchy.index','/admin/master/profession-hierarchy'),
-         'active'=>request()->routeIs('admin.master.profession_hierarchy.*')],
+         'href'=>$href('admin_rs.profession_hierarchy.index','/admin-rs/profession-hierarchy'),
+         'active'=>request()->routeIs('admin_rs.profession_hierarchy.*')],
       ]],
 
       ['heading'=>'Absensi Pegawai','items'=>[

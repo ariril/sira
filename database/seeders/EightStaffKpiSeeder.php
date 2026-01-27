@@ -316,6 +316,13 @@ class EightStaffKpiSeeder extends Seeder
         // by recalculating from seeded RAW tables.
         // Some dev DBs don't have the newer `meta` column yet; avoid hard-failing the seeder.
             if ($unitPoliUmumId > 0 || $unitPoliGigiId > 0) {
+            $this->ensureRaterWeightsReadyForPeriod(
+                periodId: (int) $periodNov->id,
+                unitIds: array_values(array_filter([(int) $unitPoliUmumId, (int) $unitPoliGigiId], fn($v) => $v > 0)),
+                criteriaIds: array_values(array_filter([(int) $kedis360Id, (int) $kerjasama360Id], fn($v) => $v > 0)),
+                seederClass: NovemberRaterWeightSeeder::class,
+            );
+
             if (Schema::hasColumn('performance_assessment_details', 'meta')) {
                 /** @var PeriodPerformanceAssessmentService $perfSvc */
                 $perfSvc = app(PeriodPerformanceAssessmentService::class);
@@ -433,6 +440,13 @@ class EightStaffKpiSeeder extends Seeder
             );
 
             if ($unitPoliUmumId > 0 || $unitPoliGigiId > 0) {
+                $this->ensureRaterWeightsReadyForPeriod(
+                    periodId: (int) $periodDec->id,
+                    unitIds: array_values(array_filter([(int) $unitPoliUmumId, (int) $unitPoliGigiId], fn($v) => $v > 0)),
+                    criteriaIds: array_values(array_filter([(int) $kedis360Id, (int) $kerjasama360Id], fn($v) => $v > 0)),
+                    seederClass: DecemberRaterWeightSeeder::class,
+                );
+
                 if (Schema::hasColumn('performance_assessment_details', 'meta')) {
                     /** @var PeriodPerformanceAssessmentService $perfSvc */
                     $perfSvc = app(PeriodPerformanceAssessmentService::class);
@@ -2317,5 +2331,76 @@ class EightStaffKpiSeeder extends Seeder
             $dates[] = end($dates);
         }
         return $dates;
+    }
+
+    /**
+     * @param array<int> $unitIds
+     * @param array<int> $criteriaIds
+     */
+    private function ensureRaterWeightsReadyForPeriod(int $periodId, array $unitIds, array $criteriaIds, ?string $seederClass = null): void
+    {
+        if (!Schema::hasTable('unit_rater_weights')) {
+            return;
+        }
+
+        $periodId = (int) $periodId;
+        if ($periodId <= 0) {
+            return;
+        }
+
+        $unitIds = array_values(array_filter(array_map('intval', $unitIds), fn($v) => $v > 0));
+        $criteriaIds = array_values(array_filter(array_map('intval', $criteriaIds), fn($v) => $v > 0));
+        if (empty($unitIds) || empty($criteriaIds)) {
+            return;
+        }
+
+        $hasWasActiveBefore = Schema::hasColumn('unit_rater_weights', 'was_active_before');
+
+        $hasAll = $this->hasRaterWeightsForPeriod($periodId, $unitIds, $criteriaIds, $hasWasActiveBefore);
+        if ($hasAll) {
+            return;
+        }
+
+        if ($seederClass && class_exists($seederClass)) {
+            $this->call($seederClass);
+            $hasAll = $this->hasRaterWeightsForPeriod($periodId, $unitIds, $criteriaIds, $hasWasActiveBefore);
+        }
+
+        if (!$hasAll) {
+            $seederLabel = $seederClass ? class_basename($seederClass) : 'RaterWeightSeeder';
+            throw new \RuntimeException('EightStaffKpiSeeder membutuhkan seed bobot 360 terlebih dahulu. Pastikan ' . $seederLabel . ' dijalankan sebelum perhitungan KPI.');
+        }
+    }
+
+    /**
+     * @param array<int> $unitIds
+     * @param array<int> $criteriaIds
+     */
+    private function hasRaterWeightsForPeriod(int $periodId, array $unitIds, array $criteriaIds, bool $hasWasActiveBefore): bool
+    {
+        foreach ($unitIds as $unitId) {
+            foreach ($criteriaIds as $criteriaId) {
+                $exists = DB::table('unit_rater_weights')
+                    ->where('assessment_period_id', $periodId)
+                    ->where('unit_id', $unitId)
+                    ->where('performance_criteria_id', $criteriaId)
+                    ->where(function ($q) use ($hasWasActiveBefore) {
+                        $q->where('status', 'active')
+                            ->orWhere(function ($qq) use ($hasWasActiveBefore) {
+                                $qq->where('status', 'archived');
+                                if ($hasWasActiveBefore) {
+                                    $qq->where('was_active_before', 1);
+                                }
+                            });
+                    })
+                    ->exists();
+
+                if (!$exists) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 }

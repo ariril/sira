@@ -853,12 +853,10 @@ class DatabaseSeeder extends Seeder
         $this->seedProfessionHierarchy();
         $this->seedCriteriaRaterRules();
         $this->call(EightStaffKpiSeeder::class);
-        $this->call(NovemberRaterWeightSeeder::class);
-        $this->call(DecemberRaterWeightSeeder::class);
         $this->call(DummyAdditionalTaskUsageSeeder::class);
         $this->call(FixNovDec360SnapshotsSeeder::class);
 
-        $this->call(January2026PoliUmumDokterUmumSeeder::class);
+        // $this->call(January2026PoliUmumDokterUmumSeeder::class);
     }
 
     private function seedCriteriaRaterRules(): void

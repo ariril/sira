@@ -100,8 +100,8 @@ class NovemberRaterWeightSeeder extends Seeder
                     'updated_at' => now(),
                 ];
                 if (Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
-                    // Only mark as previously active if the row was active.
-                    $rwUpdates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE was_active_before END");
+                    // For demo/history periods, mark archived rows as previously active so KPI/history can use them.
+                    $rwUpdates['was_active_before'] = 1;
                 }
 
                 DB::table('unit_rater_weights')
@@ -116,8 +116,8 @@ class NovemberRaterWeightSeeder extends Seeder
                         'updated_at' => now(),
                     ];
                     if (Schema::hasColumn('unit_criteria_weights', 'was_active_before')) {
-                        // Only mark as previously active if the row was active.
-                        $ucwUpdates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE was_active_before END");
+                        // Keep historical periods usable by marking archived rows as previously active.
+                        $ucwUpdates['was_active_before'] = 1;
                     }
 
                     DB::table('unit_criteria_weights')
@@ -559,9 +559,9 @@ class NovemberRaterWeightSeeder extends Seeder
             return [$forced];
         }
 
-        // Prefer explicit demo period names if they exist (Indonesian/English).
+        // Prefer explicit demo period names if they exist.
         $byName = DB::table('assessment_periods')
-            ->whereIn('name', ['November 2025', 'Desember 2025', 'December 2025'])
+            ->whereIn('name', ['November 2025'])
             ->orderByDesc('start_date')
             ->pluck('id')
             ->map(fn ($v) => (int) $v)
@@ -573,25 +573,18 @@ class NovemberRaterWeightSeeder extends Seeder
             return array_values(array_unique($byName));
         }
 
-        // Default: pick the latest period that starts in November and the latest that starts in December.
+        // Default: pick the latest period that starts in November.
         $nov = (int) (DB::table('assessment_periods')->whereMonth('start_date', 11)->orderByDesc('start_date')->value('id') ?? 0);
-        $dec = (int) (DB::table('assessment_periods')->whereMonth('start_date', 12)->orderByDesc('start_date')->value('id') ?? 0);
-
-        $ids = array_values(array_unique(array_filter([$nov, $dec], fn ($v) => (int) $v > 0)));
-        if (!empty($ids)) {
-            return $ids;
+        if ($nov > 0) {
+            return [$nov];
         }
 
-        // Fallback: name-based search for both months.
+        // Fallback: name-based search for November.
         $fallback = DB::table('assessment_periods')
             ->where('name', 'like', '%Nov%')
             ->orWhere('name', 'like', '%November%')
-            ->orWhere('name', 'like', '%Des%')
-            ->orWhere('name', 'like', '%Dec%')
-            ->orWhere('name', 'like', '%Desember%')
-            ->orWhere('name', 'like', '%December%')
             ->orderByDesc('start_date')
-            ->limit(2)
+            ->limit(1)
             ->pluck('id')
             ->map(fn ($v) => (int) $v)
             ->filter(fn ($v) => $v > 0)
