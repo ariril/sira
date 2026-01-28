@@ -4,6 +4,7 @@ namespace App\Enums;
 
 enum AdditionalTaskClaimStatus: string
 {
+    case ACTIVE = 'active';
     case SUBMITTED = 'submitted';
     case APPROVED  = 'approved';
     case REJECTED  = 'rejected';

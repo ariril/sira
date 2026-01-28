@@ -232,9 +232,10 @@ class RaterWeightController extends Controller
             ->orderByDesc('id');
 
         $usingFallback = false;
+        $hasFallbackActive = false;
         $workingCount = (clone $workingQuery)->count();
         if ($workingCount === 0 && $activePeriodId > 0) {
-            $period = AssessmentPeriod::query()->find((int) $activePeriodId);
+            $period = AssessmentPeriod::query()->whereKey((int) $activePeriodId)->first();
             if ($period && $period->isFrozen()) {
                 $previous = $this->resolvePreviousPeriod($period);
                 if ($previous) {
@@ -252,6 +253,7 @@ class RaterWeightController extends Controller
                         })
                         ->orderByDesc('id');
                     $usingFallback = true;
+                    $hasFallbackActive = true;
                 }
             }
         }

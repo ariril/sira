@@ -33,8 +33,35 @@
             </div>
         </div>
 
-        <form method="POST" action="{{ route('reviews.invite.store', ['token' => $token]) }}" class="space-y-6">
+        <form
+            method="POST"
+            action="{{ route('reviews.invite.store', ['token' => $token]) }}"
+            class="space-y-6"
+            x-data
+            @submit.prevent='
+                const ratingInputs = Array.from($el.querySelectorAll("input[name^=\"details\"][name$=\"[rating]\"]"));
+                const firstInvalid = ratingInputs.find((i) => parseInt(i.value || "0", 10) < 1);
+
+                if (firstInvalid) {
+                    const card = firstInvalid.closest("[data-staff-card]");
+                    if (card) {
+                        card.classList.add("ring-2", "ring-red-400");
+                        card.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }
+                    alert("Rating wajib diisi untuk semua staf sebelum mengirim ulasan.");
+                    return;
+                }
+
+                $el.submit();
+            '
+        >
             @csrf
+
+            @error('details', 'reviewForm')
+                <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {{ $message }}
+                </div>
+            @enderror
 
             <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-3">
                 <div class="font-semibold text-slate-800">Ulasan Umum (Opsional)</div>
@@ -74,7 +101,7 @@
                             : 0;
                     @endphp
 
-                    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-4" x-data="{ rating: @json($initialRatingInt) }">
+                    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-4" x-data="{ rating: @json($initialRatingInt) }" data-staff-card>
                         <div class="flex items-start justify-between gap-4 flex-wrap">
                             <div>
                                 <div class="text-lg font-semibold text-slate-900">{{ $s['name'] ?? '-' }}</div>
@@ -91,13 +118,16 @@
                         <input type="hidden" name="details[{{ $idx }}][rating]" :value="rating">
 
                         <div class="space-y-2">
-                            <p class="text-sm font-medium text-slate-700">Rating (opsional)</p>
+                            <p class="text-sm font-medium text-slate-700">Rating (wajib)</p>
                             <div class="flex items-center gap-1">
                                 @for($i = 1; $i <= 5; $i++)
                                     <button type="button" class="h-10 w-10 rounded-xl text-lg font-semibold" :class="rating >= {{ $i }} ? 'bg-amber-400 text-white' : 'bg-white border border-slate-200 text-slate-400'" @click="rating={{ $i }}">★</button>
                                 @endfor
-                                <button type="button" class="ml-2 text-xs text-slate-500 underline" @click="rating=0">Reset</button>
                             </div>
+
+                            @error('details.' . $idx . '.rating', 'reviewForm')
+                                <p class="text-sm text-red-600">{{ $message }}</p>
+                            @enderror
                         </div>
 
                         <div>

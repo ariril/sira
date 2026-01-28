@@ -83,7 +83,7 @@ class MultiRaterSubmissionController extends Controller
             $assessments = MultiRaterAssessment::with(['assessee.unit','period'])
                 ->where('assessor_id', Auth::id())
                 ->where('assessment_period_id', $window->assessment_period_id)
-                ->whereIn('assessor_type', ['self', 'peer', 'subordinate'])
+                ->whereIn('assessor_type', ['self', 'supervisor', 'peer', 'subordinate'])
                 ->whereIn('status', ['invited','in_progress'])
                 ->orderByDesc('id')
                 ->get();
@@ -210,7 +210,7 @@ class MultiRaterSubmissionController extends Controller
                     ->leftJoin($criteriaTable . ' as pc', 'pc.id', '=', 'multi_rater_assessment_details.performance_criteria_id')
                     ->where('mra.assessment_period_id', $periodId)
                     ->where('mra.assessor_id', Auth::id())
-                    ->whereIn('mra.assessor_type', ['self', 'peer', 'subordinate'])
+                    ->whereIn('mra.assessor_type', ['self', 'supervisor', 'peer', 'subordinate'])
                     ->when($assessorProfessionId, fn($q) => $q->where('mra.assessor_profession_id', $assessorProfessionId))
                     ->where('pc.is_360', true)
                     ->where('u.unit_id', $unitId)
@@ -257,7 +257,7 @@ class MultiRaterSubmissionController extends Controller
     public function show(MultiRaterAssessment $assessment)
     {
         abort_unless($assessment->assessor_id === Auth::id(), 403);
-        abort_unless(in_array((string) $assessment->assessor_type, ['self', 'peer', 'subordinate'], true), 403);
+        abort_unless(in_array((string) $assessment->assessor_type, ['self', 'supervisor', 'peer', 'subordinate'], true), 403);
         $period = AssessmentPeriod::query()->find((int) $assessment->assessment_period_id);
 
         AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Penilaian 360');
@@ -286,7 +286,7 @@ class MultiRaterSubmissionController extends Controller
     public function submit(Request $request, MultiRaterAssessment $assessment)
     {
         abort_unless($assessment->assessor_id === Auth::id(), 403);
-        abort_unless(in_array((string) $assessment->assessor_type, ['self', 'peer', 'subordinate'], true), 403);
+        abort_unless(in_array((string) $assessment->assessor_type, ['self', 'supervisor', 'peer', 'subordinate'], true), 403);
         $period = AssessmentPeriod::query()->find((int) $assessment->assessment_period_id);
 
         AssessmentPeriodGuard::forbidWhenApprovalRejected($period, 'Penilaian 360');

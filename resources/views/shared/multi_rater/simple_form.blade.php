@@ -336,12 +336,18 @@
                 },
                 emitSavedRows(completedIds, targetSnapshot, submittedScore) {
                     if (!this.savedTableKey || !targetSnapshot || !completedIds.length) return;
+                    const roleLabel = this.roleLabel(targetSnapshot);
+                    const roleClass = this.rolePillClasses(targetSnapshot);
                     const rows = completedIds.map(id => {
                         const info = this.criteriaMap[id] || {};
                         return {
                             tableKey: this.savedTableKey,
                             targetId: targetSnapshot.id,
                             targetName: targetSnapshot.name || targetSnapshot.label,
+                            assessorType: targetSnapshot.assessor_type ?? null,
+                            assessorLevel: targetSnapshot.assessor_level ?? null,
+                            roleLabel,
+                            roleClass,
                             criteriaId: id,
                             criteriaName: info.name || 'Kriteria',
                             criteriaType: info.type || 'benefit',
@@ -402,11 +408,18 @@
                         scoreCell = buildInlineEditForm({ editUrl, csrf, periodId, windowId, targetId: row.targetId, criteriaId: row.criteriaId, score: row.score, variant: inlineVariant });
                     }
 
+                    const roleLabel = String(row.roleLabel ?? '').trim();
+                    const roleClass = String(row.roleClass ?? '').trim() || 'bg-slate-50 text-slate-700 border-slate-200';
+                    const roleCell = roleLabel
+                        ? `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${roleClass}">${roleLabel}</span>`
+                        : `<span class="text-xs text-slate-500">-</span>`;
+
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-slate-50';
                     tr.innerHTML = `
                         <td class="px-6 py-4">${row.targetName}</td>
                         <td class="px-6 py-4">${row.criteriaName}</td>
+                        <td class="px-6 py-4">${roleCell}</td>
                         <td class="px-6 py-4"><span class="px-2 py-1 rounded text-xs border ${badgeClass}">${typeLabel}</span></td>
                         <td class="px-6 py-3">${scoreCell}</td>
                         <td class="px-6 py-4 text-slate-600">${timeLabel}</td>

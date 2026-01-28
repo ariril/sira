@@ -51,6 +51,9 @@ Route::post('/reviews/invite/{token}', [PublicReviewController::class, 'store'])
 Route::get('/reviews/thanks', [PublicReviewController::class, 'thanks'])
     ->name('reviews.thanks');
 
+Route::get('/reviews/unavailable', [PublicReviewController::class, 'unavailable'])
+    ->name('reviews.unavailable');
+
 /**
  * Authenticated dashboard redirect
  */

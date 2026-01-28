@@ -14,6 +14,17 @@ use Illuminate\Validation\ValidationException;
 
 class PerformanceScoreService
 {
+    private function shouldUseScoreSnapshot(AssessmentPeriod $period): bool
+    {
+        $status = (string) ($period->status ?? '');
+
+        return in_array($status, [
+            AssessmentPeriod::STATUS_APPROVAL,
+            AssessmentPeriod::STATUS_CLOSED,
+            AssessmentPeriod::STATUS_ARCHIVED,
+        ], true);
+    }
+
     private function clampPct(float $value): float
     {
         if (!is_finite($value)) {
@@ -710,7 +721,7 @@ class PerformanceScoreService
      */
     private function tryLoadSnapshotCalculation(AssessmentPeriod $period, array $userIds): ?array
     {
-        if (!$period->isFrozen()) {
+        if (!$this->shouldUseScoreSnapshot($period)) {
             return null;
         }
 

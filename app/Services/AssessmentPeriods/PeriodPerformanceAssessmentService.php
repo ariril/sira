@@ -68,6 +68,19 @@ class PeriodPerformanceAssessmentService
         $this->recalculateForUsers($period, $users->all());
     }
 
+    private function shouldWriteScoreSnapshot(AssessmentPeriod $period): bool
+    {
+        $status = (string) ($period->status ?? '');
+
+        // We only freeze score calculations once approval starts (or later).
+        // During LOCKED/REVISION, data imports (metrics/attendance) may still happen.
+        return in_array($status, [
+            AssessmentPeriod::STATUS_APPROVAL,
+            AssessmentPeriod::STATUS_CLOSED,
+            AssessmentPeriod::STATUS_ARCHIVED,
+        ], true);
+    }
+
     private function recalculateForPeriod(AssessmentPeriod $period): void
     {
         $users = User::query()
@@ -147,9 +160,15 @@ class PeriodPerformanceAssessmentService
             $calc = $this->scoreSvc->calculate((int) $unitId, $period, $userIds, $professionId);
             $criteriaIds = array_values(array_map('intval', (array) ($calc['criteria_ids'] ?? [])));
 
-            // If the period is frozen, persist a snapshot so later UI reads remain stable
-            // even if admins change performance_criterias.normalization_basis.
-            if ($period->isFrozen() && Schema::hasTable('performance_assessment_snapshots')) {
+            // Persist membership snapshots for frozen periods so permissions/monitoring stay stable.
+            $writeMembershipSnapshot = $period->isFrozen() && Schema::hasTable('assessment_period_user_membership_snapshots');
+
+            // Persist score snapshots only once approval starts (or later).
+            // This allows late data imports (metrics/attendance) during LOCKED/REVISION
+            // to be reflected before entering approval.
+            $writeScoreSnapshot = $this->shouldWriteScoreSnapshot($period) && Schema::hasTable('performance_assessment_snapshots');
+
+            if (($writeMembershipSnapshot || $writeScoreSnapshot)) {
                 $now = now();
                 $snapRows = [];
                 $membershipRows = [];
@@ -161,33 +180,35 @@ class PeriodPerformanceAssessmentService
                         continue;
                     }
 
-                    $snapRows[] = [
-                        'assessment_period_id' => (int) $period->id,
-                        'user_id' => $uid,
-                        'payload' => json_encode([
-                            'version' => 1,
-                            'calc' => [
-                                // Keep a calculate()-compatible shape.
-                                'criteria_ids' => $criteriaIds,
-                                'weights' => (array) ($calc['weights'] ?? []),
-                                'max_by_criteria' => (array) ($calc['max_by_criteria'] ?? []),
-                                'min_by_criteria' => (array) ($calc['min_by_criteria'] ?? []),
-                                'sum_raw_by_criteria' => (array) ($calc['sum_raw_by_criteria'] ?? []),
-                                'basis_by_criteria' => (array) ($calc['basis_by_criteria'] ?? []),
-                                'basis_value_by_criteria' => (array) ($calc['basis_value_by_criteria'] ?? []),
-                                'custom_target_by_criteria' => (array) ($calc['custom_target_by_criteria'] ?? []),
-                                // Explicit totals to make downstream consumers (e.g., remuneration) consistent.
-                                'total_wsm_relative' => $userRow['total_wsm_relative'] ?? ($userRow['total_wsm'] ?? null),
-                                'total_wsm_value' => $userRow['total_wsm_value'] ?? null,
-                                'user' => $userRow,
-                            ],
-                        ], JSON_UNESCAPED_UNICODE),
-                        'snapshotted_at' => $now,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
+                    if ($writeScoreSnapshot) {
+                        $snapRows[] = [
+                            'assessment_period_id' => (int) $period->id,
+                            'user_id' => $uid,
+                            'payload' => json_encode([
+                                'version' => 1,
+                                'calc' => [
+                                    // Keep a calculate()-compatible shape.
+                                    'criteria_ids' => $criteriaIds,
+                                    'weights' => (array) ($calc['weights'] ?? []),
+                                    'max_by_criteria' => (array) ($calc['max_by_criteria'] ?? []),
+                                    'min_by_criteria' => (array) ($calc['min_by_criteria'] ?? []),
+                                    'sum_raw_by_criteria' => (array) ($calc['sum_raw_by_criteria'] ?? []),
+                                    'basis_by_criteria' => (array) ($calc['basis_by_criteria'] ?? []),
+                                    'basis_value_by_criteria' => (array) ($calc['basis_value_by_criteria'] ?? []),
+                                    'custom_target_by_criteria' => (array) ($calc['custom_target_by_criteria'] ?? []),
+                                    // Explicit totals to make downstream consumers (e.g., remuneration) consistent.
+                                    'total_wsm_relative' => $userRow['total_wsm_relative'] ?? ($userRow['total_wsm'] ?? null),
+                                    'total_wsm_value' => $userRow['total_wsm_value'] ?? null,
+                                    'user' => $userRow,
+                                ],
+                            ], JSON_UNESCAPED_UNICODE),
+                            'snapshotted_at' => $now,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
 
-                    if (Schema::hasTable('assessment_period_user_membership_snapshots')) {
+                    if ($writeMembershipSnapshot) {
                         $membershipRows[] = [
                             'assessment_period_id' => (int) $period->id,
                             'user_id' => $uid,
@@ -200,12 +221,12 @@ class PeriodPerformanceAssessmentService
                     }
                 }
 
-                if (!empty($snapRows)) {
+                if ($writeScoreSnapshot && !empty($snapRows)) {
                     // Insert-only for stability (don't overwrite existing snapshots).
                     DB::table('performance_assessment_snapshots')->insertOrIgnore($snapRows);
                 }
 
-                if (!empty($membershipRows) && Schema::hasTable('assessment_period_user_membership_snapshots')) {
+                if ($writeMembershipSnapshot && !empty($membershipRows)) {
                     DB::table('assessment_period_user_membership_snapshots')->insertOrIgnore($membershipRows);
                 }
             }

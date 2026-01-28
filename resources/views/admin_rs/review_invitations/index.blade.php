@@ -113,7 +113,6 @@
                     <th class="px-6 py-4 text-left whitespace-nowrap">Kontak</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Unit</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
-                    <th class="px-6 py-4 text-left whitespace-nowrap">Link Undangan</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Dikirim</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Dibuka</th>
                     <th class="px-6 py-4 text-left whitespace-nowrap">Digunakan</th>
@@ -137,7 +136,7 @@
                         'cancelled' => 'bg-slate-50 text-slate-700 border-slate-200',
                     ];
                     $badgeClass = $badgeMap[$status] ?? 'bg-slate-50 text-slate-700 border-slate-200';
-                    $link = !empty($it->token_plain) ? url('/reviews/invite/' . $it->token_plain) : null;
+                    // $link = !empty($it->token_plain) ? url('/reviews/invite/' . $it->token_plain) : null;
 
                     $email = trim((string) ($it->email ?? ''));
                     $canSendEmail = $email !== '' && $it->used_at === null;
@@ -152,13 +151,13 @@
                             {{ strtoupper($status !== '' ? $status : '-') }}
                         </span>
                     </td>
-                    <td class="px-6 py-4">
+                    {{-- <td class="px-6 py-4">
                         @if($link)
                             <a class="text-indigo-600 hover:underline break-all" href="{{ $link }}" target="_blank" rel="noreferrer">{{ $link }}</a>
                         @else
                             -
                         @endif
-                    </td>
+                    </td> --}}
                     <td class="px-6 py-4 text-slate-700">{{ optional($it->sent_at)->format('d M Y H:i') ?? '-' }}</td>
                     <td class="px-6 py-4 text-slate-700">{{ optional($it->clicked_at)->format('d M Y H:i') ?? '-' }}</td>
                     <td class="px-6 py-4 text-slate-700">{{ optional($it->used_at)->format('d M Y H:i') ?? '-' }}</td>

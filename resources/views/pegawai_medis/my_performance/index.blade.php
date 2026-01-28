@@ -59,7 +59,7 @@
                             </th>
                             <th class="px-6 py-4 text-right whitespace-nowrap">
                                 <span>Nilai (Relatif)</span>
-                                <span class="ml-1 text-slate-400" title="Nilai Relatif = skala ulang dari Nilai Normalisasi terhadap nilai tertinggi pada unit/scope (nilai tertinggi ditampilkan sebagai 100). Berlaku untuk basis total_unit dan Custom Target—mis. bila tidak ada yang mencapai target sehingga max normalisasi < 100, maka nilai tertinggi tersebut menjadi 100 di relatif. Untuk basis max_unit/rata-rata, umumnya Nilai Relatif sama dengan Nilai Normalisasi karena max normalisasi sudah 100.">
+                                <span class="ml-1 text-slate-400" title="Nilai Relatif memudahkan perbandingan di unit yang sama: nilai tertinggi dijadikan 100, dan nilai lainnya disesuaikan mengikuti proporsinya.">
                                     <i class="fa-solid fa-circle-exclamation"></i>
                                 </span>
                             </th>

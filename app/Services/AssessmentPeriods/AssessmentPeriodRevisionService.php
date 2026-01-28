@@ -78,6 +78,13 @@ class AssessmentPeriodRevisionService
                 'revision_opened_reason' => $reason,
             ]);
 
+            // Allow recalculation during REVISION by clearing any score snapshots from the previous approval.
+            if (Schema::hasTable('performance_assessment_snapshots')) {
+                DB::table('performance_assessment_snapshots')
+                    ->where('assessment_period_id', (int) $period->id)
+                    ->delete();
+            }
+
             Cache::forget('ui.period_state_banner');
 
             $this->invalidateApprovalsForPeriodAttempt($period, $actor->id, 'Open revision: approval harus diulang dari Level 1.');
@@ -117,6 +124,13 @@ class AssessmentPeriodRevisionService
                 'rejected_at' => null,
                 'rejected_reason' => null,
             ]);
+
+            // Ensure approval uses fresh snapshots for the new attempt.
+            if (Schema::hasTable('performance_assessment_snapshots')) {
+                DB::table('performance_assessment_snapshots')
+                    ->where('assessment_period_id', (int) $period->id)
+                    ->delete();
+            }
 
             Cache::forget('ui.period_state_banner');
 

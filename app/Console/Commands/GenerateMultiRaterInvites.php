@@ -94,13 +94,18 @@ class GenerateMultiRaterInvites extends Command
         ?int $assessorLevel
     ): int
     {
+        // DB constraint: assessor_level is NOT NULL (default 0). Only meaningful for supervisor invites.
+        $assessorLevelToStore = $type === 'supervisor'
+            ? (int) ($assessorLevel ?? 0)
+            : 0;
+
         $exists = MultiRaterAssessment::where([
             'assessee_id' => $assesseeId,
             'assessor_id' => $assessorId,
             'assessor_type' => $type,
             'assessment_period_id' => $periodId,
             'assessor_profession_id' => $assessorProfessionId,
-            'assessor_level' => $assessorLevel,
+            'assessor_level' => $assessorLevelToStore,
         ])->exists();
         if ($exists) return 0;
         MultiRaterAssessment::create([
@@ -108,7 +113,7 @@ class GenerateMultiRaterInvites extends Command
             'assessor_id' => $assessorId,
             'assessor_profession_id' => $assessorProfessionId,
             'assessor_type' => $type,
-            'assessor_level' => $type === 'supervisor' ? $assessorLevel : null,
+            'assessor_level' => $assessorLevelToStore,
             'assessment_period_id' => $periodId,
             'status' => 'invited',
         ]);

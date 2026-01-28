@@ -156,6 +156,14 @@ class AssessmentPeriodController extends Controller
             return back()->withErrors(['status' => 'Tahap persetujuan hanya dapat dimulai ketika periode berstatus Dikunci.']);
         }
 
+        // IMPORTANT: score snapshots must not block late imports (attendance/metrics) before approval.
+        // If any snapshots exist (e.g., legacy behavior), clear them so recalculation uses live data.
+        if (Schema::hasTable('performance_assessment_snapshots')) {
+            DB::table('performance_assessment_snapshots')
+                ->where('assessment_period_id', (int) $period->id)
+                ->delete();
+        }
+
         // Pre-approval validation (warning, not error): require minimal 1 data for key modules.
         $missingWarnings = $this->buildPreApprovalWarnings($period);
         $force = (bool) request()->boolean('force');
@@ -166,8 +174,20 @@ class AssessmentPeriodController extends Controller
             ]);
         }
 
+        // Safety: final full recalculation before entering approval.
+        // This ensures all latest RAW inputs (attendance/import/360/reviews) are reflected in assessments.
+        try {
+            $perfSvc->recalculateForPeriodId((int) $period->id);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['status' => 'Gagal menghitung ulang penilaian sebelum approval: ' . $e->getMessage()]);
+        }
+
         DB::transaction(function () use ($period, $perfSvc) {
             $period->refresh();
+
+            if ((string) $period->status !== AssessmentPeriod::STATUS_LOCKED) {
+                throw new \RuntimeException('Status periode berubah; tidak dapat memulai approval.');
+            }
 
             $supportsAttempt = Schema::hasColumn('assessment_periods', 'approval_attempt');
             $attempt = $supportsAttempt ? max(1, (int) ($period->approval_attempt ?? 0)) : 1;
@@ -192,7 +212,7 @@ class AssessmentPeriodController extends Controller
             }
             $period->update($updates);
 
-            // Safety: ensure Penilaian Saya exists (and latest computed) before sending to approval.
+            // Safety: ensure Penilaian Saya exists before sending to approval.
             $perfSvc->initializeForPeriod($period);
 
             $this->createApprovalsForPeriod($period, $attempt);
@@ -215,7 +235,7 @@ class AssessmentPeriodController extends Controller
         }
     }
 
-    public function resubmitFromRevision(Request $request, AssessmentPeriod $period, AssessmentPeriodRevisionService $svc): RedirectResponse
+    public function resubmitFromRevision(Request $request, AssessmentPeriod $period, AssessmentPeriodRevisionService $svc, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
     {
         $data = $request->validate([
             'note' => ['nullable', 'string', 'max:800'],
@@ -223,6 +243,11 @@ class AssessmentPeriodController extends Controller
 
         try {
             $svc->resubmitFromRevision($period, $request->user(), $data['note'] ?? null);
+
+            // Final recalculation for the new approval attempt (also rebuilds score snapshots).
+            $period->refresh();
+            $perfSvc->initializeForPeriod($period);
+
             return back()->with('status', 'Periode diajukan ulang ke tahap persetujuan. Approval dimulai ulang dari Level 1.');
         } catch (\Throwable $e) {
             return back()->withErrors(['status' => $e->getMessage()]);

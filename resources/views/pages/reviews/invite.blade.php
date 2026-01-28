@@ -50,8 +50,26 @@
                     </div>
                 </div>
 
-                <form method="POST" action="{{ route('reviews.invite.store', ['token' => $token]) }}">
+                <form
+                    method="POST"
+                    action="{{ route('reviews.invite.store', ['token' => $token]) }}"
+                    x-data
+                    @submit.prevent='
+                        const ratingInputs = Array.from($el.querySelectorAll("input[name^=\"details\"][name$=\"[rating]\"]"));
+                        const firstInvalid = ratingInputs.find((i) => parseInt(i.value || "0", 10) < 1);
+                        if (firstInvalid) {
+                            alert("Rating wajib diisi untuk semua staf sebelum mengirim ulasan.");
+                            firstInvalid.closest(".border")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                            return;
+                        }
+                        $el.submit();
+                    '
+                >
                     @csrf
+
+                    @error('details', 'reviewForm')
+                        <div class="alert alert-danger small mb-3">{{ $message }}</div>
+                    @enderror
 
                     @foreach($staff as $s)
                         @php
@@ -74,6 +92,8 @@
 
                                 <div>
                                     <input type="hidden" name="details[{{ $s['id'] }}][rating]" :value="rating">
+
+                                    <div class="small text-muted mb-1">Rating (wajib)</div>
 
                                     <div class="d-flex align-items-center gap-1">
                                         @for($i = 1; $i <= 5; $i++)

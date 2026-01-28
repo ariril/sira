@@ -3,19 +3,29 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RecalculatePeriodJob;
 use App\Models\Review;
 use App\Models\ReviewDetail;
 use App\Models\ReviewInvitation;
+use App\Models\AssessmentPeriod;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
 
 class PublicReviewController extends Controller
 {
-    public function show(Request $request, string $token): View
+    private function expiredRedirect(): RedirectResponse
+    {
+        return redirect()
+            ->route('reviews.unavailable')
+            ->with('notice', 'Maaf, link ulasan ini sudah kedaluwarsa sehingga tidak dapat digunakan.');
+    }
+
+    public function show(Request $request, string $token): View|RedirectResponse
     {
         $tokenHash = hash('sha256', $token);
 
@@ -23,6 +33,7 @@ class PublicReviewController extends Controller
         $invitation = ReviewInvitation::query()
             ->with([
                 'unit:id,name',
+                'assessmentPeriod:id,status',
                 'staff.user:id,name,employee_number,profession_id,unit_id',
                 'staff.user.unit:id,name',
                 'staff.user.profession:id,name',
@@ -31,24 +42,35 @@ class PublicReviewController extends Controller
             ->first();
 
         if (!$invitation) {
-            abort(404);
+            return $this->expiredRedirect();
         }
 
         $now = Carbon::now();
 
         if ($invitation->status === 'cancelled') {
-            abort(410, 'Link tidak aktif.');
+            return $this->expiredRedirect();
         }
 
         if ($invitation->status === 'used' || $invitation->used_at) {
-            abort(410, 'Link sudah digunakan.');
+            return redirect()
+                ->route('reviews.thanks')
+                ->with('notice', 'Link ini sudah pernah digunakan. Jika Anda sudah mengirim ulasan, tidak perlu mengisi lagi.');
         }
 
         if ($invitation->status === 'expired' || ($invitation->expires_at && $now->greaterThan($invitation->expires_at))) {
             if ($invitation->status !== 'expired') {
                 $invitation->forceFill(['status' => 'expired'])->save();
             }
-            abort(410, 'Link kedaluwarsa.');
+            return $this->expiredRedirect();
+        }
+
+        // Business rule: reviews cannot be submitted after approval starts.
+        if (Schema::hasColumn('review_invitations', 'assessment_period_id') && $invitation->assessment_period_id) {
+            $periodStatus = (string) ($invitation->assessmentPeriod?->status ?? '');
+            if ($periodStatus !== '' && !in_array($periodStatus, [AssessmentPeriod::STATUS_ACTIVE, AssessmentPeriod::STATUS_LOCKED], true)) {
+                // Untuk pasien: tampilkan sebagai "kedaluwarsa" agar tidak menimbulkan bias.
+                return $this->expiredRedirect();
+            }
         }
 
         if ($invitation->clicked_at === null) {
@@ -86,37 +108,104 @@ class PublicReviewController extends Controller
     {
         $tokenHash = hash('sha256', $token);
 
-        $validated = Validator::make($request->all(), [
+        $invitationId = ReviewInvitation::query()
+            ->where('token_hash', $tokenHash)
+            ->value('id');
+
+        if (!$invitationId) {
+            return $this->expiredRedirect();
+        }
+
+        $allowedStaffIds = \App\Models\ReviewInvitationStaff::query()
+            ->where('invitation_id', (int) $invitationId)
+            ->pluck('user_id')
+            ->map(fn ($v) => (int) $v)
+            ->values();
+
+        $validator = Validator::make($request->all(), [
             'overall_rating' => ['nullable', 'integer', 'min:1', 'max:5'],
             'comment' => ['nullable', 'string', 'max:2000'],
-            'details' => ['nullable', 'array'],
-            'details.*.user_id' => ['required_with:details', 'integer'],
-            'details.*.rating' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'details' => ['required', 'array', 'min:1'],
+            'details.*.user_id' => ['required', 'integer'],
+            'details.*.rating' => ['required', 'integer', 'min:1', 'max:5'],
             'details.*.comment' => ['nullable', 'string', 'max:2000'],
-        ])->validate();
+        ], [
+            'details.required' => 'Mohon isi rating untuk semua staf.',
+            'details.array' => 'Form ulasan tidak valid.',
+            'details.*.user_id.required' => 'Form ulasan tidak valid.',
+            'details.*.rating.required' => 'Rating wajib diisi.',
+            'details.*.rating.min' => 'Rating wajib diisi.',
+        ]);
 
-        DB::transaction(function () use ($request, $tokenHash, $validated) {
+        $validator->after(function ($validator) use ($allowedStaffIds, $request) {
+            if ($allowedStaffIds->isEmpty()) {
+                $validator->errors()->add('details', 'Daftar staf tidak valid.');
+                return;
+            }
+
+            $details = collect($request->input('details', []))
+                ->filter(fn ($row) => is_array($row));
+
+            $postedIds = $details
+                ->pluck('user_id')
+                ->map(fn ($v) => (int) $v)
+                ->filter(fn (int $v) => $v > 0)
+                ->values();
+
+            if ($postedIds->count() !== $postedIds->unique()->count()) {
+                $validator->errors()->add('details', 'Form ulasan tidak valid.');
+                return;
+            }
+
+            $extra = $postedIds->diff($allowedStaffIds);
+            if ($extra->isNotEmpty()) {
+                $validator->errors()->add('details', 'Form ulasan tidak valid.');
+                return;
+            }
+
+            $missing = $allowedStaffIds->diff($postedIds);
+            if ($missing->isNotEmpty()) {
+                $validator->errors()->add('details', 'Mohon isi rating untuk semua staf.');
+            }
+        });
+
+        $validated = $validator->validateWithBag('reviewForm');
+
+        $result = DB::transaction(function () use ($request, $invitationId, $validated) {
             /** @var ReviewInvitation $invitation */
             $invitation = ReviewInvitation::query()
-                ->where('token_hash', $tokenHash)
+                ->whereKey((int) $invitationId)
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            // Business rule: reviews cannot be submitted after approval starts.
+            if (Schema::hasColumn('review_invitations', 'assessment_period_id') && $invitation->assessment_period_id) {
+                $period = AssessmentPeriod::query()
+                    ->whereKey((int) $invitation->assessment_period_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                $periodStatus = (string) ($period?->status ?? '');
+                if ($periodStatus !== '' && !in_array($periodStatus, [AssessmentPeriod::STATUS_ACTIVE, AssessmentPeriod::STATUS_LOCKED], true)) {
+                    return 'expired';
+                }
+            }
 
             $now = Carbon::now();
 
             if ($invitation->status === 'cancelled') {
-                abort(410, 'Link tidak aktif.');
+                return 'expired';
             }
 
             if ($invitation->status === 'used' || $invitation->used_at) {
-                abort(410, 'Link sudah digunakan.');
+                return 'already_used';
             }
 
             if ($invitation->status === 'expired' || ($invitation->expires_at && $now->greaterThan($invitation->expires_at))) {
                 if ($invitation->status !== 'expired') {
                     $invitation->forceFill(['status' => 'expired'])->save();
                 }
-                abort(410, 'Link kedaluwarsa.');
+                return 'expired';
             }
 
             $allowedStaff = $invitation->staff()->get(['user_id', 'role']);
@@ -190,9 +279,31 @@ class PublicReviewController extends Controller
                 'status' => 'used',
                 'used_at' => $now,
             ])->save();
+
+            // Keep performance assessments consistent with latest reviews.
+            if (Schema::hasColumn('review_invitations', 'assessment_period_id') && $invitation->assessment_period_id) {
+                RecalculatePeriodJob::dispatch((int) $invitation->assessment_period_id)->afterCommit();
+            }
+
+            return 'saved';
         });
 
+        if ($result === 'already_used') {
+            return redirect()
+                ->route('reviews.thanks')
+                ->with('notice', 'Ulasan sudah pernah terkirim. Terima kasih!');
+        }
+
+        if ($result === 'expired') {
+            return $this->expiredRedirect();
+        }
+
         return redirect()->route('reviews.thanks');
+    }
+
+    public function unavailable(): View
+    {
+        return view('public.reviews.unavailable');
     }
 
     public function thanks(): View

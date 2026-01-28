@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\AdminHospital;
 
+use App\Jobs\RecalculatePeriodJob;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendanceImportBatch as Batch;
@@ -21,7 +22,6 @@ use App\Services\Imports\EmployeeNumberNormalizer;
 use App\Services\Attendances\Imports\AttendanceImportRowMapper;
 use App\Services\Attendances\Imports\AttendanceImportTemplateBuilder;
 use App\Models\AssessmentPeriod;
-use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use App\Support\AssessmentPeriodGuard;
 use App\Support\AssessmentPeriodAudit;
 use Illuminate\Validation\ValidationException;
@@ -180,7 +180,7 @@ class AttendanceImportController extends Controller
     }
 
     // Handle upload + import (CSV/XLS/XLSX)
-    public function store(Request $request, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
+    public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             // izinkan csv, xls, xlsx
@@ -321,7 +321,8 @@ class AttendanceImportController extends Controller
 
         // Update Penilaian Saya after import (scores depend on attendance-derived criteria).
         if ($importPeriodId) {
-            $perfSvc->recalculateForPeriodId($importPeriodId);
+            // Trigger recalculation automatically (async where queue worker is running).
+            RecalculatePeriodJob::dispatch((int) $importPeriodId);
         }
 
         $detail = [];

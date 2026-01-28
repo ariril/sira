@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Web\AdminHospital;
 
+use App\Jobs\RecalculatePeriodJob;
 use App\Http\Controllers\Controller;
 use App\Models\CriteriaMetric;
 use App\Models\PerformanceCriteria;
 use App\Models\AssessmentPeriod;
 use App\Services\Reviews\Imports\MetricPatientImportService;
-use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use App\Services\Metrics\Imports\CriteriaMetricsTemplateBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -116,7 +116,7 @@ class CriteriaMetricsController extends Controller
         abort(404);
     }
 
-    public function uploadCsv(Request $request, PeriodPerformanceAssessmentService $perfSvc): RedirectResponse
+    public function uploadCsv(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'file' => 'required|file|mimes:csv,txt,xls,xlsx|max:5120',
@@ -200,8 +200,8 @@ class CriteriaMetricsController extends Controller
             (int) ($result['batch_id'] ?? 0),
         );
 
-        // Recalculate Penilaian Saya for the target period (e.g., locked period uploads).
-        $perfSvc->recalculateForPeriodId((int) $targetPeriod->id);
+        // Trigger recalculation automatically (async where queue worker is running).
+        RecalculatePeriodJob::dispatch((int) $targetPeriod->id);
 
         return back()->with('status', $msg);
     }
