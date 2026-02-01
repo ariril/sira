@@ -305,7 +305,10 @@ class PerformanceScoreService
                 $activeWeight = (float) ($weightsActiveByCriteriaId[$criteriaId] ?? 0.0);
                 $isActive = $c ? (bool) $c->is_active : false;
                 $readinessStatus = (string) (($readinessByCriteriaId[$criteriaId]['status'] ?? 'missing_data') ?: 'missing_data');
-                $included = $isActive && $activeWeight > 0.0 && $readinessStatus === 'ready';
+                // Keep WSM denominator stable: if a criterion weight is active for the period,
+                // it remains included even when its data is missing.
+                // Missing data yields relative=0 (see below), so the total decreases instead of re-weighting.
+                $included = $isActive && $activeWeight > 0.0;
 
                 $normalized = (float) ($normalizedByCriteriaId[$criteriaId][$uid] ?? 0.0);
                 $maxNorm = (float) ($maxNormByCriteriaId[$criteriaId] ?? 0.0);
@@ -348,7 +351,7 @@ class PerformanceScoreService
                     'basis_value' => (float) ($basisValueByCriteriaId[$criteriaId] ?? 0.0),
                     'custom_target_value' => $customTargetByCriteriaId[$criteriaId] ?? null,
                     'max_normalized_in_scope' => (float) ($maxNormByCriteriaId[$criteriaId] ?? 0.0),
-                    // Display the weight that is actually used in WSM when included.
+                    // Display the weight used in WSM denominator.
                     'weight' => $included ? $activeWeight : $weight,
                     'weight_status' => $included ? 'active' : $weightStatus,
                     'is_active' => $isActive,
@@ -642,7 +645,8 @@ class PerformanceScoreService
                 $activeWeight = (float) ($weightsActiveByCriteriaId[$criteriaId] ?? 0.0);
                 $isActive = $c ? (bool) $c->is_active : false;
                 $readinessStatus = (string) (($readinessByCriteriaId[$criteriaId]['status'] ?? 'missing_data') ?: 'missing_data');
-                $included = $isActive && $activeWeight > 0.0 && $readinessStatus === 'ready';
+                // Keep WSM denominator stable for active weights even when data is missing.
+                $included = $isActive && $activeWeight > 0.0;
 
                 $normalized = (float) ($normalizedByCriteriaId[$criteriaId][$uid] ?? 0.0);
                 $maxNorm = (float) ($maxNormByCriteriaId[$criteriaId] ?? 0.0);

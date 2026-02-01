@@ -59,19 +59,22 @@ class AssessmentApprovalDetailService
 
         $rows = [];
         foreach (($userRow['criteria'] ?? []) as $r) {
-            if (!($r['included_in_wsm'] ?? false)) {
+            $weight = (float) ($r['weight'] ?? 0.0);
+            if ($weight <= 0.0) {
                 continue;
             }
-            $weight = (float) ($r['weight'] ?? 0.0);
-            // Total WSM uses relative score (0–100).
+
+            // Total WSM uses relative score (0–100). Missing data yields relative=0.
             $scoreWsm = (float) ($r['nilai_relativ_unit'] ?? 0.0);
             $rows[] = [
                 'criteria_id' => (int) ($r['criteria_id'] ?? 0),
                 'criteria_name' => (string) ($r['criteria_name'] ?? '-'),
                 'weight' => $weight,
                 'score_wsm' => $scoreWsm,
-                'score_relative_unit' => (float) ($r['nilai_relativ_unit'] ?? 0.0),
+                'score_relative_unit' => $scoreWsm,
                 'contribution' => ($weight / $sumWeight) * $scoreWsm,
+                'readiness_status' => (string) (($r['readiness_status'] ?? null) ?: 'missing_data'),
+                'readiness_message' => $r['readiness_message'] ?? null,
             ];
         }
 

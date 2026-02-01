@@ -58,39 +58,131 @@ class AssessmentPeriodLifecycleService
         }
 
         // Unit criteria weights: archive all non-archived rows for frozen periods.
-        // Mark was_active_before=1 ONLY if the row used to be active.
+        // IMPORTANT:
+        // Don't compute was_active_before from `status` in the same UPDATE that also sets status='archived'.
+        // Some SQL engines may evaluate assignments in an order that makes the CASE see the *new* status,
+        // resulting in was_active_before always becoming 0.
+        // We do this in two steps: mark active rows first, then archive.
         if (Schema::hasTable('unit_criteria_weights')) {
-            $updates = [
-                'status' => 'archived',
-                'updated_at' => now(),
-            ];
+            $now = now();
 
-            if (Schema::hasColumn('unit_criteria_weights', 'was_active_before')) {
-                $updates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE 0 END");
+            $hasWasActiveBefore = Schema::hasColumn('unit_criteria_weights', 'was_active_before');
+            if ($hasWasActiveBefore) {
+                // Step 1: remember which rows were active before freezing.
+                DB::table('unit_criteria_weights')
+                    ->whereIn('assessment_period_id', $periodIds)
+                    ->where('status', 'active')
+                    ->update([
+                        'was_active_before' => 1,
+                        'updated_at' => $now,
+                    ]);
             }
 
+            // Step 2: archive everything (freeze config).
             DB::table('unit_criteria_weights')
                 ->whereIn('assessment_period_id', $periodIds)
                 ->where('status', '!=', 'archived')
-                ->update($updates);
+                ->update([
+                    'status' => 'archived',
+                    'updated_at' => $now,
+                ]);
+
+            // Backfill legacy/buggy archived rows that lost the was_active_before signal.
+            if ($hasWasActiveBefore) {
+                $hasDecidedColumns = Schema::hasColumn('unit_criteria_weights', 'decided_by') || Schema::hasColumn('unit_criteria_weights', 'decided_at');
+
+                if ($hasDecidedColumns) {
+                    DB::table('unit_criteria_weights')
+                        ->whereIn('assessment_period_id', $periodIds)
+                        ->where('status', 'archived')
+                        ->where('was_active_before', 0)
+                        ->where(function ($q) {
+                            if (Schema::hasColumn('unit_criteria_weights', 'decided_by')) {
+                                $q->whereNotNull('decided_by');
+                            }
+                            if (Schema::hasColumn('unit_criteria_weights', 'decided_at')) {
+                                $q->orWhereNotNull('decided_at');
+                            }
+                        })
+                        ->update([
+                            'was_active_before' => 1,
+                            'updated_at' => $now,
+                        ]);
+                }
+
+                // Final fallback: if a frozen period has archived weights but none are marked,
+                // mark them so WSM can be computed (weights are required to lock/approve).
+                foreach ($periodIds as $pid) {
+                    $pid = (int) $pid;
+                    $unitIds = DB::table('unit_criteria_weights')
+                        ->where('assessment_period_id', $pid)
+                        ->select('unit_id')
+                        ->distinct()
+                        ->pluck('unit_id')
+                        ->map(fn($v) => (int) $v)
+                        ->filter(fn($v) => $v > 0)
+                        ->values()
+                        ->all();
+
+                    foreach ($unitIds as $unitId) {
+                        $unitId = (int) $unitId;
+                        $hasAnyMarked = DB::table('unit_criteria_weights')
+                            ->where('assessment_period_id', $pid)
+                            ->where('unit_id', $unitId)
+                            ->where('was_active_before', 1)
+                            ->exists();
+
+                        if ($hasAnyMarked) {
+                            continue;
+                        }
+
+                        $hasAnyActive = DB::table('unit_criteria_weights')
+                            ->where('assessment_period_id', $pid)
+                            ->where('unit_id', $unitId)
+                            ->where('status', 'active')
+                            ->exists();
+
+                        if ($hasAnyActive) {
+                            continue;
+                        }
+
+                        DB::table('unit_criteria_weights')
+                            ->where('assessment_period_id', $pid)
+                            ->where('unit_id', $unitId)
+                            ->where('status', 'archived')
+                            ->where('was_active_before', 0)
+                            ->update([
+                                'was_active_before' => 1,
+                                'updated_at' => $now,
+                            ]);
+                    }
+                }
+            }
         }
 
         // Unit rater weights: archive all non-archived rows for frozen periods.
         // Mark was_active_before=1 ONLY if the row used to be active.
         if (Schema::hasTable('unit_rater_weights')) {
-            $updates = [
-                'status' => 'archived',
-                'updated_at' => now(),
-            ];
+            $now = now();
 
+            // Same two-step approach as unit_criteria_weights.
             if (Schema::hasColumn('unit_rater_weights', 'was_active_before')) {
-                $updates['was_active_before'] = DB::raw("CASE WHEN status='active' THEN 1 ELSE 0 END");
+                DB::table('unit_rater_weights')
+                    ->whereIn('assessment_period_id', $periodIds)
+                    ->where('status', 'active')
+                    ->update([
+                        'was_active_before' => 1,
+                        'updated_at' => $now,
+                    ]);
             }
 
             DB::table('unit_rater_weights')
                 ->whereIn('assessment_period_id', $periodIds)
                 ->where('status', '!=', 'archived')
-                ->update($updates);
+                ->update([
+                    'status' => 'archived',
+                    'updated_at' => $now,
+                ]);
 
             // Backfill legacy archived rows that were approved/active before this flag existed.
             // Heuristic: a row with decided_by is an approved row (i.e., had been active).
@@ -105,7 +197,7 @@ class AssessmentPeriodLifecycleService
                     })
                     ->update([
                         'was_active_before' => 1,
-                        'updated_at' => now(),
+                        'updated_at' => $now,
                     ]);
             }
         }

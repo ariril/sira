@@ -2,6 +2,7 @@
 
 namespace App\Services\AssessmentPeriods;
 
+use App\Enums\AssessmentValidationStatus;
 use App\Models\AssessmentApproval;
 use App\Models\AssessmentPeriod;
 use App\Models\PerformanceAssessment;
@@ -171,7 +172,7 @@ class AssessmentPeriodRevisionService
             );
 
             // Reset assessment validation status to pending for the new attempt.
-            $pa->update(['validation_status' => 'pending']);
+            $pa->update(['validation_status' => AssessmentValidationStatus::PENDING->value]);
         }
     }
 
