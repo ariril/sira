@@ -33,7 +33,7 @@
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Deskripsi</label>
-                    <x-ui.textarea name="description" rows="4">{{ $item->description }}</x-ui.textarea>
+                    <x-ui.textarea name="description" rows="4" :value="$item->description" />
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Tanggal Mulai</label>
@@ -82,27 +82,33 @@
 
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">
-                        Cancel Window (jam)
+                        Batas Pembatalan (jam)
                         <span class="ml-1 text-amber-600 cursor-help" title="Batas waktu pembatalan klaim (jam) sejak klaim dibuat.">!</span>
                     </label>
                     <x-ui.input type="number" name="cancel_window_hours" x-model.number="cancelWindow" min="0" max="720" />
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Default Penalty Type</label>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">
+                        Jenis Sanksi Default
+                        <span class="ml-1 text-amber-600 cursor-help" title="Tidak ada: tanpa sanksi. Persentase: memotong persentase dari nilai dasar. Nominal: memotong nilai rupiah tetap.">!</span>
+                    </label>
                     <x-ui.select
                         name="default_penalty_type"
                         x-model="penaltyType"
                         :options="[
-                            'none' => 'None',
-                            'percent' => 'Percent',
-                            'amount' => 'Amount',
+                            'none' => 'Tidak ada',
+                            'percent' => 'Persentase',
+                            'amount' => 'Nominal',
                         ]"
                     />
                 </div>
 
                 <div x-show="penaltyType !== 'none'" x-cloak>
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Default Penalty Value</label>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">
+                        Nilai Sanksi Default
+                        <span class="ml-1 text-amber-600 cursor-help" title="Jika Persentase: isi 0–100. Jika Nominal: isi nilai rupiah yang dipotong.">!</span>
+                    </label>
                     <x-ui.input
                         type="number"
                         step="0.01"
@@ -117,14 +123,17 @@
                 </div>
 
                 <div x-show="penaltyType === 'percent'" x-cloak>
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Penalty Base</label>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">
+                        Dasar Perhitungan Sanksi
+                        <span class="ml-1 text-amber-600 cursor-help" title="Dipakai hanya untuk sanksi Persentase: potongan dihitung dari Bonus Tugas atau dari Remunerasi.">!</span>
+                    </label>
                     <x-ui.select
                         name="penalty_base"
                         x-model="penaltyBase"
                         x-bind:disabled="penaltyType !== 'percent'"
                         :options="[
-                            'task_bonus' => 'Task Bonus',
-                            'remuneration' => 'Remuneration',
+                            'task_bonus' => 'Bonus Tugas',
+                            'remuneration' => 'Remunerasi',
                         ]"
                     />
                 </div>

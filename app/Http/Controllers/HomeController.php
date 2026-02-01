@@ -7,12 +7,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 use App\Models\SiteSetting;             // site_settings
 use App\Models\AssessmentPeriod;        // assessment_periods
 use App\Models\Announcement;            // announcements
 use App\Models\Faq;                     // faqs
-use App\Models\AdditionalContribution;  // additional_contributions
 use App\Models\PerformanceAssessment;   // performance_assessments
 use App\Models\User;                    // users
 
@@ -74,14 +74,18 @@ class HomeController extends Controller
                 ->avg('total_wsm_score'); // decimal|null
         });
 
-        // 3b) Pengganti "Logbook Terisi": jumlah additional_contributions pada periode aktif
-        $logbookTerisi = Cache::remember('stat.logbook_terisi', 300, function () use ($periodeAktif) {
-            if (!Schema::hasTable('additional_contributions')) {
+        // 3b) Tugas tambahan: jumlah klaim disetujui/selesai pada periode aktif
+        $tugasTambahan = Cache::remember('stat.tugas_tambahan', 300, function () use ($periodeAktif) {
+            if (!$periodeAktif) return 0;
+            if (!Schema::hasTable('additional_tasks') || !Schema::hasTable('additional_task_claims')) {
                 return 0;
             }
-            $q = AdditionalContribution::query();
-            if ($periodeAktif) $q->where('assessment_period_id', $periodeAktif->id);
-            return $q->count();
+
+            return (int) DB::table('additional_task_claims as c')
+                ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
+                ->where('t.assessment_period_id', $periodeAktif->id)
+                ->whereIn('c.status', ['approved', 'completed'])
+                ->count();
         });
 
         // Catatan: Sistem tidak mencatat jadwal tenaga medis, jadi tidak ada statistik "Jadwal Besok" di beranda.
@@ -109,8 +113,8 @@ class HomeController extends Controller
             ],
             [
                 'icon'  => 'fa-circle-plus',
-                'value' => number_format($logbookTerisi, 0, ',', '.'),
-                'label' => 'Kontribusi Tambahan',
+                'value' => number_format($tugasTambahan, 0, ',', '.'),
+                'label' => 'Tugas Tambahan',
             ],
         ];
 

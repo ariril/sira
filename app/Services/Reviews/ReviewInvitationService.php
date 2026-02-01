@@ -100,7 +100,7 @@ class ReviewInvitationService
 
         $periodId = $this->targetPeriodId;
 
-        $invitation = DB::transaction(function () use ($now, $registrationRef, $patientName, $contact, $unit, $tokenHash, $staff, $periodId) {
+        $invitation = DB::transaction(function () use ($now, $registrationRef, $patientName, $contact, $unit, $tokenPlain, $tokenHash, $staff, $periodId) {
             $payload = [
                 'registration_ref' => $registrationRef,
                 'unit_id' => $unit->id,
@@ -108,9 +108,13 @@ class ReviewInvitationService
                 'contact' => $contact,
                 'token_hash' => $tokenHash,
                 'status' => 'sent',
-                'expires_at' => $now->copy()->addDays(5),
+                'expires_at' => $now->copy()->addDays(7),
                 'sent_at' => $now,
             ];
+
+            if (Schema::hasColumn('review_invitations', 'token_plain')) {
+                $payload['token_plain'] = $tokenPlain;
+            }
 
             if ($periodId && Schema::hasColumn('review_invitations', 'assessment_period_id')) {
                 $payload['assessment_period_id'] = $periodId;

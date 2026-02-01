@@ -3,7 +3,6 @@
 namespace App\Services\AssessmentPeriods;
 
 use App\Enums\AttendanceStatus;
-use App\Enums\ContributionValidationStatus;
 use App\Enums\ReviewStatus;
 use App\Models\AssessmentPeriod;
 use App\Models\PerformanceAssessment;
@@ -344,9 +343,8 @@ class PeriodPerformanceAssessmentService
             $raw['kerjasama'] = $this->collect360Avg($period->id, (int) $criteriaIds['kerjasama'], $userIds);
         }
 
-        // Kontribusi Tambahan:
+        // Tugas Tambahan (kontribusi):
         // - task-based: dari additional_task_claims (approved/completed) dengan snapshot awarded_points
-        // - ad-hoc: dari additional_contributions approved, yang tidak ditautkan ke claim (claim_id null)
         $claimPoints = DB::table('additional_task_claims as c')
             ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
             ->selectRaw('c.user_id, COALESCE(SUM(COALESCE(c.awarded_points, t.points, 0)),0) as total_score')
@@ -358,21 +356,10 @@ class PeriodPerformanceAssessmentService
             ->map(fn($v) => (float) $v)
             ->all();
 
-        $adhocPoints = DB::table('additional_contributions')
-            ->selectRaw('user_id, COALESCE(SUM(score),0) as total_score')
-            ->where('assessment_period_id', $period->id)
-            ->where('validation_status', ContributionValidationStatus::APPROVED->value)
-            ->whereNull('claim_id')
-            ->whereIn('user_id', $userIds)
-            ->groupBy('user_id')
-            ->pluck('total_score', 'user_id')
-            ->map(fn($v) => (float) $v)
-            ->all();
-
         $tmp = [];
         foreach ($userIds as $uid) {
             $uid = (int) $uid;
-            $tmp[$uid] = (float)($claimPoints[$uid] ?? 0) + (float)($adhocPoints[$uid] ?? 0);
+            $tmp[$uid] = (float)($claimPoints[$uid] ?? 0);
         }
         $raw['kontribusi'] = $tmp;
 

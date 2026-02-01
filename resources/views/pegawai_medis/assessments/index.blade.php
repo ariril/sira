@@ -3,13 +3,6 @@
         <h1 class="text-2xl font-semibold text-slate-800">Penilaian Saya</h1>
     </x-slot>
     <div class="container-px py-6 space-y-6">
-        @if($activePeriodHasWeights === false)
-            <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
-                <div class="font-semibold">Skor kinerja periode aktif belum tersedia</div>
-                <div class="text-sm">Bobot kriteria untuk periode aktif belum berstatus <span class="font-semibold">aktif</span>. Skor kinerja akan muncul setelah bobot diaktifkan.</div>
-            </div>
-        @endif
-
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <x-ui.table min-width="960px">
                 <x-slot name="head">
@@ -42,7 +35,9 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-slate-500">Belum ada penilaian.</td>
+                        <td colspan="5" class="px-6 py-8 text-center text-slate-500">
+                            Penilaian akan muncul saat periode masuk tahap persetujuan.
+                        </td>
                     </tr>
                 @endforelse
             </x-ui.table>

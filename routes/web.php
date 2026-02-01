@@ -168,6 +168,8 @@ Route::middleware(['auth','verified','role:admin_rs'])
         Route::post('metrics/upload-csv', [\App\Http\Controllers\Web\AdminHospital\CriteriaMetricsController::class, 'uploadCsv'])->name('metrics.upload_csv');
 
         // Review Invitations (import invitation links from Excel)
+        Route::get('review-invitations', [\App\Http\Controllers\Web\AdminHospital\ReviewInvitationController::class, 'index'])
+            ->name('review_invitations.index');
         Route::get('review-invitations/import', [\App\Http\Controllers\Web\AdminHospital\ReviewInvitationImportController::class, 'form'])
             ->name('review_invitations.import.form');
         Route::post('review-invitations/import', [\App\Http\Controllers\Web\AdminHospital\ReviewInvitationImportController::class, 'process'])
@@ -272,12 +274,6 @@ Route::middleware(['auth','verified','role:kepala_unit'])
 
         // Monitoring klaim
         Route::get('additional-task-claims', [\App\Http\Controllers\Web\UnitHead\AdditionalTaskClaimController::class, 'index'])->name('additional_task_claims.index');
-        // Review kontribusi tambahan
-        Route::get('additional-contributions', [\App\Http\Controllers\Web\UnitHead\AdditionalContributionReviewController::class,'index'])->name('additional_contributions.index');
-        Route::get('additional-contributions/{additionalContribution}', [\App\Http\Controllers\Web\UnitHead\AdditionalContributionReviewController::class,'show'])->name('additional_contributions.show');
-        Route::post('additional-contributions/{additionalContribution}/approve', [\App\Http\Controllers\Web\UnitHead\AdditionalContributionReviewController::class,'approve'])->name('additional_contributions.approve');
-        Route::post('additional-contributions/{additionalContribution}/reject', [\App\Http\Controllers\Web\UnitHead\AdditionalContributionReviewController::class,'reject'])->name('additional_contributions.reject');
-        Route::get('additional-contributions/{additionalContribution}/download', [\App\Http\Controllers\Web\UnitHead\AdditionalContributionReviewController::class,'download'])->name('additional_contributions.download');
 
         // Approval ulasan pasien publik
         Route::get('reviews', [ReviewApprovalController::class, 'index'])->name('reviews.index');
@@ -352,6 +348,8 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
 
         // Bobot Penilai 360 (rater_weights) – approval
         Route::get('rater-weights', [\App\Http\Controllers\Web\PolyclinicHead\RaterWeightApprovalController::class, 'index'])->name('rater_weights.index');
+        Route::post('rater-weights/units/{unitId}/approve', [\App\Http\Controllers\Web\PolyclinicHead\RaterWeightApprovalController::class, 'approveUnit'])->name('rater_weights.approve_unit');
+        Route::post('rater-weights/units/{unitId}/reject', [\App\Http\Controllers\Web\PolyclinicHead\RaterWeightApprovalController::class, 'rejectUnit'])->name('rater_weights.reject_unit');
         Route::post('rater-weights/{raterWeight}/approve', [\App\Http\Controllers\Web\PolyclinicHead\RaterWeightApprovalController::class, 'approve'])->name('rater_weights.approve');
         Route::post('rater-weights/{raterWeight}/reject', [\App\Http\Controllers\Web\PolyclinicHead\RaterWeightApprovalController::class, 'reject'])->name('rater_weights.reject');
     });
@@ -361,7 +359,7 @@ Route::middleware(['auth','verified','role:kepala_poliklinik'])
  * PEGAWAI MEDIS (opsional – untuk kelengkapan alur)
  * =========================
  * - Submit & lihat penilaian kinerja (performance_assessments, performance_assessment_details)
- * - Klaim tugas tambahan & submit hasil (additional_task_claims, additional_contributions)
+ * - Klaim tugas tambahan & submit hasil (additional_task_claims)
  * - Lihat remunerasi pribadi
  */
 Route::middleware(['auth','verified','role:pegawai_medis'])
@@ -388,9 +386,6 @@ Route::middleware(['auth','verified','role:pegawai_medis'])
         Route::post('additional-task-claims/{claim}/cancel', [\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'cancel'])->name('additional_task_claims.cancel');
         Route::post('additional-task-claims/{claim}/complete',[\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'complete'])->name('additional_task_claims.complete');
         Route::post('additional-task-claims/{claim}/submit',[\App\Http\Controllers\Web\MedicalStaff\AdditionalTaskClaimController::class, 'submit'])->name('additional_task_claims.submit');
-
-        // Submit hasil kontribusi (bukti/evidence)
-        Route::resource('additional-contributions', \App\Http\Controllers\Web\MedicalStaff\AdditionalContributionController::class);
 
         // Lihat remunerasi pribadi
         Route::get('remunerations',       [\App\Http\Controllers\Web\MedicalStaff\RemunerationController::class, 'index'])->name('remunerations.index');

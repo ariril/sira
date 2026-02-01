@@ -70,6 +70,9 @@ class AdditionalTaskController extends Controller
                 ])
                 ->addSelect('ap.name as period_name')
                 ->withCount([
+                    'claims as total_claims' => function ($q) {
+                        // Count all claims (any status) to prevent unsafe actions like delete.
+                    },
                     'claims as active_claims' => function ($q) {
                         $q->whereIn('status', AdditionalTaskStatusService::ACTIVE_STATUSES);
                     },
@@ -322,6 +325,14 @@ class AdditionalTaskController extends Controller
         if (!$task) abort(404);
         if ((int) $task->unit_id !== (int) $me->unit_id) abort(403);
 
+        if (!in_array((string) $task->status, ['draft', 'cancelled'], true)) {
+            return back()->with('status', 'Tugas tidak dapat dihapus pada status saat ini.');
+        }
+
+        if ($task->claims()->exists()) {
+            return back()->with('status', 'Tugas tidak dapat dihapus karena sudah memiliki klaim.');
+        }
+
         $task->loadMissing('period');
         AssessmentPeriodGuard::requireActive($task->period, 'Hapus Tugas Tambahan');
 
@@ -376,7 +387,7 @@ class AdditionalTaskController extends Controller
                 }
             }
 
-            if (!in_array($current, ['draft', 'cancelled', 'closed'])) {
+            if (!in_array($current, ['draft', 'closed'])) {
                 return back()->with('status', 'Status saat ini tidak dapat dibuka secara manual.');
             }
         }

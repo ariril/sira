@@ -52,7 +52,6 @@ $cnt = function (string $table, ?callable $q = null) {
 
 $out['counts']['additional_tasks'] = $cnt('additional_tasks', fn() => (int) DB::table('additional_tasks')->where('assessment_period_id', $pid)->count());
 $out['counts']['additional_task_claims'] = $cnt('additional_task_claims', fn() => (int) DB::table('additional_task_claims as c')->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')->where('t.assessment_period_id', $pid)->whereIn('c.user_id', $userIds)->count());
-$out['counts']['additional_contributions'] = $cnt('additional_contributions', fn() => (int) DB::table('additional_contributions')->where('assessment_period_id', $pid)->whereIn('user_id', $userIds)->count());
 
 $out['counts']['reviews'] = $cnt('reviews', fn() => (int) DB::table('reviews')->where('registration_ref', 'like', 'DRV-' . $pid . '-%')->count());
 $out['counts']['review_details'] = $cnt('review_details', fn() => (int) DB::table('review_details as d')->join('reviews as r', 'r.id', '=', 'd.review_id')->whereIn('d.medical_staff_id', $userIds)->where('r.registration_ref', 'like', 'DRV-' . $pid . '-%')->count());

@@ -14,6 +14,8 @@ use App\Models\Assessment360Window;
 use App\Models\User;
 use App\Models\Role;
 use App\Services\MultiRater\CriteriaResolver;
+use App\Services\MultiRater\AssessorProfessionResolver;
+use App\Services\MultiRater\AssessorTypeResolver;
 use App\Services\MultiRater\SimpleFormData;
 use App\Services\MultiRater\SummaryService;
 use App\Support\AssessmentPeriodGuard;
@@ -55,6 +57,33 @@ class MultiRaterSubmissionController extends Controller
                 ->orderByDesc('id')
                 ->get();
             if ($windowIsActive) {
+                $assessor = Auth::user()?->loadMissing(['profession', 'unit', 'roles']);
+                $assessorProfessionId = $assessor ? AssessorProfessionResolver::resolve($assessor, 'kepala_poliklinik') : null;
+                $assessorHasKepalaPoliklinik = true;
+
+                $criteriaCacheByUnit = [];
+
+                $contextResolver = function ($target) use ($periodId, $assessorProfessionId, $assessorHasKepalaPoliklinik, &$criteriaCacheByUnit) {
+                    $assessorType = AssessorTypeResolver::resolveByIds(
+                        (int) Auth::id(),
+                        $assessorProfessionId ? (int) $assessorProfessionId : null,
+                        (int) $target->id,
+                        !empty($target->profession_id) ? (int) $target->profession_id : null,
+                        $assessorHasKepalaPoliklinik
+                    );
+
+                    $unitId = (int) ($target->unit_id ?? 0);
+                    if (!isset($criteriaCacheByUnit[$unitId])) {
+                        $criteriaCacheByUnit[$unitId] = CriteriaResolver::forUnit($unitId ?: null, $periodId);
+                    }
+                    $base = $criteriaCacheByUnit[$unitId];
+
+                    return [
+                        'assessor_type' => $assessorType,
+                        'criteria' => CriteriaResolver::filterCriteriaByAssessorType($base, $assessorType),
+                    ];
+                };
+
                 $rawMedics = User::query()
                     ->role(User::ROLE_PEGAWAI_MEDIS)
                     ->where('users.id', '!=', Auth::id())
@@ -79,14 +108,16 @@ class MultiRaterSubmissionController extends Controller
                             'unit_id' => $u->unit_id,
                             'unit_name' => $u->unit->name ?? null,
                             'employee_number' => $u->employee_number,
+                            'profession_id' => $u->profession_id,
                         ];
                     });
 
                 $medicForm = SimpleFormData::build(
                     $periodId,
                     Auth::id(),
+                    $assessorProfessionId,
                     $rawMedics,
-                    fn ($target) => CriteriaResolver::forUnit($target->unit_id, $periodId)
+                    $contextResolver
                 );
                 $targets = collect($medicForm['targets']);
                 $criteriaOptions = collect($medicForm['criteria_catalog']);
@@ -99,6 +130,8 @@ class MultiRaterSubmissionController extends Controller
                 $criteriaTable = (new PerformanceCriteria())->getTable();
                 $rolePivotTable = 'role_user';
                 $rolesTable = (new Role())->getTable();
+                $assessor = Auth::user()?->loadMissing('profession');
+                $assessorProfessionId = $assessor ? AssessorProfessionResolver::resolve($assessor, 'kepala_poliklinik') : null;
 
                 $savedScores = \App\Models\MultiRaterAssessmentDetail::query()
                     ->join('multi_rater_assessments as mra', 'mra.id', '=', 'multi_rater_assessment_details.multi_rater_assessment_id')
@@ -109,6 +142,7 @@ class MultiRaterSubmissionController extends Controller
                     ->leftJoin($criteriaTable . ' as pc', 'pc.id', '=', 'multi_rater_assessment_details.performance_criteria_id')
                     ->where('mra.assessment_period_id', $periodId)
                     ->where('mra.assessor_id', Auth::id())
+                    ->when($assessorProfessionId, fn($q) => $q->where('mra.assessor_profession_id', $assessorProfessionId))
                     ->where('pc.is_360', true)
                     ->orderBy('u.name')
                     ->get([

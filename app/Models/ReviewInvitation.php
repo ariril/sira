@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+use App\Models\AssessmentPeriod;
+
 class ReviewInvitation extends Model
 {
     use HasFactory;
@@ -17,6 +19,7 @@ class ReviewInvitation extends Model
         'unit_id',
         'patient_name',
         'contact',
+        'token_plain',
         'token_hash',
         'status',
         'expires_at',
@@ -37,6 +40,11 @@ class ReviewInvitation extends Model
     public function staff(): HasMany
     {
         return $this->hasMany(ReviewInvitationStaff::class, 'invitation_id');
+    }
+
+    public function assessmentPeriod(): BelongsTo
+    {
+        return $this->belongsTo(AssessmentPeriod::class, 'assessment_period_id');
     }
 
     public function unit(): BelongsTo

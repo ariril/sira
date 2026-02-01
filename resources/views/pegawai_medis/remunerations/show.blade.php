@@ -36,19 +36,9 @@
                 <div class="text-xs text-slate-500 mt-1">{{ $item->payment_status?->value === 'Dibayar' ? 'Sudah dibayar oleh admin RS' : 'Menunggu proses pembayaran admin RS' }}</div>
             </div>
             <div class="p-4 rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
-                <div class="text-sm text-slate-500">Kontribusi Periode Ini</div>
-                @if(isset($contributions) && $contributions->count())
-                    <ul class="mt-1 space-y-1 text-sm">
-                        @foreach($contributions as $c)
-                            <li class="flex items-start justify-between gap-2">
-                                <span class="font-medium text-slate-800">{{ $c->title }}</span>
-                                <span class="text-xs text-slate-500">{{ $c->validation_status }}</span>
-                            </li>
-                        @endforeach
-                    </ul>
-                @else
-                    <div class="text-sm text-slate-500 mt-1">Tidak ada kontribusi tercatat pada periode ini.</div>
-                @endif
+                <div class="text-sm text-slate-500">Tugas Tambahan Periode Ini</div>
+                <div class="text-lg font-semibold">{{ data_get($calc ?? ($item->calculation_details ?? []), 'komponen.kontribusi_tambahan.jumlah', 0) }}</div>
+                <div class="text-xs text-slate-500 mt-1">Jumlah tugas tambahan yang dihitung dalam periode ini.</div>
             </div>
         </div>
 
@@ -84,7 +74,7 @@
                 $rows = [
                     ['label' => 'Kehadiran (Absensi)', 'path' => 'komponen.absensi'],
                     ['label' => 'Kedisiplinan (360)', 'path' => 'komponen.kedisiplinan'],
-                    ['label' => 'Kontribusi Tambahan', 'path' => 'komponen.kontribusi_tambahan'],
+                    ['label' => 'Tugas Tambahan', 'path' => 'komponen.kontribusi_tambahan'],
                     ['label' => 'Pasien Ditangani', 'path' => 'komponen.pasien_ditangani'],
                     ['label' => 'Ulasan Pasien (Rating)', 'path' => 'komponen.review_pelanggan'],
                 ];

@@ -79,9 +79,6 @@ class DashboardController extends Controller
             ? AssessmentPeriod::query()->where('status', AssessmentPeriod::STATUS_LOCKED)->orderByDesc('start_date')->first()
             : null;
 
-        // Period used for import readiness notifications: prefer active, fallback to locked.
-        $importPeriod = $activePeriod ?: $lockedPeriod;
-
         $activePeriodId = $activePeriod?->id;
         $activePeriodName = $activePeriod?->name;
 
@@ -125,8 +122,8 @@ class DashboardController extends Controller
         }
 
         // Dashboard notif Admin RS:
-        // Jika ada periode yang sedang berjalan (date-based) ATAU status=LOCKED, tampilkan 2 notif import.
-        if ($importPeriod) {
+        // Tampilkan 2 notif import hanya ketika ada periode dengan status=LOCKED.
+        if ($lockedPeriod) {
             $notifications[] = [
                 'type' => 'info',
                 'text' => 'Import Absensi sudah bisa diisi.',
@@ -136,12 +133,6 @@ class DashboardController extends Controller
                 'type' => 'info',
                 'text' => 'Import Metric sudah bisa diisi.',
                 'href' => route('admin_rs.metrics.index'),
-            ];
-        } else {
-            $notifications[] = [
-                'type' => 'error',
-                'text' => 'Tidak ada periode berjalan atau periode terkunci saat ini. Proses import dan penilaian belum dapat dimulai.',
-                'href' => route('admin_rs.assessment-periods.index'),
             ];
         }
 

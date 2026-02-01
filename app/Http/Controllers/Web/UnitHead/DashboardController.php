@@ -147,12 +147,34 @@ class DashboardController extends Controller
                     ->whereIn('status', ['draft','rejected'])
                     ->sum('weight');
                 if ($draftTotal > 0) {
+                    $draftTextPrefix = $rejectedCount > 0 ? 'Pengajuan bobot ditolak. ' : '';
+                    $draftTextSuffix = $rejectedCount > 0 ? ' Periksa komentar, revisi bobot, lalu ajukan ulang.' : '';
                     $notifications[] = [
                         'type' => 'info',
-                        'text' => 'Masih ada ' . number_format($draftTotal,2) . '% bobot draft/revisi yang belum diajukan.',
+                        'text' => $draftTextPrefix . 'Masih ada ' . number_format($draftTotal,2) . '% bobot draft/revisi yang belum diajukan.' . $draftTextSuffix,
                         'href' => route('kepala_unit.unit-criteria-weights.index', ['period_id' => $periodId]),
                     ];
                 }
+            }
+        }
+
+        if ($unitId && Schema::hasTable('unit_rater_weights')) {
+            $activePeriodId = (int) ($kinerja['periode_aktif']?->id ?? 0);
+
+            $rejectedRaterWeights = DB::table('unit_rater_weights')
+                ->where('unit_id', $unitId)
+                ->when($activePeriodId > 0, fn($q) => $q->where('assessment_period_id', $activePeriodId))
+                ->where('status', 'rejected')
+                ->count();
+
+            if ($rejectedRaterWeights > 0) {
+                $notifications[] = [
+                    'type' => 'warning',
+                    'text' => $rejectedRaterWeights . ' bobot penilai 360 ditolak. Revisi kemudian ajukan kembali.',
+                    'href' => route('kepala_unit.rater_weights.index', [
+                        'status' => 'rejected',
+                    ]),
+                ];
             }
         }
 

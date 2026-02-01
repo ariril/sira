@@ -2,8 +2,6 @@
 
 namespace App\Services\CriteriaEngine\Collectors;
 
-use App\Enums\ContributionValidationStatus;
-use App\Models\AdditionalContribution;
 use App\Models\AssessmentPeriod;
 use App\Services\CriteriaEngine\Contracts\CriteriaCollector;
 use Illuminate\Support\Facades\DB;
@@ -12,7 +10,7 @@ class ContributionCollector implements CriteriaCollector
 {
     public function key(): string { return 'contribution'; }
 
-    public function label(): string { return 'Kontribusi Tambahan'; }
+    public function label(): string { return 'Tugas Tambahan'; }
 
     public function type(): string { return 'benefit'; }
 
@@ -36,21 +34,10 @@ class ContributionCollector implements CriteriaCollector
             ->map(fn($v) => (float) $v)
             ->all();
 
-        $adhocPoints = AdditionalContribution::query()
-            ->selectRaw('user_id, COALESCE(SUM(score),0) as total_score')
-            ->whereIn('user_id', $userIds)
-            ->where('assessment_period_id', $period->id)
-            ->where('validation_status', ContributionValidationStatus::APPROVED)
-            ->whereNull('claim_id')
-            ->groupBy('user_id')
-            ->pluck('total_score', 'user_id')
-            ->map(fn($v) => (float) $v)
-            ->all();
-
         $out = [];
         foreach ($userIds as $uid) {
             $uid = (int) $uid;
-            $out[$uid] = (float) ($claimPoints[$uid] ?? 0.0) + (float) ($adhocPoints[$uid] ?? 0.0);
+            $out[$uid] = (float) ($claimPoints[$uid] ?? 0.0);
         }
 
         return $out;
@@ -58,7 +45,19 @@ class ContributionCollector implements CriteriaCollector
 
     public function readiness(AssessmentPeriod $period, int $unitId): array
     {
-        // System-generated: "missing" is not necessarily an error.
-        return ['status' => 'ready', 'message' => null];
+        if ($unitId <= 0 || (int) ($period->id ?? 0) <= 0) {
+            return ['status' => 'missing_data', 'message' => 'Periode/unit belum valid.'];
+        }
+
+        $count = (int) DB::table('additional_task_claims as c')
+            ->join('additional_tasks as t', 't.id', '=', 'c.additional_task_id')
+            ->where('t.assessment_period_id', (int) $period->id)
+            ->where('t.unit_id', $unitId)
+            ->whereIn('c.status', ['approved', 'completed'])
+            ->count();
+
+        return $count > 0
+            ? ['status' => 'ready', 'message' => null]
+            : ['status' => 'missing_data', 'message' => 'Belum ada klaim tugas tambahan yang disetujui pada periode ini.'];
     }
 }

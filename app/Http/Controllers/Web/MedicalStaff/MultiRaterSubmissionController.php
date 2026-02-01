@@ -13,6 +13,8 @@ use App\Models\PerformanceCriteria;
 use App\Models\Assessment360Window;
 use App\Models\User;
 use App\Services\MultiRater\CriteriaResolver;
+use App\Services\MultiRater\AssessorProfessionResolver;
+use App\Services\MultiRater\AssessorTypeResolver;
 use App\Services\MultiRater\SimpleFormData;
 use App\Services\MultiRater\SummaryService;
 use App\Support\AssessmentPeriodGuard;
@@ -32,6 +34,12 @@ class MultiRaterSubmissionController extends Controller
 
         $activePeriod = null;
         $assessments = collect();
+        $selfTargets = collect();
+        $selfCriteriaOptions = collect();
+        $selfRemainingAssignments = 0;
+        $selfCompletedAssignments = 0;
+        $selfTotalAssignments = 0;
+
         $unitPeers = collect();
         $criteriaOptions = collect();
         $remainingAssignments = 0;
@@ -61,10 +69,53 @@ class MultiRaterSubmissionController extends Controller
 
             // Simple form targets: peers in same unit excluding self
             if ($unitId && $windowIsActive) {
+                $assessor = Auth::user()?->loadMissing(['profession', 'unit']);
+                $assessorProfessionId = $assessor ? AssessorProfessionResolver::resolve($assessor, 'pegawai_medis') : null;
+
                 $criteriaList = CriteriaResolver::forUnit($unitId, $periodId);
+                $criteriaByType = collect(AssessorTypeResolver::TYPES)
+                    ->mapWithKeys(fn($t) => [$t => CriteriaResolver::filterCriteriaByAssessorType($criteriaList, $t)])
+                    ->all();
+
+                $assessorHasKepalaPoliklinik = $assessor ? (bool) $assessor->hasRole('kepala_poliklinik') : false;
+
+                $contextResolver = function ($target) use ($assessorProfessionId, $criteriaByType, $assessorHasKepalaPoliklinik) {
+                    $assessorType = AssessorTypeResolver::resolveByIds(
+                        (int) Auth::id(),
+                        $assessorProfessionId ? (int) $assessorProfessionId : null,
+                        (int) $target->id,
+                        !empty($target->profession_id) ? (int) $target->profession_id : null,
+                        $assessorHasKepalaPoliklinik
+                    );
+
+                    return [
+                        'assessor_type' => $assessorType,
+                        'criteria' => $criteriaByType[$assessorType] ?? collect(),
+                    ];
+                };
+
+                // Self assessment (distinct section)
+                $selfTarget = $assessor ? (object) [
+                    'id' => $assessor->id,
+                    'name' => $assessor->name,
+                    'label' => $assessor->name . ' (Penilaian Diri)',
+                    'unit_name' => $assessor->unit?->name,
+                    'employee_number' => $assessor->employee_number,
+                    'profession_id' => $assessor->profession_id,
+                ] : null;
+
+                if ($selfTarget) {
+                    $selfForm = SimpleFormData::build($periodId, Auth::id(), $assessorProfessionId, collect([$selfTarget]), $contextResolver);
+                    $selfTargets = collect($selfForm['targets']);
+                    $selfCriteriaOptions = collect($selfForm['criteria_catalog']);
+                    $selfRemainingAssignments = $selfForm['remaining_assignments'];
+                    $selfCompletedAssignments = $selfForm['completed_assignments'];
+                    $selfTotalAssignments = $selfForm['total_assignments'];
+                }
 
                 $rawPeers = User::query()
                     ->where('unit_id', $unitId)
+                    ->where('id', '!=', Auth::id())
                     ->with(['profession','unit'])
                     ->orderBy('name')
                     ->get()
@@ -87,10 +138,11 @@ class MultiRaterSubmissionController extends Controller
                             'label' => $label,
                             'unit_name' => $u->unit->name ?? null,
                             'employee_number' => $u->employee_number,
+                            'profession_id' => $u->profession_id,
                         ];
                     });
 
-                $formData = SimpleFormData::build($periodId, Auth::id(), $rawPeers, fn () => $criteriaList);
+                $formData = SimpleFormData::build($periodId, Auth::id(), $assessorProfessionId, $rawPeers, $contextResolver);
                 $unitPeers = collect($formData['targets']);
                 $criteriaOptions = collect($formData['criteria_catalog']);
                 $remainingAssignments = $formData['remaining_assignments'];
@@ -100,12 +152,15 @@ class MultiRaterSubmissionController extends Controller
 
             if ($periodId && $unitId) {
                 $criteriaTable = (new PerformanceCriteria())->getTable();
+                $assessor = Auth::user()?->loadMissing('profession');
+                $assessorProfessionId = $assessor ? AssessorProfessionResolver::resolve($assessor, 'pegawai_medis') : null;
                 $savedScores = \App\Models\MultiRaterAssessmentDetail::query()
                     ->join('multi_rater_assessments as mra', 'mra.id', '=', 'multi_rater_assessment_details.multi_rater_assessment_id')
                     ->join('users as u', 'u.id', '=', 'mra.assessee_id')
                     ->leftJoin($criteriaTable . ' as pc', 'pc.id', '=', 'multi_rater_assessment_details.performance_criteria_id')
                     ->where('mra.assessment_period_id', $periodId)
                     ->where('mra.assessor_id', Auth::id())
+                    ->when($assessorProfessionId, fn($q) => $q->where('mra.assessor_profession_id', $assessorProfessionId))
                     ->where('pc.is_360', true)
                     ->where('u.unit_id', $unitId)
                     ->orderBy('u.name')
@@ -127,6 +182,11 @@ class MultiRaterSubmissionController extends Controller
             'assessments',
             'window',
             'activePeriod',
+            'selfTargets',
+            'selfCriteriaOptions',
+            'selfRemainingAssignments',
+            'selfCompletedAssignments',
+            'selfTotalAssignments',
             'unitPeers',
             'periodId',
             'unitId',

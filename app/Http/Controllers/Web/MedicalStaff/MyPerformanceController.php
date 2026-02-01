@@ -4,56 +4,78 @@ namespace App\Http\Controllers\Web\MedicalStaff;
 
 use App\Http\Controllers\Controller;
 use App\Models\AssessmentPeriod;
+use App\Models\User;
+use App\Services\PerformanceScore\PerformanceScoreService;
 use App\Support\AssessmentPeriodGuard;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class MyPerformanceController extends Controller
 {
-    public function index(): View
+    public function index(PerformanceScoreService $scoreService): View
     {
         $userId = (int) Auth::id();
+        /** @var User|null $user */
+        $user = Auth::user();
 
         $period = AssessmentPeriodGuard::resolveActive();
 
-        $metrics = [
-            'attendance_days' => null,
-            'patient_count' => null,
+        $data = null;
+        $scope = [
+            'unit' => $user?->unit?->name ?? null,
+            'profession' => $user?->profession?->name ?? null,
         ];
 
-        if ($period) {
-            // Absensi: tampil hanya jika sudah ada import batch periode ini
-            $attendanceAvailable = Schema::hasTable('attendance_import_batches')
-                && DB::table('attendance_import_batches')->where('assessment_period_id', $period->id)->exists();
+        if ($period && $user) {
+            $unitId = (int) ($user->unit_id ?? 0);
+            $professionId = $user->profession_id !== null ? (int) $user->profession_id : null;
 
-            if ($attendanceAvailable && Schema::hasTable('attendances')) {
-                $metrics['attendance_days'] = (int) DB::table('attendances')
-                    ->where('user_id', $userId)
-                    ->whereDate('attendance_date', '>=', $period->start_date)
-                    ->whereDate('attendance_date', '<=', $period->end_date)
-                    ->where('attendance_status', 'HADIR')
-                    ->count();
-            }
+            if ($unitId > 0) {
+                $groupUserIds = $this->resolveGroupUserIds($unitId, $professionId);
+                if (empty($groupUserIds)) {
+                    $groupUserIds = [$userId];
+                }
 
-            // Jumlah pasien ditangani: tampil hanya jika sudah ada metric import batch periode ini
-            $patientAvailable = Schema::hasTable('metric_import_batches')
-                && DB::table('metric_import_batches')->where('assessment_period_id', $period->id)->exists();
+                $out = $scoreService->calculateAllCriteria($unitId, $period, $groupUserIds, $professionId);
+                $data = $out['users'][$userId] ?? null;
 
-            if ($patientAvailable && Schema::hasTable('imported_criteria_values') && Schema::hasTable('performance_criterias')) {
-                $metrics['patient_count'] = (float) DB::table('imported_criteria_values as icv')
-                    ->join('performance_criterias as pc', 'pc.id', '=', 'icv.performance_criteria_id')
-                    ->where('icv.user_id', $userId)
-                    ->where('icv.assessment_period_id', $period->id)
-                    ->where('pc.name', 'like', '%Pasien%')
-                    ->sum('icv.value_numeric');
+                // Fallback: ensure current user always has a row.
+                if (!$data) {
+                    $out = $scoreService->calculateAllCriteria($unitId, $period, [$userId], $professionId);
+                    $data = $out['users'][$userId] ?? null;
+                }
+
+                if (is_array($data)) {
+                    $data['calculation_source'] = $out['calculation_source'] ?? 'live';
+                }
             }
         }
 
         return view('pegawai_medis.my_performance.index', [
             'period' => $period,
-            'metrics' => $metrics,
+            'data' => $data,
+            'scope' => $scope,
         ]);
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function resolveGroupUserIds(int $unitId, ?int $professionId): array
+    {
+        if ($unitId <= 0) {
+            return [];
+        }
+
+        return User::query()
+            ->role(User::ROLE_PEGAWAI_MEDIS)
+            ->where('unit_id', $unitId)
+            ->when($professionId === null, fn($q) => $q->whereNull('profession_id'))
+            ->when($professionId !== null, fn($q) => $q->where('profession_id', (int) $professionId))
+            ->pluck('id')
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->values()
+            ->all();
     }
 }

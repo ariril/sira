@@ -4,133 +4,165 @@
     </x-slot>
 
     <div class="container-px py-6 space-y-6">
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-            <form method="GET" class="grid gap-4 md:grid-cols-12 items-end">
-                <div class="md:col-span-3">
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
-                    <x-ui.select name="assessment_period_id" :options="$periods->pluck('name','id')" :value="request('assessment_period_id')" placeholder="Semua" />
-                </div>
-                <div class="md:col-span-3">
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
-                    <x-ui.select name="performance_criteria_id" :options="$criteriaOptions" :value="request('performance_criteria_id')" placeholder="Semua" />
-                </div>
-                <div class="md:col-span-3">
-                    <label class="block text-sm font-medium text-slate-600 mb-1">Profesi</label>
-                    <x-ui.select name="assessee_profession_id" :options="$professions->pluck('name','id')" :value="request('assessee_profession_id')" placeholder="Semua" />
+        {{-- FILTERS --}}
+        <form method="GET" class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
+            <div class="grid gap-5 md:grid-cols-12">
+                <div class="md:col-span-5">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Cari</label>
+                    <x-ui.input name="q" placeholder="Unit / kriteria / profesi" value="{{ $filters['q'] ?? '' }}" addonLeft="fa-magnifying-glass" />
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Status</label>
-                    <x-ui.select name="status" :options="['pending'=>'Pending','active'=>'Aktif','rejected'=>'Ditolak','archived'=>'Arsip','all'=>'Semua']" :value="$filters['status'] ?? 'pending'" />
+                    <x-ui.select name="status" :options="['all' => '(Semua)','pending'=>'Pending','active'=>'Active','rejected'=>'Rejected','archived'=>'Archived']" :value="$filters['status'] ?? 'pending'" />
                 </div>
-                <div class="md:col-span-1 flex gap-2">
-                    <x-ui.button type="submit" variant="outline" class="w-full">Filter</x-ui.button>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Periode</label>
+                    <x-ui.select name="assessment_period_id" :options="$periods->pluck('name','id')" :value="$filters['assessment_period_id'] ?? null" placeholder="Semua" />
                 </div>
-            </form>
-        </div>
-
-        @if(($pendingCount ?? 0) > 0)
-            <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-                Ada <span class="font-semibold">{{ $pendingCount }}</span> bobot penilai 360 menunggu persetujuan.
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Kriteria</label>
+                    <x-ui.select name="performance_criteria_id" :options="$criteriaOptions" :value="$filters['performance_criteria_id'] ?? null" placeholder="Semua" />
+                </div>
             </div>
-        @endif
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
-            <x-ui.table min-width="1040px">
-                <x-slot name="head">
-                    <tr>
-                        <th class="px-6 py-4 text-left">Periode</th>
-                        <th class="px-6 py-4 text-left">Unit</th>
-                        <th class="px-6 py-4 text-left">Kriteria</th>
-                        <th class="px-6 py-4 text-left">Profesi</th>
-                        <th class="px-6 py-4 text-left">Tipe Penilai</th>
-                        <th class="px-6 py-4 text-right">Bobot (%)</th>
-                        <th class="px-6 py-4 text-left">Status</th>
-                        <th class="px-6 py-4 text-left">Pengusul</th>
-                        <th class="px-6 py-4 text-left">Diputuskan</th>
-                        <th class="px-6 py-4 text-right">Aksi</th>
-                    </tr>
-                </x-slot>
+            <div class="grid gap-5 md:grid-cols-12 mt-4">
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Profesi Dinilai</label>
+                    <x-ui.select name="assessee_profession_id" :options="$professions->pluck('name','id')" :value="$filters['assessee_profession_id'] ?? null" placeholder="Semua" />
+                </div>
+            </div>
 
-                @forelse($items as $row)
-                    @php($st = $row->status?->value ?? (string) $row->status)
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-6 py-4">{{ $row->period?->name ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $row->unit?->name ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $row->criteria?->name ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $row->assesseeProfession?->name ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $row->assessor_label }}</td>
-                        <td class="px-6 py-4 text-right">{{ number_format((float) $row->weight, 2) }}</td>
-                        <td class="px-6 py-4">
-                            @if($st==='active')
-                                <span class="px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-700">Aktif</span>
-                            @elseif($st==='pending')
-                                <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Pending</span>
-                            @elseif($st==='rejected')
-                                <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Ditolak</span>
-                            @elseif($st==='archived')
-                                <span class="px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">Arsip</span>
-                            @else
-                                <span class="px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">Draft</span>
+            <div class="mt-6 flex justify-end gap-3">
+                <a href="{{ route('kepala_poliklinik.rater_weights.index') }}" class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">
+                    <i class="fa-solid fa-rotate-left"></i> Reset
+                </a>
+                <button type="submit" class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-[15px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm">
+                    <i class="fa-solid fa-filter"></i> Terapkan
+                </button>
+            </div>
+        </form>
+
+        {{-- PER-UNIT COLLAPSIBLE LIST --}}
+        <div class="space-y-4">
+            @forelse($units as $u)
+                @php
+                    $unitId = (int) ($u->id ?? 0);
+                    $rows = $itemsByUnit->get($unitId) ?? collect();
+                    $pendingCount = (int) ($pendingByUnit[$unitId] ?? 0);
+                @endphp
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100" x-data="{ open: false, rejecting: false }">
+                    <button type="button" class="w-full px-6 py-4 flex items-center justify-between gap-3" x-on:click="open = !open; if (!open) rejecting = false;">
+                        <div class="min-w-0 text-left">
+                            <div class="text-slate-800 font-semibold truncate">{{ $u->name ?? '-' }}</div>
+                            <div class="text-xs text-slate-500">{{ $rows->count() }} bobot</div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            @if($pendingCount > 0)
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">{{ $pendingCount }} pending</span>
                             @endif
-                        </td>
-                        <td class="px-6 py-4">{{ $row->proposedBy?->name ?? '-' }}</td>
-                        <td class="px-6 py-4">
-                            @if($row->decided_at)
-                                <div class="text-sm text-slate-700">{{ $row->decidedBy?->name ?? '-' }}</div>
-                                <div class="text-xs text-slate-500">{{ $row->decided_at?->format('d/m/Y H:i') }}</div>
-                            @else
-                                <span class="text-sm text-slate-500">-</span>
-                            @endif
-                        </td>
-                        <td class="px-6 py-4 text-right">
-                            @if($st==='pending')
-                                <div class="inline-flex gap-2">
-                                    <form method="POST" action="{{ route('kepala_poliklinik.rater_weights.approve', $row) }}" onsubmit="return confirm('Setujui dan aktifkan bobot ini? Bobot aktif sebelumnya (jika ada) akan diarsipkan.')">
+                            <i class="fa-solid fa-chevron-down text-slate-400 transition-transform" x-bind:class="open ? 'rotate-180' : ''"></i>
+                        </div>
+                    </button>
+
+                    <div x-show="open" x-cloak class="px-6 pb-6">
+                        <div class="border-t border-slate-100 pt-4">
+                            <x-ui.table min-width="960px">
+                                <x-slot name="head">
+                                    <tr>
+                                        <th class="px-6 py-4 text-left whitespace-nowrap">Periode</th>
+                                        <th class="px-6 py-4 text-left whitespace-nowrap">Kriteria</th>
+                                        <th class="px-6 py-4 text-left whitespace-nowrap">Profesi Dinilai</th>
+                                        <th class="px-6 py-4 text-left whitespace-nowrap">Tipe Penilai</th>
+                                        <th class="px-6 py-4 text-right whitespace-nowrap">Bobot</th>
+                                        <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                                    </tr>
+                                </x-slot>
+
+                                @forelse($rows as $row)
+                                    @php($status = $row->status?->value ?? (string) $row->status ?? 'draft')
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="px-6 py-4">{{ $row->period?->name ?? '-' }}</td>
+                                        <td class="px-6 py-4">{{ $row->criteria?->name ?? '-' }}</td>
+                                        <td class="px-6 py-4">{{ $row->assesseeProfession?->name ?? '-' }}</td>
+                                        <td class="px-6 py-4">{{ $row->assessor_label }}</td>
+                                        <td class="px-6 py-4 text-right">{{ number_format((float) ($row->weight ?? 0), 2) }}</td>
+                                        <td class="px-6 py-4">
+                                            @switch($status)
+                                                @case('active')
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Active</span>
+                                                    @break
+                                                @case('rejected')
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-100">Rejected</span>
+                                                    @break
+                                                @case('pending')
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">Pending</span>
+                                                    @break
+                                                @case('archived')
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200">Archived</span>
+                                                    @break
+                                                @default
+                                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-700 border border-slate-100">Draft</span>
+                                            @endswitch
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Tidak ada data.</td></tr>
+                                @endforelse
+                            </x-ui.table>
+
+                            @if($pendingCount > 0)
+                                <div class="mt-4 flex justify-end gap-2">
+                                    <form method="POST" action="{{ route('kepala_poliklinik.rater_weights.approve_unit', $unitId) }}" onsubmit="return confirm('Setujui semua bobot pending pada unit ini?');">
                                         @csrf
-                                        <x-ui.button type="submit" variant="violet" class="h-10 px-4">Approve</x-ui.button>
+                                        <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}" />
+                                        <input type="hidden" name="assessment_period_id" value="{{ $filters['assessment_period_id'] ?? '' }}" />
+                                        <input type="hidden" name="performance_criteria_id" value="{{ $filters['performance_criteria_id'] ?? '' }}" />
+                                        <input type="hidden" name="assessee_profession_id" value="{{ $filters['assessee_profession_id'] ?? '' }}" />
+                                        <x-ui.button type="submit" variant="approve" class="h-10 px-4 text-sm">Setuju</x-ui.button>
                                     </form>
-                                    <x-ui.button type="button" variant="danger" class="h-10 px-4" x-on:click="$dispatch('open-modal', 'rw-reject-{{ (int) $row->id }}')">Tolak</x-ui.button>
-
-                                    <x-modal name="rw-reject-{{ (int) $row->id }}" :show="false" maxWidth="lg">
-                                        <div class="p-6">
-                                            <div class="flex items-start justify-between gap-3">
-                                                <h2 class="text-lg font-semibold text-slate-800">Tolak Bobot Penilai 360</h2>
-                                                <button type="button" class="text-slate-400 hover:text-slate-600" x-on:click="$dispatch('close-modal', 'rw-reject-{{ (int) $row->id }}')">
-                                                    <i class="fa-solid fa-xmark"></i>
-                                                </button>
-                                            </div>
-
-                                            <form method="POST" action="{{ route('kepala_poliklinik.rater_weights.reject', $row) }}" class="mt-4 space-y-4">
-                                                @csrf
-                                                <div>
-                                                    <label class="block text-sm font-medium text-slate-700 mb-1">Komentar</label>
-                                                    <textarea name="comment" rows="4" class="w-full rounded-xl border-slate-300 focus:border-slate-400 focus:ring-slate-300" placeholder="Tuliskan alasan penolakan / arahan perbaikan..." required></textarea>
-                                                    <div class="mt-1 text-xs text-slate-500">Komentar ini akan terlihat oleh Kepala Unit.</div>
-                                                </div>
-
-                                                <div class="flex justify-end gap-2">
-                                                    <x-ui.button type="button" variant="outline" x-on:click="$dispatch('close-modal', 'rw-reject-{{ (int) $row->id }}')">Batal</x-ui.button>
-                                                    <x-ui.button type="submit" variant="danger">Kirim Penolakan</x-ui.button>
-                                                </div>
-                                            </form>
-                                        </div>
-                                    </x-modal>
+                                    <x-ui.button type="button" variant="reject" class="h-10 px-4 text-sm" x-on:click="rejecting = !rejecting">Tolak</x-ui.button>
                                 </div>
-                            @else
-                                <span class="text-xs text-slate-400">—</span>
+
+                                <div x-show="rejecting" x-cloak class="mt-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                                    <form method="POST" action="{{ route('kepala_poliklinik.rater_weights.reject_unit', $unitId) }}" class="space-y-4" onsubmit="return confirm('Tolak semua bobot pending pada unit ini?');">
+                                        @csrf
+                                        <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}" />
+                                        <input type="hidden" name="assessment_period_id" value="{{ $filters['assessment_period_id'] ?? '' }}" />
+                                        <input type="hidden" name="performance_criteria_id" value="{{ $filters['performance_criteria_id'] ?? '' }}" />
+                                        <input type="hidden" name="assessee_profession_id" value="{{ $filters['assessee_profession_id'] ?? '' }}" />
+                                        <div>
+                                            <label class="block text-sm font-medium text-slate-700 mb-1">Catatan (wajib)</label>
+                                            <textarea name="comment" rows="4" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200" placeholder="Tuliskan apa yang perlu diubah..." required></textarea>
+                                            <div class="mt-1 text-xs text-slate-500">Catatan ini akan terlihat oleh Kepala Unit.</div>
+                                        </div>
+                                        <div class="flex justify-end gap-2">
+                                            <x-ui.button type="button" variant="outline" x-on:click="rejecting = false">Batal</x-ui.button>
+                                            <x-ui.button type="submit" variant="reject">Kirim Penolakan</x-ui.button>
+                                        </div>
+                                    </form>
+                                </div>
                             @endif
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="10" class="px-6 py-10 text-center text-sm text-slate-500">Belum ada data.</td>
-                    </tr>
-                @endforelse
-            </x-ui.table>
+                        </div>
+                    </div>
+                </div>
+            @empty
+                <div class="bg-white rounded-2xl shadow-sm p-8 border border-slate-100 text-center text-slate-500">Tidak ada data.</div>
+            @endforelse
         </div>
 
-        <div>
-            {{ $items->links() }}
+        {{-- FOOTER PAGINATION --}}
+        <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="text-sm text-slate-600">
+                Menampilkan
+                <span class="font-medium text-slate-800">{{ $units->firstItem() ?? 0 }}</span>
+                -
+                <span class="font-medium text-slate-800">{{ $units->lastItem() ?? 0 }}</span>
+                dari
+                <span class="font-medium text-slate-800">{{ $units->total() }}</span>
+                unit
+            </div>
+            <div>{{ $units->withQueryString()->links() }}</div>
         </div>
     </div>
 </x-app-layout>

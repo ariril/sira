@@ -107,7 +107,7 @@
                                         <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}" />
                                         <div>
                                             <label class="block text-sm font-medium text-slate-700 mb-1">Catatan (wajib)</label>
-                                            <textarea name="comment" rows="4" class="w-full rounded-xl border-slate-300 focus:border-slate-400 focus:ring-slate-300" placeholder="Tuliskan apa yang perlu diubah..." required></textarea>
+                                            <textarea name="comment" rows="4" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200" placeholder="Tuliskan apa yang perlu diubah..." required></textarea>
                                             <div class="mt-1 text-xs text-slate-500">Catatan ini akan terlihat oleh Kepala Unit.</div>
                                         </div>
                                         <div class="flex justify-end gap-2">

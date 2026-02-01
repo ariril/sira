@@ -271,6 +271,7 @@ class RaterWeightController extends Controller
             $submittedGroupPercent = 0.0;
             $allGroupsActive = false;
             $hasAnyGroup = false;
+            $rejectedWorkingCount = 0;
 
             if ($hasRelevant360Criteria && $currentPeriodId > 0 && !empty($relevantCriteriaIds)) {
                 $pendingVal = RaterWeightStatus::PENDING->value;
@@ -299,6 +300,8 @@ class RaterWeightController extends Controller
                     $draftCnt = (int) ($g->draft_cnt ?? 0);
                     $rejectedCnt = (int) ($g->rejected_cnt ?? 0);
                     $activeCnt = (int) ($g->active_cnt ?? 0);
+
+                    $rejectedWorkingCount += $rejectedCnt;
 
                     if ($pendingCnt > 0) {
                         $pendingGroupCount++;
@@ -358,6 +361,7 @@ class RaterWeightController extends Controller
             'submittedGroupPercent' => $submittedGroupPercent,
             'allGroupsActive' => $allGroupsActive,
             'hasAnyGroup' => $hasAnyGroup,
+            'rejectedWorkingCount' => $rejectedWorkingCount,
         ]);
     }
 

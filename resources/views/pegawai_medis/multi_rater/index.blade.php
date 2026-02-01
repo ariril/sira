@@ -17,7 +17,25 @@
         ])
 
         @if($window && !empty($periodId) && !empty($unitId) && $windowIsActive)
+            @if(($selfTargets ?? collect())->isNotEmpty())
+                @include('shared.multi_rater.simple_form', [
+                    'title' => 'Penilaian Diri',
+                    'periodId' => $periodId,
+                    'unitId' => $unitId,
+                    'raterRole' => 'pegawai_medis',
+                    'targets' => $selfTargets ?? collect(),
+                    'criteriaOptions' => $selfCriteriaOptions ?? collect(),
+                    'postRoute' => 'pegawai_medis.multi_rater.store',
+                    'remainingAssignments' => $selfRemainingAssignments ?? 0,
+                    'totalAssignments' => $selfTotalAssignments ?? 0,
+                    'buttonClasses' => 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 shadow-sm text-white',
+                    'savedTableKey' => 'pegawai-medis',
+                    'canSubmit' => (bool) ($canSubmit ?? false),
+                ])
+            @endif
+
             @include('shared.multi_rater.simple_form', [
+                'title' => 'Penilaian Pegawai',
                 'periodId' => $periodId,
                 'unitId' => $unitId,
                 'raterRole' => 'pegawai_medis',
@@ -62,6 +80,7 @@
                                 @if($allowInlineEdit)
                                     <form class="inline-flex items-center gap-2" onsubmit="event.preventDefault(); const fd=new FormData(this); fetch('{{ route('pegawai_medis.multi_rater.store') }}',{method:'POST',headers:{'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'},body:fd}).then(r=>r.json()).then(()=>location.reload());">
                                         <input type="hidden" name="assessment_period_id" value="{{ $periodId }}">
+                                        <input type="hidden" name="rater_role" value="pegawai_medis">
                                         <input type="hidden" name="target_user_id" value="{{ $s->target_user_id }}">
                                         <input type="hidden" name="performance_criteria_id" value="{{ $s->performance_criteria_id }}">
                                         <x-ui.input type="number" min="1" max="100" name="score" :value="$s->score" class="h-10 w-24 text-right text-sm" />

@@ -14,39 +14,119 @@
                 <div class="mt-1 text-sm text-slate-600">
                     {{ optional($period->start_date)->format('d M Y') }} - {{ optional($period->end_date)->format('d M Y') }}
                 </div>
+
+                @if(!empty($scope['unit']) || !empty($scope['profession']))
+                    <div class="mt-2 text-sm text-slate-600">
+                        Scope pembanding:
+                        <span class="font-medium text-slate-800">{{ $scope['unit'] ?? '-' }}</span>
+                        @if(!empty($scope['profession']))
+                            <span class="text-slate-400">•</span>
+                            <span class="font-medium text-slate-800">{{ $scope['profession'] }}</span>
+                        @endif
+                    </div>
+                @endif
+
+                @php
+                    $source = (string) (($data['calculation_source'] ?? null) ?: 'live');
+                    $sourceLabel = $source === 'snapshot' ? 'Snapshot' : 'Live';
+                    $sourceHint = $source === 'snapshot'
+                        ? 'Periode sudah frozen; nilai diambil dari snapshot dan tidak berubah.'
+                        : 'Periode masih berjalan; nilai mengikuti data dan konfigurasi terbaru.';
+                @endphp
+                <div class="mt-2 text-xs text-slate-500" title="{{ $sourceHint }}">
+                    Sumber: <span class="px-2 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-slate-700">{{ $sourceLabel }}</span>
+                </div>
             </div>
 
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <x-ui.table min-width="720px">
+                <x-ui.table min-width="960px">
                     <x-slot name="head">
                         <tr>
                             <th class="px-6 py-4 text-left whitespace-nowrap">Kriteria</th>
-                            <th class="px-6 py-4 text-left whitespace-nowrap">Progres</th>
+                            <th class="px-6 py-4 text-right whitespace-nowrap">Bobot</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                            <th class="px-6 py-4 text-right whitespace-nowrap">
+                                <span>Nilai (Normalisasi)</span>
+                                <span class="ml-1 text-slate-400" title="Nilai ini adalah hasil normalisasi sesuai basis (saat ini semua kriteria: total_unit).\nRumus: N = (nilai_raw / total_raw_grup) × 100.">
+                                    <i class="fa-solid fa-circle-exclamation"></i>
+                                </span>
+                            </th>
                         </tr>
                     </x-slot>
 
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-6 py-4 text-slate-800">Kehadiran (Absensi)</td>
-                        <td class="px-6 py-4">
-                            @if($metrics['attendance_days'] === null)
-                                <span class="text-slate-500">Belum tersedia</span>
-                            @else
-                                <span class="font-medium text-slate-800">{{ (int) $metrics['attendance_days'] }}</span>
-                                <span class="text-slate-500">hari hadir</span>
-                            @endif
-                        </td>
-                    </tr>
+                    @php
+                        $rows = is_array($data) ? (array) ($data['criteria'] ?? []) : [];
+                    @endphp
 
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-6 py-4 text-slate-800">Jumlah Pasien Ditangani</td>
-                        <td class="px-6 py-4">
-                            @if($metrics['patient_count'] === null)
-                                <span class="text-slate-500">Belum tersedia</span>
-                            @else
-                                <span class="font-medium text-slate-800">{{ number_format((float) $metrics['patient_count'], 0) }}</span>
-                            @endif
-                        </td>
-                    </tr>
+                    @forelse($rows as $r)
+                        @php
+                            $isActive = (bool) ($r['is_active'] ?? false);
+                            $readiness = (string) (($r['readiness_status'] ?? null) ?: 'missing_data');
+                            $readinessMsg = $r['readiness_message'] ?? null;
+                            $weightStatus = (string) (($r['weight_status'] ?? null) ?: 'unknown');
+                            $weight = (float) ($r['weight'] ?? 0);
+
+                            $weightActive = $weightStatus === 'active' && $weight > 0;
+                            $whyNotText = !$weightActive ? 'Bobot belum diatur/aktif.' : '';
+                        @endphp
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-6 py-4">
+                                <div class="font-medium text-slate-800">{{ $r['criteria_name'] ?? '-' }}</div>
+                                <div class="text-xs text-slate-500">
+                                    Basis: {{ $r['normalization_basis'] ?? '-' }}
+                                    @if(!empty($r['custom_target_value']))
+                                        <span class="text-slate-400">•</span>
+                                        Target: {{ number_format((float) $r['custom_target_value'], 2) }}
+                                    @endif
+                                </div>
+                            </td>
+
+                            <td class="px-6 py-4 text-right">
+                                {{ number_format($weight, 2) }}
+                            </td>
+
+                            <td class="px-6 py-4">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    @if($weightActive)
+                                        <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700" title="Dihitung ke Skor Kinerja (WSM).">Dihitung</span>
+                                    @else
+                                        <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700" title="Ditampilkan saja (tidak dihitung ke Skor Kinerja).">Tidak dihitung</span>
+                                        @if($whyNotText !== '')
+                                            <span class="text-slate-400" title="{{ $whyNotText }}">
+                                                <i class="fa-solid fa-circle-exclamation"></i>
+                                            </span>
+                                        @endif
+                                    @endif
+
+                                    @if(!$isActive)
+                                        <span class="px-2 py-0.5 rounded text-xs bg-slate-200 text-slate-700">Nonaktif</span>
+                                    @endif
+
+                                    @if($readiness !== 'ready')
+                                        <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700" title="{{ is_string($readinessMsg) ? $readinessMsg : '' }}">Belum siap</span>
+                                        <span class="text-slate-400" title="{{ is_string($readinessMsg) && $readinessMsg !== '' ? $readinessMsg : 'Data belum siap.' }}">
+                                            <i class="fa-solid fa-circle-exclamation"></i>
+                                        </span>
+                                    @endif
+
+                                    @if($weightStatus !== 'active' && $weight > 0)
+                                        <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700" title="Status bobot: {{ $weightStatus }}">Bobot {{ $weightStatus }}</span>
+                                    @endif
+                                </div>
+                            </td>
+
+                            <td class="px-6 py-4 text-right">
+                                {{ number_format((float) ($r['nilai_normalisasi'] ?? 0), 2) }}
+                                <div class="text-xs text-slate-400">Raw: {{ number_format((float) ($r['raw'] ?? 0), 2) }}</div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="4" class="px-6 py-8 text-center text-slate-500">
+                                Data kinerja belum tersedia.
+                            </td>
+                        </tr>
+                    @endforelse
                 </x-ui.table>
             </div>
         @endif

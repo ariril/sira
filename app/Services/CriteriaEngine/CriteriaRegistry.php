@@ -33,7 +33,9 @@ class CriteriaRegistry
         'Jam Kerja (Absensi)' => 'work_hours',
         'Lembur (Absensi)' => 'overtime',
         'Keterlambatan (Absensi)' => 'late_minutes',
+        // Legacy name kept for backward compatibility.
         'Kontribusi Tambahan' => 'contribution',
+        'Tugas Tambahan' => 'contribution',
         'Rating' => 'rating',
     ];
 
@@ -133,6 +135,44 @@ class CriteriaRegistry
         }
 
         return null;
+    }
+
+    /**
+     * Resolve collectors for an explicit list of criteria IDs (ignores unit_criteria_weights).
+     *
+     * @param array<int> $criteriaIds
+     * @return array<int, CriteriaCollector>
+     */
+    public function getCollectorsForCriteriaIds(array $criteriaIds): array
+    {
+        $criteriaIds = array_values(array_unique(array_map('intval', $criteriaIds)));
+        if (empty($criteriaIds)) {
+            return [];
+        }
+
+        $rows = PerformanceCriteria::query()
+            ->whereIn('id', $criteriaIds)
+            ->get($this->criteriaSelectColumns());
+
+        $collectorsByOrder = [];
+        foreach ($rows as $criteria) {
+            $collector = $this->collectorForCriteriaRow($criteria);
+            if (!$collector) {
+                Log::warning('CriteriaRegistry: no collector for criteria', [
+                    'criteria_id' => (int) $criteria->id,
+                    'name' => (string) $criteria->name,
+                    'input_method' => (string) ($criteria->input_method ?? ''),
+                    'is_360' => (bool) $criteria->is_360,
+                    'source' => (string) ($criteria->source ?? ''),
+                ]);
+                continue;
+            }
+
+            $collectorsByOrder[(int) $criteria->id] = $collector;
+        }
+
+        ksort($collectorsByOrder);
+        return array_values($collectorsByOrder);
     }
 
     /**

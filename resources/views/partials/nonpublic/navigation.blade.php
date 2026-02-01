@@ -116,9 +116,12 @@
       ]],
 
       ['heading'=>'Ulasan Pasien','items'=>[
+        ['label'=>'Daftar Link Undangan','icon'=>'fa-list',
+        'href'=>$href('admin_rs.review_invitations.index','/admin-rs/review-invitations'),
+        'active'=>request()->routeIs('admin_rs.review_invitations.index')],
         ['label'=>'Import Link Undangan','icon'=>'fa-link',
          'href'=>$href('admin_rs.review_invitations.import.form','/admin-rs/review-invitations/import'),
-         'active'=>request()->is('admin-rs/review-invitations/*')],
+        'active'=>request()->routeIs('admin_rs.review_invitations.import.*')],
       ]],
       ['heading'=>'Remunerasi','items'=>[
         ['label'=>'Alokasi per Unit','icon'=>'fa-diagram-project',
@@ -227,9 +230,9 @@
       ['label'=>'Kriteria & Bobot Aktif','icon'=>'fa-scale-balanced',
       'href'=>$href('pegawai_medis.unit_criteria_weights.index','/pegawai-medis/unit-criteria-weights'),
       'active'=>request()->routeIs('pegawai_medis.unit_criteria_weights.*')],
-        ['label'=>'Kontribusi Tambahan','icon'=>'fa-hand-holding-heart',
-         'href'=>$href('pegawai_medis.additional-contributions.index','/pegawai-medis/additional-contributions'),
-         'active'=>request()->routeIs('pegawai_medis.additional-contributions.*')],
+        ['label'=>'Tugas Tambahan','icon'=>'fa-hand-holding-heart',
+         'href'=>$href('pegawai_medis.additional_tasks.index','/pegawai-medis/additional-tasks'),
+         'active'=>request()->routeIs('pegawai_medis.additional_tasks.*')],
         ['label'=>'Penilaian 360','icon'=>'fa-people-arrows',
          'href'=>$href('pegawai_medis.multi_rater.index','/pegawai-medis/multi-rater'),
         'active'=>request()->routeIs('pegawai_medis.multi_rater.*')],

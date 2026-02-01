@@ -90,35 +90,67 @@
                             }
                         @endphp
 
-                        <details class="inline-block text-left">
-                            <summary class="list-none inline-flex items-center justify-end cursor-pointer">
-                                <x-ui.button type="button" variant="outline" class="h-9 px-3 text-sm">Detail</x-ui.button>
-                            </summary>
-                            <div class="mt-2 w-[320px] max-w-[80vw] rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
-                                <div class="grid grid-cols-2 gap-x-3 gap-y-1">
-                                    <div class="text-slate-500">Deadline cancel</div>
-                                    <div class="text-right">{{ $it->cancel_deadline_at ?? '-' }}</div>
-
-                                    <div class="text-slate-500">Violation</div>
-                                    <div class="text-right">{{ $it->is_violation ? 'Ya' : 'Tidak' }}</div>
-
-                                    <div class="text-slate-500">Penalty snapshot</div>
-                                    <div class="text-right">{{ $snap }}</div>
-
-                                    <div class="text-slate-500">Penalty applied</div>
-                                    <div class="text-right">{{ $it->penalty_applied ? 'Ya' : 'Tidak' }}</div>
-
-                                    <div class="text-slate-500">Penalty amount</div>
-                                    <div class="text-right">{{ $it->penalty_amount !== null ? ('Rp ' . number_format((float)$it->penalty_amount, 0, ',', '.')) : '-' }}</div>
-                                </div>
-                            </div>
-                        </details>
+                        <x-ui.icon-button
+                            icon="fa-eye"
+                            type="button"
+                            title="Detail"
+                            onclick="window.dispatchEvent(new CustomEvent('open-modal', { detail: 'atc-detail-{{ (int) $it->id }}' }))"
+                        />
                     </td>
                 </tr>
             @empty
                 <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Belum ada data.</td></tr>
             @endforelse
         </x-ui.table>
+
+        {{-- Render modals outside the table wrapper (avoid overflow clipping) --}}
+        @foreach($items as $it)
+            @php
+                $ptM = (string)($it->penalty_type ?? 'none');
+                $pvM = (float)($it->penalty_value ?? 0);
+                $pbM = (string)($it->penalty_base ?? 'task_bonus');
+                if ($ptM === 'none') {
+                    $snapM = 'None';
+                } elseif ($ptM === 'amount') {
+                    $snapM = 'Rp ' . number_format($pvM, 0, ',', '.');
+                } else {
+                    $baseLblM = $pbM === 'remuneration' ? 'remunerasi' : 'bonus tugas';
+                    $snapM = rtrim(rtrim(number_format($pvM, 2, ',', '.'), '0'), ',') . '% dari ' . $baseLblM;
+                }
+            @endphp
+
+            <x-modal name="atc-detail-{{ (int) $it->id }}" :show="false" maxWidth="lg">
+                <div class="p-6">
+                    <div class="flex items-start justify-between gap-3">
+                        <h2 class="text-lg font-semibold text-slate-800">Detail Klaim</h2>
+                        <button type="button" class="text-slate-400 hover:text-slate-600" onclick="window.dispatchEvent(new CustomEvent('close-modal', { detail: 'atc-detail-{{ (int) $it->id }}' }))">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <div class="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm text-slate-700">
+                        <div class="text-slate-500">Deadline cancel</div>
+                        <div class="text-right">{{ $it->cancel_deadline_at ?? '-' }}</div>
+
+                        <div class="text-slate-500">Violation</div>
+                        <div class="text-right">{{ $it->is_violation ? 'Ya' : 'Tidak' }}</div>
+
+                        <div class="text-slate-500">Penalty snapshot</div>
+                        <div class="text-right">{{ $snapM }}</div>
+
+                        <div class="text-slate-500">Penalty applied</div>
+                        <div class="text-right">{{ $it->penalty_applied ? 'Ya' : 'Tidak' }}</div>
+
+                        <div class="text-slate-500">Penalty amount</div>
+                        <div class="text-right">{{ $it->penalty_amount !== null ? ('Rp ' . number_format((float)$it->penalty_amount, 0, ',', '.')) : '-' }}</div>
+                    </div>
+
+                    <div class="mt-6 flex justify-end">
+                        <x-ui.button type="button" variant="outline" onclick="window.dispatchEvent(new CustomEvent('close-modal', { detail: 'atc-detail-{{ (int) $it->id }}' }))">Tutup</x-ui.button>
+                    </div>
+                </div>
+            </x-modal>
+        @endforeach
 
         <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div class="text-sm text-slate-600">

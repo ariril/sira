@@ -60,7 +60,7 @@ class EnsureNovemberDemoKpiData extends Command
             'Keterlambatan (Absensi)',
             'Kedisiplinan (360)',
             'Kerjasama (360)',
-            'Kontribusi Tambahan',
+            'Tugas Tambahan',
             'Jumlah Pasien Ditangani',
             'Jumlah Komplain Pasien',
             'Rating',
@@ -100,7 +100,7 @@ class EnsureNovemberDemoKpiData extends Command
             'Keterlambatan (Absensi)' => 10,
             'Kedisiplinan (360)' => 15,
             'Kerjasama (360)' => 10,
-            'Kontribusi Tambahan' => 10,
+            'Tugas Tambahan' => 10,
             'Jumlah Pasien Ditangani' => 5,
             'Jumlah Komplain Pasien' => 3,
             'Rating' => 12,
@@ -310,37 +310,7 @@ class EnsureNovemberDemoKpiData extends Command
                 );
             }
 
-            // C) Kontribusi Tambahan (additional_contributions)
-            $hasContrib = (int) DB::table('additional_contributions')
-                ->where('user_id', $userId)
-                ->where('assessment_period_id', $periodId)
-                ->count() > 0;
-
-            if (!$hasContrib && !$dryRun) {
-                DB::table('additional_contributions')->insert([
-                    'user_id' => $userId,
-                    'claim_id' => null,
-                    'title' => 'Kontribusi Tambahan (Demo) - ' . $period->name,
-                    'description' => 'Auto demo seed (Nov) untuk testing WSM/remunerasi',
-                    'submission_date' => $end->toDateString(),
-                    'claimed_at' => $now,
-                    'submitted_at' => $now,
-                    'evidence_file' => null,
-                    'attachment_original_name' => null,
-                    'attachment_mime' => null,
-                    'attachment_size' => null,
-                    'validation_status' => 'Disetujui',
-                    'supervisor_comment' => 'Auto approve untuk demo',
-                    'reviewer_id' => null,
-                    'score' => (float) $raw['contrib'],
-                    'bonus_awarded' => null,
-                    'assessment_period_id' => $periodId,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-            }
-
-            // D) Metric import: pasien + komplain
+            // C) Metric import: pasien + komplain
             foreach ([
                 'Jumlah Pasien Ditangani' => (float) $raw['patients'],
                 'Jumlah Komplain Pasien' => (float) $raw['complaints'],

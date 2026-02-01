@@ -127,7 +127,7 @@ class AssessmentPeriodController extends Controller
             return back()->withErrors(['delete' => $e->getMessage()]);
         }
 
-        if ($period->performanceAssessments()->exists() || $period->remunerations()->exists() || $period->additionalContributions()->exists()) {
+        if ($period->performanceAssessments()->exists() || $period->remunerations()->exists()) {
             return back()->withErrors(['delete' => 'Tidak dapat menghapus: periode sudah memiliki data terkait.']);
         }
         $period->delete();

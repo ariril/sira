@@ -1,4 +1,5 @@
 @props([
+    'title' => 'Penilaian 360°',
     'periodId',
     'unitId' => null,
     'raterRole',
@@ -22,7 +23,7 @@
 
 <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100" x-data="simple360Form(@js($targetsData), @js($criteriaData), '{{ route($postRoute) }}', {{ (int)$periodId }}, {{ $unitId ? (int)$unitId : 'null' }}, '{{ $raterRole }}', '{{ $savedTableKey ?? '' }}', {{ (int) ($remainingAssignments ?? 0) }}, {{ (int) ($totalAssignments ?? 0) }}, {{ (int) $remainingPeople }}, {{ $canSubmit ? 'true' : 'false' }})">
         <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold">Penilaian 360°</h2>
+            <h2 class="text-lg font-semibold">{{ $title }}</h2>
         </div>
 
         <template x-if="totalAssignments === 0">
@@ -32,7 +33,7 @@
         </template>
         <template x-if="totalAssignments > 0 && remainingAssignments === 0">
             <div class="mb-3 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
-                Semua penilaian rekan pada periode ini telah selesai.
+                Semua penilaian pada periode ini telah selesai.
             </div>
         </template>
         <template x-if="totalAssignments > 0 && remainingAssignments > 0">
@@ -59,9 +60,9 @@
                 <x-ui.input type="text" placeholder="Ketik nama atau NIP untuk memfilter" x-model.debounce.300ms="searchTerm" @input="refreshTargetSelect()" />
             </div>
             <div class="sm:col-span-6">
-                <label class="block text-sm font-medium text-slate-700 mb-1">Rekan Dinilai</label>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Target Dinilai</label>
                 <div x-ref="targetSelectWrapper">
-                    <x-ui.select :options="[]" placeholder="Pilih rekan" x-init="refreshTargetSelect()" x-on:change="onTargetChange($event.target.value)" />
+                    <x-ui.select :options="[]" placeholder="Pilih target" x-init="refreshTargetSelect()" x-on:change="onTargetChange($event.target.value)" />
                 </div>
             </div>
             <div class="sm:col-span-6">
@@ -89,7 +90,7 @@
         </div>
 
         <div class="mt-3 text-sm text-slate-500">
-            Nilai yang disimpan per kriteria akan otomatis hilang dari daftar hingga seluruh kriteria tiap rekan terpenuhi.
+            Nilai yang disimpan per kriteria akan otomatis hilang dari daftar hingga seluruh kriteria tiap target terpenuhi.
         </div>
 
     <script>
@@ -135,7 +136,7 @@
                     sel.innerHTML = '';
                     const opt0 = document.createElement('option');
                     opt0.value = '';
-                    opt0.textContent = this.items.length ? 'Pilih rekan' : 'Tidak ada rekan tersedia';
+                    opt0.textContent = this.items.length ? 'Pilih target' : 'Tidak ada target tersedia';
                     sel.appendChild(opt0);
                     this.filteredTargets().forEach(t => {
                         const option = document.createElement('option');

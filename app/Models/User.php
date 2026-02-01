@@ -83,11 +83,6 @@ class User extends Authenticatable
         return $this->hasMany(Attendance::class);
     }
 
-    public function additionalContributions(): HasMany
-    {
-        return $this->hasMany(AdditionalContribution::class);
-    }
-
     public function remunerations(): HasMany
     {
         return $this->hasMany(Remuneration::class);

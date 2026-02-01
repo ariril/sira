@@ -18,6 +18,7 @@
                     <ul class="list-disc pl-5 space-y-1">
                         <li>Tambah bobot sebagai <strong>Draft</strong>, lalu sesuaikan hingga total bobot siap diajukan.</li>
                         <li>Tombol <strong>Ajukan Semua</strong> digunakan untuk mengirim seluruh draft/rejected (sesuai kebutuhan sisa bobot) menjadi <strong>Pending</strong>.</li>
+                        <li>Jika status <strong>Ditolak</strong>, klik badge <strong>Ditolak</strong> untuk melihat komentar penolakan.</li>
                         <li>Tombol <strong>Salin periode sebelumnya</strong> menyalin bobot periode sebelumnya menjadi draft periode aktif.</li>
                     </ul>
                 </div>
@@ -93,6 +94,7 @@
                 @php($required = max(0, (int) round($requiredTotal ?? 100)))
                 @php($draftMeetsRequirement = $required > 0 && $roundedDraft === $required)
                 @php($allActiveApproved = ($pendingCount ?? 0) === 0 && !($hasDraftOrRejected ?? false) && !empty($targetPeriodId) && (int) round($activeTotal ?? 0) === 100)
+                @php($rejectedWorkingCount = (int) $itemsWorking->where('status','rejected')->count())
 
                 @if($allActiveApproved)
                     <div class="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between gap-3">
@@ -109,7 +111,12 @@
                     </div>
                 @elseif($draftMeetsRequirement)
                     <div class="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between">
-                        <span>Sisa {{ number_format($required, 2) }}% siap diajukan untuk melengkapi total 100%.</span>
+                        <div>
+                            <div>Sisa {{ number_format($required, 2) }}% siap diajukan untuk melengkapi total 100%.</div>
+                            @if($rejectedWorkingCount > 0)
+                                <div class="mt-1 text-xs text-emerald-700">Ada pengajuan yang ditolak. Klik <strong>Ditolak</strong> untuk lihat komentar, revisi bobot, lalu klik <strong>Ajukan Semua</strong> untuk mengajukan ulang.</div>
+                            @endif
+                        </div>
                         <form method="POST" action="{{ route('kepala_unit.unit_criteria_weights.submit_all') }}" id="ucwSubmitAllForm">
                             @csrf
                             <input type="hidden" name="period_id" value="{{ $periodId ?? $targetPeriodId }}" />
@@ -120,6 +127,9 @@
                     <div class="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
                         Total bobot aktif/pending saat ini <span class="font-semibold">{{ number_format($committed,2) }}%</span>. Draf yang siap diajukan baru <span class="font-semibold">{{ number_format($currentTotal,2) }}%</span>.
                         Butuh <strong>{{ number_format(max(0, $required - $roundedDraft), 2) }}%</strong> lagi agar dapat diajukan.
+                        @if($rejectedWorkingCount > 0)
+                            <div class="mt-2 text-xs text-amber-700">Ada pengajuan yang ditolak. Klik <strong>Ditolak</strong> untuk melihat komentar penolakan dan lakukan revisi.</div>
+                        @endif
                     </div>
                 @endif
             @endif
@@ -178,27 +188,7 @@
                             @elseif($st==='pending')
                                 <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Pending</span>
                             @elseif($st==='rejected')
-                                <span class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700">Ditolak</span>
-                                @if(!empty($it->decided_note))
-                                    <div class="mt-2">
-                                        <button type="button" class="text-xs text-slate-600 underline hover:text-slate-800" x-on:click="$dispatch('open-modal', 'ucw-note-{{ (int) $it->id }}')">Lihat komentar</button>
-                                    </div>
-
-                                    <x-modal name="ucw-note-{{ (int) $it->id }}" :show="false" maxWidth="lg">
-                                        <div class="p-6">
-                                            <div class="flex items-start justify-between gap-3">
-                                                <h2 class="text-lg font-semibold text-slate-800">Komentar Penolakan</h2>
-                                                <button type="button" class="text-slate-400 hover:text-slate-600" x-on:click="$dispatch('close-modal', 'ucw-note-{{ (int) $it->id }}')">
-                                                    <i class="fa-solid fa-xmark"></i>
-                                                </button>
-                                            </div>
-                                            <div class="mt-3 text-sm text-slate-700 whitespace-pre-wrap">{{ $it->decided_note }}</div>
-                                            <div class="mt-5 flex justify-end">
-                                                <x-ui.button type="button" variant="outline" x-on:click="$dispatch('close-modal', 'ucw-note-{{ (int) $it->id }}')">Tutup</x-ui.button>
-                                            </div>
-                                        </div>
-                                    </x-modal>
-                                @endif
+                                <button type="button" class="px-2 py-1 rounded text-xs bg-rose-100 text-rose-700 hover:bg-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 cursor-pointer" title="Klik untuk lihat komentar penolakan" onclick="window.dispatchEvent(new CustomEvent('open-modal', { detail: 'ucw-note-{{ (int) $it->id }}' }))">Ditolak</button>
                             @else
                                 <span class="px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">Draft</span>
                             @endif
@@ -249,6 +239,28 @@
                     <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">Belum ada data.</td></tr>
                 @endforelse
             </x-ui.table>
+
+            {{-- Render modals outside the table wrapper (avoid overflow clipping) --}}
+            @foreach($itemsWorking as $it)
+                @if((string) ($it->status ?? '') === 'rejected')
+                    <x-modal name="ucw-note-{{ (int) $it->id }}" :show="false" maxWidth="lg">
+                        <div class="p-6">
+                            <div class="flex items-start justify-between gap-3">
+                                <h2 class="text-lg font-semibold text-slate-800">Komentar Penolakan</h2>
+                                <button type="button" class="text-slate-400 hover:text-slate-600" onclick="window.dispatchEvent(new CustomEvent('close-modal', { detail: 'ucw-note-{{ (int) $it->id }}' }))">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                            <div class="mt-1 text-xs text-slate-500">Revisi bobot lalu klik <strong>Ajukan Semua</strong> untuk mengajukan ulang.</div>
+                            @php($note = trim((string) ($it->decided_note ?? '')))
+                            <div class="mt-3 text-sm text-slate-700 whitespace-pre-wrap">{{ $note !== '' ? $note : 'Tidak ada komentar penolakan.' }}</div>
+                            <div class="mt-5 flex justify-end">
+                                <x-ui.button type="button" variant="outline" onclick="window.dispatchEvent(new CustomEvent('close-modal', { detail: 'ucw-note-{{ (int) $it->id }}' }))">Tutup</x-ui.button>
+                            </div>
+                        </div>
+                    </x-modal>
+                @endif
+            @endforeach
         </div>
 
         {{-- TABLE: History (Archived) --}}

@@ -99,7 +99,7 @@ class EightStaffKpiSeeder extends Seeder
             'source' => 'metric_import',
             'is_360' => 0,
             'aggregation_method' => 'sum',
-            'normalization_basis' => 'max_unit',
+            'normalization_basis' => 'total_unit',
         ]);
 
         // Helpers
@@ -174,7 +174,7 @@ class EightStaffKpiSeeder extends Seeder
         $lateMinutesId  = $criteriaId('Keterlambatan (Absensi)');
         $kedis360Id     = $criteriaId('Kedisiplinan (360)');
         $kerjasama360Id = $criteriaId('Kerjasama (360)');
-        $kontribusiId   = $criteriaId('Kontribusi Tambahan');
+        $kontribusiId   = $criteriaId('Tugas Tambahan');
         $pasienId       = $criteriaId('Jumlah Pasien Ditangani');
         $komplainId     = $criteriaId('Jumlah Komplain Pasien');
         $ratingId       = $criteriaId('Rating');
@@ -186,7 +186,7 @@ class EightStaffKpiSeeder extends Seeder
             'Keterlambatan (Absensi)' => (int) $lateMinutesId,
             'Kedisiplinan (360)' => (int) $kedis360Id,
             'Kerjasama (360)' => (int) $kerjasama360Id,
-            'Kontribusi Tambahan' => (int) $kontribusiId,
+            'Tugas Tambahan' => (int) $kontribusiId,
             'Jumlah Pasien Ditangani' => (int) $pasienId,
             'Jumlah Komplain Pasien' => (int) $komplainId,
             'Rating' => (int) $ratingId,
@@ -201,14 +201,15 @@ class EightStaffKpiSeeder extends Seeder
         // Optional: Excel template as source-of-truth for seed data.
         $this->excelConfig = $this->tryLoadExcelTemplate($staff);
 
-        // If the template specifies normalization policy per criteria, apply it (no schema changes).
+        // Normalization policy is fixed: ALL criteria use total_unit.
+        // If an Excel template exists, we ignore its normalization fields.
         if (!empty($this->excelConfig['criteria'])) {
-            foreach (($this->excelConfig['criteria'] ?? []) as $criteriaName => $policy) {
+            foreach (array_keys((array) ($this->excelConfig['criteria'] ?? [])) as $criteriaName) {
                 DB::table('performance_criterias')
                     ->where('name', (string) $criteriaName)
                     ->update([
-                        'normalization_basis' => (string) ($policy['normalization_basis'] ?? 'total_unit'),
-                        'custom_target_value' => array_key_exists('custom_target_value', $policy) ? $policy['custom_target_value'] : null,
+                        'normalization_basis' => 'total_unit',
+                        'custom_target_value' => null,
                         'updated_at' => $now,
                     ]);
             }
@@ -232,13 +233,12 @@ class EightStaffKpiSeeder extends Seeder
 
         DB::table('imported_criteria_values')->whereIn('user_id', $targets)->whereIn('assessment_period_id', $periodIds)->delete();
 
-        // Contribution cleanup (task-based + ad-hoc)
+        // Contribution cleanup (task-based)
         DB::table('additional_task_claims')->whereIn('user_id', $targets)->delete();
         DB::table('additional_tasks')
             ->whereIn('assessment_period_id', $periodIds)
             ->whereIn('unit_id', array_values(array_filter([$unitPoliUmumId, $unitPoliGigiId])))
             ->delete();
-        DB::table('additional_contributions')->whereIn('user_id', $targets)->whereIn('assessment_period_id', $periodIds)->delete();
 
         $reviewIds = DB::table('review_details')->whereIn('medical_staff_id', $targets)->pluck('review_id');
         DB::table('review_details')->whereIn('medical_staff_id', $targets)->delete();
@@ -843,9 +843,6 @@ class EightStaffKpiSeeder extends Seeder
                     ->where('t.assessment_period_id', $periodId)
                     ->count()
                 : null,
-            'additional_contributions' => fn() => Schema::hasTable('additional_contributions')
-                ? DB::table('additional_contributions')->whereIn('user_id', $userIds)->where('assessment_period_id', $periodId)->count()
-                : null,
             'multi_rater_assessments' => fn() => Schema::hasTable('multi_rater_assessments')
                 ? DB::table('multi_rater_assessments')->whereIn('assessee_id', $userIds)->where('assessment_period_id', $periodId)->count()
                 : null,
@@ -1287,7 +1284,7 @@ class EightStaffKpiSeeder extends Seeder
         ]);
 
         // =========================================================
-        // Kontribusi Tambahan (module-style): 2 tasks per unit+period
+        // Tugas Tambahan (module-style): 2 tasks per unit+period
         // - Task POINTS: uses t.points
         // - Task UANG  : uses t.bonus_amount, but claims still provide awarded_points
         // Claims with status approved/completed contribute via SUM(awarded_points) fallback to t.points.
@@ -1342,7 +1339,7 @@ class EightStaffKpiSeeder extends Seeder
             $taskPointsIdByUnit[(string) $unitSlug] = (int) DB::table('additional_tasks')->insertGetId([
                 'unit_id' => $uId,
                 'assessment_period_id' => $period->id,
-                'title' => 'Kontribusi Tambahan (Points) - ' . $period->name . ' (' . $unitSlug . ')',
+                'title' => 'Tugas Tambahan (Points) - ' . $period->name . ' (' . $unitSlug . ')',
                 'description' => 'Seeder additional task berbasis poin',
                 'policy_doc_path' => null,
                 'start_date' => (string) $period->start_date,
@@ -1367,7 +1364,7 @@ class EightStaffKpiSeeder extends Seeder
             $taskMoneyIdByUnit[(string) $unitSlug] = (int) DB::table('additional_tasks')->insertGetId([
                 'unit_id' => $uId,
                 'assessment_period_id' => $period->id,
-                'title' => 'Kontribusi Tambahan (Uang) - ' . $period->name . ' (' . $unitSlug . ')',
+                'title' => 'Tugas Tambahan (Uang) - ' . $period->name . ' (' . $unitSlug . ')',
                 'description' => 'Seeder additional task berbasis uang; claim menyediakan awarded_points untuk skor',
                 'policy_doc_path' => null,
                 'start_date' => (string) $period->start_date,
@@ -1465,47 +1462,8 @@ class EightStaffKpiSeeder extends Seeder
             }
             $unitId = (int) $unitIdResolver($staff[$key]['unit_slug']);
 
-            // 0) Kontribusi Tambahan:
+            // 0) Tugas Tambahan:
             // additional_task_claims sudah diseed merata (lihat blok di atas).
-            // Tetap mirror kontribusi ke additional_contributions (legacy / direct-entry module).
-            $contribPoints = (float) ($row['contrib'] ?? 0);
-            $unitSlug = (string) ($staff[$key]['unit_slug'] ?? '');
-
-            // Mirror kontribusi also into additional_contributions table (legacy / direct-entry module).
-            if (Schema::hasTable('additional_contributions') && $contribPoints > 0) {
-                $reviewerId = null;
-                foreach ($staff as $sk => $sv) {
-                    if (Str::startsWith((string) $sk, 'kepala_') && (string) ($sv['unit_slug'] ?? '') === $unitSlug) {
-                        $reviewerId = (int) ($sv['id'] ?? 0);
-                        break;
-                    }
-                }
-                if ($reviewerId !== null && $reviewerId <= 0) {
-                    $reviewerId = null;
-                }
-
-                DB::table('additional_contributions')->insert([
-                    'user_id' => $userId,
-                    'claim_id' => null,
-                    'title' => 'Kontribusi Tambahan (Seeder) - ' . $period->name,
-                    'description' => 'Seeder additional_contributions (score=' . $contribPoints . ')',
-                    'submission_date' => $assessmentDate->toDateString(),
-                    'claimed_at' => $assessmentDate,
-                    'submitted_at' => $assessmentDate,
-                    'evidence_file' => null,
-                    'attachment_original_name' => null,
-                    'attachment_mime' => null,
-                    'attachment_size' => null,
-                    'validation_status' => 'Disetujui',
-                    'supervisor_comment' => 'Seeder auto approve',
-                    'reviewer_id' => $reviewerId,
-                    'score' => $contribPoints,
-                    'bonus_awarded' => null,
-                    'assessment_period_id' => $period->id,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-            }
 
             // 1) ABSENSI: hadir + keterlambatan + jam kerja + lembur (semua mentah di tabel attendances)
             $hadirDays = (int) ($row['attendance_days'] ?? 0);
@@ -1652,7 +1610,7 @@ class EightStaffKpiSeeder extends Seeder
                 ],
             ]);
 
-            // 3) Kontribusi tambahan seeded above via additional_tasks + additional_task_claims.
+            // 3) Tugas tambahan seeded above via additional_tasks + additional_task_claims.
 
             // 4) Metric import (mentah): pasien + komplain
             DB::table('imported_criteria_values')->insert([

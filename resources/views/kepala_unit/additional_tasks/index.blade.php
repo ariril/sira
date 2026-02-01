@@ -60,7 +60,10 @@
                         Status
                         <span class="inline-block ml-1 text-amber-600 cursor-help" title="Status menjelaskan ketersediaan tugas untuk diklaim. Jika kuota penuh atau ada klaim yang sedang diproses, tugas akan ditandai tidak tersedia meskipun belum lewat jatuh tempo.">!</span>
                     </th>
-                    <th class="px-6 py-4 text-right whitespace-nowrap">Aksi</th>
+                    <th class="px-6 py-4 text-right whitespace-nowrap">
+                        Aksi
+                        <span class="inline-block ml-1 text-amber-600 cursor-help" title="Perbedaan: (1) Ditutup: tugas dihentikan sementara dan bisa dibuka lagi selama belum lewat jatuh tempo. (2) Dibatalkan: final—tidak bisa dibuka/diklaim lagi. Catatan: Edit disembunyikan jika tugas sudah Selesai/Menunggu Review. Hapus hanya tersedia untuk Draft/Dibatalkan yang belum punya klaim.">!</span>
+                    </th>
                 </tr>
             </x-slot>
             @forelse($items as $it)
@@ -79,13 +82,20 @@
                         // fallback tetap seperti sebelumnya
                     }
 
-                    $canOpen = in_array($st, ['draft', 'cancelled', 'closed']) && !$duePast;
+                    $canOpen = in_array($st, ['draft', 'closed']) && !$duePast;
                     $canClose = $st === 'open';
                     $canCancel = in_array($st, ['open', 'draft']);
+                    $totalClaims = (int)($it->total_claims ?? 0);
                     $activeClaims = (int)($it->active_claims ?? 0);
                     $reviewWaiting = (int)($it->review_waiting ?? 0);
                     $finishedClaims = (int)($it->finished_claims ?? 0);
                     $maxClaims = $it->max_claims ?? null;
+
+                    $isQuotaDone = !empty($maxClaims) && $finishedClaims >= (int) $maxClaims;
+                    $canOpen = $canOpen && !$isQuotaDone;
+                    $readOnly = ($reviewWaiting > 0) || ($duePast && $finishedClaims > 0) || $isQuotaDone;
+                    $canEdit = ($st !== 'cancelled') && !$readOnly;
+                    $canDelete = in_array($st, ['draft', 'cancelled']) && $totalClaims === 0;
 
                     $statusLabel = 'Draft';
                     $statusClass = 'bg-amber-100 text-amber-700';
@@ -103,6 +113,10 @@
                             $statusLabel = 'Menunggu Review';
                             $statusClass = 'bg-sky-100 text-sky-700';
                             $statusHint  = 'Ada klaim yang sudah dikirim pegawai dan menunggu tindakan (validasi/persetujuan).';
+                        } elseif ($isQuotaDone) {
+                            $statusLabel = 'Selesai';
+                            $statusClass = 'bg-emerald-100 text-emerald-700';
+                            $statusHint  = 'Kuota klaim sudah terpenuhi dan klaim sudah disetujui/selesai, sehingga tugas dianggap selesai tanpa menunggu periode berakhir.';
                         } elseif ($duePast && $finishedClaims > 0) {
                             $statusLabel = 'Selesai';
                             $statusClass = 'bg-emerald-100 text-emerald-700';
@@ -157,16 +171,19 @@
                         <span class="px-2 py-1 rounded text-xs {{ $statusClass }} cursor-help" title="{{ $statusHint }}{{ $maxClaims ? ' (Kuota: '.$activeClaims.' / '.$maxClaims.')' : '' }}{{ $reviewWaiting ? ' (Menunggu review: '.$reviewWaiting.')' : '' }}">{{ $statusLabel }}</span>
                     </td>
                     <td class="px-6 py-4 text-right">
-                        <div class="inline-flex gap-2 flex-wrap justify-end">
-                            <x-ui.icon-button as="a"
-                                href="{{ route('kepala_unit.additional-tasks.edit', $it->id) }}"
-                                icon="fa-pen-to-square" />
+                        <div class="inline-flex items-center gap-2 justify-end">
+                            @if ($canEdit)
+                                <x-ui.icon-button as="a"
+                                    href="{{ route('kepala_unit.additional-tasks.edit', $it->id) }}"
+                                    icon="fa-pen-to-square"
+                                    class="w-9 h-9" />
+                            @endif
 
                             @if ($canOpen)
                                 <form method="POST" action="{{ route('kepala_unit.additional_tasks.open', $it->id) }}">
                                     @csrf
                                     @method('PATCH')
-                                    <x-ui.button variant="orange" class="h-9 px-3 text-xs" type="submit">Buka</x-ui.button>
+                                    <x-ui.button variant="outline" class="h-9 px-3 text-xs" type="submit">Buka</x-ui.button>
                                 </form>
                             @endif
 
@@ -186,11 +203,13 @@
                                 </form>
                             @endif
 
-                            <form method="POST" action="{{ route('kepala_unit.additional-tasks.destroy', $it->id) }}"
-                                onsubmit="return confirm('Hapus tugas ini?')">
-                                @csrf @method('DELETE')
-                                <x-ui.icon-button icon="fa-trash" />
-                            </form>
+                            @if ($canDelete)
+                                <form method="POST" action="{{ route('kepala_unit.additional-tasks.destroy', $it->id) }}"
+                                    onsubmit="return confirm('Hapus tugas ini?')">
+                                    @csrf @method('DELETE')
+                                    <x-ui.icon-button icon="fa-trash" class="w-9 h-9" />
+                                </form>
+                            @endif
                         </div>
                         @if ($st === 'closed' && $duePast && $activeClaims === 0 && $reviewWaiting === 0 && $finishedClaims === 0)
                             <p class="mt-2 text-[11px] text-amber-600">Jatuh tempo sudah lewat. Edit tanggal untuk membuka kembali.</p>

@@ -12,6 +12,48 @@ class CriteriaAggregator
     }
 
     /**
+     * Aggregate raw values for an explicit list of criteria IDs (ignores unit_criteria_weights).
+     *
+     * @param array<int> $userIds
+     * @param array<int> $criteriaIds
+     * @return array{criteria: array<string, array{label:string,type:string,source:string,raw:array<int,float>,readiness:array{status:string,message:?string}}>, criteria_used: array<int,string>}
+     */
+    public function aggregateForCriteriaIds(AssessmentPeriod $period, int $unitId, array $userIds, array $criteriaIds, ?int $professionId = null): array
+    {
+        $userIds = array_values(array_unique(array_map('intval', $userIds)));
+        $criteriaIds = array_values(array_unique(array_map('intval', $criteriaIds)));
+
+        $collectors = $this->registry->getCollectorsForCriteriaIds($criteriaIds);
+
+        $out = [
+            'criteria' => [],
+            'criteria_used' => [],
+        ];
+
+        foreach ($collectors as $collector) {
+            $key = $collector->key();
+            $raw = $collector->collect($period, $unitId, $userIds);
+
+            foreach ($userIds as $uid) {
+                if (!array_key_exists($uid, $raw)) {
+                    $raw[$uid] = 0.0;
+                }
+            }
+
+            $out['criteria'][$key] = [
+                'label' => $collector->label(),
+                'type' => $collector->type(),
+                'source' => $collector->source(),
+                'raw' => $raw,
+                'readiness' => $collector->readiness($period, $unitId),
+            ];
+            $out['criteria_used'][] = $key;
+        }
+
+        return $out;
+    }
+
+    /**
      * @param array<int> $userIds
      * @return array{criteria: array<string, array{label:string,type:string,source:string,raw:array<int,float>,readiness:array{status:string,message:?string}}>, criteria_used: array<int,string>}
      */

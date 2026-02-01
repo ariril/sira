@@ -34,10 +34,11 @@ class AdditionalTaskStatusService
             $shouldCloseByQuota = $activeCount >= (int) $task->max_claims;
         }
 
-        $newStatus = ($shouldCloseByTime || $shouldCloseByQuota) ? 'closed' : 'open';
-
-        if ($task->status !== $newStatus) {
-            $task->status = $newStatus;
+        // Auto-sync only closes tasks when needed.
+        // Do NOT auto-reopen a task that is already 'closed' because that can override
+        // a manual "Tutup" action by the unit head.
+        if ($task->status === 'open' && ($shouldCloseByTime || $shouldCloseByQuota)) {
+            $task->status = 'closed';
             $task->save();
         }
     }

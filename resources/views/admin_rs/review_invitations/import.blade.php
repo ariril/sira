@@ -160,46 +160,52 @@
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
                 <div class="font-medium">Hasil Import</div>
 
-                <div class="overflow-auto">
-                    <table class="min-w-full text-sm">
-                        <thead>
-                            <tr class="text-left text-slate-500 border-b">
-                                <th class="py-2 pr-4">Row</th>
-                                <th class="py-2 pr-4">Status</th>
-                                <th class="py-2 pr-4">Registration Ref</th>
-                                <th class="py-2 pr-4">Patient</th>
-                                <th class="py-2 pr-4">Contact</th>
-                                <th class="py-2 pr-4">Unit</th>
-                                <th class="py-2 pr-4">Alasan</th>
-                                <th class="py-2 pr-4">Link Undangan</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y">
-                            @foreach($results as $r)
-                                <tr>
-                                    <td class="py-2 pr-4">{{ $r['row'] ?? '' }}</td>
-                                    <td class="py-2 pr-4">
-                                        <span class="font-semibold">
-                                            {{ strtoupper((string)($r['status'] ?? '')) }}
-                                        </span>
-                                    </td>
-                                    <td class="py-2 pr-4">{{ $r['registration_ref'] ?? '-' }}</td>
-                                    <td class="py-2 pr-4">{{ $r['patient_name'] ?? '-' }}</td>
-                                    <td class="py-2 pr-4">{{ $r['contact'] ?? '-' }}</td>
-                                    <td class="py-2 pr-4">{{ $r['unit'] ?? '-' }}</td>
-                                    <td class="py-2 pr-4 text-slate-600">{{ $r['message'] ?? '' }}</td>
-                                    <td class="py-2 pr-4">
-                                        @if(!empty($r['link_undangan']))
-                                            <a class="text-indigo-600 hover:underline" href="{{ $r['link_undangan'] }}" target="_blank" rel="noreferrer">{{ $r['link_undangan'] }}</a>
-                                        @else
-                                            -
-                                        @endif
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
+                <x-ui.table min-width="1200px">
+                    <x-slot name="head">
+                        <tr>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Row</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Status</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Registration Ref</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Pasien</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Kontak</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Unit</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Alasan</th>
+                            <th class="px-6 py-4 text-left whitespace-nowrap">Link Undangan</th>
+                        </tr>
+                    </x-slot>
+
+                    @foreach($results as $r)
+                        @php
+                            $st = strtolower((string)($r['status'] ?? ''));
+                            $badgeMap = [
+                                'success' => 'bg-emerald-50 text-emerald-700 border-emerald-100',
+                                'failed' => 'bg-rose-50 text-rose-700 border-rose-100',
+                                'skipped' => 'bg-amber-50 text-amber-800 border-amber-100',
+                            ];
+                            $badgeClass = $badgeMap[$st] ?? 'bg-slate-50 text-slate-700 border-slate-200';
+                        @endphp
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-6 py-4">{{ $r['row'] ?? '' }}</td>
+                            <td class="px-6 py-4">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border {{ $badgeClass }}">
+                                    {{ strtoupper((string)($r['status'] ?? '')) }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 font-medium text-slate-800">{{ $r['registration_ref'] ?? '-' }}</td>
+                            <td class="px-6 py-4">{{ $r['patient_name'] ?? '-' }}</td>
+                            <td class="px-6 py-4">{{ $r['contact'] ?? '-' }}</td>
+                            <td class="px-6 py-4">{{ $r['unit'] ?? '-' }}</td>
+                            <td class="px-6 py-4 text-slate-600">{{ $r['message'] ?? '' }}</td>
+                            <td class="px-6 py-4">
+                                @if(!empty($r['link_undangan']))
+                                    <a class="text-indigo-600 hover:underline break-all" href="{{ $r['link_undangan'] }}" target="_blank" rel="noreferrer">{{ $r['link_undangan'] }}</a>
+                                @else
+                                    -
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </x-ui.table>
             </div>
         @endif
     </div>

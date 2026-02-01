@@ -629,29 +629,45 @@ class DatabaseSeeder extends Seeder
                     ...(Schema::hasColumn('performance_criterias', 'source') ? ['source' => 'system'] : []),
                     'is_360' => 0,
                     'aggregation_method' => 'count',
-                    // Excel: hari_hadir / total_hari_periode × 100
-                    // Implementasi DB: gunakan custom_target; jika custom_target_value null,
-                    // engine baru akan pakai total hari periode sebagai target dinamis.
-                    'normalization_basis' => 'custom_target',
+                    'normalization_basis' => 'total_unit',
                     'custom_target_value' => null,
                     'suggested_weight' => 20,
-                    'description' => "Kode: KEHADIRAN\nNama: Kehadiran (Absensi)\nRumus Excel: hari_hadir / total_hari_periode × 100\nBasis: periode_days (dinamis dari AssessmentPeriod).",
+                    'description' => "Kode: KEHADIRAN\nNama: Kehadiran (Absensi)\nBasis: total_unit",
+                    'is_active' => 1,
+                    'updated_at' => $now,
+                ]);
+
+            // Safety: rename legacy "Kontribusi Tambahan" to "Tugas Tambahan" to keep FK references stable.
+            DB::table('performance_criterias')
+                ->where('name', 'Kontribusi Tambahan')
+                ->update([
+                    'name' => 'Tugas Tambahan',
+                    'type' => 'benefit',
+                    'data_type' => 'numeric',
+                    'input_method' => 'system',
+                    ...(Schema::hasColumn('performance_criterias', 'source') ? ['source' => 'system'] : []),
+                    'is_360' => 0,
+                    'aggregation_method' => 'sum',
+                    'normalization_basis' => 'total_unit',
+                    'custom_target_value' => null,
+                    'suggested_weight' => 10,
+                    'description' => "Kode: KONTRIBUSI\nRumus Excel: poin / total_poin_grup × 100\nBasis: total_unit",
                     'is_active' => 1,
                     'updated_at' => $now,
                 ]);
 
             $criterias = [
                 // Excel mapping (source-of-truth)
-                ['name' => 'Kehadiran (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'count', 'normalization_basis' => 'custom_target', 'custom_target_value' => null, 'suggested_weight' => 20, 'description' => "Kode: KEHADIRAN\nRumus Excel: hari_hadir / total_hari_periode × 100\nBasis: periode_days", 'is_active' => 1],
+                ['name' => 'Kehadiran (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'count', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 20, 'description' => "Kode: KEHADIRAN\nBasis: total_unit", 'is_active' => 1],
                 ['name' => 'Jam Kerja (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 10, 'description' => "Kode: JAM_KERJA\nRumus Excel: menit_kerja / total_menit_grup × 100\nBasis: total_unit", 'is_active' => 1],
                 ['name' => 'Lembur (Absensi)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'count', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 5, 'description' => "Kode: LEMBUR\nRumus Excel: jumlah_lembur / total_lembur_grup × 100\nBasis: total_unit", 'is_active' => 1],
-                ['name' => 'Keterlambatan (Absensi)', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'max_unit', 'custom_target_value' => null, 'suggested_weight' => 10, 'description' => "Kode: KETERLAMBATAN\nRumus Excel: (1 - menit_terlambat / max) × 100\nBasis: max_unit", 'is_active' => 1],
+                ['name' => 'Keterlambatan (Absensi)', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 10, 'description' => "Kode: KETERLAMBATAN\nBasis: total_unit", 'is_active' => 1],
                 ['name' => 'Kedisiplinan (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'source' => 'assessment_360', 'is_360' => 1, 'aggregation_method' => 'avg', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 15, 'description' => "Kode: KEDISIPLINAN_360\nRumus Excel: skor / total_skor_grup × 100\nBasis: total_unit", 'is_active' => 1],
                 ['name' => 'Kerjasama (360)', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'source' => 'assessment_360', 'is_360' => 1, 'aggregation_method' => 'avg', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 10, 'description' => "Kode: KERJASAMA_360\nRumus Excel: skor / total_skor_grup × 100\nBasis: total_unit", 'is_active' => 1],
-                ['name' => 'Kontribusi Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 10, 'description' => "Kode: KONTRIBUSI\nRumus Excel: poin / total_poin_grup × 100\nBasis: total_unit", 'is_active' => 1],
+                ['name' => 'Tugas Tambahan', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 10, 'description' => "Kode: KONTRIBUSI\nRumus Excel: poin / total_poin_grup × 100\nBasis: total_unit", 'is_active' => 1],
                 ['name' => 'Jumlah Pasien Ditangani', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'source' => 'metric_import', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 5, 'description' => "Kode: PASIEN\nRumus Excel: pasien / total_pasien_grup × 100\nBasis: total_unit", 'is_active' => 1],
-                ['name' => 'Jumlah Komplain Pasien', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'import', 'source' => 'metric_import', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'max_unit', 'custom_target_value' => null, 'suggested_weight' => 3, 'description' => "Kode: KOMPLAIN\nRumus Excel: (1 - komplain / max) × 100\nBasis: max_unit", 'is_active' => 1],
-                ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'avg', 'normalization_basis' => 'custom_target', 'custom_target_value' => 5, 'suggested_weight' => 12, 'description' => "Kode: RATING\nRumus Excel: rating / 5 × 100\nBasis: max_rating (custom_target=5)", 'is_active' => 1],
+                ['name' => 'Jumlah Komplain Pasien', 'type' => 'cost', 'data_type' => 'numeric', 'input_method' => 'import', 'source' => 'metric_import', 'is_360' => 0, 'aggregation_method' => 'sum', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 3, 'description' => "Kode: KOMPLAIN\nBasis: total_unit", 'is_active' => 1],
+                ['name' => 'Rating', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'public_review', 'source' => 'system', 'is_360' => 0, 'aggregation_method' => 'avg', 'normalization_basis' => 'total_unit', 'custom_target_value' => null, 'suggested_weight' => 12, 'description' => "Kode: RATING\nBasis: total_unit", 'is_active' => 1],
             ];
             foreach ($criterias as &$k) {
                 $k['created_at'] = $now;
@@ -689,6 +705,16 @@ class DatabaseSeeder extends Seeder
                 ['name'],
                 $updateCols
             );
+
+            // Requirement: ALL criteria use total_unit normalization basis.
+            // This is enforced globally so any existing/demo criteria are aligned.
+            if (Schema::hasColumn('performance_criterias', 'normalization_basis')) {
+                DB::table('performance_criterias')->update([
+                    'normalization_basis' => 'total_unit',
+                    'custom_target_value' => null,
+                    'updated_at' => $now,
+                ]);
+            }
 
             // NOTE:
             // rater_weights is now per (period + unit + 360-criteria + profession + assessor_type)

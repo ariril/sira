@@ -30,6 +30,9 @@ return new class extends Migration {
             // One-time token: store hash only (SHA256, 64 hex chars)
             $table->string('token_hash', 64)->unique();
 
+            // Optional: store the plain token (if needed by business flow)
+            $table->string('token_plain', 64)->nullable()->unique();
+
             $table->enum('status', ['created', 'sent', 'opened', 'used', 'expired', 'cancelled'])
                 ->default('created')
                 ->index();

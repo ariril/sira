@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\AssessmentPeriods\PeriodPerformanceAssessmentService;
 use App\Services\MultiRater\CriteriaResolver;
 use App\Services\MultiRater\AssessorTypeResolver;
+use App\Services\MultiRater\AssessorProfessionResolver;
 
 class StoreController extends Controller
 {
@@ -24,6 +25,7 @@ class StoreController extends Controller
         $rules = [
             'assessment_period_id' => ['required_without:period_id', 'integer'],
             'period_id' => ['required_without:assessment_period_id', 'integer'],
+            'rater_role' => ['required', 'in:pegawai_medis,kepala_unit,kepala_poliklinik'],
             'target_user_id' => 'required|integer',
             'unit_id' => 'nullable|integer',
             'score' => 'required|integer|min:1|max:100',
@@ -35,6 +37,7 @@ class StoreController extends Controller
         $periodId = (int) ($validated['assessment_period_id'] ?? $validated['period_id']);
         $targetId = (int) $validated['target_user_id'];
         $score = (int) $validated['score'];
+        $raterRole = (string) ($validated['rater_role'] ?? 'pegawai_medis');
 
         $period = AssessmentPeriod::query()->find($periodId);
         if (!$period || $period->status !== AssessmentPeriod::STATUS_ACTIVE) {
@@ -54,7 +57,15 @@ class StoreController extends Controller
             ->select('id', 'unit_id', 'profession_id')
             ->findOrFail($raterId);
 
-        $assessorType = AssessorTypeResolver::resolve($assessor, $target);
+        $assessorProfessionId = AssessorProfessionResolver::resolve($assessor, $raterRole);
+        if (!$assessorProfessionId) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Profesi penilai belum diatur. Hubungi admin untuk melengkapi data profesi.',
+            ], 422);
+        }
+
+        $assessorType = AssessorTypeResolver::resolve($assessor, $target, (int) $assessorProfessionId);
         $unitId = $validated['unit_id'] ?? $target->unit_id;
 
         $window = Assessment360Window::where('assessment_period_id', $periodId)
@@ -105,6 +116,7 @@ class StoreController extends Controller
             [
                 'assessee_id' => $targetId,
                 'assessor_id' => $raterId,
+                'assessor_profession_id' => (int) $assessorProfessionId,
                 'assessor_type' => $assessorType,
                 'assessment_period_id' => $periodId,
             ],
@@ -151,7 +163,9 @@ class StoreController extends Controller
             ->filter()
             ->map(fn($id) => (int) $id);
 
-        $pending = $criteriaIds->diff($completed)->values();
+        // Pending should be based on eligible criteria for this assessor type (not the full unit criteria list).
+        $eligibleCriteriaIds = CriteriaResolver::filterCriteriaIdsByAssessorType($criteriaIds, $assessorType);
+        $pending = $eligibleCriteriaIds->diff($completed)->values();
 
         // Auto-submit when all criteria are filled for this target
         if ($pending->isEmpty() && $assessment->status !== 'submitted') {

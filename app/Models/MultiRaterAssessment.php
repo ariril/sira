@@ -10,7 +10,13 @@ class MultiRaterAssessment extends Model
     use HasFactory;
 
     protected $fillable = [
-        'assessee_id','assessor_id','assessor_type','assessment_period_id','status','submitted_at'
+        'assessee_id',
+        'assessor_id',
+        'assessor_profession_id',
+        'assessor_type',
+        'assessment_period_id',
+        'status',
+        'submitted_at',
     ];
 
     protected $casts = [
@@ -19,6 +25,7 @@ class MultiRaterAssessment extends Model
 
     public function assessee() { return $this->belongsTo(User::class, 'assessee_id'); }
     public function assessor() { return $this->belongsTo(User::class, 'assessor_id'); }
+    public function assessorProfession() { return $this->belongsTo(Profession::class, 'assessor_profession_id'); }
     public function period() { return $this->belongsTo(AssessmentPeriod::class, 'assessment_period_id'); }
     public function details() { return $this->hasMany(MultiRaterAssessmentDetail::class); }
 }

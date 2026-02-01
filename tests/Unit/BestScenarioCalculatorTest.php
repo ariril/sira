@@ -2,9 +2,9 @@
 
 namespace Tests\Unit;
 
-use App\Enums\ContributionValidationStatus;
 use App\Enums\ReviewStatus;
-use App\Models\AdditionalContribution;
+use App\Models\AdditionalTask;
+use App\Models\AdditionalTaskClaim;
 use App\Models\AssessmentPeriod;
 use App\Models\Attendance;
 use App\Models\CriteriaMetric;
@@ -49,7 +49,7 @@ class BestScenarioCalculatorTest extends TestCase
             // IMPORTANT: system criteria names must match CriteriaRegistry mapping.
             ['name' => 'Kehadiran (Absensi)', 'source' => 'system', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'aggregation_method' => 'sum', 'is_active' => 1],
             ['name' => 'Kedisiplinan (360)', 'source' => 'assessment_360', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => '360', 'is_360' => 1, 'aggregation_method' => 'avg', 'is_active' => 1],
-            ['name' => 'Kontribusi Tambahan', 'source' => 'system', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'aggregation_method' => 'sum', 'is_active' => 1],
+            ['name' => 'Tugas Tambahan', 'source' => 'system', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'aggregation_method' => 'sum', 'is_active' => 1],
             ['name' => 'Jumlah Pasien Ditangani', 'source' => 'metric_import', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'import', 'aggregation_method' => 'sum', 'is_active' => 1],
             ['name' => 'Rating', 'source' => 'system', 'type' => 'benefit', 'data_type' => 'numeric', 'input_method' => 'system', 'aggregation_method' => 'avg', 'is_active' => 1],
         ];
@@ -83,7 +83,7 @@ class BestScenarioCalculatorTest extends TestCase
 
         // Active criteria comes from configuration (unit_criteria_weights), not from totals.
         $attendanceId = (int) PerformanceCriteria::where('name', 'Kehadiran (Absensi)')->value('id');
-        $contributionId = (int) PerformanceCriteria::where('name', 'Kontribusi Tambahan')->value('id');
+        $contributionId = (int) PerformanceCriteria::where('name', 'Tugas Tambahan')->value('id');
         $pasienId = (int) PerformanceCriteria::where('name', 'Jumlah Pasien Ditangani')->value('id');
         $ratingId = (int) PerformanceCriteria::where('name', 'Rating')->value('id');
         $kedisiplinanId = (int) PerformanceCriteria::where('name', 'Kedisiplinan (360)')->value('id');
@@ -109,15 +109,27 @@ class BestScenarioCalculatorTest extends TestCase
             }
         }
 
-        // Kontribusi: user2 has 30 pts, user3 has 35 pts
-        foreach ([[$u2,30],[$u3,35]] as [$user,$score]) {
-            AdditionalContribution::create([
-                'user_id' => $user->id,
-                'title' => 'Kontribusi',
-                'submission_date' => $period->start_date,
-                'validation_status' => ContributionValidationStatus::APPROVED,
+        // Tugas Tambahan: user2 has 30 pts, user3 has 35 pts
+        foreach ([[$u2,30],[$u3,35]] as [$user,$points]) {
+            $task = AdditionalTask::create([
+                'unit_id' => $unit->id,
                 'assessment_period_id' => $period->id,
-                'score' => $score,
+                'title' => 'Tugas Tambahan',
+                'description' => 'Test',
+                'start_date' => $period->start_date,
+                'due_date' => $period->end_date,
+                'points' => $points,
+                'status' => 'open',
+                'created_by' => null,
+            ]);
+
+            AdditionalTaskClaim::create([
+                'additional_task_id' => $task->id,
+                'user_id' => $user->id,
+                'status' => 'approved',
+                'claimed_at' => now(),
+                'completed_at' => now(),
+                'awarded_points' => $points,
             ]);
         }
 

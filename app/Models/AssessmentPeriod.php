@@ -45,11 +45,6 @@ class AssessmentPeriod extends Model
         return $this->hasMany(Remuneration::class, 'assessment_period_id');
     }
 
-    public function additionalContributions()
-    {
-        return $this->hasMany(AdditionalContribution::class, 'assessment_period_id');
-    }
-
     /*
     |--------------------------------------------------------------------------
     | BUSINESS LOGIC

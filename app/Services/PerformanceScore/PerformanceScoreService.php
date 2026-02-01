@@ -299,6 +299,265 @@ class PerformanceScoreService
     }
 
     /**
+     * Hitung skor untuk SEMUA kriteria yang ada di database (real-time),
+     * tanpa menunggu bobot aktif. Total WSM tetap hanya menghitung bobot active.
+     *
+     * Dipakai untuk modul "Kinerja Saya" pada periode berjalan.
+     *
+     * @param array<int> $userIds
+     */
+    public function calculateAllCriteria(int $unitId, AssessmentPeriod $period, array $userIds, ?int $professionId = null): array
+    {
+        $unitId = (int) $unitId;
+        $userIds = array_values(array_unique(array_map('intval', $userIds)));
+
+        // Frozen period: prefer snapshot so results don't change even if criteria config changes.
+        $snapshot = $this->tryLoadSnapshotCalculation($period, $userIds);
+        if ($snapshot !== null) {
+            $snapshot['calculation_source'] = 'snapshot';
+            return $snapshot;
+        }
+
+        if ($unitId <= 0 || empty($userIds)) {
+            return ['users' => [], 'criteria_ids' => [], 'weights' => [], 'max_by_criteria' => [], 'min_by_criteria' => [], 'calculation_source' => 'live'];
+        }
+
+        $criteriaIds = PerformanceCriteria::query()
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(fn ($v) => (int) $v)
+            ->all();
+
+        if (empty($criteriaIds)) {
+            $usersOut = [];
+            foreach ($userIds as $uid) {
+                $usersOut[(int) $uid] = ['criteria' => [], 'total_wsm' => null, 'sum_weight' => 0.0];
+            }
+            return ['users' => $usersOut, 'criteria_ids' => [], 'weights' => [], 'max_by_criteria' => [], 'min_by_criteria' => [], 'calculation_source' => 'live'];
+        }
+
+        $weightsCfg = $this->resolveUnitWeightsForPeriod($unitId, $period);
+        $weightsAllRaw = (array) ($weightsCfg['weights_all'] ?? []);
+        $weightsActiveRaw = (array) ($weightsCfg['weights_active'] ?? []);
+        $statusRaw = (array) ($weightsCfg['status_by_criteria'] ?? []);
+
+        // Ensure every criteria has an explicit weight/status for display.
+        $weightsAllByCriteriaId = [];
+        $weightsActiveByCriteriaId = [];
+        $statusByCriteriaId = [];
+        foreach ($criteriaIds as $cid) {
+            $cid = (int) $cid;
+            $weightsAllByCriteriaId[$cid] = (float) ($weightsAllRaw[$cid] ?? 0.0);
+            $weightsActiveByCriteriaId[$cid] = (float) ($weightsActiveRaw[$cid] ?? 0.0);
+            $statusByCriteriaId[$cid] = (string) ($statusRaw[$cid] ?? 'missing');
+        }
+
+        $criteriaRows = PerformanceCriteria::query()
+            ->whereIn('id', $criteriaIds)
+            ->get([
+                'id',
+                'name',
+                'type',
+                'source',
+                'input_method',
+                'is_360',
+                'is_active',
+                'normalization_basis',
+                'custom_target_value',
+            ])
+            ->keyBy('id');
+
+        $agg = $this->aggregator->aggregateForCriteriaIds($period, $unitId, $userIds, $criteriaIds, $professionId);
+        $criteriaAgg = (array) ($agg['criteria'] ?? []);
+
+        // Precompute normalized values per criteria_id.
+        $normalizedByCriteriaId = [];
+        $rawByCriteriaId = [];
+        $sumRawByCriteriaId = [];
+        $basisByCriteriaId = [];
+        $basisValueByCriteriaId = [];
+        $customTargetByCriteriaId = [];
+        $readinessByCriteriaId = [];
+        foreach ($criteriaIds as $criteriaId) {
+            $criteriaId = (int) $criteriaId;
+            /** @var PerformanceCriteria|null $c */
+            $c = $criteriaRows->get($criteriaId);
+            if (!$c) {
+                $normalizedByCriteriaId[$criteriaId] = array_fill_keys($userIds, 0.0);
+                $rawByCriteriaId[$criteriaId] = array_fill_keys($userIds, 0.0);
+                $sumRawByCriteriaId[$criteriaId] = 0.0;
+                $readinessByCriteriaId[$criteriaId] = ['status' => 'missing_data', 'message' => 'Kriteria tidak ditemukan.'];
+                continue;
+            }
+
+            $key = $this->registry->keyForCriteria($c);
+            if (!$key) {
+                $normalizedByCriteriaId[$criteriaId] = array_fill_keys($userIds, 0.0);
+                $rawByCriteriaId[$criteriaId] = array_fill_keys($userIds, 0.0);
+                $sumRawByCriteriaId[$criteriaId] = 0.0;
+                $readinessByCriteriaId[$criteriaId] = ['status' => 'missing_data', 'message' => 'Collector untuk kriteria ini tidak tersedia.'];
+                continue;
+            }
+
+            $readiness = (array) (($criteriaAgg[$key]['readiness'] ?? null) ?: []);
+            $status = (string) ($readiness['status'] ?? 'missing_data');
+            $message = array_key_exists('message', $readiness) ? $readiness['message'] : null;
+
+            // Keep readiness aligned with the scoring scope.
+            if (str_starts_with($key, 'metric:')) {
+                $groupCount = (int) DB::table('imported_criteria_values')
+                    ->where('assessment_period_id', (int) $period->id)
+                    ->where('performance_criteria_id', (int) $criteriaId)
+                    ->whereIn('user_id', $userIds)
+                    ->count();
+
+                if ($groupCount <= 0) {
+                    $status = 'missing_data';
+                    $message = 'Data metric (import) untuk profesi/grup ini belum ada pada periode ini.';
+                } else {
+                    $status = 'ready';
+                    $message = null;
+                }
+            }
+
+            $readinessByCriteriaId[$criteriaId] = [
+                'status' => $status !== '' ? $status : 'missing_data',
+                'message' => $message,
+            ];
+
+            $rawByUser = (array) (($criteriaAgg[$key]['raw'] ?? []) ?: []);
+            foreach ($userIds as $uid) {
+                if (!array_key_exists((int) $uid, $rawByUser)) {
+                    $rawByUser[(int) $uid] = 0.0;
+                }
+            }
+            $rawByCriteriaId[$criteriaId] = $rawByUser;
+            $sumRawByCriteriaId[$criteriaId] = (float) array_sum(array_map('floatval', $rawByUser));
+
+            $criteriaType = (string) ($c?->type?->value ?? (string) ($c?->type ?? 'benefit'));
+            $criteriaType = $criteriaType === 'cost' ? 'cost' : 'benefit';
+
+            $basis = (string) (($c->normalization_basis ?? null) ?: 'total_unit');
+            if (!in_array($basis, ['total_unit', 'max_unit', 'average_unit', 'custom_target'], true)) {
+                $basis = 'total_unit';
+            }
+
+            $target = null;
+            if ($basis === 'custom_target') {
+                $targetVal = $c->custom_target_value !== null ? (float) $c->custom_target_value : null;
+                $target = ($targetVal !== null && $targetVal > 0.0) ? $targetVal : null;
+            }
+
+            $basisByCriteriaId[$criteriaId] = $basis;
+            $customTargetByCriteriaId[$criteriaId] = $target;
+
+            $norm = $this->normalizer->normalizeWithBasis(
+                $criteriaType,
+                $basis,
+                $rawByUser,
+                $userIds,
+                $target
+            );
+
+            $basisValueByCriteriaId[$criteriaId] = (float) ($norm['basis_value'] ?? 0.0);
+            $normalizedByCriteriaId[$criteriaId] = (array) ($norm['normalized'] ?? []);
+        }
+
+        // Max/min normalized per criteria for relative-unit score (0-100).
+        $maxNormByCriteriaId = [];
+        $minNormByCriteriaId = [];
+        foreach ($criteriaIds as $criteriaId) {
+            $criteriaId = (int) $criteriaId;
+            $max = 0.0;
+            $min = null;
+            foreach ($userIds as $uid) {
+                $val = (float) ($normalizedByCriteriaId[$criteriaId][(int) $uid] ?? 0.0);
+                $max = max($max, $val);
+                $min = $min === null ? $val : min($min, $val);
+            }
+            $maxNormByCriteriaId[$criteriaId] = $max;
+            $minNormByCriteriaId[$criteriaId] = $min !== null ? $min : 0.0;
+        }
+
+        // Build per-user output + total WSM.
+        $usersOut = [];
+        foreach ($userIds as $uid) {
+            $uid = (int) $uid;
+
+            $rows = [];
+            $sumWeightIncluded = 0.0;
+            $sumWeighted = 0.0;
+
+            foreach ($criteriaIds as $criteriaId) {
+                $criteriaId = (int) $criteriaId;
+                /** @var PerformanceCriteria|null $c */
+                $c = $criteriaRows->get($criteriaId);
+
+                $type = (string) ($c?->type?->value ?? (string) ($c?->type ?? 'benefit'));
+                $type = $type === 'cost' ? 'cost' : 'benefit';
+
+                $weight = (float) ($weightsAllByCriteriaId[$criteriaId] ?? 0.0);
+                $weightStatus = (string) ($statusByCriteriaId[$criteriaId] ?? 'unknown');
+                $activeWeight = (float) ($weightsActiveByCriteriaId[$criteriaId] ?? 0.0);
+                $isActive = $c ? (bool) $c->is_active : false;
+                $readinessStatus = (string) (($readinessByCriteriaId[$criteriaId]['status'] ?? 'missing_data') ?: 'missing_data');
+                $included = $isActive && $activeWeight > 0.0 && $readinessStatus === 'ready';
+
+                $normalized = (float) ($normalizedByCriteriaId[$criteriaId][$uid] ?? 0.0);
+                $maxNorm = (float) ($maxNormByCriteriaId[$criteriaId] ?? 0.0);
+
+                $relative = $maxNorm > 0.0 ? (($normalized / $maxNorm) * 100.0) : 0.0;
+                $relative = $this->clampPct($relative);
+
+                if ($included) {
+                    $sumWeightIncluded += $activeWeight;
+                    $sumWeighted += ($activeWeight * $relative);
+                }
+
+                $rows[] = [
+                    'criteria_id' => $criteriaId,
+                    'criteria_name' => $c ? (string) $c->name : ('Kriteria #' . $criteriaId),
+                    'type' => $type,
+                    'normalization_basis' => (string) ($basisByCriteriaId[$criteriaId] ?? 'total_unit'),
+                    'basis_value' => (float) ($basisValueByCriteriaId[$criteriaId] ?? 0.0),
+                    'custom_target_value' => $customTargetByCriteriaId[$criteriaId] ?? null,
+                    'max_normalized_in_scope' => (float) ($maxNormByCriteriaId[$criteriaId] ?? 0.0),
+                    'weight' => $included ? $activeWeight : $weight,
+                    'weight_status' => $included ? 'active' : $weightStatus,
+                    'is_active' => $isActive,
+                    'included_in_wsm' => $included,
+                    'readiness_status' => $readinessStatus,
+                    'readiness_message' => $readinessByCriteriaId[$criteriaId]['message'] ?? null,
+                    'raw' => (float) ($rawByCriteriaId[$criteriaId][$uid] ?? 0.0),
+                    'nilai_normalisasi' => round($normalized, 6),
+                    'nilai_relativ_unit' => round($relative, 6),
+                ];
+            }
+
+            $totalWsm = $sumWeightIncluded > 0.0 ? ($sumWeighted / $sumWeightIncluded) : null;
+
+            $usersOut[$uid] = [
+                'criteria' => $rows,
+                'total_wsm' => $totalWsm !== null ? round($totalWsm, 6) : null,
+                'sum_weight' => round($sumWeightIncluded, 6),
+            ];
+        }
+
+        return [
+            'users' => $usersOut,
+            'criteria_ids' => $criteriaIds,
+            'weights' => $weightsAllByCriteriaId,
+            'max_by_criteria' => $maxNormByCriteriaId,
+            'min_by_criteria' => $minNormByCriteriaId,
+            'sum_raw_by_criteria' => $sumRawByCriteriaId,
+            'basis_by_criteria' => $basisByCriteriaId,
+            'basis_value_by_criteria' => $basisValueByCriteriaId,
+            'custom_target_by_criteria' => $customTargetByCriteriaId,
+            'calculation_source' => 'live',
+        ];
+    }
+
+    /**
      * @param array<int> $userIds
      * @return array<string,mixed>|null
      */

@@ -6,6 +6,7 @@ use App\Enums\ReviewStatus;
 use App\Models\AssessmentPeriod;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Enums\RaterWeightStatus;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -135,6 +136,22 @@ class DashboardController extends Controller
                     'type' => 'warning',
                     'text' => $pendingUnitCount . ' unit menunggu persetujuan bobot.',
                     'href' => route('kepala_poliklinik.unit_criteria_weights.index', [], false) . '?status=pending',
+                ];
+            }
+        }
+
+        if ($scopeUnitIds->isNotEmpty() && Schema::hasTable('unit_rater_weights')) {
+            $pendingRaterUnitCount = DB::table('unit_rater_weights')
+                ->whereIn('unit_id', $scopeUnitIds)
+                ->where('status', RaterWeightStatus::PENDING->value)
+                ->distinct('unit_id')
+                ->count('unit_id');
+
+            if ($pendingRaterUnitCount > 0) {
+                $notifications[] = [
+                    'type' => 'warning',
+                    'text' => $pendingRaterUnitCount . ' unit menunggu persetujuan bobot penilai 360.',
+                    'href' => route('kepala_poliklinik.rater_weights.index', [], false) . '?status=pending',
                 ];
             }
         }

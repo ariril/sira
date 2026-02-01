@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\MedicalStaff;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdditionalTask;
+use App\Models\AdditionalTaskClaim;
 use App\Services\AdditionalTasks\AdditionalTaskStatusService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
@@ -14,7 +15,13 @@ use App\Support\AssessmentPeriodGuard;
 class AdditionalTaskController extends Controller
 {
     /**
-     * Daftar tugas tambahan yang masih tersedia untuk diklaim oleh pegawai medis.
+     * Dashboard tugas tambahan pegawai medis.
+     *
+     * Menyajikan 4 bagian UI:
+     * - Tugas tersedia untuk diklaim
+     * - Klaim berjalan
+     * - Riwayat klaim
+     * - Tugas yang tidak diklaim (terlewat)
      */
     public function index(): View
     {
@@ -23,7 +30,11 @@ class AdditionalTaskController extends Controller
 
         $activePeriod = AssessmentPeriodGuard::resolveActive();
 
-        $tasks = collect();
+        $availableTasks = collect();
+        $currentClaims = collect();
+        $historyClaims = collect();
+        $missedTasks = collect();
+
         if (
             Schema::hasTable('additional_tasks') &&
             Schema::hasTable('additional_task_claims') &&
@@ -34,9 +45,15 @@ class AdditionalTaskController extends Controller
             $tz = config('app.timezone');
             $now = Carbon::now($tz);
 
-            $tasks = AdditionalTask::query()
+            // 1) Tugas tersedia untuk diklaim
+            // NOTE: UI blade expects: claims_used, available, my_claim_status, period_name, supporting_file_url.
+            $availableTaskRows = AdditionalTask::query()
                 ->with(['period:id,name'])
-                ->withActiveClaimsCount()
+                ->withCount([
+                    'claims as claims_used' => function ($q) {
+                        $q->whereIn('status', AdditionalTaskStatusService::ACTIVE_STATUSES);
+                    },
+                ])
                 ->forUnit($me->unit_id)
                 ->forActivePeriod()
                 ->open()
@@ -44,28 +61,48 @@ class AdditionalTaskController extends Controller
                 ->orderByDesc('id')
                 ->get()
                 ->filter(function (AdditionalTask $task) use ($now, $tz) {
-                    if ($task->due_date) {
-                        $dueEnd = Carbon::parse($task->due_date, $tz)->endOfDay();
-                        if ($dueEnd->lessThan($now)) {
-                            return false;
-                        }
-                    }
-                    return true;
-                })
-                ->filter(function (AdditionalTask $task) {
-                    if (empty($task->max_claims)) {
+                    if (!$task->due_date) {
                         return true;
                     }
-                    return (int) $task->active_claims < (int) $task->max_claims;
+
+                    $deadlineTime = $task->due_time ?: '23:59:59';
+                    $deadlineDate = Carbon::parse($task->due_date)->toDateString();
+                    $deadline = Carbon::parse($deadlineDate . ' ' . $deadlineTime, $tz);
+                    return !$deadline->lessThan($now);
                 })
-                ->map(function (AdditionalTask $task) {
+                ->values();
+
+            $myClaimByTaskId = collect();
+            if ($availableTaskRows->isNotEmpty()) {
+                $taskIds = $availableTaskRows->pluck('id')->all();
+                $myClaims = AdditionalTaskClaim::query()
+                    ->select(['id', 'additional_task_id', 'status'])
+                    ->where('user_id', $me->id)
+                    ->whereIn('additional_task_id', $taskIds)
+                    ->whereIn('status', AdditionalTaskStatusService::ACTIVE_STATUSES)
+                    ->orderByDesc('id')
+                    ->get();
+
+                $myClaimByTaskId = $myClaims
+                    ->groupBy('additional_task_id')
+                    ->map(fn ($items) => $items->first());
+            }
+
+            $availableTasks = $availableTaskRows
+                ->map(function (AdditionalTask $task) use ($myClaimByTaskId) {
+                    $claimsUsed = (int) ($task->claims_used ?? 0);
+                    $maxClaims = $task->max_claims;
+                    $available = empty($maxClaims) ? true : ($claimsUsed < (int) $maxClaims);
+
+                    $myClaim = $myClaimByTaskId->get($task->id);
+
                     return (object) [
                         'id' => $task->id,
                         'title' => $task->title,
+                        'description' => $task->description,
                         'period_name' => $task->period?->name,
-                        'due_date' => $task->due_date
-                            ? Carbon::parse($task->due_date)->translatedFormat('d M Y')
-                            : '-',
+                        'due_date' => $task->due_date,
+                        'due_time' => $task->due_time,
                         'points' => $task->points,
                         'bonus_amount' => $task->bonus_amount,
                         'cancel_window_hours' => (int) ($task->cancel_window_hours ?? 24),
@@ -73,15 +110,77 @@ class AdditionalTaskController extends Controller
                         'default_penalty_value' => (float) ($task->default_penalty_value ?? 0),
                         'penalty_base' => (string) ($task->penalty_base ?? 'task_bonus'),
                         'max_claims' => $task->max_claims,
-                        'active_claims' => $task->active_claims,
+
+                        'claims_used' => $claimsUsed,
+                        'available' => $available,
+                        'my_claim_status' => $myClaim?->status,
+
                         'supporting_file_url' => $task->policy_doc_path
-                            ? asset('storage/'.ltrim($task->policy_doc_path, '/'))
+                            ? asset('storage/' . ltrim($task->policy_doc_path, '/'))
                             : null,
                     ];
                 })
                 ->values();
+
+            // 2) Klaim berjalan (periode aktif)
+            $claimsActivePeriod = AdditionalTaskClaim::query()
+                ->with(['task.period'])
+                ->where('user_id', $me->id)
+                ->whereIn('status', ['active', 'submitted', 'validated'])
+                ->whereHas('task', function ($q) use ($me) {
+                    $q->forUnit($me->unit_id)->forActivePeriod();
+                })
+                ->orderByDesc('id')
+                ->get();
+
+            $currentClaims = $claimsActivePeriod->values();
+
+            // 3) Riwayat klaim (semua periode, untuk referensi)
+            $historyClaims = AdditionalTaskClaim::query()
+                ->with(['task.period', 'reviewedBy:id,name'])
+                ->where('user_id', $me->id)
+                ->whereHas('task', function ($q) use ($me) {
+                    $q->forUnit($me->unit_id);
+                })
+                ->whereNotIn('status', ['active', 'submitted', 'validated'])
+                ->orderByDesc('id')
+                ->limit(100)
+                ->get();
+
+            // 4) Tugas tidak diklaim (terlewat) untuk periode aktif
+            if ($activePeriod) {
+                $missedTasks = AdditionalTask::query()
+                    ->with(['period:id,name'])
+                    ->forUnit($me->unit_id)
+                    ->forActivePeriod()
+                    ->notDraft()
+                    ->excludeCreator($me->id)
+                    ->whereDoesntHave('claims', function ($q) use ($me) {
+                        $q->where('user_id', $me->id);
+                    })
+                    ->orderByDesc('id')
+                    ->get()
+                    ->filter(function (AdditionalTask $task) use ($now, $tz) {
+                        $duePassed = false;
+                        if ($task->due_date) {
+                            $deadlineTime = $task->due_time ?: '23:59:59';
+                            $deadlineDate = Carbon::parse($task->due_date)->toDateString();
+                            $deadline = Carbon::parse($deadlineDate . ' ' . $deadlineTime, $tz);
+                            $duePassed = $deadline->lessThan($now);
+                        }
+
+                        return $duePassed || $task->status !== 'open';
+                    })
+                    ->values();
+            }
         }
 
-            return view('pegawai_medis.additional_tasks.index', [ 'tasks' => $tasks, 'activePeriod' => $activePeriod ]);
+        return view('pegawai_medis.additional_tasks.index', [
+            'activePeriod' => $activePeriod,
+            'availableTasks' => $availableTasks,
+            'currentClaims' => $currentClaims,
+            'historyClaims' => $historyClaims,
+            'missedTasks' => $missedTasks,
+        ]);
     }
 }

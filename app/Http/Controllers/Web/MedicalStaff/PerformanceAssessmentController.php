@@ -30,16 +30,20 @@ class PerformanceAssessmentController extends Controller
             return redirect()->route('pegawai_medis.assessments.index');
         }
 
+        $visiblePeriodStatuses = [
+            AssessmentPeriod::STATUS_APPROVAL,
+            AssessmentPeriod::STATUS_CLOSED,
+            AssessmentPeriod::STATUS_ARCHIVED,
+        ];
+
         $assessments = PerformanceAssessment::with('assessmentPeriod')
             ->where('user_id', Auth::id())
+            ->whereHas('assessmentPeriod', fn($q) => $q->whereIn('status', $visiblePeriodStatuses))
             ->orderByDesc('id')
             ->paginate(10);
-
-        $activePeriodId = (int) (DB::table('assessment_periods')->where('status', AssessmentPeriod::STATUS_ACTIVE)->value('id') ?? 0);
         $unitId = (int) (Auth::user()?->unit_id ?? 0);
 
         $kinerjaTotalsByAssessmentId = [];
-        $activePeriodHasWeights = null;
 
         if ($unitId > 0) {
             $user = Auth::user();
@@ -68,13 +72,10 @@ class PerformanceAssessmentController extends Controller
                     $kinerjaTotalsByAssessmentId[(int) $a->id] = $score;
                 }
 
-                if ((int) $pid === $activePeriodId) {
-                    $activePeriodHasWeights = $userRow ? (((float) ($userRow['sum_weight'] ?? 0.0)) > 0.0) : false;
-                }
             }
         }
 
-        return view('pegawai_medis.assessments.index', compact('assessments', 'kinerjaTotalsByAssessmentId', 'activePeriodHasWeights'));
+        return view('pegawai_medis.assessments.index', compact('assessments', 'kinerjaTotalsByAssessmentId'));
     }
 
     /**

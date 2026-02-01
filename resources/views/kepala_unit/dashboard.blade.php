@@ -46,7 +46,7 @@
                          accent="from-amber-500 to-orange-600"/>
             <x-stat-card label="Kinerja Rata-rata" value="{{ $stats['avg_wsm'] ?? '—' }}" icon="fa-gauge"
                          accent="from-amber-500 to-orange-600"/>
-            <x-stat-card label="Kontribusi Tambahan" value="{{ $stats['add_tasks'] ?? 0 }}" icon="fa-list-check"
+            <x-stat-card label="Tugas Tambahan" value="{{ $stats['add_tasks'] ?? 0 }}" icon="fa-list-check"
                          accent="from-amber-500 to-orange-600"/>
         </div>
     </div>

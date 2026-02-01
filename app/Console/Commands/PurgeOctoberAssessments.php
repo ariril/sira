@@ -57,13 +57,6 @@ class PurgeOctoberAssessments extends Command
                 ->count();
         }
 
-        $contribCount = 0;
-        if (Schema::hasTable('additional_contributions')) {
-            $contribCount = (int) DB::table('additional_contributions')
-                ->where('assessment_period_id', $periodId)
-                ->count();
-        }
-
         $mraCount = 0;
         $mraDetailCount = 0;
         if (Schema::hasTable('multi_rater_assessments')) {
@@ -164,7 +157,6 @@ class PurgeOctoberAssessments extends Command
         $this->line("performance_assessments to delete: {$paCount}");
         $this->line("performance_assessment_details (join) to delete: {$detailCount}");
         $this->line("assessment_approvals (join) to delete: {$approvalCount}");
-        $this->line("additional_contributions to delete: {$contribCount}");
         $this->line("multi_rater_assessments to delete: {$mraCount}");
         $this->line("multi_rater_assessment_details (join) to delete: {$mraDetailCount}");
         $this->line("metric_import_batches to delete: {$metricBatchCount}");
@@ -184,13 +176,6 @@ class PurgeOctoberAssessments extends Command
         }
 
         DB::transaction(function () use ($periodId) {
-            // RAW inputs
-            if (Schema::hasTable('additional_contributions')) {
-                DB::table('additional_contributions')
-                    ->where('assessment_period_id', $periodId)
-                    ->delete();
-            }
-
             if (Schema::hasTable('multi_rater_assessments')) {
                 DB::table('multi_rater_assessments')
                     ->where('assessment_period_id', $periodId)
@@ -283,13 +268,6 @@ class PurgeOctoberAssessments extends Command
                 ->count();
         }
 
-        $contribAfter = 0;
-        if (Schema::hasTable('additional_contributions')) {
-            $contribAfter = (int) DB::table('additional_contributions')
-                ->where('assessment_period_id', $periodId)
-                ->count();
-        }
-
         $mraAfter = 0;
         if (Schema::hasTable('multi_rater_assessments')) {
             $mraAfter = (int) DB::table('multi_rater_assessments')
@@ -342,7 +320,6 @@ class PurgeOctoberAssessments extends Command
         $this->line("performance_assessments remaining: {$paAfter}");
         $this->line("performance_assessment_details (join) remaining: {$detailAfter}");
         $this->line("assessment_approvals (join) remaining: {$approvalAfter}");
-        $this->line("additional_contributions remaining: {$contribAfter}");
         $this->line("multi_rater_assessments remaining: {$mraAfter}");
         $this->line("metric_import_batches remaining: {$metricBatchAfter}");
         $this->line("imported_criteria_values remaining: {$metricValueAfter}");

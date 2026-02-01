@@ -55,7 +55,9 @@ class PerformanceCriteriaController extends Controller
             'Jam Kerja (Absensi)',
             'Lembur (Absensi)',
             'Keterlambatan (Absensi)',
+            // Legacy name kept for backward compatibility.
             'Kontribusi Tambahan',
+            'Tugas Tambahan',
             'Rating',
         ];
     }

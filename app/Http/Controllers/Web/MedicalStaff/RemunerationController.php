@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Models\AssessmentPeriod;
 use App\Models\PerformanceAssessment;
 use App\Models\Remuneration;
-use App\Models\AdditionalContribution;
 use App\Models\UnitRemunerationAllocation as Allocation;
 use App\Enums\AssessmentValidationStatus;
 use Illuminate\Http\Request;
@@ -188,13 +187,6 @@ class RemunerationController extends Controller
         $period = $remuneration->assessmentPeriod;
         $userId = Auth::id();
 
-        // Kontribusi tambahan pada periode remunerasi ini
-        $contributions = AdditionalContribution::query()
-            ->where('user_id', $userId)
-            ->where('assessment_period_id', optional($period)->id)
-            ->orderBy('submission_date', 'desc')
-            ->get(['id','title','validation_status']);
-
         // Jumlah review pada rentang tanggal periode
         $reviewCount = 0;
         if ($period && $period->start_date && $period->end_date) {
@@ -230,13 +222,11 @@ class RemunerationController extends Controller
             ['label' => 'Kedisiplinan 360', 'value' => data_get($calc, 'komponen.kedisiplinan.jumlah'), 'icon' => 'fa-clipboard-check'],
             ['label' => 'Pasien Ditangani', 'value' => $patientsHandled ?? data_get($calc, 'komponen.pasien_ditangani.jumlah'), 'icon' => 'fa-user-injured'],
             ['label' => 'Jumlah Review', 'value' => $reviewCount ?: data_get($calc, 'komponen.review_pelanggan.jumlah'), 'icon' => 'fa-star'],
-            ['label' => 'Kontribusi Tambahan', 'value' => $contributions->count(), 'icon' => 'fa-hand-holding-heart'],
         ];
 
         return view('pegawai_medis.remunerations.show', [
             'item' => $remuneration,
             'reviewCount' => $reviewCount,
-            'contributions' => $contributions,
             'patientsHandled' => $patientsHandled,
             'calc' => $calc,
             'allocationAmount' => $allocationAmount,

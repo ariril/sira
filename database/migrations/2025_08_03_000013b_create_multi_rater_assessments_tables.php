@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('assessee_id')->constrained('users')->cascadeOnDelete();
             $table->foreignId('assessor_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('assessor_profession_id')->nullable()->constrained('professions')->nullOnDelete();
             $table->enum('assessor_type', ['self','supervisor','peer','subordinate']);
             $table->foreignId('assessment_period_id')->constrained('assessment_periods')->cascadeOnDelete();
             $table->enum('status', ['invited','in_progress','submitted','cancelled'])->default('invited');
@@ -20,8 +21,8 @@ return new class extends Migration
 
             $table->index(['assessee_id','assessment_period_id']);
             $table->unique(
-                ['assessee_id', 'assessment_period_id', 'assessor_type', 'assessor_id'],
-                'uniq_mra_once_per_assessor_type'
+                ['assessee_id', 'assessment_period_id', 'assessor_type', 'assessor_id', 'assessor_profession_id'],
+                'uniq_mra_once_per_assessor_type_and_profession'
             );
         });
 

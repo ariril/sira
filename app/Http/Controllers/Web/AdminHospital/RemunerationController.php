@@ -129,7 +129,7 @@ class RemunerationController extends Controller
         * Run remuneration calculation for a given period using configured WSM scores.
         * Each published unit allocation is distributed proporsional to skor WSM
         * (sumber: performance_assessments.total_wsm_score). Tetap menambahkan bonus
-        * kontribusi tambahan yang disetujui sebagai penyesuaian akhir.
+        * tugas tambahan yang disetujui sebagai penyesuaian akhir.
      */
         public function runCalculation(Request $request): RedirectResponse
     {
@@ -167,22 +167,13 @@ class RemunerationController extends Controller
             ->whereNotNull('published_at')
             ->get();
 
-        // Tambah kontribusi tambahan yang disetujui (bonus_awarded) pada periode ini
-        $approvedContribs = DB::table('additional_contributions')
-            ->selectRaw('user_id, COALESCE(SUM(bonus_awarded),0) as total_bonus')
-            ->where('assessment_period_id', $periodId)
-            ->where('validation_status', 'Disetujui')
-            ->groupBy('user_id')
-            ->pluck('total_bonus', 'user_id');
-
         $actorId = (int) Auth::id();
-        DB::transaction(function () use ($allocations, $period, $periodId, $approvedContribs, $actorId) {
+        DB::transaction(function () use ($allocations, $period, $periodId, $actorId) {
             foreach ($allocations as $alloc) {
                 $this->distributeAllocation(
                     $alloc,
                     $period,
                     $periodId,
-                    $approvedContribs,
                     $alloc->profession_id,
                     (float) $alloc->amount,
                     $actorId
@@ -300,7 +291,7 @@ class RemunerationController extends Controller
         }
     }
 
-    private function distributeAllocation(Allocation $alloc, $period, int $periodId, $approvedContribs, ?int $professionId = null, ?float $overrideAmount = null, ?int $actorId = null): void
+    private function distributeAllocation(Allocation $alloc, $period, int $periodId, ?int $professionId = null, ?float $overrideAmount = null, ?int $actorId = null): void
     {
         $users = User::query()
             ->where('unit_id', $alloc->unit_id)

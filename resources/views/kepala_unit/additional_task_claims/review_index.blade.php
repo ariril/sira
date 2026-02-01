@@ -6,23 +6,21 @@
 
 <x-app-layout title="Review Klaim Tugas Tambahan">
     <x-slot name="header">
-        <div class="flex flex-col gap-2">
-            <p class="text-xs uppercase tracking-wide text-slate-500">Dashboard Kepala Unit</p>
-            <h1 class="text-3xl font-semibold text-slate-900">Review Klaim Tugas Tambahan</h1>
-            <p class="text-sm text-slate-500">Validasi atau setujui klaim yang sudah dikirim pegawai medis sebelum jatuh tempo penugasan.</p>
+        <div class="flex flex-col gap-1">
+            <h1 class="text-2xl font-semibold text-slate-900">Review Klaim Tugas Tambahan</h1>
         </div>
     </x-slot>
 
-    <div class="container-px py-6 space-y-6">
+    <div class="container-px py-5 space-y-6">
         @php
             $statusFlash = Arr::first(Arr::wrap(session()->pull('status')));
-        @endphp
+        @endphp 
         @if ($statusFlash)
             <div class="rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-800 px-4 py-3 text-sm">
                 {{ $statusFlash }}</div>
         @endif
 
-        <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm flex flex-col gap-3 text-sm text-slate-600">
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm flex flex-col gap-2 text-sm text-slate-600">
             <div class="flex items-center justify-between gap-3">
                 <div class="flex items-center gap-3">
                     <div class="h-11 w-11 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center text-lg">
@@ -33,7 +31,6 @@
                         <p class="text-xs text-slate-500">Gunakan tombol aksi sesuai status saat ini. Klaim yang ditolak sebelum tenggat akan membuka kembali tugas untuk pegawai.</p>
                     </div>
                 </div>
-                <span class="px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-100">Kepala Unit</span>
             </div>
         </div>
 
