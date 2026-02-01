@@ -679,7 +679,6 @@ class EightStaffKpiSeeder extends Seeder
                 $row = [
                     'performance_assessment_id' => $assessmentId,
                     'performance_criteria_id' => $critId,
-                    'criteria_metric_id' => null,
                     'score' => (float) $baseScore,
                     'created_at' => $now,
                     'updated_at' => $now,

@@ -256,7 +256,6 @@ class PeriodPerformanceAssessmentService
                             'performance_criteria_id' => $criteriaId,
                         ],
                         [
-                            'criteria_metric_id' => null,
                             'score' => $score,
                             'meta' => [
                                 'raw_value' => $rawValue,

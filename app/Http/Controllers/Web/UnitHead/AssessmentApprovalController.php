@@ -148,13 +148,11 @@ class AssessmentApprovalController extends Controller
         $approvalSvc->assertCanViewPerformanceAssessment(Auth::user(), $pa);
 
         $breakdown = $detailSvc->getBreakdown($pa);
-        $raw = $detailSvc->getRawImportedValues($pa);
 
         return view('shared.assessment_approval_detail', [
             'approval' => $assessment,
             'pa' => $pa,
             'breakdown' => $breakdown,
-            'rawValues' => $raw,
             'backUrl' => route('kepala_unit.assessments.pending'),
         ]);
     }

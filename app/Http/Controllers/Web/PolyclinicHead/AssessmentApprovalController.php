@@ -177,13 +177,11 @@ class AssessmentApprovalController extends Controller
         }
 
         $breakdown = $detailSvc->getBreakdown($pa);
-        $raw = $detailSvc->getRawImportedValues($pa);
 
         return view('shared.assessment_approval_detail', [
             'approval' => $assessment,
             'pa' => $pa,
             'breakdown' => $breakdown,
-            'rawValues' => $raw,
             'backUrl' => route('kepala_poliklinik.assessments.pending'),
         ]);
     }

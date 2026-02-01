@@ -76,37 +76,6 @@
             @endif
         </div>
 
-        {{-- Raw Supporting Data --}}
-        <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
-            <h2 class="text-lg font-semibold mb-4">Data Pendukung (Impor)</h2>
-
-            <x-ui.table min-width="900px">
-                <x-slot name="head">
-                    <tr>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Kriteria</th>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Nilai Numeric</th>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Nilai Datetime</th>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Nilai Text</th>
-                        <th class="px-6 py-4 text-left whitespace-nowrap">Batch</th>
-                    </tr>
-                </x-slot>
-
-                @forelse($rawValues as $rv)
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-6 py-4">{{ $rv->criteria_name ?? ('Kriteria #' . ($rv->performance_criteria_id ?? '-')) }}</td>
-                        <td class="px-6 py-4">{{ $rv->value_numeric ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $rv->value_datetime ? \Illuminate\Support\Carbon::parse($rv->value_datetime)->format('d M Y H:i') : '-' }}</td>
-                        <td class="px-6 py-4">{{ $rv->value_text ?? '-' }}</td>
-                        <td class="px-6 py-4">{{ $rv->batch_file ?? '-' }}</td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-slate-500">Tidak ada data import untuk penilaian ini.</td>
-                    </tr>
-                @endforelse
-            </x-ui.table>
-        </div>
-
         {{-- Approval History --}}
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div class="flex items-center justify-between gap-3 mb-4">
